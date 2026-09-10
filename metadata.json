@@ -1,0 +1,6 @@
+{
+  "name": "Wisdom Tower Academy",
+  "description": "Ethiopian education platform delivering freshman and professional test prep packages with secure offline learning.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
