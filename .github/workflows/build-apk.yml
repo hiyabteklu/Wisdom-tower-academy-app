@@ -66,13 +66,22 @@ jobs:
           ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
-      - name: Show build log on failure
-        if: steps.build.outcome == 'failure'
+      - name: Always show build errors
+        if: always()
         run: |
-          echo "======== BUILD LOG (last 200 lines) ========"
-          tail -n 200 build.log || true
-          echo "======== FULL ERROR SEARCH ========"
-          grep -i -E "error:|FAILED|What went wrong|Exception" build.log | tail -n 80 || true
+          echo "======== BUILD LOG (last 250 lines) ========"
+          tail -n 250 build.log || true
+          echo "======== ERROR / FAILED LINES ========"
+          grep -i -E "error:|e: |FAILED|What went wrong|Unresolved|Exception|Compilation" build.log | tail -n 100 || true
+
+      - name: Upload build.log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: build.log
+          retention-days: 7
+          if-no-files-found: ignore
 
       - name: Fail if build failed
         if: steps.build.outcome == 'failure'
