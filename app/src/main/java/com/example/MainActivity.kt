@@ -14,8 +14,11 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
@@ -43,6 +46,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // Prevent screenshots & screen recording (FLAG_SECURE)
         window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // Enable edge to edge for proper safe area handling
         enableEdgeToEdge()
         
         setContent {
@@ -55,7 +59,7 @@ class MainActivity : ComponentActivity() {
 
 sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: String) {
     object Home : BottomNavItem("Home", Icons.Filled.Home, "https://wisdom-tower-academy.live/")
-    object Learning : BottomNavItem("Learning", Icons.Filled.MenuBook, "https://wisdom-tower-academy.live/my-learning")
+    object Learning : BottomNavItem("Learning", Icons.Filled.MenuBook, "https://wisdom-tower-academy.live/learning")
     object Packages : BottomNavItem("Packages", Icons.Filled.ViewList, "https://wisdom-tower-academy.live/packages")
     object Account : BottomNavItem("Account", Icons.Filled.Person, "https://wisdom-tower-academy.live/account")
 }
@@ -79,14 +83,23 @@ fun MainScreen() {
     }
 
     Scaffold(
+        modifier = Modifier.fillMaxSize(),
+        contentWindowInsets = WindowInsets.safeDrawing, // Automatically handle status bar & gesture bar
         bottomBar = {
             NavigationBar(
                 containerColor = Color(0xFF0F172A), // Dark navy slate color
                 contentColor = Color.White
             ) {
                 items.forEach { item ->
-                    val isSelected = currentUrl.startsWith(item.url) && 
-                        (item != BottomNavItem.Home || currentUrl == item.url || currentUrl == "https://wisdom-tower-academy.live")
+                    // Strip query params and trailing slashes for robust matching
+                    val normalizedCurrentUrl = currentUrl.substringBefore("?").removeSuffix("/")
+                    val normalizedItemUrl = item.url.substringBefore("?").removeSuffix("/")
+                    
+                    val isSelected = if (item == BottomNavItem.Home) {
+                        normalizedCurrentUrl == "https://wisdom-tower-academy.live"
+                    } else {
+                        normalizedCurrentUrl.startsWith(normalizedItemUrl)
+                    }
                         
                     NavigationBarItem(
                         icon = { Icon(item.icon, contentDescription = item.title) },
@@ -119,7 +132,12 @@ fun MainScreen() {
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
+                            databaseEnabled = true
                             cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK // Aggressive caching
+                            useWideViewPort = true
+                            loadWithOverviewMode = true
+                            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
+                            
                             // Custom User-Agent so the website can know it's the app
                             userAgentString = userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
                         }
@@ -129,20 +147,32 @@ fun MainScreen() {
                                 return false // Let the WebView load the URL
                             }
                             
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: Bitmap?) {
-                                super.onPageStarted(view, url, favicon)
-                            }
-                            
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                // Inject JS to hide header and footer 
-                                view?.evaluateJavascript("""
+                                // Inject advanced JS to hide header, footer, bottom nav, social links, terms, etc.
+                                val jsInjection = """
                                     (function() {
                                         var style = document.createElement('style');
-                                        style.innerHTML = 'header, footer, nav { display: none !important; }';
+                                        style.innerHTML = `
+                                            header, footer, nav,
+                                            [class*="header"], [class*="footer"], [class*="nav"],
+                                            a[href*="terms"], a[href*="privacy"],
+                                            a[href*="facebook"], a[href*="twitter"], a[href*="instagram"], a[href*="linkedin"] {
+                                                display: none !important;
+                                            }
+                                            body {
+                                                padding-top: 0 !important;
+                                                padding-bottom: 0 !important;
+                                                min-height: 100vh !important;
+                                            }
+                                            main {
+                                                min-height: 100vh !important;
+                                            }
+                                        `;
                                         document.head.appendChild(style);
                                     })();
-                                """.trimIndent(), null)
+                                """.trimIndent()
+                                view?.evaluateJavascript(jsInjection, null)
                             }
                             
                             override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
