@@ -56,6 +56,8 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Business
@@ -107,11 +109,6 @@ private val Muted = Color(0xFF94A3B8)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Temporarily disabled so screenshots / screen recording work for debugging
-        // window.setFlags(
-        //     WindowManager.LayoutParams.FLAG_SECURE,
-        //     WindowManager.LayoutParams.FLAG_SECURE
-        // )
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = false
@@ -138,6 +135,9 @@ private data class MenuLink(
 )
 
 private val overflowMenuLinks = listOf(
+    MenuLink("Settings", "https://wisdom-tower-academy.live/settings", Icons.Filled.Settings),
+    MenuLink("My account", "https://wisdom-tower-academy.live/account", Icons.Filled.Person),
+    MenuLink("Sign out", "https://wisdom-tower-academy.live/logout", Icons.AutoMirrored.Filled.Logout),
     MenuLink("About", "https://wisdom-tower-academy.live/about", Icons.Filled.Info),
     MenuLink("Contact us", "https://wisdom-tower-academy.live/contact", Icons.Outlined.Email),
     MenuLink("FAQ", "https://wisdom-tower-academy.live/academy/faq", Icons.Outlined.HelpOutline),
@@ -281,7 +281,7 @@ fun MainScreen() {
                                             Icon(
                                                 imageVector = link.icon,
                                                 contentDescription = null,
-                                                tint = Accent,
+                                                tint = if (link.label == "Sign out") Color(0xFFF87171) else Accent,
                                                 modifier = Modifier.size(20.dp)
                                             )
                                         },
@@ -296,36 +296,16 @@ fun MainScreen() {
                                                     navigateTo(link.url)
                                                 }
                                             } else {
-                                                navigateTo(link.url)
+                                                val tab = when {
+                                                    link.url.contains("/account") -> 3
+                                                    link.url.contains("/settings") -> 3
+                                                    else -> null
+                                                }
+                                                navigateTo(link.url, tab)
                                             }
                                         }
                                     )
                                 }
-                                HorizontalDivider(
-                                    modifier = Modifier.padding(vertical = 4.dp),
-                                    color = Color.White.copy(alpha = 0.12f)
-                                )
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            text = "My account",
-                                            color = Color.White,
-                                            fontSize = 15.sp
-                                        )
-                                    },
-                                    leadingIcon = {
-                                        Icon(
-                                            imageVector = Icons.Filled.Person,
-                                            contentDescription = null,
-                                            tint = Accent,
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    },
-                                    onClick = {
-                                        menuExpanded = false
-                                        navigateTo("https://wisdom-tower-academy.live/account", 3)
-                                    }
-                                )
                             }
                         }
 
@@ -538,13 +518,21 @@ fun MainScreen() {
                                     super.onPageFinished(view, url)
                                     pageLoading = false
 
+                                    if (url != null && url.contains("/logout")) {
+                                        try {
+                                            CookieManager.getInstance().removeAllCookies(null)
+                                            CookieManager.getInstance().flush()
+                                        } catch (_: Exception) { }
+                                    }
+
                                     if (url != null && !url.startsWith("file://")) {
                                         val path = url.substringBefore("?").removeSuffix("/")
                                         selectedIndex = when {
                                             path.contains("/learning") || path.contains("/my-learning") -> 1
                                             path.contains("/packages") -> 2
-                                            path.contains("/account") || path.contains("/login") ||
-                                                path.contains("/auth") || path.contains("accounts.google") -> 3
+                                            path.contains("/account") || path.contains("/settings") ||
+                                                path.contains("/login") || path.contains("/auth") ||
+                                                path.contains("/logout") -> 3
                                             else -> 0
                                         }
                                     }
