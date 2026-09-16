@@ -3,6 +3,7 @@ package com.example
 import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.ViewGroup
+import android.webkit.CookieManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -71,7 +72,6 @@ fun MainScreen() {
         BottomNavItem.Account
     )
 
-    // Explicit selected tab index — always highlights correctly when user taps a tab
     var selectedIndex by remember { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
 
@@ -117,50 +117,38 @@ fun MainScreen() {
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
 
-                        // CRITICAL: Do NOT use LAYER_TYPE_SOFTWARE on real devices.
-                        // Software rendering causes extreme scroll lag (5–6 swipes per card).
-                        // Hardware acceleration is required for normal WebView performance.
+                        // Do NOT use LAYER_TYPE_SOFTWARE — it causes extreme scroll lag on real devices.
 
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
                             databaseEnabled = true
-                            // Prefer network when online so content stays fresh;
-                            // still uses HTTP cache for images/assets
                             cacheMode = WebSettings.LOAD_DEFAULT
                             useWideViewPort = true
                             loadWithOverviewMode = true
                             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                            // Smooth scrolling / better touch
                             setSupportZoom(false)
                             builtInZoomControls = false
                             displayZoomControls = false
                             mediaPlaybackRequiresUserGesture = false
-                            // Keep cookies / localStorage for login session
-                            // (domStorageEnabled already true)
                             userAgentString =
                                 userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
                         }
 
-                        // Enable cookies for Google / site login to stick
-                        android.webkit.CookieManager.getInstance().apply {
-                            setAcceptCookie(true)
-                            setAcceptThirdPartyCookies(this@apply, true)
-                        }
+                        // Cookies for Google / site login
+                        val cookieManager = CookieManager.getInstance()
+                        cookieManager.setAcceptCookie(true)
+                        cookieManager.setAcceptThirdPartyCookies(this, true)
 
                         webViewClient = object : WebViewClient() {
                             override fun shouldOverrideUrlLoading(
                                 view: WebView?,
                                 request: WebResourceRequest?
-                            ): Boolean {
-                                // Keep everything inside the WebView (including Google login)
-                                return false
-                            }
+                            ): Boolean = false
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
 
-                                // Update bottom tab highlight from current URL
                                 url?.let { u ->
                                     val path = u.substringBefore("?").removeSuffix("/")
                                     selectedIndex = when {
@@ -172,7 +160,6 @@ fun MainScreen() {
                                     }
                                 }
 
-                                // Light CSS hide — run once per page, no heavy MutationObserver loop
                                 val js = """
                                     (function() {
                                         if (document.getElementById('wta-app-chrome')) return;
@@ -198,7 +185,7 @@ fun MainScreen() {
                         webView = this
                     }
                 },
-                update = { /* keep same WebView instance */ }
+                update = { }
             )
         }
     }
