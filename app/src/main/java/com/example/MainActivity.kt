@@ -1,10 +1,8 @@
 package com.example
 
 import android.annotation.SuppressLint
-import android.graphics.Bitmap
 import android.os.Bundle
 import android.view.ViewGroup
-import android.view.WindowManager
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -18,7 +16,6 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
@@ -32,6 +29,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -44,12 +42,10 @@ import com.example.ui.theme.MyApplicationTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // Prevent screenshots & screen recording (FLAG_SECURE)
-        // Temporarily disabled so we can take screenshots of errors
+        // FLAG_SECURE temporarily disabled for debugging screenshots
         // window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
-        // Enable edge to edge for proper safe area handling
         enableEdgeToEdge()
-        
+
         setContent {
             MyApplicationTheme {
                 MainScreen()
@@ -68,9 +64,6 @@ sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: St
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun MainScreen() {
-    var currentUrl by remember { mutableStateOf(BottomNavItem.Home.url) }
-    var webView: WebView? by remember { mutableStateOf(null) }
-
     val items = listOf(
         BottomNavItem.Home,
         BottomNavItem.Learning,
@@ -78,36 +71,29 @@ fun MainScreen() {
         BottomNavItem.Account
     )
 
-    // Handle system back button to navigate within WebView
+    // Explicit selected tab index — always highlights correctly when user taps a tab
+    var selectedIndex by remember { mutableIntStateOf(0) }
+    var webView: WebView? by remember { mutableStateOf(null) }
+
     BackHandler(enabled = webView?.canGoBack() == true) {
         webView?.goBack()
     }
 
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        contentWindowInsets = WindowInsets.safeDrawing, // Automatically handle status bar & gesture bar
+        contentWindowInsets = WindowInsets.safeDrawing,
         bottomBar = {
             NavigationBar(
-                containerColor = Color(0xFF0F172A), // Dark navy slate color
+                containerColor = Color(0xFF0F172A),
                 contentColor = Color.White
             ) {
-                items.forEach { item ->
-                    // Strip query params and trailing slashes for robust matching
-                    val normalizedCurrentUrl = currentUrl.substringBefore("?").removeSuffix("/")
-                    val normalizedItemUrl = item.url.substringBefore("?").removeSuffix("/")
-                    
-                    val isSelected = if (item == BottomNavItem.Home) {
-                        normalizedCurrentUrl == "https://wisdom-tower-academy.live"
-                    } else {
-                        normalizedCurrentUrl.startsWith(normalizedItemUrl)
-                    }
-                        
+                items.forEachIndexed { index, item ->
                     NavigationBarItem(
                         icon = { Icon(item.icon, contentDescription = item.title) },
                         label = { Text(item.title) },
-                        selected = isSelected,
+                        selected = selectedIndex == index,
                         onClick = {
-                            currentUrl = item.url
+                            selectedIndex = index
                             webView?.loadUrl(item.url)
                         },
                         colors = NavigationBarItemDefaults.colors(
@@ -130,99 +116,89 @@ fun MainScreen() {
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
-                        // Disable hardware acceleration to fix Mesa rendernode errors in the emulator
-                        setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
-                        
+
+                        // CRITICAL: Do NOT use LAYER_TYPE_SOFTWARE on real devices.
+                        // Software rendering causes extreme scroll lag (5–6 swipes per card).
+                        // Hardware acceleration is required for normal WebView performance.
+
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
                             databaseEnabled = true
-                            cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK // Aggressive caching
+                            // Prefer network when online so content stays fresh;
+                            // still uses HTTP cache for images/assets
+                            cacheMode = WebSettings.LOAD_DEFAULT
                             useWideViewPort = true
                             loadWithOverviewMode = true
-                            mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
-                            
-                            // Custom User-Agent so the website can know it's the app
-                            userAgentString = userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
+                            mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+                            // Smooth scrolling / better touch
+                            setSupportZoom(false)
+                            builtInZoomControls = false
+                            displayZoomControls = false
+                            mediaPlaybackRequiresUserGesture = false
+                            // Keep cookies / localStorage for login session
+                            // (domStorageEnabled already true)
+                            userAgentString =
+                                userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
                         }
-                        
+
+                        // Enable cookies for Google / site login to stick
+                        android.webkit.CookieManager.getInstance().apply {
+                            setAcceptCookie(true)
+                            setAcceptThirdPartyCookies(this@apply, true)
+                        }
+
                         webViewClient = object : WebViewClient() {
-                            override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                                return false // Let the WebView load the URL
+                            override fun shouldOverrideUrlLoading(
+                                view: WebView?,
+                                request: WebResourceRequest?
+                            ): Boolean {
+                                // Keep everything inside the WebView (including Google login)
+                                return false
                             }
-                            
+
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                // Inject advanced JS to hide header, footer, bottom nav, social links, terms, etc.
-                                val jsInjection = """
+
+                                // Update bottom tab highlight from current URL
+                                url?.let { u ->
+                                    val path = u.substringBefore("?").removeSuffix("/")
+                                    selectedIndex = when {
+                                        path.contains("/learning") || path.contains("/my-learning") -> 1
+                                        path.contains("/packages") -> 2
+                                        path.contains("/account") || path.contains("/login") ||
+                                            path.contains("/auth") || path.contains("accounts.google") -> 3
+                                        else -> 0
+                                    }
+                                }
+
+                                // Light CSS hide — run once per page, no heavy MutationObserver loop
+                                val js = """
                                     (function() {
-                                        function hideElements() {
-                                            var style = document.getElementById('native-app-styles');
-                                            if (!style) {
-                                                style = document.createElement('style');
-                                                style.id = 'native-app-styles';
-                                                style.innerHTML = `
-                                                    /* Hide main semantic tags */
-                                                    header, footer, nav {
-                                                        display: none !important;
-                                                    }
-                                                    /* Hide by ID and common classes */
-                                                    #header, #footer, .header, .footer, .nav, .bottom-nav, .mobile-nav {
-                                                        display: none !important;
-                                                    }
-                                                    /* Hide links */
-                                                    a[href*="terms"], a[href*="privacy"],
-                                                    a[href*="facebook"], a[href*="twitter"], a[href*="instagram"], a[href*="linkedin"] {
-                                                        display: none !important;
-                                                    }
-                                                    /* Ensure body and main fill the screen properly */
-                                                    body, html {
-                                                        padding: 0 !important;
-                                                        margin: 0 !important;
-                                                        height: 100% !important;
-                                                    }
-                                                    body {
-                                                        padding-top: 0 !important;
-                                                        padding-bottom: 0 !important;
-                                                        min-height: 100vh !important;
-                                                    }
-                                                    main {
-                                                        min-height: 100vh !important;
-                                                    }
-                                                    /* Hide fixed headers/footers to avoid blank spaces */
-                                                    div[class*="fixed top"], div[class*="fixed bottom"],
-                                                    div[class*="sticky top"], div[class*="sticky bottom"] {
-                                                        display: none !important;
-                                                    }
-                                                `;
-                                                document.head.appendChild(style);
-                                            }
-                                        }
-                                        
-                                        hideElements();
-                                        
-                                        // Next.js can dynamically add elements, so we watch the DOM
-                                        var observer = new MutationObserver(function(mutations) {
-                                            hideElements();
-                                        });
-                                        observer.observe(document.body, { childList: true, subtree: true });
+                                        if (document.getElementById('wta-app-chrome')) return;
+                                        var s = document.createElement('style');
+                                        s.id = 'wta-app-chrome';
+                                        s.textContent = `
+                                          header, footer,
+                                          #header, #footer,
+                                          [data-site-header], [data-site-footer],
+                                          a[href*="terms"], a[href*="privacy"] {
+                                            display: none !important;
+                                          }
+                                          body { padding: 0 !important; margin: 0 !important; }
+                                        `;
+                                        document.head.appendChild(s);
                                     })();
                                 """.trimIndent()
-                                view?.evaluateJavascript(jsInjection, null)
-                            }
-                            
-                            override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                                super.doUpdateVisitedHistory(view, url, isReload)
-                                url?.let { currentUrl = it }
+                                view?.evaluateJavascript(js, null)
                             }
                         }
-                        loadUrl(currentUrl)
+
+                        loadUrl(items[0].url)
                         webView = this
                     }
                 },
-                update = { view ->
-                    // Component updates if needed
-                }
+                update = { /* keep same WebView instance */ }
             )
         }
     }
