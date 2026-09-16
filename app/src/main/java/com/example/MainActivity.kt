@@ -1,9 +1,13 @@
 package com.example
 
 import android.annotation.SuppressLint
+import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
@@ -37,6 +41,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.ui.theme.MyApplicationTheme
 
@@ -44,9 +49,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // FLAG_SECURE temporarily disabled for debugging screenshots
-        // window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
-
         setContent {
             MyApplicationTheme {
                 MainScreen()
@@ -62,9 +65,18 @@ sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: St
     object Account : BottomNavItem("Account", Icons.Filled.Person, "https://wisdom-tower-academy.live/account")
 }
 
+private fun isOnline(context: Context): Boolean {
+    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val network = cm.activeNetwork ?: return false
+    val caps = cm.getNetworkCapabilities(network) ?: return false
+    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+}
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun MainScreen() {
+    val context = LocalContext.current
     val items = listOf(
         BottomNavItem.Home,
         BottomNavItem.Learning,
@@ -94,7 +106,15 @@ fun MainScreen() {
                         selected = selectedIndex == index,
                         onClick = {
                             selectedIndex = index
-                            webView?.loadUrl(item.url)
+                            val wv = webView ?: return@NavigationBarItem
+                            if (isOnline(context)) {
+                                wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                wv.loadUrl(item.url)
+                            } else {
+                                // Prefer cache when offline; if miss, show branded offline page
+                                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                wv.loadUrl(item.url)
+                            }
                         },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFF38BDF8),
@@ -110,20 +130,23 @@ fun MainScreen() {
     ) { paddingValues ->
         Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
             AndroidView(
-                factory = { context ->
-                    WebView(context).apply {
+                factory = { ctx ->
+                    WebView(ctx).apply {
                         layoutParams = ViewGroup.LayoutParams(
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
 
-                        // Do NOT use LAYER_TYPE_SOFTWARE — it causes extreme scroll lag on real devices.
-
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
                             databaseEnabled = true
-                            cacheMode = WebSettings.LOAD_DEFAULT
+                            // Larger cache helps offline reuse of visited pages/assets
+                            cacheMode = if (isOnline(ctx)) {
+                                WebSettings.LOAD_DEFAULT
+                            } else {
+                                WebSettings.LOAD_CACHE_ELSE_NETWORK
+                            }
                             useWideViewPort = true
                             loadWithOverviewMode = true
                             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
@@ -131,11 +154,12 @@ fun MainScreen() {
                             builtInZoomControls = false
                             displayZoomControls = false
                             mediaPlaybackRequiresUserGesture = false
+                            // Allow file access for local offline.html if needed
+                            allowFileAccess = true
                             userAgentString =
                                 userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
                         }
 
-                        // Cookies for Google / site login
                         val cookieManager = CookieManager.getInstance()
                         cookieManager.setAcceptCookie(true)
                         cookieManager.setAcceptThirdPartyCookies(this, true)
@@ -146,11 +170,32 @@ fun MainScreen() {
                                 request: WebResourceRequest?
                             ): Boolean = false
 
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: WebResourceRequest?,
+                                error: WebResourceError?
+                            ) {
+                                // Only replace the main frame — never show Chrome's broken page
+                                if (request?.isForMainFrame == true) {
+                                    view?.loadUrl("file:///android_asset/offline.html")
+                                }
+                            }
+
+                            @Deprecated("Deprecated in Java")
+                            override fun onReceivedError(
+                                view: WebView?,
+                                errorCode: Int,
+                                description: String?,
+                                failingUrl: String?
+                            ) {
+                                view?.loadUrl("file:///android_asset/offline.html")
+                            }
+
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
 
-                                url?.let { u ->
-                                    val path = u.substringBefore("?").removeSuffix("/")
+                                if (url != null && !url.startsWith("file://")) {
+                                    val path = url.substringBefore("?").removeSuffix("/")
                                     selectedIndex = when {
                                         path.contains("/learning") || path.contains("/my-learning") -> 1
                                         path.contains("/packages") -> 2
@@ -160,28 +205,37 @@ fun MainScreen() {
                                     }
                                 }
 
-                                val js = """
-                                    (function() {
-                                        if (document.getElementById('wta-app-chrome')) return;
-                                        var s = document.createElement('style');
-                                        s.id = 'wta-app-chrome';
-                                        s.textContent = `
-                                          header, footer,
-                                          #header, #footer,
-                                          [data-site-header], [data-site-footer],
-                                          a[href*="terms"], a[href*="privacy"] {
-                                            display: none !important;
-                                          }
-                                          body { padding: 0 !important; margin: 0 !important; }
-                                        `;
-                                        document.head.appendChild(s);
-                                    })();
-                                """.trimIndent()
-                                view?.evaluateJavascript(js, null)
+                                if (url != null && !url.startsWith("file://")) {
+                                    val js = """
+                                        (function() {
+                                            if (document.getElementById('wta-app-chrome')) return;
+                                            var s = document.createElement('style');
+                                            s.id = 'wta-app-chrome';
+                                            s.textContent = `
+                                              header, footer,
+                                              #header, #footer,
+                                              [data-site-header], [data-site-footer],
+                                              a[href*="terms"], a[href*="privacy"] {
+                                                display: none !important;
+                                              }
+                                              body { padding: 0 !important; margin: 0 !important; }
+                                            `;
+                                            document.head.appendChild(s);
+                                        })();
+                                    """.trimIndent()
+                                    view?.evaluateJavascript(js, null)
+                                }
                             }
                         }
 
-                        loadUrl(items[0].url)
+                        // First load: cache-aware
+                        if (isOnline(ctx)) {
+                            loadUrl(items[0].url)
+                        } else {
+                            settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                            loadUrl(items[0].url)
+                            // If cache is empty, onReceivedError will show offline.html
+                        }
                         webView = this
                     }
                 },
