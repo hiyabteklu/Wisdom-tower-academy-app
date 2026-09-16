@@ -8,7 +8,7 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: #0f172a;
+      background: #0B1220;
       color: #e2e8f0;
       min-height: 100vh;
       display: flex;
@@ -17,65 +17,66 @@
       padding: 24px;
       text-align: center;
     }
-    .card {
-      max-width: 360px;
-      width: 100%;
+    .card { max-width: 340px; width: 100%; }
+    .icon-wrap {
+      width: 72px; height: 72px; margin: 0 auto 20px;
+      border-radius: 20px;
+      background: linear-gradient(145deg, #1e293b, #0f172a);
+      border: 1px solid rgba(56, 189, 248, 0.25);
+      display: flex; align-items: center; justify-content: center;
     }
-    .icon {
-      width: 64px;
-      height: 64px;
-      margin: 0 auto 20px;
-      border-radius: 16px;
-      background: #1e293b;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 28px;
+    .wifi {
+      width: 36px; height: 36px;
+      border: 3px solid #38bdf8;
+      border-top-color: transparent;
+      border-radius: 50%;
+      position: relative;
+      opacity: 0.9;
     }
-    h1 {
-      font-size: 1.35rem;
-      font-weight: 700;
-      margin-bottom: 8px;
-      color: #f8fafc;
-    }
-    p {
-      font-size: 0.95rem;
-      line-height: 1.5;
-      color: #94a3b8;
-      margin-bottom: 24px;
-    }
-    button {
-      appearance: none;
-      border: none;
+    .wifi::after {
+      content: "";
+      position: absolute;
+      width: 10px; height: 10px;
       background: #38bdf8;
-      color: #0f172a;
-      font-weight: 700;
-      font-size: 1rem;
-      padding: 14px 28px;
-      border-radius: 12px;
-      width: 100%;
-      cursor: pointer;
+      border-radius: 50%;
+      left: 50%; top: 50%;
+      transform: translate(-50%, -50%);
+    }
+    h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 10px; color: #f8fafc; }
+    p { font-size: 0.95rem; line-height: 1.55; color: #94a3b8; margin-bottom: 28px; }
+    button {
+      appearance: none; border: none;
+      background: #38bdf8; color: #0f172a;
+      font-weight: 700; font-size: 1rem;
+      padding: 14px 28px; border-radius: 14px;
+      width: 100%; cursor: pointer;
     }
     button:active { opacity: 0.85; }
-    .hint {
-      margin-top: 16px;
-      font-size: 0.8rem;
-      color: #64748b;
-    }
+    .hint { margin-top: 18px; font-size: 0.78rem; color: #64748b; letter-spacing: 0.04em; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="icon">📡</div>
-    <h1>You're offline</h1>
+    <div class="icon-wrap" aria-hidden="true"><div class="wifi"></div></div>
+    <h1>No connection</h1>
     <p>
-      Connect to the internet to load Wisdom Tower Academy.
-      Pages and files you already opened may still work when you retry.
+      Wisdom Tower Academy needs the internet to load.
+      Check your network, then try again.
     </p>
-    <button onclick="window.location.href='https://wisdom-tower-academy.live/'">
-      Try again
-    </button>
-    <p class="hint">Wisdom Tower Academy</p>
+    <button type="button" onclick="tryAgain()">Try again</button>
+    <p class="hint">WISDOM TOWER ACADEMY</p>
   </div>
+  <script>
+    function tryAgain() {
+      if (navigator.onLine) {
+        window.location.href = 'https://wisdom-tower-academy.live/';
+      } else {
+        alert('Still offline. Connect to Wi-Fi or mobile data first.');
+      }
+    }
+    window.addEventListener('online', function () {
+      window.location.href = 'https://wisdom-tower-academy.live/';
+    });
+  </script>
 </body>
 </html>
