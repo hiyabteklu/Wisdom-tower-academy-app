@@ -20,27 +20,21 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Show Android SDK path
+      - name: Accept licenses & install SDK packages
         run: |
-          echo "ANDROID_HOME=$ANDROID_HOME"
-          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
-          ls -la "$ANDROID_HOME" || ls -la "$ANDROID_SDK_ROOT" || true
-
-      - name: Accept licenses & install platform if needed
-        run: |
-          set -e
-          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          set +e
+          SDK="${ANDROID_HOME:-${ANDROID_SDK_ROOT:-}}"
           if [ -z "$SDK" ]; then
-            # Fallback common path on GitHub-hosted runners
             SDK="$HOME/Android/Sdk"
             echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
             export ANDROID_HOME="$SDK"
+            export ANDROID_SDK_ROOT="$SDK"
           fi
-          echo "Using SDK at: $SDK"
-          yes | sdkmanager --licenses || true
-          # Install a stable platform/build-tools set
-          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" || \
-          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
+          echo "ANDROID_HOME=$SDK"
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager "platforms;android-36" "platforms;android-35" "build-tools;35.0.0" "platform-tools" 2>/dev/null || \
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" 2>/dev/null || \
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" 2>/dev/null || true
 
       - name: Generate debug keystore
         run: |
@@ -57,18 +51,32 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Create Gradle wrapper if missing
+      - name: Ensure Gradle wrapper (9.3.1)
         run: |
           if [ ! -f ./gradlew ]; then
-            gradle wrapper --gradle-version 8.13 || gradle wrapper
-            chmod +x ./gradlew
-          else
-            chmod +x ./gradlew
+            gradle wrapper --gradle-version 9.3.1
           fi
+          chmod +x ./gradlew
+          ./gradlew --version
 
       - name: Build Debug APK
+        id: build
+        continue-on-error: true
         run: |
-          ./gradlew assembleDebug --stacktrace --no-daemon
+          ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Show build log on failure
+        if: steps.build.outcome == 'failure'
+        run: |
+          echo "======== BUILD LOG (last 200 lines) ========"
+          tail -n 200 build.log || true
+          echo "======== FULL ERROR SEARCH ========"
+          grep -i -E "error:|FAILED|What went wrong|Exception" build.log | tail -n 80 || true
+
+      - name: Fail if build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
 
       - name: Find and copy APK
         run: |
@@ -91,11 +99,7 @@ jobs:
           retention-days: 14
 
       - name: Summary
+        if: success()
         run: |
           echo "### APK ready" >> $GITHUB_STEP_SUMMARY
-          echo "Download the artifact **Wisdom-Tower-Academy-debug** from this run." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "On your phone:" >> $GITHUB_STEP_SUMMARY
-          echo "1. Open this Actions run in Chrome" >> $GITHUB_STEP_SUMMARY
-          echo "2. Tap Artifacts → Wisdom-Tower-Academy-debug" >> $GITHUB_STEP_SUMMARY
-          echo "3. Download and install the APK" >> $GITHUB_STEP_SUMMARY
+          echo "Download **Wisdom-Tower-Academy-debug** from Artifacts." >> $GITHUB_STEP_SUMMARY
