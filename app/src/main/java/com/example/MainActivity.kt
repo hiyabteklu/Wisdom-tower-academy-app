@@ -98,10 +98,11 @@ private val Muted = Color(0xFF94A3B8)
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+        // Temporarily disabled so screenshots / screen recording work for debugging
+        // window.setFlags(
+        //     WindowManager.LayoutParams.FLAG_SECURE,
+        //     WindowManager.LayoutParams.FLAG_SECURE
+        // )
         enableEdgeToEdge()
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = false
