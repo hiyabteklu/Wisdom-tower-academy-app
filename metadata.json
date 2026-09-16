@@ -1,0 +1,6 @@
+{
+  "name": "Wisdom Tower Academy",
+  "description": "Wisdom Tower Academy education platform app.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
