@@ -39,6 +39,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -253,8 +254,9 @@ fun MainScreen() {
                             DropdownMenu(
                                 expanded = menuExpanded,
                                 onDismissRequest = { menuExpanded = false },
-                                modifier = Modifier
-                                    .background(Surface, RoundedCornerShape(12.dp))
+                                containerColor = BarBg,
+                                shape = RoundedCornerShape(16.dp),
+                                modifier = Modifier.widthIn(min = 260.dp)
                             ) {
                                 overflowMenuLinks.forEach { link ->
                                     DropdownMenuItem(
@@ -546,6 +548,11 @@ fun MainScreen() {
                                             "html.wta-native-app nav[aria-label=\"Main\"]," +
                                             "html.wta-native-app .hide-on-app" +
                                             "{display:none!important}" +
+                                            "html.wta-native-app main," +
+                                            "html.wta-native-app body>main" +
+                                            "{padding-top:0!important;margin-top:0!important}" +
+                                            "html.wta-native-app .wta-app-hero" +
+                                            "{padding-top:0.5rem!important}" +
                                             "';" +
                                             "document.head.appendChild(s);" +
                                             "})();"
