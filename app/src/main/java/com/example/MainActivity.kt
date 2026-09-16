@@ -24,6 +24,11 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,6 +40,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -78,17 +84,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
-import coil.compose.AsyncImage
 import androidx.core.view.WindowCompat
+import coil.compose.AsyncImage
 import com.example.ui.theme.MyApplicationTheme
 
 private val BarBg = Color(0xFF0F172A)
@@ -165,6 +173,7 @@ fun MainScreen() {
     var selectedIndex by remember { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
+    var pageLoading by remember { mutableStateOf(true) }
 
     val activity = context as? ComponentActivity
     BackHandler {
@@ -179,6 +188,7 @@ fun MainScreen() {
     fun navigateTo(url: String, tabIndex: Int? = null) {
         val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
+        pageLoading = true
         wv.settings.cacheMode = if (isOnline(context)) {
             WebSettings.LOAD_DEFAULT
         } else {
@@ -488,6 +498,7 @@ fun MainScreen() {
                                     error: WebResourceError?
                                 ) {
                                     if (request?.isForMainFrame == true) {
+                                        pageLoading = false
                                         val failUrl = request.url?.toString()
                                         if (failUrl != null) {
                                             val local = OfflineVault.localFileFor(ctx, failUrl)
@@ -507,6 +518,7 @@ fun MainScreen() {
                                     description: String?,
                                     failingUrl: String?
                                 ) {
+                                    pageLoading = false
                                     if (failingUrl != null) {
                                         val local = OfflineVault.localFileFor(ctx, failingUrl)
                                         if (local != null) {
@@ -517,8 +529,14 @@ fun MainScreen() {
                                     view?.loadUrl("file:///android_asset/offline.html")
                                 }
 
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    super.onPageStarted(view, url, favicon)
+                                    pageLoading = true
+                                }
+
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     super.onPageFinished(view, url)
+                                    pageLoading = false
 
                                     if (url != null && !url.startsWith("file://")) {
                                         val path = url.substringBefore("?").removeSuffix("/")
@@ -572,7 +590,76 @@ fun MainScreen() {
                     },
                     update = { }
                 )
+
+                if (pageLoading) {
+                    BrandLoadingOverlay()
+                }
             }
+        }
+    }
+}
+
+@Composable
+private fun BrandLoadingOverlay() {
+    val infinite = rememberInfiniteTransition(label = "brand")
+    val pulse by infinite.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1100),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "cyanPulse"
+    )
+    val glow by infinite.animateFloat(
+        initialValue = 0.55f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(2400),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "glow"
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xEB0B1220)),
+        contentAlignment = Alignment.Center
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Box(
+                modifier = Modifier
+                    .size(160.dp)
+                    .graphicsLayer { alpha = glow }
+                    .background(
+                        brush = Brush.radialGradient(
+                            colors = listOf(
+                                Color(0xFF22E0FF).copy(alpha = 0.35f),
+                                Color.Transparent
+                            )
+                        ),
+                        shape = CircleShape
+                    )
+            )
+            AsyncImage(
+                model = "https://wisdom-tower-academy.live/images/brand/logo.png",
+                contentDescription = "Wisdom Tower",
+                modifier = Modifier.size(120.dp),
+                contentScale = ContentScale.Fit
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .offset(x = (-34).dp, y = (-18).dp)
+                    .size(12.dp)
+                    .graphicsLayer {
+                        alpha = pulse
+                        scaleX = 0.85f + pulse * 0.4f
+                        scaleY = 0.85f + pulse * 0.4f
+                    }
+                    .background(Color(0xFF22E0FF), CircleShape)
+            )
         }
     }
 }
