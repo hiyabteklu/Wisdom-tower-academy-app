@@ -22,27 +22,17 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -54,27 +44,20 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         window.setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE
         )
-
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
@@ -105,7 +88,6 @@ private val mainHandler = Handler(Looper.getMainLooper())
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
-    val activity = context as? ComponentActivity
     val items = listOf(
         BottomNavItem.Home,
         BottomNavItem.Learning,
@@ -116,6 +98,7 @@ fun MainScreen() {
     var selectedIndex by remember { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
 
+    val activity = context as? ComponentActivity
     BackHandler {
         val wv = webView
         if (wv != null && wv.canGoBack()) {
@@ -139,7 +122,7 @@ fun MainScreen() {
             return
         }
         mainHandler.post {
-            Toast.makeText(ctx, "Saving book for offline...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, "Saving book for offline…", Toast.LENGTH_SHORT).show()
         }
         OfflineVault.downloadAsync(ctx, url) { file ->
             mainHandler.post {
@@ -156,59 +139,6 @@ fun MainScreen() {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
-        topBar = {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF0F172A))
-                    .height(52.dp)
-                    .padding(horizontal = 12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Box(
-                        modifier = Modifier
-                            .size(34.dp)
-                            .clip(CircleShape)
-                            .background(Color(0xFF1E293B)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.MenuBook,
-                            contentDescription = null,
-                            tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "Wisdom Tower",
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
-                IconButton(
-                    onClick = {
-                        val wv = webView ?: return@IconButton
-                        selectedIndex = 3
-                        wv.settings.cacheMode = if (isOnline(context)) {
-                            WebSettings.LOAD_DEFAULT
-                        } else {
-                            WebSettings.LOAD_CACHE_ELSE_NETWORK
-                        }
-                        wv.loadUrl("https://wisdom-tower-academy.live/account")
-                    }
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Person,
-                        contentDescription = "Account",
-                        tint = Color(0xFF38BDF8)
-                    )
-                }
-            }
-        },
         bottomBar = {
             NavigationBar(
                 containerColor = Color(0xFF0F172A),
@@ -232,8 +162,8 @@ fun MainScreen() {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFF38BDF8),
                             selectedTextColor = Color(0xFF38BDF8),
-                            unselectedIconColor = Color(0xFF94A3B8),
-                            unselectedTextColor = Color(0xFF94A3B8),
+                            unselectedIconColor = Color.Gray,
+                            unselectedTextColor = Color.Gray,
                             indicatorColor = Color(0xFF1E293B)
                         )
                     )
@@ -241,12 +171,7 @@ fun MainScreen() {
             }
         }
     ) { paddingValues ->
-        Box(
-            modifier = Modifier
-                .padding(paddingValues)
-                .fillMaxSize()
-                .background(Color(0xFF0F172A))
-        ) {
+        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
