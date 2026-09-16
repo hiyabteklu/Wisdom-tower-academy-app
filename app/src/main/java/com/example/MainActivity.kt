@@ -22,8 +22,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -36,13 +34,11 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Icon
@@ -61,7 +57,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -75,7 +70,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Block screenshots / screen-recording of paid content
         window.setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE
@@ -122,7 +116,6 @@ fun MainScreen() {
     var selectedIndex by remember { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
 
-    // Hardware / gesture back: prefer WebView history, only exit when at root
     BackHandler {
         val wv = webView
         if (wv != null && wv.canGoBack()) {
@@ -146,7 +139,7 @@ fun MainScreen() {
             return
         }
         mainHandler.post {
-            Toast.makeText(ctx, "Saving book for offline…", Toast.LENGTH_SHORT).show()
+            Toast.makeText(ctx, "Saving book for offline...", Toast.LENGTH_SHORT).show()
         }
         OfflineVault.downloadAsync(ctx, url) { file ->
             mainHandler.post {
@@ -168,8 +161,7 @@ fun MainScreen() {
                 modifier = Modifier
                     .fillMaxWidth()
                     .background(Color(0xFF0F172A))
-                    .statusBarsPadding()
-                    .height(56.dp)
+                    .height(52.dp)
                     .padding(horizontal = 12.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -177,27 +169,26 @@ fun MainScreen() {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(34.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF1E293B)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.MenuBook,
-                            contentDescription = "Wisdom Tower Academy",
+                            contentDescription = null,
                             tint = Color(0xFF38BDF8),
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = "Wisdom Tower",
                         color = Color.White,
-                        fontSize = 17.sp,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
                     )
                 }
-
                 IconButton(
                     onClick = {
                         val wv = webView ?: return@IconButton
@@ -211,8 +202,8 @@ fun MainScreen() {
                     }
                 ) {
                     Icon(
-                        imageVector = Icons.Filled.Notifications,
-                        contentDescription = "Notifications",
+                        imageVector = Icons.Filled.Person,
+                        contentDescription = "Account",
                         tint = Color(0xFF38BDF8)
                     )
                 }
@@ -224,22 +215,10 @@ fun MainScreen() {
                 contentColor = Color.White
             ) {
                 items.forEachIndexed { index, item ->
-                    val selected = selectedIndex == index
-                    val scale by animateFloatAsState(
-                        targetValue = if (selected) 1.12f else 1f,
-                        animationSpec = tween(durationMillis = 180),
-                        label = "navScale"
-                    )
                     NavigationBarItem(
-                        icon = {
-                            Icon(
-                                item.icon,
-                                contentDescription = item.title,
-                                modifier = Modifier.scale(scale)
-                            )
-                        },
+                        icon = { Icon(item.icon, contentDescription = item.title) },
                         label = { Text(item.title) },
-                        selected = selected,
+                        selected = selectedIndex == index,
                         onClick = {
                             selectedIndex = index
                             val wv = webView ?: return@NavigationBarItem
@@ -391,30 +370,15 @@ fun MainScreen() {
                                     }
                                 }
 
-                                // Targeted chrome hide — do NOT break flashcard flips / card animations
                                 if (url != null && !url.startsWith("file://")) {
-                                    val js = """
-                                        (function() {
-                                            if (document.getElementById('wta-app-chrome')) return;
-                                            var s = document.createElement('style');
-                                            s.id = 'wta-app-chrome';
-                                            s.textContent = '
-                                              body > header,
-                                              body > footer,
-                                              [data-site-header],
-                                              [data-site-footer],
-                                              nav[aria-label="Main"],
-                                              a[href*="/privacy"],
-                                              a[href*="/terms"] {
-                                                display: none !important;
-                                              }
-                                              * {
-                                                -webkit-tap-highlight-color: transparent;
-                                              }
-                                            ';
-                                            document.head.appendChild(s);
-                                        })();
-                                    """.trimIndent()
+                                    val js =
+                                        "(function(){" +
+                                        "if(document.getElementById('wta-app-chrome'))return;" +
+                                        "var s=document.createElement('style');" +
+                                        "s.id='wta-app-chrome';" +
+                                        "s.textContent='body>header,body>footer,[data-site-header],[data-site-footer],nav[aria-label=\"Main\"],a[href*=\"/privacy\"],a[href*=\"/terms\"]{display:none!important}';" +
+                                        "document.head.appendChild(s);" +
+                                        "})();"
                                     view?.evaluateJavascript(js, null)
                                 }
                             }
