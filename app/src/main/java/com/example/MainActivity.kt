@@ -5,13 +5,18 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.ViewGroup
 import android.webkit.CookieManager
+import android.webkit.DownloadListener
+import android.webkit.URLUtil
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -48,7 +53,6 @@ import com.example.ui.theme.MyApplicationTheme
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        // FLAG_SECURE temporarily disabled for debugging screenshots
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
@@ -73,6 +77,8 @@ private fun isOnline(context: Context): Boolean {
         caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 }
 
+private val mainHandler = Handler(Looper.getMainLooper())
+
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun MainScreen() {
@@ -91,6 +97,35 @@ fun MainScreen() {
         webView?.goBack()
     }
 
+    fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
+        val local = OfflineVault.localFileFor(ctx, url)
+            ?: OfflineVault.localFileFor(ctx, url.substringBefore("?"))
+        if (local != null) {
+            wv.loadUrl(OfflineVault.fileUrl(local))
+            return
+        }
+        if (!isOnline(ctx)) {
+            mainHandler.post {
+                Toast.makeText(ctx, "Book not saved offline yet. Open it once online.", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        mainHandler.post {
+            Toast.makeText(ctx, "Saving book for offline…", Toast.LENGTH_SHORT).show()
+        }
+        OfflineVault.downloadAsync(ctx, url) { file ->
+            mainHandler.post {
+                if (file != null) {
+                    Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
+                    wv.loadUrl(OfflineVault.fileUrl(file))
+                } else {
+                    // Fall back to online view
+                    wv.loadUrl(url)
+                }
+            }
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
@@ -107,14 +142,12 @@ fun MainScreen() {
                         onClick = {
                             selectedIndex = index
                             val wv = webView ?: return@NavigationBarItem
-                            if (isOnline(context)) {
-                                wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                wv.loadUrl(item.url)
+                            wv.settings.cacheMode = if (isOnline(context)) {
+                                WebSettings.LOAD_DEFAULT
                             } else {
-                                // Prefer cache when offline; if miss, show branded offline page
-                                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                wv.loadUrl(item.url)
+                                WebSettings.LOAD_CACHE_ELSE_NETWORK
                             }
+                            wv.loadUrl(item.url)
                         },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFF38BDF8),
@@ -141,7 +174,6 @@ fun MainScreen() {
                             javaScriptEnabled = true
                             domStorageEnabled = true
                             databaseEnabled = true
-                            // Larger cache helps offline reuse of visited pages/assets
                             cacheMode = if (isOnline(ctx)) {
                                 WebSettings.LOAD_DEFAULT
                             } else {
@@ -150,12 +182,14 @@ fun MainScreen() {
                             useWideViewPort = true
                             loadWithOverviewMode = true
                             mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                            setSupportZoom(false)
-                            builtInZoomControls = false
+                            setSupportZoom(true)
+                            builtInZoomControls = true
                             displayZoomControls = false
                             mediaPlaybackRequiresUserGesture = false
-                            // Allow file access for local offline.html if needed
                             allowFileAccess = true
+                            allowContentAccess = true
+                            // Needed so Service Worker from the website can run
+                            offscreenPreRaster = true
                             userAgentString =
                                 userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
                         }
@@ -164,19 +198,61 @@ fun MainScreen() {
                         cookieManager.setAcceptCookie(true)
                         cookieManager.setAcceptThirdPartyCookies(this, true)
 
+                        // Capture browser downloads (PDFs, etc.) into the offline vault
+                        setDownloadListener(DownloadListener { url, _, contentDisposition, mimeType, _ ->
+                            val name = URLUtil.guessFileName(url, contentDisposition, mimeType)
+                            mainHandler.post {
+                                Toast.makeText(ctx, "Saving for offline: $name", Toast.LENGTH_SHORT).show()
+                            }
+                            OfflineVault.downloadAsync(ctx, url, name) { file ->
+                                mainHandler.post {
+                                    if (file != null) {
+                                        Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
+                                        if (name.endsWith(".pdf", true) || mimeType?.contains("pdf") == true) {
+                                            loadUrl(OfflineVault.fileUrl(file))
+                                        }
+                                    } else {
+                                        Toast.makeText(ctx, "Could not save file", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        })
+
                         webViewClient = object : WebViewClient() {
                             override fun shouldOverrideUrlLoading(
                                 view: WebView?,
                                 request: WebResourceRequest?
-                            ): Boolean = false
+                            ): Boolean {
+                                val url = request?.url?.toString() ?: return false
+                                if (OfflineVault.isPdfUrl(url)) {
+                                    view?.let { openOrDownloadPdf(it, ctx, url) }
+                                    return true
+                                }
+                                // Offline: if we have a saved copy of this exact URL, prefer it
+                                if (!isOnline(ctx)) {
+                                    val local = OfflineVault.localFileFor(ctx, url)
+                                    if (local != null) {
+                                        view?.loadUrl(OfflineVault.fileUrl(local))
+                                        return true
+                                    }
+                                }
+                                return false
+                            }
 
                             override fun onReceivedError(
                                 view: WebView?,
                                 request: WebResourceRequest?,
                                 error: WebResourceError?
                             ) {
-                                // Only replace the main frame — never show Chrome's broken page
                                 if (request?.isForMainFrame == true) {
+                                    val failUrl = request.url?.toString()
+                                    if (failUrl != null) {
+                                        val local = OfflineVault.localFileFor(ctx, failUrl)
+                                        if (local != null) {
+                                            view?.loadUrl(OfflineVault.fileUrl(local))
+                                            return
+                                        }
+                                    }
                                     view?.loadUrl("file:///android_asset/offline.html")
                                 }
                             }
@@ -188,6 +264,13 @@ fun MainScreen() {
                                 description: String?,
                                 failingUrl: String?
                             ) {
+                                if (failingUrl != null) {
+                                    val local = OfflineVault.localFileFor(ctx, failingUrl)
+                                    if (local != null) {
+                                        view?.loadUrl(OfflineVault.fileUrl(local))
+                                        return
+                                    }
+                                }
                                 view?.loadUrl("file:///android_asset/offline.html")
                             }
 
@@ -228,13 +311,11 @@ fun MainScreen() {
                             }
                         }
 
-                        // First load: cache-aware
                         if (isOnline(ctx)) {
                             loadUrl(items[0].url)
                         } else {
                             settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                             loadUrl(items[0].url)
-                            // If cache is empty, onReceivedError will show offline.html
                         }
                         webView = this
                     }
