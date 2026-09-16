@@ -1,0 +1,91 @@
+name: Build Debug APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    name: Build APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK packages
+        run: |
+          sdkmanager --install "platforms;android-36" "build-tools;35.0.0" "platform-tools" || \
+          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools" || \
+          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+
+      - name: Generate debug keystore
+        run: |
+          keytool -genkeypair -v \
+            -keystore debug.keystore \
+            -storepass android \
+            -alias androiddebugkey \
+            -keypass android \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -dname "CN=Android Debug,O=Android,C=US"
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Make gradlew executable (if present)
+        run: |
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+          else
+            echo "No gradlew found — will use gradle from setup-gradle"
+          fi
+
+      - name: Build Debug APK
+        run: |
+          if [ -f ./gradlew ]; then
+            ./gradlew assembleDebug --stacktrace --no-daemon
+          else
+            gradle assembleDebug --stacktrace --no-daemon
+          fi
+
+      - name: Find APK
+        id: find_apk
+        run: |
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          echo "APK path: $APK_PATH"
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: No APK found"
+            find app/build -type f -name "*.apk" || true
+            exit 1
+          fi
+          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
+          cp "$APK_PATH" ./Wisdom-Tower-Academy-debug.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wisdom-Tower-Academy-debug
+          path: Wisdom-Tower-Academy-debug.apk
+          retention-days: 14
+
+      - name: Summary
+        run: |
+          echo "### APK ready" >> $GITHUB_STEP_SUMMARY
+          echo "Download the artifact **Wisdom-Tower-Academy-debug** from this run." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "On your phone:" >> $GITHUB_STEP_SUMMARY
+          echo "1. Open this Actions run in Chrome" >> $GITHUB_STEP_SUMMARY
+          echo "2. Tap Artifacts → Wisdom-Tower-Academy-debug" >> $GITHUB_STEP_SUMMARY
+          echo "3. Download and install the APK" >> $GITHUB_STEP_SUMMARY
