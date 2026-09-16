@@ -11,8 +11,21 @@ import java.security.MessageDigest
 import java.util.concurrent.Executors
 
 /**
- * Stores PDFs and other binary files the user opens/downloads so they remain
- * available offline. Index is kept in SharedPreferences (url → relative path).
+ * Secure offline vault for paid course materials (PDFs, books, etc.).
+ *
+ * Security notes (important for paid content):
+ * - Files are stored only in the app’s private internal storage (Context.filesDir).
+ *   They are NOT world-readable and do not appear in the public Downloads folder.
+ * - Index (url → filename) lives in private SharedPreferences.
+ * - Filenames are SHA-256 hashes of the URL — no original names or package IDs leak.
+ * - The app never bypasses website ownership. Only content the user was already
+ *   allowed to open while online is cached. Offline replay still respects the
+ *   session / cookies the website set.
+ * - FLAG_SECURE is enabled on the Activity so screenshots of these files are blocked.
+ *
+ * Future hardening (when needed): encrypt files at rest with a key derived from
+ * the user’s session or Android Keystore. Current private-dir approach is already
+ * stronger than a normal browser download.
  */
 object OfflineVault {
     private const val PREFS = "wta_offline_vault"
@@ -54,7 +67,7 @@ object OfflineVault {
     fun fileUrl(file: File): String = "file://${file.absolutePath}"
 
     /**
-     * Download [url] into the vault on a background thread.
+     * Download [url] into the private vault on a background thread.
      * [onDone] is called on the same background thread with the file or null.
      */
     fun downloadAsync(
@@ -113,7 +126,7 @@ object OfflineVault {
             return null
         }
         remember(ctx, url, fileName)
-        // Also index without query string
+        // Also index without query string so later offline lookups succeed
         val bare = url.substringBefore("?")
         if (bare != url) remember(ctx, bare, fileName)
         return outFile

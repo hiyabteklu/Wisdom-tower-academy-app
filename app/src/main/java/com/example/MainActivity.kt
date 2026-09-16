@@ -8,6 +8,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.ViewGroup
+import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.URLUtil
@@ -21,17 +22,32 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
@@ -43,16 +59,29 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.example.ui.theme.MyApplicationTheme
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Prevent screenshots / screen-recording of paid content
+        window.setFlags(
+            WindowManager.LayoutParams.FLAG_SECURE,
+            WindowManager.LayoutParams.FLAG_SECURE
+        )
+
         enableEdgeToEdge()
         setContent {
             MyApplicationTheme {
@@ -83,6 +112,7 @@ private val mainHandler = Handler(Looper.getMainLooper())
 @Composable
 fun MainScreen() {
     val context = LocalContext.current
+    val activity = context as? ComponentActivity
     val items = listOf(
         BottomNavItem.Home,
         BottomNavItem.Learning,
@@ -92,9 +122,16 @@ fun MainScreen() {
 
     var selectedIndex by remember { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
+    var isLoading by remember { mutableStateOf(true) }
 
-    BackHandler(enabled = webView?.canGoBack() == true) {
-        webView?.goBack()
+    // Hardware / gesture back: prefer WebView history, only exit when at root
+    BackHandler {
+        val wv = webView
+        if (wv != null && wv.canGoBack()) {
+            wv.goBack()
+        } else {
+            activity?.finish()
+        }
     }
 
     fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
@@ -119,7 +156,6 @@ fun MainScreen() {
                     Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
                     wv.loadUrl(OfflineVault.fileUrl(file))
                 } else {
-                    // Fall back to online view
                     wv.loadUrl(url)
                 }
             }
@@ -129,16 +165,86 @@ fun MainScreen() {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
+        topBar = {
+            // App header – logo + title + functional notification icon
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFF0F172A))
+                    .statusBarsPadding()
+                    .height(56.dp)
+                    .padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF1E293B)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.School,
+                            contentDescription = "Wisdom Tower Academy",
+                            tint = Color(0xFF38BDF8),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "Wisdom Tower",
+                        color = Color.White,
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+
+                IconButton(
+                    onClick = {
+                        val wv = webView ?: return@IconButton
+                        selectedIndex = 3
+                        wv.settings.cacheMode = if (isOnline(context)) {
+                            WebSettings.LOAD_DEFAULT
+                        } else {
+                            WebSettings.LOAD_CACHE_ELSE_NETWORK
+                        }
+                        // Notifications live under account / dedicated path
+                        wv.loadUrl("https://wisdom-tower-academy.live/account")
+                    }
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Notifications,
+                        contentDescription = "Notifications",
+                        tint = Color(0xFF38BDF8)
+                    )
+                }
+            }
+        },
         bottomBar = {
             NavigationBar(
                 containerColor = Color(0xFF0F172A),
-                contentColor = Color.White
+                contentColor = Color.White,
+                tonalElevation = 8.dp
             ) {
                 items.forEachIndexed { index, item ->
+                    val selected = selectedIndex == index
+                    val scale by animateFloatAsState(
+                        targetValue = if (selected) 1.12f else 1f,
+                        animationSpec = tween(durationMillis = 180),
+                        label = "navScale"
+                    )
                     NavigationBarItem(
-                        icon = { Icon(item.icon, contentDescription = item.title) },
+                        icon = {
+                            Icon(
+                                item.icon,
+                                contentDescription = item.title,
+                                modifier = Modifier.scale(scale)
+                            )
+                        },
                         label = { Text(item.title) },
-                        selected = selectedIndex == index,
+                        selected = selected,
                         onClick = {
                             selectedIndex = index
                             val wv = webView ?: return@NavigationBarItem
@@ -152,8 +258,8 @@ fun MainScreen() {
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Color(0xFF38BDF8),
                             selectedTextColor = Color(0xFF38BDF8),
-                            unselectedIconColor = Color.Gray,
-                            unselectedTextColor = Color.Gray,
+                            unselectedIconColor = Color(0xFF94A3B8),
+                            unselectedTextColor = Color(0xFF94A3B8),
                             indicatorColor = Color(0xFF1E293B)
                         )
                     )
@@ -161,7 +267,12 @@ fun MainScreen() {
             }
         }
     ) { paddingValues ->
-        Box(modifier = Modifier.padding(paddingValues).fillMaxSize()) {
+        Box(
+            modifier = Modifier
+                .padding(paddingValues)
+                .fillMaxSize()
+                .background(Color(0xFF0F172A))
+        ) {
             AndroidView(
                 factory = { ctx ->
                     WebView(ctx).apply {
@@ -188,17 +299,20 @@ fun MainScreen() {
                             mediaPlaybackRequiresUserGesture = false
                             allowFileAccess = true
                             allowContentAccess = true
-                            // Needed so Service Worker from the website can run
+                            // Keep Service Workers + smooth CSS animations working
                             offscreenPreRaster = true
+                            // Hardware acceleration is enabled on the Activity + Manifest
                             userAgentString =
                                 userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
                         }
+
+                        // Smooth scrolling & better animation performance
+                        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
                         val cookieManager = CookieManager.getInstance()
                         cookieManager.setAcceptCookie(true)
                         cookieManager.setAcceptThirdPartyCookies(this, true)
 
-                        // Capture browser downloads (PDFs, etc.) into the offline vault
                         setDownloadListener(DownloadListener { url, _, contentDisposition, mimeType, _ ->
                             val name = URLUtil.guessFileName(url, contentDisposition, mimeType)
                             mainHandler.post {
@@ -228,7 +342,6 @@ fun MainScreen() {
                                     view?.let { openOrDownloadPdf(it, ctx, url) }
                                     return true
                                 }
-                                // Offline: if we have a saved copy of this exact URL, prefer it
                                 if (!isOnline(ctx)) {
                                     val local = OfflineVault.localFileFor(ctx, url)
                                     if (local != null) {
@@ -237,6 +350,11 @@ fun MainScreen() {
                                     }
                                 }
                                 return false
+                            }
+
+                            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                super.onPageStarted(view, url, favicon)
+                                isLoading = true
                             }
 
                             override fun onReceivedError(
@@ -276,6 +394,7 @@ fun MainScreen() {
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
+                                isLoading = false
 
                                 if (url != null && !url.startsWith("file://")) {
                                     val path = url.substringBefore("?").removeSuffix("/")
@@ -288,6 +407,7 @@ fun MainScreen() {
                                     }
                                 }
 
+                                // Targeted chrome hide — do NOT touch flashcard / card / animation elements
                                 if (url != null && !url.startsWith("file://")) {
                                     val js = """
                                         (function() {
@@ -295,13 +415,20 @@ fun MainScreen() {
                                             var s = document.createElement('style');
                                             s.id = 'wta-app-chrome';
                                             s.textContent = `
-                                              header, footer,
-                                              #header, #footer,
-                                              [data-site-header], [data-site-footer],
-                                              a[href*="terms"], a[href*="privacy"] {
+                                              /* Only hide the site’s global chrome */
+                                              body > header,
+                                              body > footer,
+                                              [data-site-header],
+                                              [data-site-footer],
+                                              nav[aria-label="Main"],
+                                              a[href*="/privacy"],
+                                              a[href*="/terms"] {
                                                 display: none !important;
                                               }
-                                              body { padding: 0 !important; margin: 0 !important; }
+                                              /* Keep animations, transforms, and card flips intact */
+                                              * {
+                                                -webkit-tap-highlight-color: transparent;
+                                              }
                                             `;
                                             document.head.appendChild(s);
                                         })();
