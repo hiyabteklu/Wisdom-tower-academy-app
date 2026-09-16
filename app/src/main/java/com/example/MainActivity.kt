@@ -178,6 +178,11 @@ fun MainScreen() {
 
     fun navigateTo(url: String, tabIndex: Int? = null) {
         val wv = webView ?: return
+        if (!isOnline(context) && !url.startsWith("file://")) {
+            pageLoading = false
+            wv.loadUrl("file:///android_asset/offline.html")
+            return
+        }
         if (tabIndex != null) selectedIndex = tabIndex
         pageLoading = true
         wv.settings.cacheMode = if (isOnline(context)) {
@@ -453,12 +458,14 @@ fun MainScreen() {
                                         view?.let { openOrDownloadPdf(it, ctx, url) }
                                         return true
                                     }
-                                    if (!isOnline(ctx)) {
+                                    if (!isOnline(ctx) && !url.startsWith("file://")) {
                                         val local = OfflineVault.localFileFor(ctx, url)
                                         if (local != null) {
                                             view?.loadUrl(OfflineVault.fileUrl(local))
-                                            return true
+                                        } else {
+                                            view?.loadUrl("file:///android_asset/offline.html")
                                         }
+                                        return true
                                     }
                                     return false
                                 }
@@ -502,7 +509,11 @@ fun MainScreen() {
 
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                     super.onPageStarted(view, url, favicon)
-                                    pageLoading = true
+                                    if (url != null && url.startsWith("file://")) {
+                                        pageLoading = false
+                                    } else {
+                                        pageLoading = true
+                                    }
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -531,27 +542,30 @@ fun MainScreen() {
                                     if (url != null && !url.startsWith("file://")) {
                                         val js =
                                             "(function(){" +
+                                            "try{" +
                                             "document.documentElement.classList.add('wta-native-app');" +
                                             "if(document.body)document.body.classList.add('wta-native-app');" +
-                                            "if(document.getElementById('wta-app-chrome'))return;" +
-                                            "var s=document.createElement('style');" +
-                                            "s.id='wta-app-chrome';" +
+                                            "var s=document.getElementById('wta-app-chrome');" +
+                                            "if(!s){s=document.createElement('style');s.id='wta-app-chrome';" +
                                             "s.textContent='" +
                                             "html.wta-native-app body>header," +
+                                            "html.wta-native-app header," +
                                             "html.wta-native-app body>footer," +
                                             "html.wta-native-app footer," +
                                             "html.wta-native-app [data-site-header]," +
                                             "html.wta-native-app [data-site-footer]," +
                                             "html.wta-native-app nav[aria-label=\"Main\"]," +
                                             "html.wta-native-app .hide-on-app" +
-                                            "{display:none!important}" +
-                                            "html.wta-native-app main," +
-                                            "html.wta-native-app body>main" +
+                                            "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important}" +
+                                            "html.wta-native-app main,html.wta-native-app body>main" +
                                             "{padding-top:0!important;margin-top:0!important}" +
-                                            "html.wta-native-app .wta-app-hero" +
-                                            "{padding-top:0.5rem!important}" +
-                                            "';" +
-                                            "document.head.appendChild(s);" +
+                                            "html.wta-native-app .wta-app-hero{padding-top:0.5rem!important}" +
+                                            "';document.head.appendChild(s);}" +
+                                            "var hs=document.querySelectorAll('body>header,header,[data-site-header]');" +
+                                            "for(var i=0;i<hs.length;i++){hs[i].style.setProperty('display','none','important');}" +
+                                            "var fs=document.querySelectorAll('body>footer,footer,[data-site-footer]');" +
+                                            "for(var j=0;j<fs.length;j++){fs[j].style.setProperty('display','none','important');}" +
+                                            "}catch(e){}" +
                                             "})();"
                                         view?.evaluateJavascript(js, null)
                                     }
@@ -561,8 +575,8 @@ fun MainScreen() {
                             if (isOnline(ctx)) {
                                 loadUrl(items[0].url)
                             } else {
-                                settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                loadUrl(items[0].url)
+                                pageLoading = false
+                                loadUrl("file:///android_asset/offline.html")
                             }
                             webView = this
                         }
