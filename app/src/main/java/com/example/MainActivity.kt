@@ -2,6 +2,8 @@ package com.example
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
 import android.os.Bundle
@@ -47,6 +49,10 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Business
+import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.HelpOutline
@@ -78,7 +84,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.viewinterop.AndroidView
+import coil.compose.AsyncImage
 import androidx.core.view.WindowCompat
 import com.example.ui.theme.MyApplicationTheme
 
@@ -112,12 +120,21 @@ sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: St
     object Account : BottomNavItem("Account", Icons.Filled.Person, "https://wisdom-tower-academy.live/account")
 }
 
-private data class MenuLink(val label: String, val url: String, val icon: ImageVector)
+private data class MenuLink(
+    val label: String,
+    val url: String,
+    val icon: ImageVector,
+    val external: Boolean = false,
+)
 
 private val overflowMenuLinks = listOf(
     MenuLink("About", "https://wisdom-tower-academy.live/about", Icons.Filled.Info),
     MenuLink("Contact us", "https://wisdom-tower-academy.live/contact", Icons.Outlined.Email),
     MenuLink("FAQ", "https://wisdom-tower-academy.live/academy/faq", Icons.Outlined.HelpOutline),
+    MenuLink("Wisdom Digital", "https://wisdomtower.tech", Icons.AutoMirrored.Filled.OpenInNew, external = true),
+    MenuLink("Telegram group", "https://t.me/wisdom_tower1", Icons.AutoMirrored.Filled.Send, external = true),
+    MenuLink("Telegram channel", "https://t.me/wisdom_tower2", Icons.Filled.Campaign, external = true),
+    MenuLink("LinkedIn", "https://www.linkedin.com/company/wisdom-tower/", Icons.Filled.Business, external = true),
     MenuLink("Privacy", "https://wisdom-tower-academy.live/privacy", Icons.Outlined.PrivacyTip),
     MenuLink("Terms", "https://wisdom-tower-academy.live/terms", Icons.Outlined.Policy),
 )
@@ -257,7 +274,17 @@ fun MainScreen() {
                                         },
                                         onClick = {
                                             menuExpanded = false
-                                            navigateTo(link.url)
+                                            if (link.external) {
+                                                try {
+                                                    context.startActivity(
+                                                        Intent(Intent.ACTION_VIEW, Uri.parse(link.url))
+                                                    )
+                                                } catch (_: Exception) {
+                                                    navigateTo(link.url)
+                                                }
+                                            } else {
+                                                navigateTo(link.url)
+                                            }
                                         }
                                     )
                                 }
@@ -295,20 +322,15 @@ fun MainScreen() {
                                 .weight(1f)
                                 .padding(horizontal = 4.dp)
                         ) {
-                            Box(
+                            AsyncImage(
+                                model = "https://wisdom-tower-academy.live/images/brand/logo.png",
+                                contentDescription = "Wisdom Tower Academy",
                                 modifier = Modifier
                                     .size(32.dp)
                                     .clip(CircleShape)
                                     .background(Surface),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.MenuBook,
-                                    contentDescription = null,
-                                    tint = Accent,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                                contentScale = ContentScale.Crop
+                            )
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Wisdom Tower Academy",
@@ -428,6 +450,21 @@ fun MainScreen() {
                                     request: WebResourceRequest?
                                 ): Boolean {
                                     val url = request?.url?.toString() ?: return false
+                                    val host = request?.url?.host?.lowercase() ?: ""
+                                    val externalHosts = listOf(
+                                        "wisdomtower.tech",
+                                        "www.wisdomtower.tech",
+                                        "t.me",
+                                        "telegram.me",
+                                        "www.linkedin.com",
+                                        "linkedin.com"
+                                    )
+                                    if (externalHosts.any { host == it || host.endsWith(".$it") }) {
+                                        try {
+                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                        } catch (_: Exception) { }
+                                        return true
+                                    }
                                     if (OfflineVault.isPdfUrl(url)) {
                                         view?.let { openOrDownloadPdf(it, ctx, url) }
                                         return true
@@ -494,13 +531,20 @@ fun MainScreen() {
                                     if (url != null && !url.startsWith("file://")) {
                                         val js =
                                             "(function(){" +
+                                            "document.documentElement.classList.add('wta-native-app');" +
+                                            "if(document.body)document.body.classList.add('wta-native-app');" +
                                             "if(document.getElementById('wta-app-chrome'))return;" +
                                             "var s=document.createElement('style');" +
                                             "s.id='wta-app-chrome';" +
                                             "s.textContent='" +
-                                            "body>header,body>footer,[data-site-header],[data-site-footer]," +
-                                            "nav[aria-label=\"Main\"]," +
-                                            "a[href*=\"/privacy\"],a[href*=\"/terms\"]{display:none!important}" +
+                                            "html.wta-native-app body>header," +
+                                            "html.wta-native-app body>footer," +
+                                            "html.wta-native-app footer," +
+                                            "html.wta-native-app [data-site-header]," +
+                                            "html.wta-native-app [data-site-footer]," +
+                                            "html.wta-native-app nav[aria-label=\"Main\"]," +
+                                            "html.wta-native-app .hide-on-app" +
+                                            "{display:none!important}" +
                                             "';" +
                                             "document.head.appendChild(s);" +
                                             "})();"
