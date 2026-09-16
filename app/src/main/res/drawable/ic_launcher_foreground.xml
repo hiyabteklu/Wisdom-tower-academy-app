@@ -4,14 +4,9 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Simple tower mark on navy -->
-    <path
-        android:fillColor="#38BDF8"
-        android:pathData="M44,72 L44,40 L50,40 L50,34 L58,34 L58,40 L64,40 L64,72 Z" />
-    <path
-        android:fillColor="#38BDF8"
-        android:pathData="M40,72 L68,72 L68,76 L40,76 Z" />
-    <path
-        android:fillColor="#7DD3FC"
-        android:pathData="M50,28 L54,22 L58,28 Z" />
+    <group android:translateX="28" android:translateY="24">
+      <path android:fillColor="#FFFFFF" android:pathData="M0,0h10v60H0z"/>
+      <path android:fillColor="#FFFFFF" android:pathData="M16,10h10v50H16z"/>
+      <path android:fillColor="#22E0FF" android:pathData="M31,6a5.5,5.5 0 1,1 0,0.01z"/>
+    </group>
 </vector>
