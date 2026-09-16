@@ -45,7 +45,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // Prevent screenshots & screen recording (FLAG_SECURE)
-        window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
+        // Temporarily disabled so we can take screenshots of errors
+        // window.setFlags(WindowManager.LayoutParams.FLAG_SECURE, WindowManager.LayoutParams.FLAG_SECURE)
         // Enable edge to edge for proper safe area handling
         enableEdgeToEdge()
         
@@ -129,6 +130,9 @@ fun MainScreen() {
                             ViewGroup.LayoutParams.MATCH_PARENT,
                             ViewGroup.LayoutParams.MATCH_PARENT
                         )
+                        // Disable hardware acceleration to fix Mesa rendernode errors in the emulator
+                        setLayerType(android.view.View.LAYER_TYPE_SOFTWARE, null)
+                        
                         settings.apply {
                             javaScriptEnabled = true
                             domStorageEnabled = true
@@ -152,24 +156,56 @@ fun MainScreen() {
                                 // Inject advanced JS to hide header, footer, bottom nav, social links, terms, etc.
                                 val jsInjection = """
                                     (function() {
-                                        var style = document.createElement('style');
-                                        style.innerHTML = `
-                                            header, footer, nav,
-                                            [class*="header"], [class*="footer"], [class*="nav"],
-                                            a[href*="terms"], a[href*="privacy"],
-                                            a[href*="facebook"], a[href*="twitter"], a[href*="instagram"], a[href*="linkedin"] {
-                                                display: none !important;
+                                        function hideElements() {
+                                            var style = document.getElementById('native-app-styles');
+                                            if (!style) {
+                                                style = document.createElement('style');
+                                                style.id = 'native-app-styles';
+                                                style.innerHTML = `
+                                                    /* Hide main semantic tags */
+                                                    header, footer, nav {
+                                                        display: none !important;
+                                                    }
+                                                    /* Hide by ID and common classes */
+                                                    #header, #footer, .header, .footer, .nav, .bottom-nav, .mobile-nav {
+                                                        display: none !important;
+                                                    }
+                                                    /* Hide links */
+                                                    a[href*="terms"], a[href*="privacy"],
+                                                    a[href*="facebook"], a[href*="twitter"], a[href*="instagram"], a[href*="linkedin"] {
+                                                        display: none !important;
+                                                    }
+                                                    /* Ensure body and main fill the screen properly */
+                                                    body, html {
+                                                        padding: 0 !important;
+                                                        margin: 0 !important;
+                                                        height: 100% !important;
+                                                    }
+                                                    body {
+                                                        padding-top: 0 !important;
+                                                        padding-bottom: 0 !important;
+                                                        min-height: 100vh !important;
+                                                    }
+                                                    main {
+                                                        min-height: 100vh !important;
+                                                    }
+                                                    /* Hide fixed headers/footers to avoid blank spaces */
+                                                    div[class*="fixed top"], div[class*="fixed bottom"],
+                                                    div[class*="sticky top"], div[class*="sticky bottom"] {
+                                                        display: none !important;
+                                                    }
+                                                `;
+                                                document.head.appendChild(style);
                                             }
-                                            body {
-                                                padding-top: 0 !important;
-                                                padding-bottom: 0 !important;
-                                                min-height: 100vh !important;
-                                            }
-                                            main {
-                                                min-height: 100vh !important;
-                                            }
-                                        `;
-                                        document.head.appendChild(style);
+                                        }
+                                        
+                                        hideElements();
+                                        
+                                        // Next.js can dynamically add elements, so we watch the DOM
+                                        var observer = new MutationObserver(function(mutations) {
+                                            hideElements();
+                                        });
+                                        observer.observe(document.body, { childList: true, subtree: true });
                                     })();
                                 """.trimIndent()
                                 view?.evaluateJavascript(jsInjection, null)
