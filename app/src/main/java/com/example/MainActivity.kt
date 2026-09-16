@@ -44,7 +44,6 @@ import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.ViewList
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -76,7 +75,7 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Prevent screenshots / screen-recording of paid content
+        // Block screenshots / screen-recording of paid content
         window.setFlags(
             WindowManager.LayoutParams.FLAG_SECURE,
             WindowManager.LayoutParams.FLAG_SECURE
@@ -122,7 +121,6 @@ fun MainScreen() {
 
     var selectedIndex by remember { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
-    var isLoading by remember { mutableStateOf(true) }
 
     // Hardware / gesture back: prefer WebView history, only exit when at root
     BackHandler {
@@ -166,7 +164,6 @@ fun MainScreen() {
         modifier = Modifier.fillMaxSize(),
         contentWindowInsets = WindowInsets.safeDrawing,
         topBar = {
-            // App header – logo + title + functional notification icon
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -186,7 +183,7 @@ fun MainScreen() {
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            imageVector = Icons.Filled.School,
+                            imageVector = Icons.Filled.MenuBook,
                             contentDescription = "Wisdom Tower Academy",
                             tint = Color(0xFF38BDF8),
                             modifier = Modifier.size(22.dp)
@@ -210,7 +207,6 @@ fun MainScreen() {
                         } else {
                             WebSettings.LOAD_CACHE_ELSE_NETWORK
                         }
-                        // Notifications live under account / dedicated path
                         wv.loadUrl("https://wisdom-tower-academy.live/account")
                     }
                 ) {
@@ -225,8 +221,7 @@ fun MainScreen() {
         bottomBar = {
             NavigationBar(
                 containerColor = Color(0xFF0F172A),
-                contentColor = Color.White,
-                tonalElevation = 8.dp
+                contentColor = Color.White
             ) {
                 items.forEachIndexed { index, item ->
                     val selected = selectedIndex == index
@@ -299,15 +294,10 @@ fun MainScreen() {
                             mediaPlaybackRequiresUserGesture = false
                             allowFileAccess = true
                             allowContentAccess = true
-                            // Keep Service Workers + smooth CSS animations working
                             offscreenPreRaster = true
-                            // Hardware acceleration is enabled on the Activity + Manifest
                             userAgentString =
                                 userAgentString + " WisdomTowerApp/1.0 Capacitor/Equivalent"
                         }
-
-                        // Smooth scrolling & better animation performance
-                        setLayerType(android.view.View.LAYER_TYPE_HARDWARE, null)
 
                         val cookieManager = CookieManager.getInstance()
                         cookieManager.setAcceptCookie(true)
@@ -352,11 +342,6 @@ fun MainScreen() {
                                 return false
                             }
 
-                            override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                super.onPageStarted(view, url, favicon)
-                                isLoading = true
-                            }
-
                             override fun onReceivedError(
                                 view: WebView?,
                                 request: WebResourceRequest?,
@@ -394,7 +379,6 @@ fun MainScreen() {
 
                             override fun onPageFinished(view: WebView?, url: String?) {
                                 super.onPageFinished(view, url)
-                                isLoading = false
 
                                 if (url != null && !url.startsWith("file://")) {
                                     val path = url.substringBefore("?").removeSuffix("/")
@@ -407,15 +391,14 @@ fun MainScreen() {
                                     }
                                 }
 
-                                // Targeted chrome hide — do NOT touch flashcard / card / animation elements
+                                // Targeted chrome hide — do NOT break flashcard flips / card animations
                                 if (url != null && !url.startsWith("file://")) {
                                     val js = """
                                         (function() {
                                             if (document.getElementById('wta-app-chrome')) return;
                                             var s = document.createElement('style');
                                             s.id = 'wta-app-chrome';
-                                            s.textContent = `
-                                              /* Only hide the site’s global chrome */
+                                            s.textContent = '
                                               body > header,
                                               body > footer,
                                               [data-site-header],
@@ -425,11 +408,10 @@ fun MainScreen() {
                                               a[href*="/terms"] {
                                                 display: none !important;
                                               }
-                                              /* Keep animations, transforms, and card flips intact */
                                               * {
                                                 -webkit-tap-highlight-color: transparent;
                                               }
-                                            `;
+                                            ';
                                             document.head.appendChild(s);
                                         })();
                                     """.trimIndent()
