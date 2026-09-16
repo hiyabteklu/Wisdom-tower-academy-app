@@ -20,14 +20,27 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK packages
+      - name: Show Android SDK path
         run: |
-          sdkmanager --install "platforms;android-36" "build-tools;35.0.0" "platform-tools" || \
-          sdkmanager --install "platforms;android-35" "build-tools;35.0.0" "platform-tools" || \
-          sdkmanager --install "platforms;android-34" "build-tools;34.0.0" "platform-tools"
+          echo "ANDROID_HOME=$ANDROID_HOME"
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+          ls -la "$ANDROID_HOME" || ls -la "$ANDROID_SDK_ROOT" || true
+
+      - name: Accept licenses & install platform if needed
+        run: |
+          set -e
+          SDK="${ANDROID_HOME:-$ANDROID_SDK_ROOT}"
+          if [ -z "$SDK" ]; then
+            # Fallback common path on GitHub-hosted runners
+            SDK="$HOME/Android/Sdk"
+            echo "ANDROID_HOME=$SDK" >> $GITHUB_ENV
+            export ANDROID_HOME="$SDK"
+          fi
+          echo "Using SDK at: $SDK"
+          yes | sdkmanager --licenses || true
+          # Install a stable platform/build-tools set
+          sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" || \
+          sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" || true
 
       - name: Generate debug keystore
         run: |
@@ -44,34 +57,31 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Make gradlew executable (if present)
+      - name: Create Gradle wrapper if missing
         run: |
-          if [ -f ./gradlew ]; then
+          if [ ! -f ./gradlew ]; then
+            gradle wrapper --gradle-version 8.13 || gradle wrapper
             chmod +x ./gradlew
           else
-            echo "No gradlew found — will use gradle from setup-gradle"
+            chmod +x ./gradlew
           fi
 
       - name: Build Debug APK
         run: |
-          if [ -f ./gradlew ]; then
-            ./gradlew assembleDebug --stacktrace --no-daemon
-          else
-            gradle assembleDebug --stacktrace --no-daemon
-          fi
+          ./gradlew assembleDebug --stacktrace --no-daemon
 
-      - name: Find APK
-        id: find_apk
+      - name: Find and copy APK
         run: |
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" | head -n 1)
+          APK_PATH=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1)
           echo "APK path: $APK_PATH"
           if [ -z "$APK_PATH" ]; then
             echo "ERROR: No APK found"
             find app/build -type f -name "*.apk" || true
+            ls -laR app/build/outputs || true
             exit 1
           fi
-          echo "apk_path=$APK_PATH" >> $GITHUB_OUTPUT
           cp "$APK_PATH" ./Wisdom-Tower-Academy-debug.apk
+          ls -lh ./Wisdom-Tower-Academy-debug.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
