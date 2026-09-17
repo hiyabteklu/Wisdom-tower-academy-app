@@ -60,19 +60,15 @@
     <div class="icon-wrap" aria-hidden="true"><div class="wifi"></div></div>
     <h1>No connection</h1>
     <p>
-      Wisdom Tower Academy needs the internet to load.
-      Check your network, then try again.
+      This page is not in the offline cache yet.
+      Connect once, open the pages you need (Learning, notes, books), then they can open offline.
     </p>
     <button type="button" onclick="tryAgain()">Try again</button>
     <p class="hint">WISDOM TOWER ACADEMY</p>
   </div>
   <script>
     function tryAgain() {
-      if (navigator.onLine) {
-        window.location.href = 'https://wisdom-tower-academy.live/';
-      } else {
-        alert('Still offline. Connect to Wi-Fi or mobile data first.');
-      }
+      window.location.href = 'https://wisdom-tower-academy.live/';
     }
     window.addEventListener('online', function () {
       window.location.href = 'https://wisdom-tower-academy.live/';
