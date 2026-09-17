@@ -71,6 +71,7 @@ import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -83,12 +84,15 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import coil.compose.AsyncImage
 import com.example.ui.theme.MyApplicationTheme
 
@@ -165,6 +169,34 @@ fun MainScreen() {
     var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
     var pageLoading by remember { mutableStateOf(true) }
+    var lastResumeRefreshAt by remember { mutableStateOf(0L) }
+
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, webView) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event != Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
+            val wv = webView ?: return@LifecycleEventObserver
+            if (!isOnline(context)) return@LifecycleEventObserver
+            val url = wv.url ?: return@LifecycleEventObserver
+            if (url.startsWith("file://")) return@LifecycleEventObserver
+            val now = System.currentTimeMillis()
+            if (now - lastResumeRefreshAt < 4000L) return@LifecycleEventObserver
+            lastResumeRefreshAt = now
+            wv.evaluateJavascript(
+                "(function(){try{window.dispatchEvent(new CustomEvent('wta-refresh',{detail:{source:'app-resume'}}));}catch(e){}})();",
+                null
+            )
+            mainHandler.postDelayed({
+                if (webView === wv && isOnline(context)) {
+                    pageLoading = true
+                    wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                    wv.reload()
+                }
+            }, 350)
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
 
     val activity = context as? ComponentActivity
     BackHandler {
@@ -179,8 +211,6 @@ fun MainScreen() {
     fun navigateTo(url: String, tabIndex: Int? = null) {
         val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
-        // Always attempt the real URL. Offline → use HTTP cache first.
-        // offline.html is only shown from onReceivedError if cache misses.
         pageLoading = true
         wv.settings.cacheMode = if (isOnline(context)) {
             WebSettings.LOAD_DEFAULT
