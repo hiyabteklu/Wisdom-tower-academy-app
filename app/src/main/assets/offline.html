@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Offline — Wisdom Tower Academy</title>
+  <title>Offline</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: #0B1220;
+      background: #0F172A;
       color: #e2e8f0;
       min-height: 100vh;
       display: flex;
@@ -17,58 +17,66 @@
       padding: 24px;
       text-align: center;
     }
-    .card { max-width: 340px; width: 100%; }
+    .card { max-width: 320px; width: 100%; }
     .icon-wrap {
       width: 72px; height: 72px; margin: 0 auto 20px;
       border-radius: 20px;
-      background: linear-gradient(145deg, #1e293b, #0f172a);
-      border: 1px solid rgba(56, 189, 248, 0.25);
+      background: #1E293B;
+      border: 1px solid rgba(0, 229, 255, 0.25);
       display: flex; align-items: center; justify-content: center;
     }
-    .wifi {
-      width: 36px; height: 36px;
-      border: 3px solid #38bdf8;
-      border-top-color: transparent;
-      border-radius: 50%;
-      position: relative;
-      opacity: 0.9;
+    .wifi-off {
+      width: 36px; height: 28px; position: relative;
     }
-    .wifi::after {
+    .wifi-off::before {
       content: "";
       position: absolute;
-      width: 10px; height: 10px;
-      background: #38bdf8;
+      left: 50%; top: 4px;
+      width: 28px; height: 28px;
+      margin-left: -14px;
+      border: 3px solid #00E5FF;
+      border-bottom-color: transparent;
       border-radius: 50%;
-      left: 50%; top: 50%;
-      transform: translate(-50%, -50%);
+      opacity: 0.85;
     }
-    h1 { font-size: 1.4rem; font-weight: 800; margin-bottom: 10px; color: #f8fafc; }
-    p { font-size: 0.95rem; line-height: 1.55; color: #94a3b8; margin-bottom: 28px; }
+    .wifi-off::after {
+      content: "";
+      position: absolute;
+      left: 50%; bottom: 0;
+      width: 8px; height: 8px;
+      margin-left: -4px;
+      background: #00E5FF;
+      border-radius: 50%;
+    }
+    h1 { font-size: 1.35rem; font-weight: 800; margin-bottom: 10px; color: #f8fafc; }
+    p { font-size: 0.95rem; line-height: 1.55; color: #94a3b8; margin-bottom: 24px; }
     button {
       appearance: none; border: none;
-      background: #38bdf8; color: #0f172a;
+      background: #00E5FF; color: #0f172a;
       font-weight: 700; font-size: 1rem;
       padding: 14px 28px; border-radius: 14px;
       width: 100%; cursor: pointer;
     }
     button:active { opacity: 0.85; }
-    .hint { margin-top: 18px; font-size: 0.78rem; color: #64748b; letter-spacing: 0.04em; }
   </style>
 </head>
 <body>
   <div class="card">
-    <div class="icon-wrap" aria-hidden="true"><div class="wifi"></div></div>
-    <h1>No connection</h1>
+    <div class="icon-wrap" aria-hidden="true"><div class="wifi-off"></div></div>
+    <h1>You are offline</h1>
     <p>
-      This page is not in the offline cache yet.
-      Connect once, open the pages you need (Learning, notes, books), then they can open offline.
+      Check your connection and try again.
+      Pages you opened while online will still work without internet.
     </p>
     <button type="button" onclick="tryAgain()">Try again</button>
-    <p class="hint">WISDOM TOWER ACADEMY</p>
   </div>
   <script>
     function tryAgain() {
-      window.location.href = 'https://wisdom-tower-academy.live/';
+      if (navigator.onLine) {
+        window.location.href = 'https://wisdom-tower-academy.live/';
+      } else {
+        location.reload();
+      }
     }
     window.addEventListener('online', function () {
       window.location.href = 'https://wisdom-tower-academy.live/';
