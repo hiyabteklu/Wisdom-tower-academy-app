@@ -63,6 +63,15 @@ android {
   }
 }
 
+// Ship root logo.png + animation.gif inside the APK for instant brand assets
+tasks.register<Copy>("copyBrandAssets") {
+  from(rootDir) {
+    include("logo.png", "animation.gif")
+  }
+  into(layout.projectDirectory.dir("src/main/assets/brand"))
+}
+tasks.named("preBuild").configure { dependsOn("copyBrandAssets") }
+
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
