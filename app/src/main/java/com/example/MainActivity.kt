@@ -14,6 +14,7 @@ import android.view.HapticFeedbackConstants
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
+import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
@@ -80,6 +81,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -101,25 +103,36 @@ private val BarBg = Color(0xFF0F172A)
 private val Accent = Color(0xFF00E5FF)
 private val Surface = Color(0xFF1E293B)
 private val Muted = Color(0xFF94A3B8)
+private val LoaderCard = Color(0xE6111827)
 
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 private const val SITE = "https://wisdom-tower-academy.live/"
+private const val MIN_SPLASH_MS = 4500L
 
-/** Hide site chrome + common spinners so only our BrandLoader GIF shows. */
+/**
+ * Hide site chrome + site spinners, force lazy images so navigation
+ * is not blocked while thumbnails download (same feel as mobile web).
+ */
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
         "document.documentElement.classList.add('wta-native-app');" +
-        "if(document.body)document.body.classList.add('wta-native-app');" +
+        "if(document.body){document.body.classList.add('wta-native-app');document.body.style.pointerEvents='auto';}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;document.documentElement.appendChild(s);}" +
         "s.textContent=" +
         "'header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer{display:none!important;}" +
         "html.wta-native-app,body.wta-native-app{overscroll-behavior:none;}" +
         ".loading,.spinner,.loader,[class*=\"spinner\"],[class*=\"loading\"]," +
-        "[aria-busy=true],.animate-spin,.nprogress,.bar-loader{display:none!important;visibility:hidden!important;}" +
+        "[aria-busy=true],.animate-spin,.nprogress,.bar-loader," +
+        ".MuiCircularProgress-root,[data-loading],.progress-circle{display:none!important;visibility:hidden!important;}" +
         "header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[role=navigation],.bottom-nav,.app-chrome{-webkit-user-select:none!important;-webkit-touch-callout:none!important;user-select:none!important;}'" +
-        ";}catch(e){}})();"
+        ";" +
+        "document.querySelectorAll('img').forEach(function(img){" +
+        "if(!img.getAttribute('loading'))img.setAttribute('loading','lazy');" +
+        "if(!img.getAttribute('decoding'))img.setAttribute('decoding','async');" +
+        "});" +
+        "}catch(e){}})();"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -203,11 +216,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var pageLoading by remember { mutableStateOf(true) }
     var largeLoader by remember { mutableStateOf(true) }
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
-    var splashStartedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    var splashHoldDone by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         onReady()
-        delay(4500)
+        delay(MIN_SPLASH_MS)
+        splashHoldDone = true
+        if (largeLoader) {
+            pageLoading = false
+            largeLoader = false
+        }
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -237,6 +255,17 @@ fun MainScreen(onReady: () -> Unit = {}) {
             wv.goBack()
         } else {
             activity?.finish()
+        }
+    }
+
+    fun finishLoadingIfAllowed() {
+        if (largeLoader) {
+            if (splashHoldDone) {
+                pageLoading = false
+                largeLoader = false
+            }
+        } else {
+            pageLoading = false
         }
     }
 
@@ -453,6 +482,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.databaseEnabled = true
+                            settings.loadsImagesAutomatically = true
+                            settings.blockNetworkImage = false
                             settings.cacheMode = if (isOnline(ctx)) {
                                 WebSettings.LOAD_DEFAULT
                             } else {
@@ -465,30 +496,35 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             CookieManager.getInstance().setAcceptCookie(true)
                             CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
 
+                            webChromeClient = object : WebChromeClient() {
+                                override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                    if (!largeLoader && newProgress >= 55 && pageLoading) {
+                                        pageLoading = false
+                                    }
+                                }
+                            }
+
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                     if (url != null && url.startsWith("file:///android_asset/")) {
                                         pageLoading = false
                                         largeLoader = false
-                                    } else {
+                                    } else if (!largeLoader) {
                                         pageLoading = true
+                                    }
+                                    view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                }
+
+                                override fun onPageCommitVisible(view: WebView?, url: String?) {
+                                    if (!largeLoader) {
+                                        pageLoading = false
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
-                                    val elapsed = System.currentTimeMillis() - splashStartedAt
-                                    val minSplash = 4500L
-                                    if (largeLoader && elapsed < minSplash) {
-                                        mainHandler.postDelayed({
-                                            pageLoading = false
-                                            largeLoader = false
-                                        }, minSplash - elapsed)
-                                    } else {
-                                        pageLoading = false
-                                        largeLoader = false
-                                    }
+                                    finishLoadingIfAllowed()
                                 }
 
                                 override fun onReceivedError(
@@ -551,15 +587,38 @@ fun MainScreen(onReady: () -> Unit = {}) {
                 )
 
                 if (pageLoading) {
-                    val overlayAlpha = if (largeLoader) 0.96f else 0.70f
-                    val markSize = if (largeLoader) 180.dp else 56.dp
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(BarBg.copy(alpha = overlayAlpha)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        BrandLoader(size = markSize)
+                    if (largeLoader) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(BarBg),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(28.dp))
+                                    .background(LoaderCard)
+                                    .padding(28.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                BrandLoader(size = 180.dp)
+                            }
+                        }
+                    } else {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(20.dp))
+                                    .background(LoaderCard)
+                                    .padding(18.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                BrandLoader(size = 56.dp)
+                            }
+                        }
                     }
                 }
             }
