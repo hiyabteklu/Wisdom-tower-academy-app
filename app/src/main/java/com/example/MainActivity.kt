@@ -178,12 +178,9 @@ fun MainScreen() {
 
     fun navigateTo(url: String, tabIndex: Int? = null) {
         val wv = webView ?: return
-        if (!isOnline(context) && !url.startsWith("file://")) {
-            pageLoading = false
-            wv.loadUrl("file:///android_asset/offline.html")
-            return
-        }
         if (tabIndex != null) selectedIndex = tabIndex
+        // Always attempt the real URL. Offline → use HTTP cache first.
+        // offline.html is only shown from onReceivedError if cache misses.
         pageLoading = true
         wv.settings.cacheMode = if (isOnline(context)) {
             WebSettings.LOAD_DEFAULT
@@ -333,7 +330,6 @@ fun MainScreen() {
 
                         IconButton(
                             onClick = {
-                                // Notifications only — not settings / account
                                 navigateTo("https://wisdom-tower-academy.live/notifications", null)
                             },
                             modifier = Modifier.size(48.dp)
@@ -388,6 +384,9 @@ fun MainScreen() {
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
 
+                            CookieManager.getInstance().setAcceptCookie(true)
+                            CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+
                             settings.apply {
                                 javaScriptEnabled = true
                                 domStorageEnabled = true
@@ -429,23 +428,50 @@ fun MainScreen() {
                                     if (externalHosts.any { host == it || host.endsWith(".$it") }) {
                                         try {
                                             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                        } catch (_: Exception) { }
-                                        return true
+                                            return true
+                                        } catch (_: Exception) {
+                                            return false
+                                        }
                                     }
                                     if (OfflineVault.isPdfUrl(url)) {
-                                        view?.let { openOrDownloadPdf(it, ctx, url) }
-                                        return true
-                                    }
-                                    if (!isOnline(ctx) && !url.startsWith("file://")) {
-                                        val local = OfflineVault.localFileFor(ctx, url)
-                                        if (local != null) {
-                                            view?.loadUrl(OfflineVault.fileUrl(local))
-                                        } else {
-                                            view?.loadUrl("file:///android_asset/offline.html")
-                                        }
+                                        openOrDownloadPdf(this@apply, ctx, url)
                                         return true
                                     }
                                     return false
+                                }
+
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    pageLoading = true
+                                }
+
+                                override fun onPageFinished(view: WebView?, url: String?) {
+                                    pageLoading = false
+                                    val path = url ?: ""
+                                    selectedIndex = when {
+                                        path.contains("/learning") -> 1
+                                        path.contains("/packages") -> 2
+                                        path.contains("/account") || path.contains("/settings") -> 3
+                                        path.contains("/notifications") -> selectedIndex
+                                        else -> selectedIndex
+                                    }
+                                    val js =
+                                        "(function(){try{" +
+                                            "document.documentElement.classList.add('wta-native-app');" +
+                                            "document.body.classList.add('wta-native-app');" +
+                                            "if(!document.getElementById('wta-app-chrome')){" +
+                                            "var s=document.createElement('style');s.id='wta-app-chrome';" +
+                                            "s.textContent=" +
+                                            "'html.wta-native-app header," +
+                                            "html.wta-native-app [data-site-header]," +
+                                            "html.wta-native-app footer," +
+                                            "html.wta-native-app [data-site-footer]," +
+                                            "html.wta-native-app nav[aria-label=\\\"Main\\\"]," +
+                                            "html.wta-native-app .hide-on-app" +
+                                            "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important}'" +
+                                            ";document.head.appendChild(s)}" +
+                                            "}catch(e){}" +
+                                            "})();"
+                                    view?.evaluateJavascript(js, null)
                                 }
 
                                 override fun onReceivedError(
@@ -466,83 +492,6 @@ fun MainScreen() {
                                         view?.loadUrl("file:///android_asset/offline.html")
                                     }
                                 }
-
-                                @Deprecated("Deprecated in Java")
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    errorCode: Int,
-                                    description: String?,
-                                    failingUrl: String?
-                                ) {
-                                    pageLoading = false
-                                    if (failingUrl != null) {
-                                        val local = OfflineVault.localFileFor(ctx, failingUrl)
-                                        if (local != null) {
-                                            view?.loadUrl(OfflineVault.fileUrl(local))
-                                            return
-                                        }
-                                    }
-                                    view?.loadUrl("file:///android_asset/offline.html")
-                                }
-
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    super.onPageStarted(view, url, favicon)
-                                    if (url != null && url.startsWith("file://")) {
-                                        pageLoading = false
-                                    } else {
-                                        pageLoading = true
-                                    }
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    super.onPageFinished(view, url)
-                                    pageLoading = false
-
-                                    if (url != null && url.contains("/logout")) {
-                                        try {
-                                            CookieManager.getInstance().removeAllCookies(null)
-                                            CookieManager.getInstance().flush()
-                                        } catch (_: Exception) { }
-                                    }
-
-                                    if (url != null && !url.startsWith("file://")) {
-                                        val path = url.substringBefore("?").removeSuffix("/")
-                                        selectedIndex = when {
-                                            path.contains("/learning") || path.contains("/my-learning") -> 1
-                                            path.contains("/packages") -> 2
-                                            path.contains("/account") || path.contains("/settings") ||
-                                                path.contains("/login") || path.contains("/auth") ||
-                                                path.contains("/logout") -> 3
-                                            // /notifications stays on current tab — not Account
-                                            path.contains("/notifications") -> selectedIndex
-                                            else -> selectedIndex
-                                        }
-                                    }
-
-                                    if (url != null && !url.startsWith("file://")) {
-                                        val js =
-                                            "(function(){" +
-                                            "try{" +
-                                            "document.documentElement.classList.add('wta-native-app');" +
-                                            "if(document.body)document.body.classList.add('wta-native-app');" +
-                                            "var s=document.getElementById('wta-app-chrome');" +
-                                            "if(!s){s=document.createElement('style');s.id='wta-app-chrome';" +
-                                            "s.textContent='" +
-                                            "html.wta-native-app body>header," +
-                                            "html.wta-native-app header," +
-                                            "html.wta-native-app body>footer," +
-                                            "html.wta-native-app footer," +
-                                            "html.wta-native-app [data-site-header]," +
-                                            "html.wta-native-app [data-site-footer]," +
-                                            "html.wta-native-app nav[aria-label=\"Main\"]," +
-                                            "html.wta-native-app .hide-on-app" +
-                                            "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important}" +
-                                            "';document.head.appendChild(s)}" +
-                                            "}catch(e){}" +
-                                            "})();"
-                                        view?.evaluateJavascript(js, null)
-                                    }
-                                }
                             }
 
                             setDownloadListener(DownloadListener { url, _, contentDisposition, mimeType, _ ->
@@ -559,11 +508,12 @@ fun MainScreen() {
                             })
 
                             webView = this
-                            if (isOnline(ctx)) {
-                                loadUrl(items[0].url)
+                            settings.cacheMode = if (isOnline(ctx)) {
+                                WebSettings.LOAD_DEFAULT
                             } else {
-                                loadUrl("file:///android_asset/offline.html")
+                                WebSettings.LOAD_CACHE_ELSE_NETWORK
                             }
+                            loadUrl(items[0].url)
                         }
                     },
                     modifier = Modifier.fillMaxSize(),
