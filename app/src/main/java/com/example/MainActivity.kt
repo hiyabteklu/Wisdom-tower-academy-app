@@ -11,7 +11,6 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.HapticFeedbackConstants
-import android.view.View
 import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
@@ -72,8 +71,10 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -94,13 +95,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.ui.theme.MyApplicationTheme
+import kotlinx.coroutines.delay
 
 private val BarBg = Color(0xFF0F172A)
 private val Accent = Color(0xFF00E5FF)
 private val Surface = Color(0xFF1E293B)
 private val Muted = Color(0xFF94A3B8)
 
-/** Early chrome-hide + native-app markers. Injected onPageStarted so first paint is already clean. */
+private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
+private const val SITE = "https://wisdom-tower-academy.live/"
+
+/** Hide site chrome + common spinners so only our BrandLoader GIF shows. */
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
         "document.documentElement.classList.add('wta-native-app');" +
@@ -110,13 +115,17 @@ private const val NATIVE_CHROME_JS =
         "s.textContent=" +
         "'header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer{display:none!important;}" +
         "html.wta-native-app,body.wta-native-app{overscroll-behavior:none;}" +
+        ".loading,.spinner,.loader,[class*=\"spinner\"],[class*=\"loading\"]," +
+        "[aria-busy=true],.animate-spin,.nprogress,.bar-loader{display:none!important;visibility:hidden!important;}" +
         "header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[role=navigation],.bottom-nav,.app-chrome{-webkit-user-select:none!important;-webkit-touch-callout:none!important;user-select:none!important;}'" +
         ";}catch(e){}})();"
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
-        installSplashScreen()
+        val splash = installSplashScreen()
+        var keepSplash = true
+        splash.setKeepOnScreenCondition { keepSplash }
         super.onCreate(savedInstanceState)
 
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
@@ -131,7 +140,7 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             MyApplicationTheme {
-                MainScreen()
+                MainScreen(onReady = { keepSplash = false })
             }
         }
     }
@@ -178,7 +187,7 @@ private val mainHandler = Handler(Looper.getMainLooper())
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun MainScreen() {
+fun MainScreen(onReady: () -> Unit = {}) {
     val context = LocalContext.current
     val view = LocalView.current
     val items = listOf(
@@ -193,7 +202,13 @@ fun MainScreen() {
     var menuExpanded by remember { mutableStateOf(false) }
     var pageLoading by remember { mutableStateOf(true) }
     var largeLoader by remember { mutableStateOf(true) }
-    var lastResumeRefreshAt by remember { mutableStateOf(0L) }
+    var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
+    var splashStartedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
+
+    LaunchedEffect(Unit) {
+        onReady()
+        delay(4500)
+    }
 
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, webView) {
@@ -225,16 +240,23 @@ fun MainScreen() {
         }
     }
 
+    fun showOffline(wv: WebView) {
+        pageLoading = false
+        largeLoader = false
+        wv.loadUrl(OFFLINE_ASSET)
+    }
+
     fun navigateTo(url: String, tabIndex: Int? = null) {
         val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
         largeLoader = false
         pageLoading = true
-        wv.settings.cacheMode = if (isOnline(context)) {
-            WebSettings.LOAD_DEFAULT
-        } else {
-            WebSettings.LOAD_CACHE_ELSE_NETWORK
+        if (!isOnline(context)) {
+            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            wv.loadUrl(url)
+            return
         }
+        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
         wv.loadUrl(url)
     }
 
@@ -431,7 +453,11 @@ fun MainScreen() {
                             settings.javaScriptEnabled = true
                             settings.domStorageEnabled = true
                             settings.databaseEnabled = true
-                            settings.cacheMode = WebSettings.LOAD_DEFAULT
+                            settings.cacheMode = if (isOnline(ctx)) {
+                                WebSettings.LOAD_DEFAULT
+                            } else {
+                                WebSettings.LOAD_CACHE_ELSE_NETWORK
+                            }
                             settings.mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
                             settings.mediaPlaybackRequiresUserGesture = false
                             settings.allowFileAccess = true
@@ -441,14 +467,28 @@ fun MainScreen() {
 
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    pageLoading = true
+                                    if (url != null && url.startsWith("file:///android_asset/")) {
+                                        pageLoading = false
+                                        largeLoader = false
+                                    } else {
+                                        pageLoading = true
+                                    }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
-                                    pageLoading = false
-                                    largeLoader = false
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                    val elapsed = System.currentTimeMillis() - splashStartedAt
+                                    val minSplash = 4500L
+                                    if (largeLoader && elapsed < minSplash) {
+                                        mainHandler.postDelayed({
+                                            pageLoading = false
+                                            largeLoader = false
+                                        }, minSplash - elapsed)
+                                    } else {
+                                        pageLoading = false
+                                        largeLoader = false
+                                    }
                                 }
 
                                 override fun onReceivedError(
@@ -457,8 +497,18 @@ fun MainScreen() {
                                     error: WebResourceError?
                                 ) {
                                     if (request?.isForMainFrame == true) {
-                                        pageLoading = false
+                                        view?.let { showOffline(it) }
                                     }
+                                }
+
+                                @Deprecated("Deprecated in Java")
+                                override fun onReceivedError(
+                                    view: WebView?,
+                                    errorCode: Int,
+                                    description: String?,
+                                    failingUrl: String?
+                                ) {
+                                    view?.let { showOffline(it) }
                                 }
 
                                 override fun shouldOverrideUrlLoading(
@@ -472,6 +522,7 @@ fun MainScreen() {
                                     }
                                     if (!u.contains("wisdom-tower-academy.live") &&
                                         !u.contains("wisdomtower.tech") &&
+                                        !u.startsWith("file://") &&
                                         (u.startsWith("http://") || u.startsWith("https://"))
                                     ) {
                                         try {
@@ -487,7 +538,12 @@ fun MainScreen() {
                                 openOrDownloadPdf(this, ctx, url)
                             })
 
-                            loadUrl("https://wisdom-tower-academy.live/")
+                            if (isOnline(ctx)) {
+                                loadUrl(SITE)
+                            } else {
+                                settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                loadUrl(SITE)
+                            }
                             webView = this
                         }
                     },
@@ -495,8 +551,8 @@ fun MainScreen() {
                 )
 
                 if (pageLoading) {
-                    val overlayAlpha = if (largeLoader) 0.92f else 0.55f
-                    val markSize = if (largeLoader) 160.dp else 48.dp
+                    val overlayAlpha = if (largeLoader) 0.96f else 0.70f
+                    val markSize = if (largeLoader) 180.dp else 56.dp
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
