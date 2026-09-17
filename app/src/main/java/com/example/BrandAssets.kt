@@ -1,5 +1,11 @@
 package com.example
 
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -7,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.CornerRadius
@@ -22,14 +29,31 @@ private val MarkCyan = Color(0xFF00E5C8)
 
 /**
  * Official Wisdom Tower mark drawn in Compose.
- * Rounded square, works fully offline, never depends on network.
- * Matches brand PNG: two white bars + cyan dot on the taller left bar.
+ * Rounded square, works fully offline.
+ * [blinkDot] = cyan dot opacity loops 100% -> 0% -> 100% over 1s.
  */
 @Composable
 fun BrandMark(
     size: Dp = 34.dp,
     corner: Dp = 8.dp,
+    blinkDot: Boolean = false,
 ) {
+    val dotAlpha = if (blinkDot) {
+        val infinite = rememberInfiniteTransition(label = "cyan-blink")
+        val a by infinite.animateFloat(
+            initialValue = 1f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(durationMillis = 500, easing = LinearEasing),
+                repeatMode = RepeatMode.Reverse,
+            ),
+            label = "dotAlpha",
+        )
+        a
+    } else {
+        1f
+    }
+
     Box(
         modifier = Modifier
             .size(size)
@@ -59,10 +83,9 @@ fun BrandMark(
                 size = Size(barW, rightH),
                 cornerRadius = CornerRadius(barW * 0.22f, barW * 0.22f),
             )
-            // Cyan dot on top of LEFT (taller) bar — matches official logo
             val dotR = barW * 0.52f
             drawCircle(
-                color = MarkCyan,
+                color = MarkCyan.copy(alpha = dotAlpha.coerceIn(0f, 1f)),
                 radius = dotR,
                 center = Offset(leftX + barW / 2f, barsBottom - leftH - dotR * 0.05f),
             )
