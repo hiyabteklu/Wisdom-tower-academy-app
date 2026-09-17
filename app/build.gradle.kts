@@ -1,1 +1,1 @@
-PLACEHOLDER
+{{read_file /home/workdir/artifacts/app_build.gradle.kts}}
