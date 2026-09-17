@@ -22,6 +22,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +39,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
@@ -80,8 +87,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -91,12 +101,18 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import coil.compose.AsyncImage
 import com.example.ui.theme.MyApplicationTheme
 
 private val BarBg = Color(0xFF0F172A)
-private val Accent = Color(0xFF38BDF8)
+private val Accent = Color(0xFF00E5FF)
 private val Surface = Color(0xFF1E293B)
 private val Muted = Color(0xFF94A3B8)
+
+/** Measured from your PNGs: cyan dot center inside logo content box */
+private const val DOT_CX = 0.1242f
+private const val DOT_CY = 0.1293f
+private const val DOT_SIZE_FRAC = 0.072f
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -151,20 +167,106 @@ private fun isOnline(context: Context): Boolean {
 
 private val mainHandler = Handler(Looper.getMainLooper())
 
+/**
+ * Real brand logo with cyan-dot blink in the exact measured position.
+ * Uses your official logo; overlay pulse sits on the turquoise dot only.
+ */
 @Composable
-private fun BrandMark(sizeDp: Int = 32, textSizeSp: Int = 12) {
+private fun BrandLogoLoader(
+    modifier: Modifier = Modifier,
+    logoWidthDp: Float = 200f,
+) {
+    val infinite = rememberInfiniteTransition(label = "logo")
+    val dotAlpha by infinite.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(750, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "dotAlpha",
+    )
+    val glowScale by infinite.animateFloat(
+        initialValue = 0.9f,
+        targetValue = 1.25f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(750, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "glowScale",
+    )
+    val logoScale by infinite.animateFloat(
+        initialValue = 1f,
+        targetValue = 1.03f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse,
+        ),
+        label = "logoScale",
+    )
+
+    // Logo asset aspect from your PNG crop ~ 512 x 201
+    val aspect = 201f / 512f
+    val w = logoWidthDp.dp
+    val h = (logoWidthDp * aspect).dp
+    val density = LocalDensity.current
+    val dotPx = with(density) { (logoWidthDp * DOT_SIZE_FRAC).dp }
+
+    Box(
+        modifier = modifier
+            .width(w)
+            .height(h)
+            .graphicsLayer {
+                scaleX = logoScale
+                scaleY = logoScale
+            },
+        contentAlignment = Alignment.TopStart,
+    ) {
+        AsyncImage(
+            model = "https://www.wisdom-tower-academy.live/images/brand/logo.png",
+            contentDescription = "Wisdom Tower Academy",
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Fit,
+        )
+        // Soft glow behind the dot
+        Box(
+            modifier = Modifier
+                .offset(
+                    x = w * DOT_CX - dotPx * glowScale / 2f,
+                    y = h * DOT_CY - dotPx * glowScale / 2f,
+                )
+                .size(dotPx * glowScale)
+                .graphicsLayer { alpha = dotAlpha * 0.45f }
+                .background(Accent.copy(alpha = 0.55f), CircleShape)
+        )
+        // Exact cyan blink on the logo's turquoise pixel
+        Box(
+            modifier = Modifier
+                .offset(
+                    x = w * DOT_CX - dotPx / 2f,
+                    y = h * DOT_CY - dotPx / 2f,
+                )
+                .size(dotPx)
+                .graphicsLayer { alpha = dotAlpha }
+                .background(Accent, CircleShape)
+        )
+    }
+}
+
+@Composable
+private fun BrandMarkSmall() {
     Box(
         modifier = Modifier
-            .size(sizeDp.dp)
+            .size(32.dp)
             .clip(CircleShape)
             .background(Accent.copy(alpha = 0.2f)),
-        contentAlignment = Alignment.Center
+        contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = "WT",
-            color = Accent,
-            fontSize = textSizeSp.sp,
-            fontWeight = FontWeight.Bold
+        AsyncImage(
+            model = "https://www.wisdom-tower-academy.live/images/brand/logo.png",
+            contentDescription = null,
+            modifier = Modifier.size(22.dp),
+            contentScale = ContentScale.Fit,
         )
     }
 }
@@ -363,7 +465,7 @@ fun MainScreen() {
                                 .weight(1f)
                                 .padding(horizontal = 4.dp)
                         ) {
-                            BrandMark(sizeDp = 32, textSizeSp = 12)
+                            BrandMarkSmall()
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Wisdom Tower Academy",
@@ -473,6 +575,10 @@ fun MainScreen() {
                                 }
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                     pageLoading = true
+                                    view?.evaluateJavascript(
+                                        "(function(){try{document.documentElement.classList.add('wta-native-app');if(document.body)document.body.classList.add('wta-native-app');}catch(e){}})();",
+                                        null
+                                    )
                                 }
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     pageLoading = false
@@ -547,16 +653,16 @@ fun MainScreen() {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(BarBg.copy(alpha = 0.72f)),
+                            .background(BarBg.copy(alpha = 0.88f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            BrandMark(sizeDp = 48, textSizeSp = 16)
-                            Spacer(modifier = Modifier.height(16.dp))
+                            BrandLogoLoader(logoWidthDp = 220f)
+                            Spacer(modifier = Modifier.height(28.dp))
                             CircularProgressIndicator(
                                 color = Accent,
-                                strokeWidth = 3.dp,
-                                modifier = Modifier.size(28.dp)
+                                strokeWidth = 2.5.dp,
+                                modifier = Modifier.size(22.dp)
                             )
                         }
                     }
