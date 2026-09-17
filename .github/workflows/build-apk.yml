@@ -59,6 +59,11 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --version
 
+      - name: Generate brand launcher icons
+        run: |
+          python3 -m pip install pillow -q
+          python3 scripts/generate_icons.py
+
       - name: Build Debug APK
         id: build
         continue-on-error: true
