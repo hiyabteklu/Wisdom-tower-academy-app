@@ -1,6 +1,5 @@
 package com.example
 
-import android.util.Base64
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -17,8 +16,12 @@ import java.io.IOException
 
 /**
  * Official Wisdom Tower brand assets.
- * Logo (static PNG) for header; animated GIF for splash / loading overlays.
- * Base64 files live in assets/brand/ so the app works fully offline.
+ *
+ * - Header: static logo.png (from repo root, copied into assets/brand/)
+ * - Splash / loading: animation.gif (transparent BG, big on first load, small after)
+ *
+ * Files live at repo root (logo.png, animation.gif) and are copied into the APK
+ * assets by the copyBrandAssets Gradle task.
  */
 
 private object BrandBytes {
@@ -27,24 +30,21 @@ private object BrandBytes {
 
     fun logoPng(context: android.content.Context): ByteArray {
         logoCache?.let { return it }
-        val bytes = loadAssetB64(context, "brand/logo.b64")
+        val bytes = loadAsset(context, "brand/logo.png")
         logoCache = bytes
         return bytes
     }
 
     fun loaderGif(context: android.content.Context): ByteArray {
         loaderCache?.let { return it }
-        val bytes = loadAssetB64(context, "brand/loader.b64")
+        val bytes = loadAsset(context, "brand/animation.gif")
         loaderCache = bytes
         return bytes
     }
 
-    private fun loadAssetB64(context: android.content.Context, path: String): ByteArray {
+    private fun loadAsset(context: android.content.Context, path: String): ByteArray {
         return try {
-            context.assets.open(path).use { input ->
-                val b64 = input.bufferedReader().readText().trim()
-                Base64.decode(b64, Base64.DEFAULT)
-            }
+            context.assets.open(path).use { it.readBytes() }
         } catch (e: IOException) {
             ByteArray(0)
         }
@@ -66,7 +66,6 @@ fun rememberBrandImageLoader(): ImageLoader {
 /**
  * Static brand logo for the native app header.
  * Replaces the old generic two-bar Compose canvas mark.
- * Source: public/images/brand/logo.png
  */
 @Composable
 fun BrandLogo(
