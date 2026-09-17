@@ -22,7 +22,6 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -82,10 +81,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalLifecycleOwner
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -94,6 +90,7 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.example.ui.theme.MyApplicationTheme
 
 private val BarBg = Color(0xFF0F172A)
@@ -153,6 +150,24 @@ private fun isOnline(context: Context): Boolean {
 }
 
 private val mainHandler = Handler(Looper.getMainLooper())
+
+@Composable
+private fun BrandMark(sizeDp: Int = 32, textSizeSp: Int = 12) {
+    Box(
+        modifier = Modifier
+            .size(sizeDp.dp)
+            .clip(CircleShape)
+            .background(Accent.copy(alpha = 0.2f)),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = "WT",
+            color = Accent,
+            fontSize = textSizeSp.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
@@ -348,15 +363,7 @@ fun MainScreen() {
                                 .weight(1f)
                                 .padding(horizontal = 4.dp)
                         ) {
-                            Image(
-                                painter = painterResource(id = R.mipmap.ic_launcher),
-                                contentDescription = "Wisdom Tower Academy",
-                                modifier = Modifier
-                                    .size(32.dp)
-                                    .clip(CircleShape)
-                                    .background(Surface),
-                                contentScale = ContentScale.Crop
-                            )
+                            BrandMark(sizeDp = 32, textSizeSp = 12)
                             Spacer(modifier = Modifier.width(8.dp))
                             Text(
                                 text = "Wisdom Tower Academy",
@@ -446,7 +453,10 @@ fun MainScreen() {
                                 override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
                                     val u = request?.url?.toString() ?: return false
                                     val host = request?.url?.host?.lowercase() ?: ""
-                                    val externalHosts = listOf("wisdomtower.tech", "www.wisdomtower.tech", "t.me", "telegram.me", "www.linkedin.com", "linkedin.com")
+                                    val externalHosts = listOf(
+                                        "wisdomtower.tech", "www.wisdomtower.tech",
+                                        "t.me", "telegram.me", "www.linkedin.com", "linkedin.com"
+                                    )
                                     if (externalHosts.any { host == it || host.endsWith(".$it") }) {
                                         try {
                                             ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)))
@@ -473,10 +483,30 @@ fun MainScreen() {
                                         path.contains("/account") || path.contains("/settings") -> 3
                                         else -> selectedIndex
                                     }
-                                    val js = "(function(){try{document.documentElement.classList.add('wta-native-app');document.body.classList.add('wta-native-app');if(!document.getElementById('wta-app-chrome')){var s=document.createElement('style');s.id='wta-app-chrome';s.textContent='html.wta-native-app header,html.wta-native-app [data-site-header],html.wta-native-app footer,html.wta-native-app [data-site-footer],html.wta-native-app nav[aria-label=\\\"Main\\\"],html.wta-native-app .hide-on-app{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important}';document.head.appendChild(s)}}catch(e){}})();"
+                                    val js =
+                                        "(function(){try{" +
+                                            "document.documentElement.classList.add('wta-native-app');" +
+                                            "document.body.classList.add('wta-native-app');" +
+                                            "if(!document.getElementById('wta-app-chrome')){" +
+                                            "var s=document.createElement('style');s.id='wta-app-chrome';" +
+                                            "s.textContent=" +
+                                            "'html.wta-native-app header," +
+                                            "html.wta-native-app [data-site-header]," +
+                                            "html.wta-native-app footer," +
+                                            "html.wta-native-app [data-site-footer]," +
+                                            "html.wta-native-app nav[aria-label=\\\"Main\\\"]," +
+                                            "html.wta-native-app .hide-on-app" +
+                                            "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important}'" +
+                                            ";document.head.appendChild(s)}" +
+                                            "}catch(e){}" +
+                                            "})();"
                                     view?.evaluateJavascript(js, null)
                                 }
-                                override fun onReceivedError(view: WebView?, request: WebResourceRequest?, error: WebResourceError?) {
+                                override fun onReceivedError(
+                                    view: WebView?,
+                                    request: WebResourceRequest?,
+                                    error: WebResourceError?
+                                ) {
                                     if (request?.isForMainFrame == true) {
                                         pageLoading = false
                                         val failUrl = request.url?.toString()
@@ -503,7 +533,9 @@ fun MainScreen() {
                                 }
                             })
                             webView = this
-                            settings.cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                            settings.cacheMode =
+                                if (isOnline(ctx)) WebSettings.LOAD_DEFAULT
+                                else WebSettings.LOAD_CACHE_ELSE_NETWORK
                             loadUrl(items[0].url)
                         }
                     },
@@ -519,14 +551,7 @@ fun MainScreen() {
                         contentAlignment = Alignment.Center
                     ) {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                            Image(
-                                painter = painterResource(id = R.mipmap.ic_launcher),
-                                contentDescription = null,
-                                modifier = Modifier
-                                    .size(48.dp)
-                                    .clip(CircleShape)
-                                    .background(Surface)
-                            )
+                            BrandMark(sizeDp = 48, textSizeSp = 16)
                             Spacer(modifier = Modifier.height(16.dp))
                             CircularProgressIndicator(
                                 color = Accent,
