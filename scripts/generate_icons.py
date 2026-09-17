@@ -6,6 +6,7 @@ try:
 except ImportError:
     subprocess.check_call([sys.executable, "-m", "pip", "install", "pillow", "-q"])
     from PIL import Image
+
 ROOT = Path(__file__).resolve().parents[1]
 src = None
 b64_path = ROOT / "branding" / "logo.b64"
@@ -31,14 +32,33 @@ if src is None:
             print("fail", e)
 if src is None:
     raise SystemExit("no logo source")
+
 def make_icon(size):
     canvas = Image.new("RGBA", (size, size), (0, 0, 0, 255))
     logo = src.copy()
     logo.thumbnail((int(size * 0.88), int(size * 0.88)), Image.Resampling.LANCZOS)
     canvas.paste(logo, ((size - logo.width) // 2, (size - logo.height) // 2), logo)
     return canvas
+
 res = ROOT / "app" / "src" / "main" / "res"
-for folder, size in {"mipmap-mdpi": 48, "mipmap-hdpi": 72, "mipmap-xhdpi": 96, "mipmap-xxhdpi": 144, "mipmap-xxxhdpi": 192}.items():
+
+# Remove vector XML that would clash with PNG adaptive assets
+for name in (
+    "drawable/ic_launcher_foreground.xml",
+    "drawable/ic_launcher_background.xml",
+):
+    p = res / name
+    if p.exists():
+        p.unlink()
+        print("removed", name)
+
+for folder, size in {
+    "mipmap-mdpi": 48,
+    "mipmap-hdpi": 72,
+    "mipmap-xhdpi": 96,
+    "mipmap-xxhdpi": 144,
+    "mipmap-xxxhdpi": 192,
+}.items():
     d = res / folder
     d.mkdir(parents=True, exist_ok=True)
     icon = make_icon(size)
@@ -49,6 +69,7 @@ for folder, size in {"mipmap-mdpi": 48, "mipmap-hdpi": 72, "mipmap-xhdpi": 96, "
         if p.exists():
             p.unlink()
     print(folder)
+
 fg_size = 432
 fg = Image.new("RGBA", (fg_size, fg_size), (0, 0, 0, 0))
 logo = src.copy()
@@ -56,5 +77,7 @@ logo.thumbnail((int(fg_size * 0.72), int(fg_size * 0.72)), Image.Resampling.LANC
 fg.paste(logo, ((fg_size - logo.width) // 2, (fg_size - logo.height) // 2), logo)
 (res / "drawable").mkdir(exist_ok=True)
 fg.save(res / "drawable" / "ic_launcher_foreground.png", "PNG")
-Image.new("RGBA", (fg_size, fg_size), (0, 0, 0, 255)).save(res / "drawable" / "ic_launcher_background.png", "PNG")
+Image.new("RGBA", (fg_size, fg_size), (0, 0, 0, 255)).save(
+    res / "drawable" / "ic_launcher_background.png", "PNG"
+)
 print("ok")

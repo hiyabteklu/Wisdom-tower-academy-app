@@ -66,13 +66,12 @@ jobs:
 
       - name: Build Debug APK
         id: build
-        continue-on-error: true
         run: |
+          set -o pipefail
           ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
-          exit ${PIPESTATUS[0]}
 
       - name: Always show build errors
-        if: always()
+        if: failure()
         run: |
           echo "======== BUILD LOG (last 250 lines) ========"
           tail -n 250 build.log || true
@@ -87,10 +86,6 @@ jobs:
           path: build.log
           retention-days: 7
           if-no-files-found: ignore
-
-      - name: Fail if build failed
-        if: steps.build.outcome == 'failure'
-        run: exit 1
 
       - name: Find and copy APK
         run: |
