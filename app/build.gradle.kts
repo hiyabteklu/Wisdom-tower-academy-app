@@ -63,23 +63,6 @@ android {
   }
 }
 
-// Copy root brand assets (logo.png, animation.gif) into assets so they ship in the APK
-tasks.register<Copy>("copyBrandAssets") {
-  from(rootProject.projectDir) {
-    include("logo.png", "animation.gif")
-  }
-  into(layout.projectDirectory.dir("src/main/assets/brand"))
-  doFirst {
-    mkdir("src/main/assets/brand")
-  }
-}
-tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
-  dependsOn("copyBrandAssets")
-}
-tasks.matching { it.name == "preBuild" }.configureEach {
-  dependsOn("copyBrandAssets")
-}
-
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
@@ -106,7 +89,7 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
-  implementation(libs.coil.gif)
+  implementation("io.coil-kt:coil-gif:2.7.0")
   implementation(libs.converter.moshi)
   implementation(libs.firebase.ai)
   implementation(libs.firebase.appcheck.recaptcha)
