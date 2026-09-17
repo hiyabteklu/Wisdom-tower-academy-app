@@ -1,1 +1,1 @@
-{{read_file /home/workdir/artifacts/MainActivity.kt}}
+see local
