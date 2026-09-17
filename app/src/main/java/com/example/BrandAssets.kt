@@ -12,44 +12,20 @@ import coil.ImageLoader
 import coil.compose.AsyncImage
 import coil.decode.GifDecoder
 import coil.request.ImageRequest
-import java.io.IOException
 
 /**
  * Official Wisdom Tower brand assets.
  *
- * - Header: static logo.png (from repo root, copied into assets/brand/)
- * - Splash / loading: animation.gif (transparent BG, big on first load, small after)
+ * Logo + loader GIF are loaded from the repo (public raw URLs) so they
+ * work without extra Gradle copy tasks. Coil caches them on disk after
+ * the first load.
  *
- * Files live at repo root (logo.png, animation.gif) and are copied into the APK
- * assets by the copyBrandAssets Gradle task.
+ * Files on main: logo.png, animation.gif
  */
-
-private object BrandBytes {
-    @Volatile private var logoCache: ByteArray? = null
-    @Volatile private var loaderCache: ByteArray? = null
-
-    fun logoPng(context: android.content.Context): ByteArray {
-        logoCache?.let { return it }
-        val bytes = loadAsset(context, "brand/logo.png")
-        logoCache = bytes
-        return bytes
-    }
-
-    fun loaderGif(context: android.content.Context): ByteArray {
-        loaderCache?.let { return it }
-        val bytes = loadAsset(context, "brand/animation.gif")
-        loaderCache = bytes
-        return bytes
-    }
-
-    private fun loadAsset(context: android.content.Context, path: String): ByteArray {
-        return try {
-            context.assets.open(path).use { it.readBytes() }
-        } catch (e: IOException) {
-            ByteArray(0)
-        }
-    }
-}
+private const val LOGO_URL =
+    "https://raw.githubusercontent.com/hiyabteklu/Wisdom-tower-academy-app/main/logo.png"
+private const val LOADER_URL =
+    "https://raw.githubusercontent.com/hiyabteklu/Wisdom-tower-academy-app/main/animation.gif"
 
 @Composable
 fun rememberBrandImageLoader(): ImageLoader {
@@ -63,10 +39,7 @@ fun rememberBrandImageLoader(): ImageLoader {
     }
 }
 
-/**
- * Static brand logo for the native app header.
- * Replaces the old generic two-bar Compose canvas mark.
- */
+/** Static brand logo for the native app header. */
 @Composable
 fun BrandLogo(
     size: Dp = 34.dp,
@@ -76,8 +49,8 @@ fun BrandLogo(
     val loader = rememberBrandImageLoader()
     val model = remember {
         ImageRequest.Builder(context)
-            .data(BrandBytes.logoPng(context))
-            .crossfade(false)
+            .data(LOGO_URL)
+            .crossfade(true)
             .build()
     }
     AsyncImage(
@@ -91,7 +64,7 @@ fun BrandLogo(
 
 /**
  * Animated brand loader GIF (transparent background).
- * Large size for splash / first load; smaller for subsequent page loads.
+ * Large on first load / splash; smaller for subsequent page loads.
  */
 @Composable
 fun BrandLoader(
@@ -102,7 +75,7 @@ fun BrandLoader(
     val loader = rememberBrandImageLoader()
     val model = remember {
         ImageRequest.Builder(context)
-            .data(BrandBytes.loaderGif(context))
+            .data(LOADER_URL)
             .crossfade(false)
             .build()
     }
