@@ -1,8 +1,8 @@
 # Wisdom Tower Academy — Architecture (Website + Android App)
 
-> **Read this first.** This document is the single source of truth for how the website and the Android app work together. Any AI / MCP / developer should start here.
+> **Read this first.** Single source of truth for how the website and the Android app work together.
 >
-> **Last updated:** 2026-09-16
+> **Last updated:** 2026-09-17
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Repo | Purpose | Live URL / Role |
 |------|---------|-----------------|
-| [hiyabteklu/Wisdom-tower-academy](https://github.com/hiyabteklu/Wisdom-tower-academy) | **Website** (source of truth for all content, auth, packages, progress, flashcards, PDFs, questions, etc.) | https://wisdom-tower-academy.live |
+| [hiyabteklu/Wisdom-tower-academy](https://github.com/hiyabteklu/Wisdom-tower-academy) | **Website** (source of truth for content, auth, packages, progress, flashcards, PDFs, free resources) | https://wisdom-tower-academy.live |
 | [hiyabteklu/Wisdom-tower-academy-app](https://github.com/hiyabteklu/Wisdom-tower-academy-app) | **Android app** — native shell that loads the website | Built via GitHub Actions → debug APK artifact |
 
 There is **no separate backend** for the app. The app is a secure, offline-capable window around the live website.
@@ -48,9 +48,11 @@ There is **no separate backend** for the app. The app is a secure, offline-capab
 2. **Native chrome owns the header + bottom nav** — fixed; website header/footer hidden via injected CSS
 3. **Status bar is clean** — solid navy behind system icons; content padded with WindowInsets.statusBars
 4. **Top-left menu** — About, Contact us, FAQ, Privacy, Terms, My account
-5. **Offline PDF vault** in private app storage
-6. **FLAG_SECURE** on
-7. **Back button** uses WebView history first
+5. **Notification bell** opens `https://wisdom-tower-academy.live/notifications` only (package / order status list — **not** Settings)
+6. Visiting `/notifications` must **not** force bottom-nav tab to Home or Account
+7. **Offline PDF vault** in private app storage
+8. **FLAG_SECURE** on
+9. **Back button** uses WebView history first
 
 ---
 
@@ -70,7 +72,11 @@ cd Wisdom-tower-academy-app
 
 - Main: `app/src/main/java/com/example/MainActivity.kt`
 - Offline: `OfflineVault.kt`
-- CI uploads APK from Actions
+- CI: `.github/workflows/build-apk.yml` uploads **Wisdom-Tower-Academy-debug** artifact
+
+### APK from CI
+
+Actions → **Build Debug APK** → open a green run → Artifacts → **Wisdom-Tower-Academy-debug**
 
 ---
 
@@ -82,13 +88,14 @@ cd Wisdom-tower-academy-app
 | Native top bar fixed | Must never disappear on scroll |
 | Hamburger menu top-left | About / Contact / FAQ / etc. |
 | Branding "Wisdom Tower Academy" | Correct name |
-| Notification icon top-right | Account / notifications |
+| Notification icon → `/notifications` only | Not Settings / Account |
+| Bottom nav unaffected by `/notifications` | Keep current tab |
 
 ---
 
 ## 6. Flashcards
 
-Live in website: `FlashcardViewer.tsx` + `flashcard.css` — 3D flip, distinct back colour, swipe animations.
+Live in website: `FlashcardViewer.tsx` + ui-polish `.fc-*` classes — 3D flip, distinct back colour, swipe animations.
 
 ---
 
@@ -96,5 +103,6 @@ Live in website: `FlashcardViewer.tsx` + `flashcard.css` — 3D flip, distinct b
 
 | Date | Change |
 |------|--------|
+| 2026-09-17 | Notification bell → `/notifications` only; MainActivity shell restored; docs updated |
 | 2026-09-16 | Fixed status-bar overlap; fixed top bar; hamburger menu; branding; notifications |
 | 2026-09-16 | Website flashcard flip + swipe restored |
