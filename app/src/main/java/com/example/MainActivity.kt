@@ -417,25 +417,81 @@ fun MainScreen() {
                                     request: WebResourceRequest?
                                 ): Boolean {
                                     val url = request?.url?.toString() ?: return false
-                                    if (url.endsWith(".pdf", ignoreCase = true) ||
-                                        url.contains("/pdf") ||
-                                        url.contains("application/pdf")
-                                    ) {
+                                    val host = request?.url?.host?.lowercase() ?: ""
+                                    val externalHosts = listOf(
+                                        "wisdomtower.tech",
+                                        "www.wisdomtower.tech",
+                                        "t.me",
+                                        "telegram.me",
+                                        "www.linkedin.com",
+                                        "linkedin.com"
+                                    )
+                                    if (externalHosts.any { host == it || host.endsWith(".$it") }) {
+                                        try {
+                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                        } catch (_: Exception) { }
+                                        return true
+                                    }
+                                    if (OfflineVault.isPdfUrl(url)) {
                                         view?.let { openOrDownloadPdf(it, ctx, url) }
                                         return true
                                     }
-                                    if (!url.startsWith("https://wisdom-tower-academy.live") &&
-                                        !url.startsWith("http://wisdom-tower-academy.live") &&
-                                        !url.startsWith("file://")
-                                    ) {
-                                        try {
-                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-                                            return true
-                                        } catch (_: Exception) {
-                                            return false
+                                    if (!isOnline(ctx) && !url.startsWith("file://")) {
+                                        val local = OfflineVault.localFileFor(ctx, url)
+                                        if (local != null) {
+                                            view?.loadUrl(OfflineVault.fileUrl(local))
+                                        } else {
+                                            view?.loadUrl("file:///android_asset/offline.html")
                                         }
+                                        return true
                                     }
                                     return false
+                                }
+
+                                override fun onReceivedError(
+                                    view: WebView?,
+                                    request: WebResourceRequest?,
+                                    error: WebResourceError?
+                                ) {
+                                    if (request?.isForMainFrame == true) {
+                                        pageLoading = false
+                                        val failUrl = request.url?.toString()
+                                        if (failUrl != null) {
+                                            val local = OfflineVault.localFileFor(ctx, failUrl)
+                                            if (local != null) {
+                                                view?.loadUrl(OfflineVault.fileUrl(local))
+                                                return
+                                            }
+                                        }
+                                        view?.loadUrl("file:///android_asset/offline.html")
+                                    }
+                                }
+
+                                @Deprecated("Deprecated in Java")
+                                override fun onReceivedError(
+                                    view: WebView?,
+                                    errorCode: Int,
+                                    description: String?,
+                                    failingUrl: String?
+                                ) {
+                                    pageLoading = false
+                                    if (failingUrl != null) {
+                                        val local = OfflineVault.localFileFor(ctx, failingUrl)
+                                        if (local != null) {
+                                            view?.loadUrl(OfflineVault.fileUrl(local))
+                                            return
+                                        }
+                                    }
+                                    view?.loadUrl("file:///android_asset/offline.html")
+                                }
+
+                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    super.onPageStarted(view, url, favicon)
+                                    if (url != null && url.startsWith("file://")) {
+                                        pageLoading = false
+                                    } else {
+                                        pageLoading = true
+                                    }
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
@@ -487,24 +543,10 @@ fun MainScreen() {
                                         view?.evaluateJavascript(js, null)
                                     }
                                 }
-
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    error: WebResourceError?
-                                ) {
-                                    super.onReceivedError(view, request, error)
-                                    if (request?.isForMainFrame == true) {
-                                        pageLoading = false
-                                        if (!isOnline(ctx)) {
-                                            view?.loadUrl("file:///android_asset/offline.html")
-                                        }
-                                    }
-                                }
                             }
 
                             setDownloadListener(DownloadListener { url, _, contentDisposition, mimeType, _ ->
-                                if (mimeType == "application/pdf" || url.endsWith(".pdf", true)) {
+                                if (OfflineVault.isPdfUrl(url) || mimeType == "application/pdf") {
                                     openOrDownloadPdf(this, ctx, url)
                                 } else {
                                     try {
@@ -518,7 +560,7 @@ fun MainScreen() {
 
                             webView = this
                             if (isOnline(ctx)) {
-                                loadUrl(items[selectedIndex].url)
+                                loadUrl(items[0].url)
                             } else {
                                 loadUrl("file:///android_asset/offline.html")
                             }
