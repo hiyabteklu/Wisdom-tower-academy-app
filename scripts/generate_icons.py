@@ -9,15 +9,27 @@ except ImportError:
 
 ROOT = Path(__file__).resolve().parents[1]
 src = None
-b64_path = ROOT / "branding" / "logo.b64"
-if b64_path.exists():
-    raw = b64_path.read_text().strip()
-    if raw and "PLACEHOLDER" not in raw and len(raw) > 100:
-        try:
-            src = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGBA")
-            print("using logo.b64")
-        except Exception as e:
-            print("b64 fail", e)
+
+# Prefer logo.png at repo root (user-uploaded brand mark)
+root_logo = ROOT / "logo.png"
+if root_logo.exists():
+    try:
+        src = Image.open(root_logo).convert("RGBA")
+        print("using root logo.png")
+    except Exception as e:
+        print("root logo fail", e)
+
+if src is None:
+    b64_path = ROOT / "branding" / "logo.b64"
+    if b64_path.exists():
+        raw = b64_path.read_text().strip()
+        if raw and "PLACEHOLDER" not in raw and len(raw) > 100:
+            try:
+                src = Image.open(io.BytesIO(base64.b64decode(raw))).convert("RGBA")
+                print("using logo.b64")
+            except Exception as e:
+                print("b64 fail", e)
+
 if src is None:
     for url in (
         "https://wisdom-tower-academy.live/images/brand/logo.png",
@@ -30,6 +42,7 @@ if src is None:
             break
         except Exception as e:
             print("fail", e)
+
 if src is None:
     raise SystemExit("no logo source")
 
@@ -42,7 +55,6 @@ def make_icon(size):
 
 res = ROOT / "app" / "src" / "main" / "res"
 
-# Remove vector XML that would clash with PNG adaptive assets
 for name in (
     "drawable/ic_launcher_foreground.xml",
     "drawable/ic_launcher_background.xml",
