@@ -65,15 +65,20 @@ android {
 
 // Copy root brand assets (logo.png, animation.gif) into assets so they ship in the APK
 tasks.register<Copy>("copyBrandAssets") {
-  from(rootDir) {
+  from(rootProject.projectDir) {
     include("logo.png", "animation.gif")
   }
-  into("${projectDir}/src/main/assets/brand")
+  into(layout.projectDirectory.dir("src/main/assets/brand"))
   doFirst {
-    file("${projectDir}/src/main/assets/brand").mkdirs()
+    mkdir("src/main/assets/brand")
   }
 }
-tasks.named("preBuild").configure { dependsOn("copyBrandAssets") }
+tasks.matching { it.name.startsWith("merge") && it.name.endsWith("Assets") }.configureEach {
+  dependsOn("copyBrandAssets")
+}
+tasks.matching { it.name == "preBuild" }.configureEach {
+  dependsOn("copyBrandAssets")
+}
 
 secrets {
   propertiesFileName = ".env"
