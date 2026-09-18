@@ -94,11 +94,13 @@ fun BrandLogo(
 /**
  * Animated brand loader. Soft card only appears after the GIF is decoded
  * so the empty card never flashes before the animation.
+ * Pass showCard = false when the parent already provides a card surface.
  */
 @Composable
 fun BrandLoader(
     size: Dp = 120.dp,
     modifier: Modifier = Modifier,
+    showCard: Boolean = true,
 ) {
     val context = LocalContext.current
     val loader = rememberBrandImageLoader()
@@ -114,7 +116,7 @@ fun BrandLoader(
 
     Box(
         modifier = modifier.then(
-            if (ready) {
+            if (showCard && ready) {
                 Modifier
                     .clip(RoundedCornerShape(radius))
                     .background(Color(0xE6111827))
