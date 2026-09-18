@@ -1,4 +1,4 @@
-name: Build Debug APK
+name: Build Production APK
 
 on:
   workflow_dispatch:
@@ -30,23 +30,32 @@ jobs:
             export ANDROID_HOME="$SDK"
             export ANDROID_SDK_ROOT="$SDK"
           fi
-          echo "ANDROID_HOME=$SDK"
           yes | sdkmanager --licenses >/dev/null 2>&1 || true
           sdkmanager "platforms;android-36" "platforms;android-35" "build-tools;35.0.0" "platform-tools" 2>/dev/null || \
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" 2>/dev/null || \
           sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" 2>/dev/null || true
 
-      - name: Generate debug keystore
+      - name: Generate signing keystore
         run: |
-          keytool -genkeypair -v \
-            -keystore debug.keystore \
-            -storepass android \
-            -alias androiddebugkey \
-            -keypass android \
-            -keyalg RSA \
-            -keysize 2048 \
-            -validity 10000 \
-            -dname "CN=Android Debug,O=Android,C=US"
+          if [ -n "${{ secrets.STORE_PASSWORD }}" ] && [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
+            echo "KEYSTORE_PATH=$PWD/my-upload-key.jks" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+          else
+            keytool -genkeypair -v \
+              -keystore distribution.keystore \
+              -storepass wisdomtower \
+              -alias upload \
+              -keypass wisdomtower \
+              -keyalg RSA \
+              -keysize 2048 \
+              -validity 10000 \
+              -dname "CN=Wisdom Tower Academy,O=Wisdom Tower,C=ET"
+            echo "KEYSTORE_PATH=$PWD/distribution.keystore" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=wisdomtower" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=wisdomtower" >> $GITHUB_ENV
+          fi
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
@@ -64,18 +73,17 @@ jobs:
           python3 -m pip install pillow -q
           python3 scripts/generate_icons.py
 
-      - name: Build Debug APK
+      - name: Build Release APK
         id: build
         run: |
           set -o pipefail
-          ./gradlew assembleDebug --stacktrace --no-daemon 2>&1 | tee build.log
+          ./gradlew assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log
 
       - name: Always show build errors
         if: failure()
         run: |
           echo "======== BUILD LOG (last 250 lines) ========"
           tail -n 250 build.log || true
-          echo "======== ERROR / FAILED LINES ========"
           grep -i -E "error:|e: |FAILED|What went wrong|Unresolved|Exception|Compilation" build.log | tail -n 100 || true
 
       - name: Upload build.log
@@ -87,28 +95,27 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: Find and copy APK
+      - name: Package Wisdom-tower-academy.apk
         run: |
-          APK_PATH=$(find app/build/outputs/apk -name "*.apk" 2>/dev/null | head -n 1)
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1)
           echo "APK path: $APK_PATH"
           if [ -z "$APK_PATH" ]; then
-            echo "ERROR: No APK found"
+            echo "ERROR: No release APK found"
             find app/build -type f -name "*.apk" || true
-            ls -laR app/build/outputs || true
             exit 1
           fi
-          cp "$APK_PATH" ./Wisdom-Tower-Academy-debug.apk
-          ls -lh ./Wisdom-Tower-Academy-debug.apk
+          cp "$APK_PATH" ./Wisdom-tower-academy.apk
+          ls -lh ./Wisdom-tower-academy.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Wisdom-Tower-Academy-debug
-          path: Wisdom-Tower-Academy-debug.apk
-          retention-days: 14
+          name: Wisdom-tower-academy
+          path: Wisdom-tower-academy.apk
+          retention-days: 30
 
       - name: Summary
         if: success()
         run: |
-          echo "### APK ready" >> $GITHUB_STEP_SUMMARY
-          echo "Download **Wisdom-Tower-Academy-debug** from Artifacts." >> $GITHUB_STEP_SUMMARY
+          echo "### Production APK ready" >> $GITHUB_STEP_SUMMARY
+          echo "Download **Wisdom-tower-academy.apk** from Artifacts." >> $GITHUB_STEP_SUMMARY
