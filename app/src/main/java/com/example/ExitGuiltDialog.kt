@@ -35,27 +35,27 @@ private val ExitSoft = Color(0xFFCBD5E1)
 
 private data class ExitLine(val emoji: String, val message: String)
 
-/** Mix of teasing, encouragement, and dry humor. */
+/** Emotion expression emojis only. Mix of teasing, encouragement, dry humor. */
 private val EXIT_LINES = listOf(
-    ExitLine("\u2728", "You were doing great. Five more minutes will not hurt."),
-    ExitLine("\uD83D\uDCDA", "Your books are still open. So is your potential."),
-    ExitLine("\uD83C\uDFC3", "Breaks are fine. Quitting the whole session is optional."),
-    ExitLine("\uD83D\uDCA1", "One short review now beats a long panic later."),
-    ExitLine("\uD83C\uDF1F", "Future you will thank present you for staying a bit."),
-    ExitLine("\u2615", "Grab water, stretch, then come back. We will wait."),
-    ExitLine("\uD83D\uDE0A", "Leaving is allowed. Coming back stronger is better."),
-    ExitLine("\uD83D\uDCD6", "You already started. That is the hardest part."),
-    ExitLine("\uD83C\uDFAF", "Small progress today still counts toward the goal."),
-    ExitLine("\uD83D\uDC4B", "Okay, go rest. Just do not forget where you left off."),
+    ExitLine("\uD83D\uDE0A", "You were doing great. Five more minutes will not hurt."),
+    ExitLine("\uD83D\uDE42", "Your books are still open. So is your potential."),
+    ExitLine("\uD83E\uDD14", "Breaks are fine. Quitting the whole session is optional."),
+    ExitLine("\uD83D\uDE0F", "One short review now beats a long panic later."),
+    ExitLine("\uD83D\uDE09", "Future you will thank present you for staying a bit."),
+    ExitLine("\uD83D\uDE0C", "Grab water, stretch, then come back. We will wait."),
+    ExitLine("\uD83D\uDE07", "Leaving is allowed. Coming back stronger is better."),
+    ExitLine("\uD83D\uDE4F", "You already started. That is the hardest part."),
+    ExitLine("\uD83E\uDD29", "Small progress today still counts toward the goal."),
+    ExitLine("\uD83D\uDE10", "Okay, go rest. Just do not forget where you left off."),
     ExitLine("\uD83D\uDE4C", "Consistency beats intensity. A little more goes a long way."),
-    ExitLine("\uD83E\uDD14", "If you leave now, who will unlock the next milestone?"),
-    ExitLine("\uD83D\uDE09", "The exam date did not move. Your focus still can."),
-    ExitLine("\uD83C\uDF93", "Students who show up again are the ones who pass."),
-    ExitLine("\uD83D\uDC99", "Be kind to your goals. Give them a few more minutes."),
-    ExitLine("\uD83D\uDD25", "You came here with intent. Keep a little of that energy."),
-    ExitLine("\uD83E\uDDE0", "Your brain likes finishing loops. Close this one nicely."),
-    ExitLine("\uD83D\uDE42", "No pressure. Just a friendly nudge to stay on track."),
-    ExitLine("\uD83C\uDFC6", "Champions take breaks. They also return to the work."),
+    ExitLine("\uD83E\uDD28", "If you leave now, who will unlock the next milestone?"),
+    ExitLine("\uD83D\uDE0E", "The exam date did not move. Your focus still can."),
+    ExitLine("\uD83D\uDE0D", "Students who show up again are the ones who pass."),
+    ExitLine("\uD83E\uDD17", "Be kind to your goals. Give them a few more minutes."),
+    ExitLine("\uD83D\uDE24", "You came here with intent. Keep a little of that energy."),
+    ExitLine("\uD83E\uDD13", "Your brain likes finishing loops. Close this one nicely."),
+    ExitLine("\uD83D\uDE05", "No pressure. Just a friendly nudge to stay on track."),
+    ExitLine("\uD83D\uDE4C", "Champions take breaks. They also return to the work."),
     ExitLine("\uD83D\uDE80", "Almost done for today. Finish strong, then rest well."),
 )
 
@@ -99,14 +99,13 @@ fun ExitGuiltDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // GIF only — no nested card (showCard = false)
                 BrandLoader(size = 96.dp, showCard = false)
 
                 Spacer(modifier = Modifier.height(20.dp))
 
                 Text(
                     text = line.emoji,
-                    fontSize = 26.sp,
+                    fontSize = 28.sp,
                     textAlign = TextAlign.Center
                 )
 
