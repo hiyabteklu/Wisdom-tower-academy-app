@@ -227,6 +227,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
     var splashHoldDone by remember { mutableStateOf(false) }
     var showOnboarding by remember { mutableStateOf(!hasCompletedOnboarding(context)) }
+    var showExitDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         onReady()
@@ -261,11 +262,15 @@ fun MainScreen(onReady: () -> Unit = {}) {
     val activity = context as? ComponentActivity
     BackHandler {
         if (showOnboarding) return@BackHandler
+        if (showExitDialog) {
+            showExitDialog = false
+            return@BackHandler
+        }
         val wv = webView
         if (wv != null && wv.canGoBack()) {
             wv.goBack()
         } else {
-            activity?.finish()
+            showExitDialog = true
         }
     }
 
@@ -654,6 +659,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     }
                 }
             }
+        }
+
+        if (showExitDialog) {
+            ExitGuiltDialog(
+                onStay = { showExitDialog = false },
+                onExit = {
+                    showExitDialog = false
+                    activity?.finish()
+                }
+            )
         }
     }
 }
