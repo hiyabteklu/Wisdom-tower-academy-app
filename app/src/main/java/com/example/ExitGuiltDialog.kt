@@ -35,28 +35,28 @@ private val ExitSoft = Color(0xFFCBD5E1)
 
 private data class ExitLine(val emoji: String, val message: String)
 
-/** Emotion expression emojis only. Mix of teasing, encouragement, dry humor. */
+/** Bold roasting + emotion faces. */
 private val EXIT_LINES = listOf(
-    ExitLine("\uD83D\uDE0A", "You were doing great. Five more minutes will not hurt."),
-    ExitLine("\uD83D\uDE42", "Your books are still open. So is your potential."),
-    ExitLine("\uD83E\uDD14", "Breaks are fine. Quitting the whole session is optional."),
-    ExitLine("\uD83D\uDE0F", "One short review now beats a long panic later."),
-    ExitLine("\uD83D\uDE09", "Future you will thank present you for staying a bit."),
-    ExitLine("\uD83D\uDE0C", "Grab water, stretch, then come back. We will wait."),
-    ExitLine("\uD83D\uDE07", "Leaving is allowed. Coming back stronger is better."),
-    ExitLine("\uD83D\uDE4F", "You already started. That is the hardest part."),
-    ExitLine("\uD83E\uDD29", "Small progress today still counts toward the goal."),
-    ExitLine("\uD83D\uDE10", "Okay, go rest. Just do not forget where you left off."),
-    ExitLine("\uD83D\uDE4C", "Consistency beats intensity. A little more goes a long way."),
-    ExitLine("\uD83E\uDD28", "If you leave now, who will unlock the next milestone?"),
-    ExitLine("\uD83D\uDE0E", "The exam date did not move. Your focus still can."),
-    ExitLine("\uD83D\uDE0D", "Students who show up again are the ones who pass."),
-    ExitLine("\uD83E\uDD17", "Be kind to your goals. Give them a few more minutes."),
-    ExitLine("\uD83D\uDE24", "You came here with intent. Keep a little of that energy."),
-    ExitLine("\uD83E\uDD13", "Your brain likes finishing loops. Close this one nicely."),
-    ExitLine("\uD83D\uDE05", "No pressure. Just a friendly nudge to stay on track."),
-    ExitLine("\uD83D\uDE03", "Champions take breaks. They also return to the work."),
-    ExitLine("\uD83D\uDE01", "Almost done for today. Finish strong, then rest well."),
+    ExitLine("\uD83D\uDE11", "Leaving already? Your future self just facepalmed."),
+    ExitLine("\uD83D\uDE0F", "One more chapter and you might actually pass. Just saying."),
+    ExitLine("\uD83D\uDE10", "The exam does not care that you were tired. Stay."),
+    ExitLine("\uD83E\uDD28", "Closing the app does not close the semester. Nice try."),
+    ExitLine("\uD83D\uDE0E", "Your competition is still studying. Cute exit attempt though."),
+    ExitLine("\uD83D\uDE44", "Wisdom Tower noticed you were about to ghost your goals."),
+    ExitLine("\uD83E\uDD14", "Plot twist: the material does not learn itself."),
+    ExitLine("\uD83D\uDE24", "You opened this for a reason. Do not betray that version of you."),
+    ExitLine("\uD83D\uDE0B", "Exit if you must. The leaderboard will remember."),
+    ExitLine("\uD83D\uDE12", "Skipping study mode? Bold strategy. Let's see how grades feel about it."),
+    ExitLine("\uD83D\uDE22", "Your notes are crying softly in the background."),
+    ExitLine("\uD83D\uDE36", "One click from growth, one click from regret. Choose wisely."),
+    ExitLine("\uD83D\uDE29", "The AI tutor was mid-sentence. Rude."),
+    ExitLine("\uD83D\uDE15", "Quitting mid-session is how average happens."),
+    ExitLine("\uD83D\uDE05", "Stay. Your GPA has trust issues already."),
+    ExitLine("\uD83E\uDD2D", "You can leave. Or you can be the student who did not."),
+    ExitLine("\uD83D\uDE4F", "Tomorrow-you is begging today-you to stay five more minutes."),
+    ExitLine("\uD83D\uDE21", "This is not Netflix. Closing does not pause the exam date."),
+    ExitLine("\uD83D\uDE08", "Fine, leave. We will just unlock packages without you."),
+    ExitLine("\uD83D\uDE31", "Really? After all that loading? At least finish the page."),
 )
 
 @Composable
@@ -112,7 +112,7 @@ fun ExitGuiltDialog(
                 Spacer(modifier = Modifier.height(10.dp))
 
                 Text(
-                    text = "Heading out?",
+                    text = "Really leaving?",
                     color = Color.White,
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 20.sp,
@@ -148,7 +148,7 @@ fun ExitGuiltDialog(
                     elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
                     Text(
-                        text = "Keep learning",
+                        text = "I will stay and learn",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         letterSpacing = 0.2.sp
@@ -162,7 +162,7 @@ fun ExitGuiltDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "Exit for now",
+                        text = "Exit anyway",
                         color = ExitMuted,
                         fontSize = 14.sp,
                         fontWeight = FontWeight.Medium
