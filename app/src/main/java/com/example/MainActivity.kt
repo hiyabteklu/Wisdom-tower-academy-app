@@ -226,6 +226,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var largeLoader by remember { mutableStateOf(true) }
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
     var splashHoldDone by remember { mutableStateOf(false) }
+    var showOnboarding by remember { mutableStateOf(!hasCompletedOnboarding(context)) }
 
     LaunchedEffect(Unit) {
         onReady()
@@ -259,6 +260,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
     val activity = context as? ComponentActivity
     BackHandler {
+        if (showOnboarding) return@BackHandler
         val wv = webView
         if (wv != null && wv.canGoBack()) {
             wv.goBack()
@@ -324,6 +326,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
                 }
             }
         }
+    }
+
+    if (showOnboarding) {
+        OnboardingScreen(
+            onFinished = {
+                setOnboardingCompleted(context)
+                showOnboarding = false
+            }
+        )
+        return
     }
 
     Box(
@@ -593,6 +605,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     request: WebResourceRequest?
                                 ): Boolean {
                                     val u = request?.url?.toString() ?: return false
+                                    if (u.contains("/my-learning")) {
+                                        view?.loadUrl("https://wisdom-tower-academy.live/learning")
+                                        return true
+                                    }
                                     if (u.endsWith(".pdf", ignoreCase = true) || u.contains("/pdf")) {
                                         view?.let { openOrDownloadPdf(it, ctx, u) }
                                         return true
