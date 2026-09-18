@@ -55,8 +55,8 @@ private val EXIT_LINES = listOf(
     ExitLine("\uD83D\uDE24", "You came here with intent. Keep a little of that energy."),
     ExitLine("\uD83E\uDD13", "Your brain likes finishing loops. Close this one nicely."),
     ExitLine("\uD83D\uDE05", "No pressure. Just a friendly nudge to stay on track."),
-    ExitLine("\uD83D\uDE4C", "Champions take breaks. They also return to the work."),
-    ExitLine("\uD83D\uDE80", "Almost done for today. Finish strong, then rest well."),
+    ExitLine("\uD83D\uDE03", "Champions take breaks. They also return to the work."),
+    ExitLine("\uD83D\uDE01", "Almost done for today. Finish strong, then rest well."),
 )
 
 @Composable
