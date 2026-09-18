@@ -1,20 +1,17 @@
 #!/usr/bin/env python3
-import base64, gzip, pathlib
+"""Restore MainActivity.kt from known-good commit (pairs with simple exit dialog)."""
+import pathlib
+import urllib.request
+
 root = pathlib.Path(__file__).resolve().parents[1]
-parts_dir = root / "scripts"
-parts = []
-for i in range(4):
-    p = parts_dir / f"ma_part{i}.b64"
-    if p.exists():
-        parts.append(p.read_text().strip())
-blob = parts_dir / "MainActivity.kt.gz.b64"
-if blob.exists() and not parts:
-    parts = [blob.read_text().strip()]
-if not parts:
-    print("No restore blob; skip")
-    raise SystemExit(0)
-b64 = "".join(parts)
-data = gzip.decompress(base64.b64decode(b64))
-target = root / "app/src/main/java/com/example/MainActivity.kt"
+target = root / "app" / "src" / "main" / "java" / "com" / "example" / "MainActivity.kt"
+url = (
+    "https://raw.githubusercontent.com/hiyabteklu/Wisdom-tower-academy-app/"
+    "b598a3d65251ff069a3a09378bb83debf01115cb/"
+    "app/src/main/java/com/example/MainActivity.kt"
+)
+print("Downloading", url)
+data = urllib.request.urlopen(url, timeout=60).read()
+target.parent.mkdir(parents=True, exist_ok=True)
 target.write_bytes(data)
 print(f"Restored MainActivity.kt ({len(data)} bytes)")
