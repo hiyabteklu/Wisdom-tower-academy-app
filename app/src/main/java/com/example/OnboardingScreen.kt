@@ -30,8 +30,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Psychology
 import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Verified
 import androidx.compose.material3.Button
@@ -92,7 +92,7 @@ private val pages = listOf(
     OnboardPage(
         title = "Powerful AI, free with your course",
         body = "Built-in AI support for every purchased course. Study smarter, not harder.",
-        icon = Icons.Filled.AutoAwesome,
+        icon = Icons.Filled.Psychology,
     ),
     OnboardPage(
         title = "Stay on track",
