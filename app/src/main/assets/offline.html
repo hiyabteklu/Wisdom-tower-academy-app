@@ -19,37 +19,35 @@
     }
     .card { max-width: 320px; width: 100%; }
     .icon-wrap {
-      width: 72px; height: 72px; margin: 0 auto 20px;
-      border-radius: 20px;
+      width: 80px; height: 80px; margin: 0 auto 22px;
+      border-radius: 22px;
       background: #1E293B;
-      border: 1px solid rgba(0, 229, 255, 0.25);
+      border: 1px solid rgba(0, 229, 255, 0.28);
       display: flex; align-items: center; justify-content: center;
     }
     .wifi-off {
-      width: 36px; height: 28px; position: relative;
+      width: 40px; height: 32px; position: relative;
     }
-    .wifi-off::before {
-      content: "";
-      position: absolute;
-      left: 50%; top: 4px;
-      width: 28px; height: 28px;
-      margin-left: -14px;
-      border: 3px solid #00E5FF;
+    .wifi-off span {
+      position: absolute; left: 50%;
+      border: 2.5px solid #00E5FF;
+      border-radius: 50%;
       border-bottom-color: transparent;
-      border-radius: 50%;
-      opacity: 0.85;
+      border-left-color: transparent;
+      transform: translateX(-50%) rotate(-45deg);
+      opacity: 0.9;
     }
-    .wifi-off::after {
-      content: "";
-      position: absolute;
-      left: 50%; bottom: 0;
-      width: 8px; height: 8px;
-      margin-left: -4px;
-      background: #00E5FF;
-      border-radius: 50%;
+    .wifi-off span:nth-child(1) { width: 10px; height: 10px; bottom: 2px; }
+    .wifi-off span:nth-child(2) { width: 22px; height: 22px; bottom: 0; opacity: 0.7; }
+    .wifi-off span:nth-child(3) { width: 34px; height: 34px; bottom: -2px; opacity: 0.45; }
+    .slash {
+      position: absolute; left: 50%; top: 0; bottom: 0;
+      width: 2.5px; background: #00E5FF;
+      transform: translateX(-50%) rotate(35deg);
+      border-radius: 2px;
     }
-    h1 { font-size: 1.35rem; font-weight: 800; margin-bottom: 10px; color: #f8fafc; }
-    p { font-size: 0.95rem; line-height: 1.55; color: #94a3b8; margin-bottom: 24px; }
+    h1 { font-size: 1.3rem; font-weight: 800; margin-bottom: 12px; color: #f8fafc; }
+    p { font-size: 0.98rem; line-height: 1.55; color: #94a3b8; margin-bottom: 26px; }
     button {
       appearance: none; border: none;
       background: #00E5FF; color: #0f172a;
@@ -62,12 +60,14 @@
 </head>
 <body>
   <div class="card">
-    <div class="icon-wrap" aria-hidden="true"><div class="wifi-off"></div></div>
-    <h1>You are offline</h1>
-    <p>
-      Check your connection and try again.
-      Pages you opened while online will still work without internet.
-    </p>
+    <div class="icon-wrap" aria-hidden="true">
+      <div class="wifi-off">
+        <span></span><span></span><span></span>
+        <div class="slash"></div>
+      </div>
+    </div>
+    <h1>Connection required</h1>
+    <p>Please turn on your mobile data or connect to WiFi to continue.</p>
     <button type="button" onclick="tryAgain()">Try again</button>
   </div>
   <script>
