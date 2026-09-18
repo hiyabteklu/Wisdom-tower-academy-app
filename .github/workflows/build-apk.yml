@@ -68,6 +68,12 @@ jobs:
           chmod +x ./gradlew
           ./gradlew --version
 
+      - name: Restore MainActivity.kt
+        run: |
+          python3 scripts/restore_mainactivity.py
+          wc -c app/src/main/java/com/example/MainActivity.kt
+          head -3 app/src/main/java/com/example/MainActivity.kt
+
       - name: Generate brand launcher icons
         run: |
           python3 -m pip install pillow -q
