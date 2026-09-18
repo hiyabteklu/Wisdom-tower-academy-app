@@ -1,23 +1,24 @@
 package com.example
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -28,14 +29,13 @@ import androidx.compose.ui.window.DialogProperties
 import kotlin.random.Random
 
 private val ExitBg = Color(0xFF0F172A)
-private val ExitCard = Color(0xFF1E293B)
 private val ExitAccent = Color(0xFF00E5FF)
 private val ExitMuted = Color(0xFF94A3B8)
-private val ExitDanger = Color(0xFFF87171)
+private val ExitSoft = Color(0xFFCBD5E1)
 
 private data class ExitLine(val emoji: String, val message: String)
 
-/** Mix of teasing, encouragement, and dry humor. One picked at random each exit. */
+/** Mix of teasing, encouragement, and dry humor. */
 private val EXIT_LINES = listOf(
     ExitLine("\u2728", "You were doing great. Five more minutes will not hurt."),
     ExitLine("\uD83D\uDCDA", "Your books are still open. So is your potential."),
@@ -77,61 +77,97 @@ fun ExitGuiltDialog(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(ExitCard)
-                .padding(22.dp)
+                .padding(horizontal = 28.dp)
+                .clip(RoundedCornerShape(28.dp))
+                .background(
+                    Brush.verticalGradient(
+                        listOf(
+                            Color(0xFF162032),
+                            Color(0xFF0F172A),
+                            Color(0xFF0B1220),
+                        )
+                    )
+                )
+                .border(
+                    width = 1.dp,
+                    color = Color(0x33FFFFFF),
+                    shape = RoundedCornerShape(28.dp)
+                )
+                .padding(horizontal = 24.dp, vertical = 28.dp)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                BrandLoader(size = 88.dp)
-                Spacer(modifier = Modifier.height(16.dp))
+                // GIF only — no nested card (showCard = false)
+                BrandLoader(size = 96.dp, showCard = false)
+
+                Spacer(modifier = Modifier.height(20.dp))
+
                 Text(
                     text = line.emoji,
-                    fontSize = 28.sp,
+                    fontSize = 26.sp,
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Text(
                     text = "Heading out?",
                     color = Color.White,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 18.sp
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 20.sp,
+                    letterSpacing = 0.2.sp,
+                    textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(12.dp))
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Text(
                     text = line.message,
-                    color = ExitMuted,
+                    color = ExitSoft,
                     fontSize = 15.sp,
+                    fontWeight = FontWeight.Normal,
                     textAlign = TextAlign.Center,
-                    lineHeight = 22.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp)
+                    lineHeight = 23.sp,
+                    letterSpacing = 0.15.sp,
+                    modifier = Modifier.padding(horizontal = 6.dp)
                 )
-                Spacer(modifier = Modifier.height(22.dp))
+
+                Spacer(modifier = Modifier.height(26.dp))
+
                 Button(
                     onClick = onStay,
                     colors = ButtonDefaults.buttonColors(
                         containerColor = ExitAccent,
                         contentColor = ExitBg
                     ),
-                    shape = RoundedCornerShape(14.dp),
+                    shape = RoundedCornerShape(16.dp),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp)
+                        .height(52.dp),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 0.dp)
                 ) {
-                    Text("Keep learning", fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    Text(
+                        text = "Keep learning",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        letterSpacing = 0.2.sp
+                    )
                 }
-                Spacer(modifier = Modifier.height(10.dp))
-                OutlinedButton(
+
+                Spacer(modifier = Modifier.height(4.dp))
+
+                TextButton(
                     onClick = onExit,
-                    shape = RoundedCornerShape(14.dp),
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(46.dp)
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text("Exit for now", color = ExitDanger, fontSize = 14.sp)
+                    Text(
+                        text = "Exit for now",
+                        color = ExitMuted,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
