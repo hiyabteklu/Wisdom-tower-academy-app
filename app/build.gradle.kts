@@ -17,8 +17,8 @@ android {
     applicationId = "com.wisdomtower.academy"
     minSdk = 24
     targetSdk = 36
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = 3
+    versionName = "1.0.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -44,7 +44,12 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      val releaseStore = System.getenv("KEYSTORE_PATH")
+      signingConfig = if (!releaseStore.isNullOrBlank() && file(releaseStore).exists()) {
+        signingConfigs.getByName("release")
+      } else {
+        signingConfigs.getByName("debugConfig")
+      }
     }
     debug { signingConfig = signingConfigs.getByName("debugConfig") }
   }
@@ -63,7 +68,6 @@ android {
   }
 }
 
-// Ship root logo.png + animation.gif inside the APK for instant brand assets
 tasks.register<Copy>("copyBrandAssets") {
   from(rootDir) {
     include("logo.png", "animation.gif")
