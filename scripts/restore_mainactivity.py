@@ -13,16 +13,14 @@ def write_raw(raw: bytes) -> None:
 
 parts = []
 for i in range(6):
-    if i == 2:
-        a = root / "scripts" / "ma_part2a.b64"
-        b = root / "scripts" / "ma_part2b.b64"
-        if a.exists() and b.exists():
-            parts.append(a.read_text().strip() + b.read_text().strip())
-            continue
     p = root / "scripts" / f"ma_part{i}.b64"
     if not p.exists():
         print(f"MISSING {p}", file=sys.stderr)
         sys.exit(1)
     parts.append(p.read_text().strip())
-raw = gzip.decompress(base64.b64decode("".join(parts)))
+joined = "".join(parts)
+try:
+    raw = gzip.decompress(base64.urlsafe_b64decode(joined))
+except Exception:
+    raw = gzip.decompress(base64.b64decode(joined))
 write_raw(raw)
