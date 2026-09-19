@@ -148,6 +148,32 @@ private const val PRECACHE_AND_UNBLOCK_JS =
         "}" +
     "}catch(e){}})();"
 
+private const val BOOK_PAGE_HELPERS_JS =
+    "(function(){try{" +
+        // 1. If PDF size probe shows "—", replace with cleaner text and don't block
+        "function fixPdfSizeLabels(){" +
+            "var spans=document.querySelectorAll('span, p, div');" +
+            "for(var i=0;i<spans.length;i++){" +
+                "var el=spans[i];" +
+                "if(el.children.length===0){" +
+                    "var t=el.textContent||'';" +
+                    "if(t.indexOf('· —')!==-1){" +
+                        "el.textContent=t.replace('· —','· Ready');" +
+                    "}else if(t.trim()==='—'){" +
+                        "el.textContent='Ready';" +
+                    "}" +
+                "}" +
+            "}" +
+        "}" +
+        "fixPdfSizeLabels();" +
+        "setInterval(fixPdfSizeLabels, 1500);" +
+        // 2. OfflineVault sync helper for web page
+        "if(window.AndroidOfflineVault&&!window.__wta_vault_synced){" +
+            "window.__wta_vault_synced=true;" +
+            "window.addEventListener('load',fixPdfSizeLabels);" +
+        "}" +
+    "}catch(e){}})();"
+
 private const val DETECT_AND_RECOVER_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
@@ -379,8 +405,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
     }
 
     fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
-        val local = OfflineVault.localFileFor(ctx, url)
-            ?: OfflineVault.localFileFor(ctx, url.substringBefore("?"))
+        val cleanUrl = url.trim()
+        val local = OfflineVault.localFileFor(ctx, cleanUrl)
         if (local != null && local.exists() && local.length() > 0) {
             wv.loadUrl(OfflineVault.fileUrl(local))
             return
@@ -394,13 +420,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
         mainHandler.post {
             Toast.makeText(ctx, "Saving for offline use", Toast.LENGTH_SHORT).show()
         }
-        OfflineVault.downloadAsync(ctx, url) { file ->
+        OfflineVault.downloadAsync(ctx, cleanUrl) { file ->
             mainHandler.post {
                 if (file != null && file.exists() && file.length() > 0) {
                     Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
                     wv.loadUrl(OfflineVault.fileUrl(file))
                 } else {
-                    wv.loadUrl(url)
+                    wv.loadUrl(cleanUrl)
                 }
             }
         }
@@ -657,6 +683,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         largeLoader = false
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                    view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
@@ -666,17 +693,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                    view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                     view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                    view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                     view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                     mainHandler.postDelayed({
                                         val cur = view?.url ?: ""
                                         if (!cur.startsWith("file://")) {
                                             view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+                                            view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                         }
                                     }, 800L)
                                     if (pendingClearHistory) {
@@ -766,17 +796,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val req = request ?: return null
                                     val u = req.url?.toString() ?: return null
                                     val isGet = req.method.equals("GET", ignoreCase = true)
-                                    if (isGet && (u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u))) {
+                                    val isHead = req.method.equals("HEAD", ignoreCase = true)
+
+                                    if ((isGet || isHead) && (u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u))) {
                                         val local = OfflineVault.localFileFor(ctx, u)
-                                            ?: OfflineVault.localFileFor(ctx, u.substringBefore("?"))
                                         if (local != null && local.exists() && local.length() > 0) {
                                             return try {
-                                                val stream = FileInputStream(local)
                                                 val headers = HashMap<String, String>().apply {
                                                     put("Access-Control-Allow-Origin", "*")
                                                     put("Content-Type", "application/pdf")
+                                                    put("Content-Length", local.length().toString())
+                                                    put("Accept-Ranges", "bytes")
                                                     put("Cache-Control", "public, max-age=31536000, immutable")
                                                 }
+                                                val stream = if (isHead) ByteArrayInputStream(ByteArray(0)) else FileInputStream(local)
                                                 WebResourceResponse("application/pdf", "binary", 200, "OK", headers, stream)
                                             } catch (_: Exception) {
                                                 null
@@ -785,6 +818,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         if (isOnline(ctx)) {
                                             return try {
                                                 val conn = (URL(u).openConnection() as HttpURLConnection).apply {
+                                                    requestMethod = if (isHead) "HEAD" else "GET"
                                                     connectTimeout = 20_000
                                                     readTimeout = 45_000
                                                     instanceFollowRedirects = true
@@ -803,16 +837,25 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                 conn.connect()
                                                 val code = conn.responseCode
                                                 if (code in 200..299) {
-                                                    val bytes = conn.inputStream.use { it.readBytes() }
                                                     val mime = conn.contentType ?: "application/pdf"
-                                                    conn.disconnect()
-                                                    OfflineVault.saveBytesAsync(ctx, u, bytes)
+                                                    val contentLength = conn.contentLengthLong
                                                     val headers = HashMap<String, String>().apply {
                                                         put("Access-Control-Allow-Origin", "*")
                                                         put("Content-Type", mime)
+                                                        if (contentLength > 0) {
+                                                            put("Content-Length", contentLength.toString())
+                                                        }
                                                         put("Cache-Control", "public, max-age=31536000, immutable")
                                                     }
-                                                    WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(bytes))
+                                                    if (isHead) {
+                                                        conn.disconnect()
+                                                        WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(ByteArray(0)))
+                                                    } else {
+                                                        val bytes = conn.inputStream.use { it.readBytes() }
+                                                        conn.disconnect()
+                                                        OfflineVault.saveBytesAsync(ctx, u, bytes)
+                                                        WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(bytes))
+                                                    }
                                                 } else {
                                                     conn.disconnect()
                                                     null

@@ -31,11 +31,46 @@ import java.util.concurrent.Executors
 object OfflineVault {
     private const val PREFS = "wta_offline_vault"
     private const val KEY_INDEX = "index_json"
+    private const val KEY_LEGACY_CLEANED = "legacy_keys_cleaned_v2"
     private const val DIR = "offline_vault"
     private val io = Executors.newSingleThreadExecutor()
 
     private fun prefs(ctx: Context) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    private fun ensureLegacyCleaned(ctx: Context) {
+        val sp = prefs(ctx)
+        if (sp.getBoolean(KEY_LEGACY_CLEANED, false)) return
+        try {
+            val raw = sp.getString(KEY_INDEX, "{}") ?: "{}"
+            val index = JSONObject(raw)
+            val toRemove = mutableListOf<String>()
+            val keys = index.keys()
+            while (keys.hasNext()) {
+                val k = keys.next()
+                // If a key was saved as a bare generic URL without query string or had no resource identifier
+                if (k.equals("https://wisdom-tower-academy.live/api/content/pdf", ignoreCase = true) ||
+                    k.equals("http://wisdom-tower-academy.live/api/content/pdf", ignoreCase = true) ||
+                    k.equals("/api/content/pdf", ignoreCase = true) ||
+                    (!k.contains("?") && k.lowercase().contains("/api/content/pdf"))
+                ) {
+                    val fn = index.optString(k, "")
+                    if (fn.isNotBlank()) {
+                        val f = File(vaultDir(ctx), fn)
+                        if (f.exists()) f.delete()
+                    }
+                    toRemove.add(k)
+                }
+            }
+            toRemove.forEach { index.remove(it) }
+            sp.edit()
+                .putString(KEY_INDEX, index.toString())
+                .putBoolean(KEY_LEGACY_CLEANED, true)
+                .apply()
+        } catch (e: Exception) {
+            Log.e("OfflineVault", "Failed cleaning legacy unkeyed cache", e)
+        }
+    }
 
     private fun vaultDir(ctx: Context): File {
         val dir = File(ctx.filesDir, DIR)
@@ -43,40 +78,39 @@ object OfflineVault {
         return dir
     }
 
-    private fun keyFor(url: String): String {
+    /**
+     * Cache key must uniquely identify the resource.
+     * Preserves the full URL including resourceId, fileId, subject, etc.
+     */
+    fun keyFor(url: String): String {
         val md = MessageDigest.getInstance("SHA-256")
-        val dig = md.digest(url.toByteArray(Charsets.UTF_8))
+        val dig = md.digest(url.trim().toByteArray(Charsets.UTF_8))
         return dig.joinToString("") { "%02x".format(it) }
     }
 
     fun localFileFor(ctx: Context, url: String): File? {
+        ensureLegacyCleaned(ctx)
+        val cleanUrl = url.trim()
         val index = JSONObject(prefs(ctx).getString(KEY_INDEX, "{}") ?: "{}")
-        var name = index.optString(url, "")
-        if (name.isBlank() && url.contains("?")) {
-            name = index.optString(url.substringBefore("?"), "")
+        val name = index.optString(cleanUrl, "")
+        if (name.isNotBlank()) {
+            val f = File(vaultDir(ctx), name)
+            if (f.exists() && f.length() > 0) return f
         }
-        if (name.isBlank()) {
-            val key = keyFor(url)
-            val fDirect = File(vaultDir(ctx), "$key.pdf")
-            if (fDirect.exists() && fDirect.length() > 0) return fDirect
-            val keyBare = keyFor(url.substringBefore("?"))
-            val fBare = File(vaultDir(ctx), "$keyBare.pdf")
-            if (fBare.exists() && fBare.length() > 0) return fBare
-            return null
-        }
-        val f = File(vaultDir(ctx), name)
-        return if (f.exists() && f.length() > 0) f else null
+        // Direct file lookup using full unique key
+        val key = keyFor(cleanUrl)
+        val fDirect = File(vaultDir(ctx), "$key.pdf")
+        if (fDirect.exists() && fDirect.length() > 0) return fDirect
+        return null
     }
 
     fun has(ctx: Context, url: String): Boolean = localFileFor(ctx, url) != null
 
     fun remember(ctx: Context, url: String, fileName: String) {
+        ensureLegacyCleaned(ctx)
+        val cleanUrl = url.trim()
         val index = JSONObject(prefs(ctx).getString(KEY_INDEX, "{}") ?: "{}")
-        index.put(url, fileName)
-        val bare = url.substringBefore("?")
-        if (bare != url) {
-            index.put(bare, fileName)
-        }
+        index.put(cleanUrl, fileName)
         prefs(ctx).edit().putString(KEY_INDEX, index.toString()).apply()
     }
 
