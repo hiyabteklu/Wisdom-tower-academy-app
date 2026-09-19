@@ -1,4 +1,12 @@
 Wisdom Tower Academy — production APK
 Build trigger: 2026-09-19
-Includes: soft offline (cache before offline.html), OfflineVault PDFs, short splash, in-repo MainActivity.
+Includes:
+- Full working MainActivity restored and synchronized with base64 chunks
+- FLAG_SECURE window protection for paid educational materials
+- Double-back press to exit pattern
+- Proactive cache preloading and non-blocking image decoding for instantaneous card navigation
+- Soft offline caching before offline.html fallback
+- OfflineVault private PDF caching
+- Native Compose chrome with fixed top bar and bottom navigation
 Artifact name: Wisdom-tower-academy.apk
+
