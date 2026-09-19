@@ -58,6 +58,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -150,27 +151,9 @@ private const val PRECACHE_AND_UNBLOCK_JS =
 
 private const val BOOK_PAGE_HELPERS_JS =
     "(function(){try{" +
-        // 1. If PDF size probe shows "—", replace with cleaner text and don't block
-        "function fixPdfSizeLabels(){" +
-            "var spans=document.querySelectorAll('span, p, div');" +
-            "for(var i=0;i<spans.length;i++){" +
-                "var el=spans[i];" +
-                "if(el.children.length===0){" +
-                    "var t=el.textContent||'';" +
-                    "if(t.indexOf('· —')!==-1){" +
-                        "el.textContent=t.replace('· —','· Ready');" +
-                    "}else if(t.trim()==='—'){" +
-                        "el.textContent='Ready';" +
-                    "}" +
-                "}" +
-            "}" +
-        "}" +
-        "fixPdfSizeLabels();" +
-        "setInterval(fixPdfSizeLabels, 1500);" +
-        // 2. OfflineVault sync helper for web page
+        // OfflineVault sync helper for web page
         "if(window.AndroidOfflineVault&&!window.__wta_vault_synced){" +
             "window.__wta_vault_synced=true;" +
-            "window.addEventListener('load',fixPdfSizeLabels);" +
         "}" +
     "}catch(e){}})();"
 
@@ -550,6 +533,33 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         IconButton(
                             onClick = {
                                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                val wv = webView
+                                if (wv != null && isOnline(context)) {
+                                    val currentUrl = wv.url ?: ""
+                                    if (!currentUrl.startsWith("file://")) {
+                                        wv.evaluateJavascript(
+                                            "(function(){try{window.dispatchEvent(new CustomEvent('wta-refresh',{detail:{source:'app-refresh-btn'}}));}catch(e){}})();",
+                                            null
+                                        )
+                                    } else {
+                                        wv.reload()
+                                    }
+                                } else {
+                                    webView?.reload()
+                                }
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "Refresh",
+                                tint = Accent
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
                                 navigateTo("https://wisdom-tower-academy.live/notifications", null)
                             },
                             modifier = Modifier.size(48.dp)
@@ -799,6 +809,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val isHead = req.method.equals("HEAD", ignoreCase = true)
 
                                     if ((isGet || isHead) && (u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u))) {
+                                        val rangeHeader = req.requestHeaders?.entries?.firstOrNull {
+                                            it.key.equals("Range", ignoreCase = true)
+                                        }?.value
+                                        val isRangeProbe = !rangeHeader.isNullOrBlank() && (rangeHeader.contains("bytes=0-0") || rangeHeader.contains("bytes=0-1"))
+                                        val isSizeProbe = isHead || isRangeProbe
+
                                         val local = OfflineVault.localFileFor(ctx, u)
                                         if (local != null && local.exists() && local.length() > 0) {
                                             return try {
@@ -818,7 +834,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         if (isOnline(ctx)) {
                                             return try {
                                                 val conn = (URL(u).openConnection() as HttpURLConnection).apply {
-                                                    requestMethod = if (isHead) "HEAD" else "GET"
+                                                    requestMethod = if (isSizeProbe) "HEAD" else "GET"
                                                     connectTimeout = 20_000
                                                     readTimeout = 45_000
                                                     instanceFollowRedirects = true
@@ -829,7 +845,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                     }
                                                     req.requestHeaders?.forEach { (k, v) ->
                                                         if (!k.equals("Cookie", ignoreCase = true) &&
-                                                            !k.equals("User-Agent", ignoreCase = true)) {
+                                                            !k.equals("User-Agent", ignoreCase = true) &&
+                                                            !k.equals("Range", ignoreCase = true)) {
                                                             setRequestProperty(k, v)
                                                         }
                                                     }
@@ -845,9 +862,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                         if (contentLength > 0) {
                                                             put("Content-Length", contentLength.toString())
                                                         }
+                                                        put("Accept-Ranges", "bytes")
                                                         put("Cache-Control", "public, max-age=31536000, immutable")
                                                     }
-                                                    if (isHead) {
+                                                    if (isSizeProbe) {
                                                         conn.disconnect()
                                                         WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(ByteArray(0)))
                                                     } else {
