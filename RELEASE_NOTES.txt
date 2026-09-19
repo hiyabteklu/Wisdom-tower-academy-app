@@ -1,0 +1,4 @@
+Wisdom Tower Academy — production APK
+Build trigger: 2026-09-19
+Includes: soft offline (cache before offline.html), OfflineVault PDFs, short splash, in-repo MainActivity.
+Artifact name: Wisdom-tower-academy.apk
