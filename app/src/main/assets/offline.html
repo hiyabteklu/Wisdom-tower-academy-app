@@ -72,14 +72,18 @@
   </div>
   <script>
     function tryAgain() {
-      if (navigator.onLine) {
-        window.location.href = 'https://wisdom-tower-academy.live/';
+      if (window.history.length > 1) {
+        window.history.back();
       } else {
-        location.reload();
+        window.location.href = 'https://wisdom-tower-academy.live/';
       }
     }
     window.addEventListener('online', function () {
-      window.location.href = 'https://wisdom-tower-academy.live/';
+      if (window.history.length > 1) {
+        window.history.back();
+      } else {
+        window.location.href = 'https://wisdom-tower-academy.live/';
+      }
     });
   </script>
 </body>

@@ -602,8 +602,29 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     request: WebResourceRequest?,
                                     error: WebResourceError?
                                 ) {
-                                    if (request?.isForMainFrame == true && !isOnline(ctx)) {
-                                        view?.let { showOffline(it) }
+                                    // Never show offline for subresources (images, scripts, fonts, XHR, etc.)
+                                    if (request?.isForMainFrame != true) return
+
+                                    if (!isOnline(ctx)) {
+                                        val wv = view ?: return
+                                        // Try switching to cache mode and reload once if not already retrying
+                                        if (wv.settings.cacheMode != WebSettings.LOAD_CACHE_ELSE_NETWORK) {
+                                            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                            request.url?.toString()?.let { failedUrl ->
+                                                wv.loadUrl(failedUrl)
+                                                return
+                                            }
+                                        }
+                                        // Verify if the document body actually has content (from cache/SW)
+                                        // before replacing the page with offline.html
+                                        wv.evaluateJavascript(
+                                            "(function(){var b=document.body;if(!b)return 0;var t=(b.innerText||'').trim();return t.length;})();"
+                                        ) { result ->
+                                            val len = result?.toIntOrNull() ?: 0
+                                            if (len < 10) {
+                                                showOffline(wv)
+                                            }
+                                        }
                                     }
                                 }
 
@@ -614,8 +635,17 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     description: String?,
                                     failingUrl: String?
                                 ) {
-                                    if (!isOnline(ctx)) {
-                                        view?.let { showOffline(it) }
+                                    // Deprecated callback handles older OS versions; ignore subresource failures
+                                    if (!isOnline(ctx) && failingUrl != null && failingUrl == view?.url) {
+                                        val wv = view ?: return
+                                        wv.evaluateJavascript(
+                                            "(function(){var b=document.body;if(!b)return 0;var t=(b.innerText||'').trim();return t.length;})();"
+                                        ) { result ->
+                                            val len = result?.toIntOrNull() ?: 0
+                                            if (len < 10) {
+                                                showOffline(wv)
+                                            }
+                                        }
                                     }
                                 }
 
