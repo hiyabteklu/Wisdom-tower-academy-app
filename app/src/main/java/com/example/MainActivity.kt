@@ -57,6 +57,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -332,16 +333,26 @@ fun MainScreen(onReady: () -> Unit = {}) {
             showExitDialog = false
             return@BackHandler
         }
-        val wv = webView
-        if (wv != null && wv.canGoBack()) {
-            wv.goBack()
-        } else {
+        val triggerDoubleTapExit: () -> Unit = {
             val currentTime = System.currentTimeMillis()
             if (currentTime - lastBackPressTime < 2000L) {
                 activity?.finish()
             } else {
                 lastBackPressTime = currentTime
                 Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        val wv = webView
+        val currentUrl = wv?.url ?: ""
+        if (wv == null || currentUrl.isBlank() || currentUrl.startsWith("file://")) {
+            triggerDoubleTapExit()
+        } else {
+            wv.evaluateJavascript(StructuralNav.STRUCTURAL_BACK_JS) { rawResult ->
+                val res = rawResult?.trim('"')?.trim() ?: ""
+                if (res != "ok") {
+                    triggerDoubleTapExit()
+                }
             }
         }
     }
@@ -544,6 +555,36 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
+                            )
+                        }
+
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                val wv = webView
+                                val currentUrl = wv?.url ?: ""
+                                if (wv != null) {
+                                    if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
+                                        if (isOnline(context)) {
+                                            navigateTo("https://wisdom-tower-academy.live/", null)
+                                        } else {
+                                            wv.reload()
+                                        }
+                                    } else {
+                                        wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) {
+                                            Handler(Looper.getMainLooper()).post {
+                                                wv.reload()
+                                            }
+                                        }
+                                    }
+                                }
+                            },
+                            modifier = Modifier.size(48.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Refresh,
+                                contentDescription = "Refresh",
+                                tint = Accent
                             )
                         }
 
