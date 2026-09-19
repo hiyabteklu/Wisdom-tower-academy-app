@@ -1,0 +1,82 @@
+--- a/app/src/main/java/com/example/MainActivity.kt
++++ b/app/src/main/java/com/example/MainActivity.kt
+@@ -316,9 +316,12 @@
+             return@BackHandler
+         }
+         val wv = webView
+-        if (wv != null && wv.canGoBack()) {
+-            wv.goBack()
+-        } else {
++        if (wv == null) {
++            activity?.finish()
++            return@BackHandler
++        }
++        val currentUrl = wv.url ?: ""
++        if (currentUrl.startsWith("file://") || currentUrl.isBlank()) {
+             val currentTime = System.currentTimeMillis()
+             if (currentTime - lastBackPressTime < 2000L) {
+                 activity?.finish()
+@@ -326,6 +329,24 @@
+                 lastBackPressTime = currentTime
+                 Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
+             }
++            return@BackHandler
++        }
++        wv.evaluateJavascript(StructuralNav.STRUCTURAL_BACK_JS) { raw ->
++            val result = raw?.trim()?.trim('"')?.lowercase() ?: "fail"
++            mainHandler.post {
++                when (result) {
++                    "ok" -> { }
++                    else -> {
++                        val currentTime = System.currentTimeMillis()
++                        if (currentTime - lastBackPressTime < 2000L) {
++                            activity?.finish()
++                        } else {
++                            lastBackPressTime = currentTime
++                            Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
++                        }
++                    }
++                }
++            }
+         }
+     }
+ 
+@@ -533,26 +554,27 @@
+                         IconButton(
+                             onClick = {
+                                 view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+-                                val wv = webView
+-                                if (wv != null && isOnline(context)) {
+-                                    val currentUrl = wv.url ?: ""
+-                                    if (!currentUrl.startsWith("file://")) {
+-                                        wv.evaluateJavascript(
+-                                            "(function(){try{window.dispatchEvent(new CustomEvent('wta-refresh',{detail:{source:'app-refresh-btn'}}));}catch(e){}})();",
+-                                            null
+-                                        )
++                                val wv = webView ?: return@IconButton
++                                val currentUrl = wv.url ?: ""
++                                if (currentUrl.startsWith("file://") || currentUrl.isBlank()) {
++                                    if (isOnline(context)) {
++                                        wv.loadUrl("https://wisdom-tower-academy.live/")
+                                     } else {
+                                         wv.reload()
+                                     }
+-                                } else {
+-                                    webView?.reload()
++                                    return@IconButton
++                                }
++                                wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) { raw ->
++                                    mainHandler.post {
++                                        try { wv.reload() } catch (_: Exception) { }
++                                    }
+                                 }
+                             },
+                             modifier = Modifier.size(48.dp)
+                         ) {
+                             Icon(
+                                 imageVector = Icons.Filled.Refresh,
+-                                contentDescription = "Refresh",
++                                contentDescription = "Refresh progress",
+                                 tint = Accent
+                             )
+                         }
