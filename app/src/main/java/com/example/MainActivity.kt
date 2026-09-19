@@ -1,3 +1,4 @@
 package com.example
 
-// temp marker will replace
+/** Restored at build time by scripts/restore_mainactivity.py */
+class MainActivityPlaceholder
