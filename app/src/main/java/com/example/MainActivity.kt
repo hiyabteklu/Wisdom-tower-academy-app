@@ -185,6 +185,7 @@ class MainActivity : ComponentActivity() {
         //     WindowManager.LayoutParams.FLAG_SECURE,
         //     WindowManager.LayoutParams.FLAG_SECURE
         // )
+        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#0F172A")
         window.statusBarColor = navy
