@@ -15,6 +15,7 @@ import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
+import android.webkit.JavascriptInterface
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -23,6 +24,11 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import java.io.ByteArrayInputStream
+import java.io.FileInputStream
+import java.io.InputStream
+import java.net.HttpURLConnection
+import java.net.URL
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
@@ -375,7 +381,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
     fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
         val local = OfflineVault.localFileFor(ctx, url)
             ?: OfflineVault.localFileFor(ctx, url.substringBefore("?"))
-        if (local != null) {
+        if (local != null && local.exists() && local.length() > 0) {
             wv.loadUrl(OfflineVault.fileUrl(local))
             return
         }
@@ -390,7 +396,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
         }
         OfflineVault.downloadAsync(ctx, url) { file ->
             mainHandler.post {
-                if (file != null) {
+                if (file != null && file.exists() && file.length() > 0) {
                     Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
                     wv.loadUrl(OfflineVault.fileUrl(file))
                 } else {
@@ -620,6 +626,21 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             cookieMgr.setAcceptCookie(true)
                             cookieMgr.setAcceptThirdPartyCookies(this, true)
 
+                            addJavascriptInterface(object {
+                                @JavascriptInterface
+                                fun isPdfCached(url: String?): Boolean {
+                                    if (url.isNullOrBlank()) return false
+                                    return OfflineVault.has(ctx, url)
+                                }
+
+                                @JavascriptInterface
+                                fun getOfflinePdfUrl(url: String?): String {
+                                    if (url.isNullOrBlank()) return ""
+                                    val f = OfflineVault.localFileFor(ctx, url) ?: return ""
+                                    return OfflineVault.fileUrl(f)
+                                }
+                            }, "AndroidOfflineVault")
+
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     if (newProgress >= 50 && splashHoldDone) {
@@ -736,6 +757,72 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                         showOffline(wv)
                                     }
+                                }
+
+                                override fun shouldInterceptRequest(
+                                    view: WebView?,
+                                    request: WebResourceRequest?
+                                ): WebResourceResponse? {
+                                    val req = request ?: return null
+                                    val u = req.url?.toString() ?: return null
+                                    val isGet = req.method.equals("GET", ignoreCase = true)
+                                    if (isGet && (u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u))) {
+                                        val local = OfflineVault.localFileFor(ctx, u)
+                                            ?: OfflineVault.localFileFor(ctx, u.substringBefore("?"))
+                                        if (local != null && local.exists() && local.length() > 0) {
+                                            return try {
+                                                val stream = FileInputStream(local)
+                                                val headers = HashMap<String, String>().apply {
+                                                    put("Access-Control-Allow-Origin", "*")
+                                                    put("Content-Type", "application/pdf")
+                                                    put("Cache-Control", "public, max-age=31536000, immutable")
+                                                }
+                                                WebResourceResponse("application/pdf", "binary", 200, "OK", headers, stream)
+                                            } catch (_: Exception) {
+                                                null
+                                            }
+                                        }
+                                        if (isOnline(ctx)) {
+                                            return try {
+                                                val conn = (URL(u).openConnection() as HttpURLConnection).apply {
+                                                    connectTimeout = 20_000
+                                                    readTimeout = 45_000
+                                                    instanceFollowRedirects = true
+                                                    setRequestProperty("User-Agent", "WisdomTowerApp/1.0")
+                                                    val cookies = CookieManager.getInstance().getCookie(u)
+                                                    if (!cookies.isNullOrBlank()) {
+                                                        setRequestProperty("Cookie", cookies)
+                                                    }
+                                                    req.requestHeaders?.forEach { (k, v) ->
+                                                        if (!k.equals("Cookie", ignoreCase = true) &&
+                                                            !k.equals("User-Agent", ignoreCase = true)) {
+                                                            setRequestProperty(k, v)
+                                                        }
+                                                    }
+                                                }
+                                                conn.connect()
+                                                val code = conn.responseCode
+                                                if (code in 200..299) {
+                                                    val bytes = conn.inputStream.use { it.readBytes() }
+                                                    val mime = conn.contentType ?: "application/pdf"
+                                                    conn.disconnect()
+                                                    OfflineVault.saveBytesAsync(ctx, u, bytes)
+                                                    val headers = HashMap<String, String>().apply {
+                                                        put("Access-Control-Allow-Origin", "*")
+                                                        put("Content-Type", mime)
+                                                        put("Cache-Control", "public, max-age=31536000, immutable")
+                                                    }
+                                                    WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(bytes))
+                                                } else {
+                                                    conn.disconnect()
+                                                    null
+                                                }
+                                            } catch (_: Exception) {
+                                                null
+                                            }
+                                        }
+                                    }
+                                    return super.shouldInterceptRequest(view, request)
                                 }
 
                                 override fun shouldOverrideUrlLoading(

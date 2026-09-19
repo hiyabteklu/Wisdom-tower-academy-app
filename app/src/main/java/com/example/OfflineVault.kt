@@ -2,6 +2,7 @@ package com.example
 
 import android.content.Context
 import android.util.Log
+import android.webkit.CookieManager
 import org.json.JSONObject
 import java.io.File
 import java.io.FileOutputStream
@@ -50,8 +51,19 @@ object OfflineVault {
 
     fun localFileFor(ctx: Context, url: String): File? {
         val index = JSONObject(prefs(ctx).getString(KEY_INDEX, "{}") ?: "{}")
-        val name = index.optString(url, "")
-        if (name.isBlank()) return null
+        var name = index.optString(url, "")
+        if (name.isBlank() && url.contains("?")) {
+            name = index.optString(url.substringBefore("?"), "")
+        }
+        if (name.isBlank()) {
+            val key = keyFor(url)
+            val fDirect = File(vaultDir(ctx), "$key.pdf")
+            if (fDirect.exists() && fDirect.length() > 0) return fDirect
+            val keyBare = keyFor(url.substringBefore("?"))
+            val fBare = File(vaultDir(ctx), "$keyBare.pdf")
+            if (fBare.exists() && fBare.length() > 0) return fBare
+            return null
+        }
         val f = File(vaultDir(ctx), name)
         return if (f.exists() && f.length() > 0) f else null
     }
@@ -61,7 +73,31 @@ object OfflineVault {
     fun remember(ctx: Context, url: String, fileName: String) {
         val index = JSONObject(prefs(ctx).getString(KEY_INDEX, "{}") ?: "{}")
         index.put(url, fileName)
+        val bare = url.substringBefore("?")
+        if (bare != url) {
+            index.put(bare, fileName)
+        }
         prefs(ctx).edit().putString(KEY_INDEX, index.toString()).apply()
+    }
+
+    fun saveBytes(ctx: Context, url: String, bytes: ByteArray, ext: String = "pdf"): File? {
+        if (bytes.isEmpty()) return null
+        return try {
+            val fileName = "${keyFor(url)}.$ext"
+            val outFile = File(vaultDir(ctx), fileName)
+            FileOutputStream(outFile).use { it.write(bytes) }
+            remember(ctx, url, fileName)
+            outFile
+        } catch (e: Exception) {
+            Log.e("OfflineVault", "saveBytes failed for $url", e)
+            null
+        }
+    }
+
+    fun saveBytesAsync(ctx: Context, url: String, bytes: ByteArray, ext: String = "pdf") {
+        io.execute {
+            saveBytes(ctx, url, bytes, ext)
+        }
     }
 
     fun fileUrl(file: File): String = "file://${file.absolutePath}"
@@ -98,6 +134,12 @@ object OfflineVault {
             readTimeout = 60_000
             instanceFollowRedirects = true
             setRequestProperty("User-Agent", "WisdomTowerApp/1.0")
+            try {
+                val cookies = CookieManager.getInstance().getCookie(url)
+                if (!cookies.isNullOrBlank()) {
+                    setRequestProperty("Cookie", cookies)
+                }
+            } catch (_: Exception) { }
         }
         conn.connect()
         if (conn.responseCode !in 200..299) {
@@ -109,7 +151,7 @@ object OfflineVault {
             suggestedName?.contains(".") == true ->
                 suggestedName.substringAfterLast(".")
             url.contains(".pdf", ignoreCase = true) -> "pdf"
-            else -> "bin"
+            else -> "pdf"
         }
         val fileName = "${keyFor(url)}.$ext"
         val outFile = File(vaultDir(ctx), fileName)
@@ -126,15 +168,13 @@ object OfflineVault {
             return null
         }
         remember(ctx, url, fileName)
-        // Also index without query string so later offline lookups succeed
-        val bare = url.substringBefore("?")
-        if (bare != url) remember(ctx, bare, fileName)
         return outFile
     }
 
     fun isPdfUrl(url: String): Boolean {
         val u = url.lowercase()
-        return u.contains(".pdf") ||
+        return u.contains("/api/content/pdf") ||
+            u.contains(".pdf") ||
             u.contains("application/pdf") ||
             u.contains("/pdf") ||
             u.contains("content/pdf")
