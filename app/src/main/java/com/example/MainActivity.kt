@@ -18,6 +18,7 @@ import android.webkit.DownloadListener
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
+import android.webkit.WebResourceResponse
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -141,6 +142,37 @@ private const val PRECACHE_AND_UNBLOCK_JS =
         "}" +
     "}catch(e){}})();"
 
+private const val DETECT_AND_RECOVER_JS =
+    "(function(){try{" +
+        "if(window.location.protocol==='file:')return;" +
+        "function goOffline(){window.location.replace('" + OFFLINE_ASSET + "');}" +
+        "var body=document.body;if(!body)return;" +
+        "var text=(body.innerText||body.textContent||'').toLowerCase();" +
+        "var isErrorShell=false;" +
+        "if(text.indexOf('application error')!==-1&&" +
+           "(text.indexOf('client-side exception')!==-1||text.indexOf('browser console')!==-1)){" +
+            "isErrorShell=true;" +
+        "}else if(document.querySelector('div[id=\"__next-build-watcher\"],nextjs-portal')){" +
+            "if(text.indexOf('application error')!==-1)isErrorShell=true;" +
+        "}else if(navigator.onLine===false&&" +
+                 "(text.indexOf('this page could not be found')!==-1||" +
+                  "text.indexOf('internal server error')!==-1||" +
+                  "(text.length<120&&text.indexOf('404')!==-1))){" +
+            "isErrorShell=true;" +
+        "}else if(navigator.onLine===false&&text.trim().length<30&&!document.querySelector('img,video,canvas,iframe')){" +
+            "isErrorShell=true;" +
+        "}" +
+        "if(isErrorShell){" +
+            "goOffline();" +
+            "return;" +
+        "}" +
+        "if(!window.__wta_err_bound){" +
+            "window.__wta_err_bound=true;" +
+            "window.addEventListener('error',function(){if(!navigator.onLine)goOffline();});" +
+            "window.addEventListener('unhandledrejection',function(){if(!navigator.onLine)goOffline();});" +
+        "}" +
+    "}catch(e){}})();"
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         val splash = installSplashScreen()
@@ -148,10 +180,11 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { keepSplash }
         super.onCreate(savedInstanceState)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        window.setFlags(
-            WindowManager.LayoutParams.FLAG_SECURE,
-            WindowManager.LayoutParams.FLAG_SECURE
-        )
+        // FLAG_SECURE disabled temporarily for screenshots/mockups – re-enable before store release
+        // window.setFlags(
+        //     WindowManager.LayoutParams.FLAG_SECURE,
+        //     WindowManager.LayoutParams.FLAG_SECURE
+        // )
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#0F172A")
         window.statusBarColor = navy
@@ -307,8 +340,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
             WebSettings.LOAD_CACHE_ELSE_NETWORK
         }
 
+        if (!online) {
+            wv.loadUrl(url)
+            mainHandler.postDelayed({
+                val current = wv.url ?: ""
+                if (!isOnline(context) && !current.startsWith("file://") &&
+                    (wv.progress < 100 || current.isEmpty() || current == "about:blank")) {
+                    showOffline(wv)
+                }
+            }, 600L)
+            return
+        }
+
         val currentUrl = wv.url ?: ""
-        if (online && currentUrl.contains("wisdom-tower-academy.live") && url.contains("wisdom-tower-academy.live")) {
+        if (currentUrl.contains("wisdom-tower-academy.live") && url.contains("wisdom-tower-academy.live")) {
             val js = "(function(){" +
                 "try{" +
                     "var a = document.createElement('a');" +
@@ -599,11 +644,19 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                    view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                    view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+                                    mainHandler.postDelayed({
+                                        val cur = view?.url ?: ""
+                                        if (!cur.startsWith("file://")) {
+                                            view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+                                        }
+                                    }, 800L)
                                     if (pendingClearHistory) {
                                         pendingClearHistory = false
                                         view?.clearHistory()
@@ -625,6 +678,23 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             path == "https://wisdom-tower-academy.live" || path == "https://wisdom-tower-academy.live/" -> 0
                                             else -> selectedIndex
                                         }
+                                    }
+                                }
+
+                                override fun onReceivedHttpError(
+                                    view: WebView?,
+                                    request: WebResourceRequest?,
+                                    errorResponse: WebResourceResponse?
+                                ) {
+                                    if (request?.isForMainFrame != true) return
+                                    val wv = view ?: return
+                                    val statusCode = errorResponse?.statusCode ?: 0
+                                    val failedUrl = request.url?.toString() ?: ""
+                                    if (failedUrl.startsWith("file://")) return
+                                    if (statusCode >= 400 && !isOnline(ctx)) {
+                                        showOffline(wv)
+                                    } else if (statusCode >= 500) {
+                                        showOffline(wv)
                                     }
                                 }
 
