@@ -76,6 +76,18 @@ tasks.register<Copy>("copyBrandAssets") {
 }
 tasks.named("preBuild").configure { dependsOn("copyBrandAssets") }
 
+tasks.register<Copy>("copyApkOutputs") {
+  from(layout.buildDirectory.dir("outputs/apk/debug"))
+  into(rootDir.resolve("build/outputs/apk/debug"))
+}
+tasks.register<Copy>("copyBuildOutputs") {
+  from(layout.buildDirectory.dir("outputs/apk/debug"))
+  into(rootDir.resolve(".build-outputs"))
+}
+tasks.matching { it.name == "assembleDebug" }.configureEach {
+  finalizedBy("copyApkOutputs", "copyBuildOutputs")
+}
+
 secrets {
   propertiesFileName = ".env"
   defaultPropertiesFileName = ".env.example"
