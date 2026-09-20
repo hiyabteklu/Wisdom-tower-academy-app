@@ -118,7 +118,7 @@ private val Muted = Color(0xFF94A3B8)
 
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 private const val SITE = "https://wisdom-tower-academy.live/"
-private const val MIN_SPLASH_MS = 1200L
+private const val MIN_SPLASH_MS = 250L
 
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
@@ -710,9 +710,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    if (newProgress >= 50 && splashHoldDone) {
-                                        pageLoading = false
+                                    if (newProgress >= 30) {
                                         largeLoader = false
+                                    }
+                                    if (newProgress >= 65 && splashHoldDone) {
+                                        pageLoading = false
                                     }
                                 }
                             }
@@ -728,9 +730,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
+                                    largeLoader = false
                                     if (splashHoldDone) {
                                         pageLoading = false
-                                        largeLoader = false
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
