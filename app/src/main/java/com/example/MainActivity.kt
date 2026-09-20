@@ -55,19 +55,19 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.MenuBook
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.automirrored.filled.OpenInNew
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Campaign
-import androidx.compose.material.icons.filled.ViewList
+import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.automirrored.filled.MenuBook
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
+import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.filled.ViewList
+import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Email
-import androidx.compose.material.icons.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.PrivacyTip
 import androidx.compose.material3.DropdownMenu
@@ -151,27 +151,9 @@ private const val PRECACHE_AND_UNBLOCK_JS =
 
 private const val BOOK_PAGE_HELPERS_JS =
     "(function(){try{" +
-        // 1. If PDF size probe shows "—", replace with cleaner text and don't block
-        "function fixPdfSizeLabels(){" +
-            "var spans=document.querySelectorAll('span, p, div');" +
-            "for(var i=0;i<spans.length;i++){" +
-                "var el=spans[i];" +
-                "if(el.children.length===0){" +
-                    "var t=el.textContent||'';" +
-                    "if(t.indexOf('· —')!==-1){" +
-                        "el.textContent=t.replace('· —','· Ready');" +
-                    "}else if(t.trim()==='—'){" +
-                        "el.textContent='Ready';" +
-                    "}" +
-                "}" +
-            "}" +
-        "}" +
-        "fixPdfSizeLabels();" +
-        "setInterval(fixPdfSizeLabels, 1500);" +
-        // 2. OfflineVault sync helper for web page
+        // OfflineVault sync helper for web page
         "if(window.AndroidOfflineVault&&!window.__wta_vault_synced){" +
             "window.__wta_vault_synced=true;" +
-            "window.addEventListener('load',fixPdfSizeLabels);" +
         "}" +
     "}catch(e){}})();"
 
@@ -221,7 +203,9 @@ class MainActivity : ComponentActivity() {
         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#0F172A")
+        @Suppress("DEPRECATION")
         window.statusBarColor = navy
+        @Suppress("DEPRECATION")
         window.navigationBarColor = navy
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = false
@@ -235,8 +219,8 @@ class MainActivity : ComponentActivity() {
 
 sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: String) {
     object Home : BottomNavItem("Home", Icons.Filled.Home, "https://wisdom-tower-academy.live/")
-    object Learning : BottomNavItem("Learning", Icons.Filled.MenuBook, "https://wisdom-tower-academy.live/learning")
-    object Packages : BottomNavItem("Packages", Icons.Filled.ViewList, "https://wisdom-tower-academy.live/packages")
+    object Learning : BottomNavItem("Learning", Icons.AutoMirrored.Filled.MenuBook, "https://wisdom-tower-academy.live/learning")
+    object Packages : BottomNavItem("Packages", Icons.AutoMirrored.Filled.ViewList, "https://wisdom-tower-academy.live/packages")
     object Account : BottomNavItem("Account", Icons.Filled.Person, "https://wisdom-tower-academy.live/account")
 }
 
@@ -253,7 +237,7 @@ private val overflowMenuLinks = listOf(
     MenuLink("Sign out", "https://wisdom-tower-academy.live/logout", Icons.AutoMirrored.Filled.Logout),
     MenuLink("About", "https://wisdom-tower-academy.live/about", Icons.Filled.Info),
     MenuLink("Contact us", "https://wisdom-tower-academy.live/contact", Icons.Outlined.Email),
-    MenuLink("FAQ", "https://wisdom-tower-academy.live/academy/faq", Icons.Outlined.HelpOutline),
+    MenuLink("FAQ", "https://wisdom-tower-academy.live/academy/faq", Icons.AutoMirrored.Outlined.HelpOutline),
     MenuLink("Wisdom Digital", "https://wisdomtower.tech", Icons.AutoMirrored.Filled.OpenInNew, external = true),
     MenuLink("Telegram group", "https://t.me/wisdom_tower1", Icons.AutoMirrored.Filled.Send, external = true),
     MenuLink("Telegram channel", "https://t.me/wisdom_tower2", Icons.Filled.Campaign, external = true),
@@ -671,6 +655,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             settings.apply {
                                 javaScriptEnabled = true
                                 domStorageEnabled = true
+                                @Suppress("DEPRECATION")
                                 databaseEnabled = true
                                 loadsImagesAutomatically = true
                                 blockNetworkImage = false

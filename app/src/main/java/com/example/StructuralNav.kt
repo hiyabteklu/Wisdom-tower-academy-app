@@ -42,15 +42,15 @@ object StructuralNav {
     const val HARD_REFRESH_JS = """
 (function(){
   try {
+    window.dispatchEvent(new CustomEvent('wta-refresh', {
+      detail: { source: 'app-bar', hard: true, at: Date.now() }
+    }));
+  } catch (e) {}
+  try {
     if (typeof window.__wtaHardRefresh === 'function') {
       window.__wtaHardRefresh();
       return 'ok';
     }
-  } catch (e) {}
-  try {
-    window.dispatchEvent(new CustomEvent('wta-refresh', {
-      detail: { source: 'app-hard', hard: true, at: Date.now() }
-    }));
   } catch (e) {}
   return 'reload';
 })();
