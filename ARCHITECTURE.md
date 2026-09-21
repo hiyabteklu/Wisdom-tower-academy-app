@@ -103,6 +103,7 @@ Live in website: `FlashcardViewer.tsx` + ui-polish `.fc-*` classes — 3D flip, 
 
 | Date | Change |
 |------|--------|
+| 2026-09-21 | Pinned Refresh + Notifications in end Row; added getPdfSize to AndroidOfflineVault and enhanced BOOK_PAGE_HELPERS_JS |
 | 2026-09-17 | Notification bell → `/notifications` only; MainActivity shell restored; docs updated |
 | 2026-09-16 | Fixed status-bar overlap; fixed top bar; hamburger menu; branding; notifications |
 | 2026-09-16 | Website flashcard flip + swipe restored |

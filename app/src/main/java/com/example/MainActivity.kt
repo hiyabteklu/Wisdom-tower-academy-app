@@ -155,6 +155,69 @@ private const val BOOK_PAGE_HELPERS_JS =
         "if(window.AndroidOfflineVault&&!window.__wta_vault_synced){" +
             "window.__wta_vault_synced=true;" +
         "}" +
+        // Inspect pre-open PDF screen and show accurate file size
+        "function formatBytes(bytes){" +
+            "if(!bytes||bytes<=0)return '';" +
+            "if(bytes<1024*1024)return (bytes/1024).toFixed(1)+' KB';" +
+            "return (bytes/(1024*1024)).toFixed(1)+' MB';" +
+        "}" +
+        "function updatePdfPreOpenLabels(){" +
+            "try{" +
+                "var textNodes=[];" +
+                "var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);" +
+                "var n;" +
+                "while(n=walker.nextNode()){" +
+                    "var val=n.nodeValue||'';" +
+                    "if(val.indexOf('Checking size')!==-1||val.indexOf('Checking size…')!==-1||val.trim()==='—'||val.indexOf('· —')!==-1){" +
+                        "textNodes.push(n);" +
+                    "}" +
+                "}" +
+                "if(textNodes.length===0)return;" +
+                "var cachedSizeFormatted='';" +
+                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
+                    "var links=document.querySelectorAll('a[href*=\".pdf\"],a[href*=\"/api/content/pdf\"],button[data-url],a[href*=\"/pdf\"]');" +
+                    "for(var i=0;i<links.length;i++){" +
+                        "var href=links[i].getAttribute('href')||links[i].getAttribute('data-url')||'';" +
+                        "if(href){" +
+                            "var sz=window.AndroidOfflineVault.getPdfSize(href);" +
+                            "if(sz&&sz>0){" +
+                                "cachedSizeFormatted=formatBytes(sz);" +
+                                "break;" +
+                            "}" +
+                        "}" +
+                    "}" +
+                "}" +
+                "for(var j=0;j<textNodes.length;j++){" +
+                    "var node=textNodes[j];" +
+                    "var t=node.nodeValue||'';" +
+                    "if(cachedSizeFormatted){" +
+                        "if(t.indexOf('· —')!==-1){" +
+                            "node.nodeValue=t.replace('· —','· '+cachedSizeFormatted);" +
+                        "}else if(t.trim()==='—'){" +
+                            "node.nodeValue=cachedSizeFormatted;" +
+                        "}else if(t.indexOf('Checking size')!==-1){" +
+                            "node.nodeValue=t.replace(/Checking size[….]*/g,cachedSizeFormatted);" +
+                        "}" +
+                    "}else{" +
+                        "var now=Date.now();" +
+                        "if(!window.__wta_size_check_start){window.__wta_size_check_start=now;}" +
+                        "if(now-window.__wta_size_check_start>3000){" +
+                            "if(t.indexOf('Checking size')!==-1){" +
+                                "node.nodeValue=t.replace(/Checking size[….]*/g,'Ready to open');" +
+                            "}else if(t.trim()==='—'){" +
+                                "node.nodeValue='Ready';" +
+                            "}else if(t.indexOf('· —')!==-1){" +
+                                "node.nodeValue=t.replace('· —','· Ready');" +
+                            "}" +
+                        "}" +
+                    "}" +
+                "}" +
+            "}catch(e){}" +
+        "}" +
+        "updatePdfPreOpenLabels();" +
+        "if(!window.__wta_size_interval){" +
+            "window.__wta_size_interval=setInterval(updatePdfPreOpenLabels,1000);" +
+        "}" +
     "}catch(e){}})();"
 
 private const val DETECT_AND_RECOVER_JS =
@@ -542,48 +605,52 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             )
                         }
 
-                        IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                val wv = webView
-                                val currentUrl = wv?.url ?: ""
-                                if (wv != null) {
-                                    if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
-                                        if (isOnline(context)) {
-                                            navigateTo("https://wisdom-tower-academy.live/", null)
-                                        } else {
-                                            wv.reload()
-                                        }
-                                    } else {
-                                        wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) {
-                                            Handler(Looper.getMainLooper()).post {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    val wv = webView
+                                    val currentUrl = wv?.url ?: ""
+                                    if (wv != null) {
+                                        if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
+                                            if (isOnline(context)) {
+                                                navigateTo("https://wisdom-tower-academy.live/", null)
+                                            } else {
                                                 wv.reload()
+                                            }
+                                        } else {
+                                            wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) {
+                                                Handler(Looper.getMainLooper()).post {
+                                                    wv.reload()
+                                                }
                                             }
                                         }
                                     }
-                                }
-                            },
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Refresh",
-                                tint = Accent
-                            )
-                        }
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Refresh,
+                                    contentDescription = "Refresh",
+                                    tint = Accent
+                                )
+                            }
 
-                        IconButton(
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                navigateTo("https://wisdom-tower-academy.live/notifications", null)
-                            },
-                            modifier = Modifier.size(48.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Notifications,
-                                contentDescription = "Notifications",
-                                tint = Accent
-                            )
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    navigateTo("https://wisdom-tower-academy.live/notifications", null)
+                                },
+                                modifier = Modifier.size(48.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Notifications,
+                                    contentDescription = "Notifications",
+                                    tint = Accent
+                                )
+                            }
                         }
                     }
                 }
@@ -683,6 +750,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 fun isPdfCached(url: String?): Boolean {
                                     if (url.isNullOrBlank()) return false
                                     return OfflineVault.has(ctx, url)
+                                }
+
+                                @JavascriptInterface
+                                fun getPdfSize(url: String?): Long {
+                                    if (url.isNullOrBlank()) return 0L
+                                    val f = OfflineVault.localFileFor(ctx, url) ?: return 0L
+                                    return f.length()
                                 }
 
                                 @JavascriptInterface
