@@ -11,6 +11,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.view.HapticFeedbackConstants
+import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
 import android.webkit.CookieManager
@@ -33,23 +34,42 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
@@ -74,17 +94,12 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.scale
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
@@ -94,6 +109,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -113,12 +130,13 @@ import kotlinx.coroutines.delay
 
 private val BarBg = Color(0xFF0F172A)
 private val Accent = Color(0xFF00E5FF)
-private val Surface = Color(0xFF1E293B)
+private val SurfaceColor = Color(0xFF1E293B)
 private val Muted = Color(0xFF94A3B8)
 
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
-private const val SITE = "https://wisdom-tower-academy.live/"
-private const val MIN_SPLASH_MS = 250L
+// Direct 200 URL (eliminates 308 redirect round-trip delay)
+private const val SITE = "https://www.wisdom-tower-academy.live/"
+private const val MIN_SPLASH_DISPLAY_MS = 1000L
 
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
@@ -151,11 +169,9 @@ private const val PRECACHE_AND_UNBLOCK_JS =
 
 private const val BOOK_PAGE_HELPERS_JS =
     "(function(){try{" +
-        // OfflineVault sync helper for web page
         "if(window.AndroidOfflineVault&&!window.__wta_vault_synced){" +
             "window.__wta_vault_synced=true;" +
         "}" +
-        // Inspect pre-open PDF screen and show accurate file size
         "function formatBytes(bytes){" +
             "if(!bytes||bytes<=0)return '';" +
             "if(bytes<1024*1024)return (bytes/1024).toFixed(1)+' KB';" +
@@ -258,11 +274,6 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { keepSplash }
         super.onCreate(savedInstanceState)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        // FLAG_SECURE disabled temporarily for screenshots/mockups – re-enable before store release
-        // window.setFlags(
-        //     WindowManager.LayoutParams.FLAG_SECURE,
-        //     WindowManager.LayoutParams.FLAG_SECURE
-        // )
         window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#0F172A")
@@ -281,10 +292,10 @@ class MainActivity : ComponentActivity() {
 }
 
 sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: String) {
-    object Home : BottomNavItem("Home", Icons.Filled.Home, "https://wisdom-tower-academy.live/")
-    object Learning : BottomNavItem("Learning", Icons.AutoMirrored.Filled.MenuBook, "https://wisdom-tower-academy.live/learning")
-    object Packages : BottomNavItem("Packages", Icons.AutoMirrored.Filled.ViewList, "https://wisdom-tower-academy.live/packages")
-    object Account : BottomNavItem("Account", Icons.Filled.Person, "https://wisdom-tower-academy.live/account")
+    object Home : BottomNavItem("Home", Icons.Filled.Home, "https://www.wisdom-tower-academy.live/")
+    object Learning : BottomNavItem("Learning", Icons.AutoMirrored.Filled.MenuBook, "https://www.wisdom-tower-academy.live/learning")
+    object Packages : BottomNavItem("Packages", Icons.AutoMirrored.Filled.ViewList, "https://www.wisdom-tower-academy.live/packages")
+    object Account : BottomNavItem("Account", Icons.Filled.Person, "https://www.wisdom-tower-academy.live/account")
 }
 
 private data class MenuLink(
@@ -295,18 +306,18 @@ private data class MenuLink(
 )
 
 private val overflowMenuLinks = listOf(
-    MenuLink("Settings", "https://wisdom-tower-academy.live/settings", Icons.Filled.Settings),
-    MenuLink("My account", "https://wisdom-tower-academy.live/account", Icons.Filled.Person),
-    MenuLink("Sign out", "https://wisdom-tower-academy.live/logout", Icons.AutoMirrored.Filled.Logout),
-    MenuLink("About", "https://wisdom-tower-academy.live/about", Icons.Filled.Info),
-    MenuLink("Contact us", "https://wisdom-tower-academy.live/contact", Icons.Outlined.Email),
-    MenuLink("FAQ", "https://wisdom-tower-academy.live/academy/faq", Icons.AutoMirrored.Outlined.HelpOutline),
+    MenuLink("Settings", "https://www.wisdom-tower-academy.live/settings", Icons.Filled.Settings),
+    MenuLink("My account", "https://www.wisdom-tower-academy.live/account", Icons.Filled.Person),
+    MenuLink("Sign out", "https://www.wisdom-tower-academy.live/logout", Icons.AutoMirrored.Filled.Logout),
+    MenuLink("About", "https://www.wisdom-tower-academy.live/about", Icons.Filled.Info),
+    MenuLink("Contact us", "https://www.wisdom-tower-academy.live/contact", Icons.Outlined.Email),
+    MenuLink("FAQ", "https://www.wisdom-tower-academy.live/academy/faq", Icons.AutoMirrored.Outlined.HelpOutline),
     MenuLink("Wisdom Digital", "https://wisdomtower.tech", Icons.AutoMirrored.Filled.OpenInNew, external = true),
     MenuLink("Telegram group", "https://t.me/wisdom_tower1", Icons.AutoMirrored.Filled.Send, external = true),
     MenuLink("Telegram channel", "https://t.me/wisdom_tower2", Icons.Filled.Campaign, external = true),
     MenuLink("LinkedIn", "https://www.linkedin.com/company/wisdom-tower/", Icons.Filled.Business, external = true),
-    MenuLink("Privacy", "https://wisdom-tower-academy.live/privacy", Icons.Outlined.PrivacyTip),
-    MenuLink("Terms", "https://wisdom-tower-academy.live/terms", Icons.Outlined.Policy),
+    MenuLink("Privacy", "https://www.wisdom-tower-academy.live/privacy", Icons.Outlined.PrivacyTip),
+    MenuLink("Terms", "https://www.wisdom-tower-academy.live/terms", Icons.Outlined.Policy),
 )
 
 private fun isOnline(context: Context): Boolean {
@@ -334,23 +345,31 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var selectedIndex by remember { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
-    var pageLoading by remember { mutableStateOf(true) }
-    var largeLoader by remember { mutableStateOf(true) }
+
+    // Loading states for zero blank screen and lively navigation feedback
+    var isInitialLoading by remember { mutableStateOf(true) }
+    var minSplashElapsed by remember { mutableStateOf(false) }
+    var pageRendered by remember { mutableStateOf(false) }
+    var webProgress by remember { mutableIntStateOf(0) }
+    var isNavigating by remember { mutableStateOf(false) }
+
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
-    var splashHoldDone by remember { mutableStateOf(false) }
     var showOnboarding by remember { mutableStateOf(!hasCompletedOnboarding(context)) }
     var showExitDialog by remember { mutableStateOf(false) }
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
     var pendingClearHistory by remember { mutableStateOf(false) }
 
+    // Hand-off from system splash to brand animated loader with smooth minimum cinematic timing
     LaunchedEffect(Unit) {
         onReady()
-        delay(MIN_SPLASH_MS)
-        splashHoldDone = true
-        if (largeLoader) {
-            pageLoading = false
-            largeLoader = false
+        delay(MIN_SPLASH_DISPLAY_MS)
+        minSplashElapsed = true
+        if (pageRendered) {
+            isInitialLoading = false
         }
+        // Safety timeout: ensure loader never hangs if network is slow
+        delay(4000L)
+        isInitialLoading = false
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -404,18 +423,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
         }
     }
 
-    fun finishLoadingIfAllowed() {
-        if (splashHoldDone) {
-            pageLoading = false
-            largeLoader = false
-        } else if (!largeLoader) {
-            pageLoading = false
-        }
-    }
-
     fun showOffline(wv: WebView) {
-        pageLoading = false
-        largeLoader = false
+        isInitialLoading = false
+        isNavigating = false
         wv.loadUrl(OFFLINE_ASSET)
     }
 
@@ -423,6 +433,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
         val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
         if (resetHistory) pendingClearHistory = true
+        isNavigating = true
+        webProgress = 20
 
         val online = isOnline(context)
         wv.settings.cacheMode = if (online) {
@@ -517,26 +529,29 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         .fillMaxWidth()
                         .background(BarBg)
                 ) {
+                    // Top App Bar Row
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(48.dp)
-                            .padding(horizontal = 4.dp),
+                            .height(50.dp)
+                            .padding(horizontal = 6.dp),
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
+                        // Left: Hamburger menu
                         Box {
                             IconButton(
                                 onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     menuExpanded = true
                                 },
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(46.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Menu,
                                     contentDescription = "Menu",
-                                    tint = Accent
+                                    tint = Accent,
+                                    modifier = Modifier.size(24.dp)
                                 )
                             }
                             DropdownMenu(
@@ -552,7 +567,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             Text(
                                                 text = link.label,
                                                 color = Color.White,
-                                                fontSize = 15.sp
+                                                fontSize = 15.sp,
+                                                fontWeight = FontWeight.Medium
                                             )
                                         },
                                         leadingIcon = {
@@ -565,6 +581,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         },
                                         onClick = {
                                             menuExpanded = false
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                             if (link.external) {
                                                 try {
                                                     context.startActivity(
@@ -587,36 +604,48 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             }
                         }
 
+                        // Center: Brand Logo and Title
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier
                                 .weight(1f)
-                                .padding(horizontal = 4.dp)
+                                .padding(horizontal = 6.dp)
                         ) {
-                            BrandLogo(size = 34.dp)
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .size(34.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(8.dp))
+                            ) {
+                                BrandLogo(size = 34.dp)
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "Wisdom Tower Academy",
                                 color = Color.White,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.2.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
 
+                        // Right: Pinned Refresh and Notification Actions
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(
                                 onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     val wv = webView
                                     val currentUrl = wv?.url ?: ""
                                     if (wv != null) {
+                                        isNavigating = true
+                                        webProgress = 15
                                         if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
                                             if (isOnline(context)) {
-                                                navigateTo("https://wisdom-tower-academy.live/", null)
+                                                navigateTo("https://www.wisdom-tower-academy.live/", null)
                                             } else {
                                                 wv.reload()
                                             }
@@ -629,81 +658,86 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     }
                                 },
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(44.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Refresh,
                                     contentDescription = "Refresh",
-                                    tint = Accent
+                                    tint = Accent,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
 
                             IconButton(
                                 onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                    navigateTo("https://wisdom-tower-academy.live/notifications", null)
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    navigateTo("https://www.wisdom-tower-academy.live/notifications", null)
                                 },
-                                modifier = Modifier.size(48.dp)
+                                modifier = Modifier.size(44.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Notifications,
                                     contentDescription = "Notifications",
-                                    tint = Accent
+                                    tint = Accent,
+                                    modifier = Modifier.size(22.dp)
                                 )
                             }
                         }
                     }
+
+                    // Sleek animated linear progress bar right beneath top bar
+                    AnimatedVisibility(
+                        visible = isNavigating || (webProgress in 1..95 && !isInitialLoading),
+                        enter = fadeIn(tween(120)),
+                        exit = fadeOut(tween(250))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(2.5.dp)
+                                .background(Color(0x1A00E5FF))
+                        ) {
+                            val progressFraction = (webProgress.coerceIn(0, 100)) / 100f
+                            val animatedProgress by animateFloatAsState(
+                                targetValue = if (isNavigating && progressFraction < 0.2f) 0.35f else progressFraction,
+                                animationSpec = tween(220),
+                                label = "navProgressBar"
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth(animatedProgress)
+                                    .fillMaxHeight()
+                                    .background(
+                                        Brush.horizontalGradient(
+                                            listOf(
+                                                Color(0xFF00E5FF),
+                                                Color(0xFF38BDF8),
+                                                Color(0xFF00E5FF)
+                                            )
+                                        )
+                                    )
+                            )
+                        }
+                    }
+
+                    // Hairline subtle divider
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0x14FFFFFF))
+                    )
                 }
             },
             bottomBar = {
-                NavigationBar(
-                    containerColor = BarBg,
-                    contentColor = Color.White,
-                    tonalElevation = 0.dp,
-                    modifier = Modifier
-                        .windowInsetsPadding(WindowInsets.navigationBars)
-                        .height(58.dp)
-                ) {
-                    items.forEachIndexed { index, item ->
-                        val selected = selectedIndex == index
-                        val scale by animateFloatAsState(
-                            targetValue = if (selected) 1.12f else 1f,
-                            animationSpec = tween(220),
-                            label = "tabScale"
-                        )
-                        NavigationBarItem(
-                            icon = {
-                                Icon(
-                                    item.icon,
-                                    contentDescription = item.title,
-                                    modifier = Modifier.scale(scale)
-                                )
-                            },
-                            label = {
-                                Text(
-                                    item.title,
-                                    maxLines = 1,
-                                    fontSize = 11.sp,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal
-                                )
-                            },
-                            selected = selected,
-                            onClick = {
-                                view.performHapticFeedback(HapticFeedbackConstants.CONTEXT_CLICK)
-                                if (selectedIndex == index) return@NavigationBarItem
-                                selectedIndex = index
-                                navigateTo(item.url, index)
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = Accent,
-                                selectedTextColor = Accent,
-                                unselectedIconColor = Muted,
-                                unselectedTextColor = Muted,
-                                indicatorColor = Surface
-                            )
-                        )
+                AliveBottomNav(
+                    items = items,
+                    selectedIndex = selectedIndex,
+                    onItemSelected = { index, item ->
+                        selectedIndex = index
+                        navigateTo(item.url, index)
                     }
-                }
+                )
             }
         ) { padding ->
             Box(
@@ -711,10 +745,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     .fillMaxSize()
                     .padding(padding)
             ) {
+                // Main Web View
                 AndroidView(
                     factory = { ctx ->
                         WebView(ctx).apply {
                             setBackgroundColor(AndroidColor.parseColor("#0F172A"))
+                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
                             layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
@@ -731,7 +767,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 allowFileAccess = true
                                 allowContentAccess = true
 
-                                // Performance & high-speed rendering
+                                // Ultra-smooth rendering and fast hydration
                                 useWideViewPort = true
                                 loadWithOverviewMode = true
                                 offscreenPreRaster = true
@@ -769,11 +805,15 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    if (newProgress >= 30) {
-                                        largeLoader = false
+                                    webProgress = newProgress
+                                    if (newProgress >= 100) {
+                                        isNavigating = false
                                     }
-                                    if (newProgress >= 65 && splashHoldDone) {
-                                        pageLoading = false
+                                    if (newProgress >= 70) {
+                                        pageRendered = true
+                                        if (minSplashElapsed) {
+                                            isInitialLoading = false
+                                        }
                                     }
                                 }
                             }
@@ -781,18 +821,19 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                     if (url != null && url.startsWith("file:///android_asset/")) {
-                                        pageLoading = false
-                                        largeLoader = false
+                                        isInitialLoading = false
+                                        isNavigating = false
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
-                                    largeLoader = false
-                                    if (splashHoldDone) {
-                                        pageLoading = false
+                                    pageRendered = true
+                                    if (minSplashElapsed) {
+                                        isInitialLoading = false
                                     }
+                                    isNavigating = false
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
@@ -800,6 +841,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
+                                    pageRendered = true
+                                    if (minSplashElapsed) {
+                                        isInitialLoading = false
+                                    }
+                                    isNavigating = false
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
@@ -815,7 +861,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         pendingClearHistory = false
                                         view?.clearHistory()
                                     }
-                                    finishLoadingIfAllowed()
                                 }
 
                                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
@@ -829,7 +874,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                 path.endsWith("/login") || path.endsWith("/auth") ||
                                                 path.endsWith("/logout") -> 3
                                             path.contains("/notifications") -> selectedIndex
-                                            path == "https://wisdom-tower-academy.live" || path == "https://wisdom-tower-academy.live/" -> 0
+                                            path == "https://www.wisdom-tower-academy.live" ||
+                                                path == "https://www.wisdom-tower-academy.live/" ||
+                                                path == "https://wisdom-tower-academy.live" ||
+                                                path == "https://wisdom-tower-academy.live/" -> 0
                                             else -> selectedIndex
                                         }
                                     }
@@ -866,7 +914,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         wv.loadUrl(failedUrl)
                                         return
                                     }
-                                    // Never leave Chrome "Webpage not available" screen
                                     if (failedUrl == null || !failedUrl.contains("offline.html")) {
                                         showOffline(wv)
                                     }
@@ -976,7 +1023,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ): Boolean {
                                     val u = request?.url?.toString() ?: return false
                                     if (u.contains("/my-learning")) {
-                                        navigateTo("https://wisdom-tower-academy.live/learning", 1)
+                                        navigateTo("https://www.wisdom-tower-academy.live/learning", 1)
                                         return true
                                     }
                                     if (OfflineVault.isPdfUrl(u) || u.endsWith(".pdf", ignoreCase = true) || u.contains("/pdf")) {
@@ -1010,14 +1057,86 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     modifier = Modifier.fillMaxSize()
                 )
 
-                if (pageLoading) {
+                // Perfect Timing Splash / Loading Overlay: Eliminates blank screens
+                AnimatedVisibility(
+                    visible = isInitialLoading,
+                    enter = fadeIn(tween(150)),
+                    exit = fadeOut(tween(380, easing = FastOutSlowInEasing))
+                ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(if (largeLoader) BarBg else Color.Transparent),
+                            .background(BarBg),
                         contentAlignment = Alignment.Center
                     ) {
-                        BrandLoader(size = if (largeLoader) 180.dp else 56.dp)
+                        // Ambient radial glowing aura behind card
+                        Box(
+                            modifier = Modifier
+                                .size(240.dp)
+                                .clip(CircleShape)
+                                .background(
+                                    Brush.radialGradient(
+                                        listOf(
+                                            Color(0x2E00E5FF),
+                                            Color(0x0A00E5FF),
+                                            Color.Transparent
+                                        )
+                                    )
+                                )
+                        )
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.padding(24.dp)
+                        ) {
+                            // High-quality animated brand logo GIF
+                            BrandLoader(size = 140.dp, showCard = true)
+
+                            Spacer(modifier = Modifier.height(20.dp))
+
+                            Text(
+                                text = "Wisdom Tower Academy",
+                                color = Color.White,
+                                fontSize = 17.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 0.3.sp
+                            )
+
+                            Spacer(modifier = Modifier.height(6.dp))
+
+                            Text(
+                                text = "Preparing your learning space…",
+                                color = Muted,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Normal
+                            )
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
+                            // Sleek rounded micro progress track
+                            Box(
+                                modifier = Modifier
+                                    .width(120.dp)
+                                    .height(3.dp)
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .background(Color(0x2600E5FF))
+                            ) {
+                                val progressFraction = (webProgress.coerceIn(0, 100)) / 100f
+                                val animProgress by animateFloatAsState(
+                                    targetValue = if (progressFraction < 0.2f) 0.35f else progressFraction,
+                                    animationSpec = tween(250),
+                                    label = "splashTrack"
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(animProgress)
+                                        .fillMaxHeight()
+                                        .clip(RoundedCornerShape(2.dp))
+                                        .background(Accent)
+                                )
+                            }
+                        }
                     }
                 }
             }
@@ -1031,6 +1150,160 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     activity?.finish()
                 }
             )
+        }
+    }
+}
+
+/**
+ * High-tactile alive bottom navigation bar with fluid spring physics,
+ * glowing active capsule, bouncing icons, and haptic feedback.
+ */
+@Composable
+private fun AliveBottomNav(
+    items: List<BottomNavItem>,
+    selectedIndex: Int,
+    onItemSelected: (Int, BottomNavItem) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val view = LocalView.current
+    Surface(
+        color = BarBg,
+        tonalElevation = 6.dp,
+        modifier = modifier
+            .fillMaxWidth()
+            .windowInsetsPadding(WindowInsets.navigationBars)
+            .height(60.dp)
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Hairline top border
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(1.dp)
+                    .background(Color(0x1A334155))
+            )
+
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceAround
+            ) {
+                items.forEachIndexed { index, item ->
+                    val selected = selectedIndex == index
+
+                    // Bouncy spring scale on tap
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (selected) 1.16f else 1.0f,
+                        animationSpec = spring(
+                            dampingRatio = 0.45f,
+                            stiffness = Spring.StiffnessMediumLow
+                        ),
+                        label = "iconScale"
+                    )
+
+                    // Vertical lift on active
+                    val yOffset by animateDpAsState(
+                        targetValue = if (selected) (-2.5).dp else 0.dp,
+                        animationSpec = spring(
+                            dampingRatio = 0.55f,
+                            stiffness = Spring.StiffnessMediumLow
+                        ),
+                        label = "yOffset"
+                    )
+
+                    val iconColor by animateColorAsState(
+                        targetValue = if (selected) Accent else Muted,
+                        animationSpec = tween(180),
+                        label = "iconColor"
+                    )
+
+                    val textColor by animateColorAsState(
+                        targetValue = if (selected) Accent else Muted,
+                        animationSpec = tween(180),
+                        label = "textColor"
+                    )
+
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .clip(RoundedCornerShape(14.dp))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                if (selectedIndex != index) {
+                                    onItemSelected(index, item)
+                                }
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        // Illuminated active capsule glow
+                        if (selected) {
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                                    .size(width = 66.dp, height = 46.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(
+                                        Brush.verticalGradient(
+                                            listOf(
+                                                Color(0x2600E5FF),
+                                                Color(0x0A00E5FF)
+                                            )
+                                        )
+                                    )
+                                    .border(
+                                        1.dp,
+                                        Color(0x3300E5FF),
+                                        RoundedCornerShape(12.dp)
+                                    )
+                            )
+                        }
+
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.Center,
+                            modifier = Modifier.offset(y = yOffset)
+                        ) {
+                            Icon(
+                                imageVector = item.icon,
+                                contentDescription = item.title,
+                                tint = iconColor,
+                                modifier = Modifier
+                                    .size(22.dp)
+                                    .scale(iconScale)
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = item.title,
+                                color = textColor,
+                                fontSize = 10.5.sp,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            // Micro glowing active dot
+                            AnimatedVisibility(
+                                visible = selected,
+                                enter = fadeIn(tween(120)) + scaleIn(spring(dampingRatio = 0.5f)),
+                                exit = fadeOut(tween(80)) + scaleOut()
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 1.dp)
+                                        .size(3.5.dp)
+                                        .clip(CircleShape)
+                                        .background(Accent)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 }
