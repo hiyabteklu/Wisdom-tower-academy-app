@@ -30,13 +30,167 @@ import java.util.concurrent.Executors
  */
 object OfflineVault {
     private const val PREFS = "wta_offline_vault"
+    private const val PREFS_SIZES = "wta_pdf_sizes"
     private const val KEY_INDEX = "index_json"
     private const val KEY_LEGACY_CLEANED = "legacy_keys_cleaned_v2"
     private const val DIR = "offline_vault"
     private val io = Executors.newSingleThreadExecutor()
+    private val memorySizeCache = java.util.concurrent.ConcurrentHashMap<String, Long>()
+
+    /**
+     * Exact file sizes for WTA Academy books (bytes).
+     * Pre-seeded so size check is instant (0ms) and never triggers silent download.
+     */
+    val PRESEEDED_BOOK_SIZES = mapOf(
+        "6aad8e8e001bf655ddff" to 1706717L, // Anthropology module (1.6 MB)
+        "6aad8e8e001c0003600a" to 1891010L, // Communicative English 1 (1.8 MB)
+        "6aad8e8e001c0c928f44" to 5734887L, // Math natural , module (5.5 MB)
+        "6aad8e8e001c0c84652a" to 2415338L, // Physical fitness module (2.3 MB)
+        "6aad8e8e001c09f7da8a" to 4768641L, // Physics module (4.5 MB)
+        "6aad8e8e001c0262c6cb" to 2753014L, // Logic module (2.6 MB)
+        "6aad8e8e001c0725f10e" to 1882181L, // Economics module (1.8 MB)
+        "6aad8e8e001c047af478" to 2456883L, // Entrepreneurship module (2.3 MB)
+        "6aad8e8e001c0c362ecf" to 3285055L, // History module (3.1 MB)
+        "6aad8e8e001c0a2d2554" to 9492546L, // Chemistry module (9.1 MB)
+        "6aad8e8e001c0c640e4e" to 2347872L, // C++ material (2.2 MB)
+        "6aad8e8e001c04690369" to 786264L,  // Communicative English 2 (768 KB)
+        "6aad8e8e001c0c040515" to 5016415L, // Math social, module (4.8 MB)
+        "6aad8e8e001c0c6d982f" to 1906455L, // Psychology module (1.8 MB)
+        "6aad8e8e001c054431c6" to 3089018L, // Geography module (2.9 MB)
+        "6aad8e8e001c015e87f0" to 2298390L, // Civic module (2.2 MB)
+        "6aad8e8e001c0aafc2d6" to 2717979L, // Emerging module (2.6 MB)
+        "6aad8e8e001c02e0ae41" to 1973616L, // Global module (1.9 MB)
+        "6aad8e8e001c095bdf35" to 2604265L, // Inclusiveness module (2.5 MB)
+        "6aad8e8e001c036a8350" to 5309172L, // Biology module (5.1 MB)
+        "6aad8e8e001c035bd707" to 2238923L, // Applied math 1 (2.1 MB)
+        "6aad97eb0010d21989e8" to 8167554L, // Digital logic design (7.8 MB)
+        "6aad97eb0010ea179f50" to 2438550L, // Thermodynamics material (2.3 MB)
+        "6aa99489001c02f4b410" to 8931163L, // Physics Grade 9 (8.5 MB)
+        "6aad97eb0010d2e5f102" to 9073900L, // Introduction to machines PDF (8.7 MB)
+        "6aad97eb0010edc8670d" to 6901577L, // Network analysis and synthesis (6.6 MB)
+        "6aad97eb0010e4ee5f12" to 5917129L  // Material pdf (5.6 MB)
+    )
 
     private fun prefs(ctx: Context) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+    fun cachePdfSize(ctx: Context, url: String, size: Long) {
+        if (size <= 0L) return
+        val clean = url.trim()
+        memorySizeCache[clean] = size
+        try {
+            val key = keyFor(clean)
+            ctx.getSharedPreferences(PREFS_SIZES, Context.MODE_PRIVATE)
+                .edit()
+                .putLong(key, size)
+                .apply()
+        } catch (_: Exception) {}
+    }
+
+    /**
+     * Returns known size in bytes without downloading the file.
+     * 1) Vault file if already downloaded
+     * 2) Pre-seeded catalog size (instant)
+     * 3) Memory cache
+     * 4) SharedPreferences cache
+     */
+    fun getPdfSize(ctx: Context, url: String?): Long {
+        if (url.isNullOrBlank()) return 0L
+        val clean = url.trim()
+
+        val local = localFileFor(ctx, clean)
+        if (local != null && local.exists() && local.length() > 0L) {
+            return local.length()
+        }
+
+        for ((fileId, sz) in PRESEEDED_BOOK_SIZES) {
+            if (clean.contains(fileId, ignoreCase = true)) {
+                return sz
+            }
+        }
+
+        memorySizeCache[clean]?.let { if (it > 0L) return it }
+
+        try {
+            val key = keyFor(clean)
+            val sz = ctx.getSharedPreferences(PREFS_SIZES, Context.MODE_PRIVATE).getLong(key, 0L)
+            if (sz > 0L) {
+                memorySizeCache[clean] = sz
+                return sz
+            }
+        } catch (_: Exception) {}
+
+        return 0L
+    }
+
+    fun getPdfSizeByTitle(title: String?): Long {
+        if (title.isNullOrBlank()) return 0L
+        val t = title.lowercase()
+        return when {
+            t.contains("anthropology") -> 1706717L
+            t.contains("communicative english 1") || (t.contains("english") && t.contains("1")) -> 1891010L
+            t.contains("math natural") || (t.contains("math") && t.contains("natural")) -> 5734887L
+            t.contains("physical fitness") || t.contains("fitness") -> 2415338L
+            t.contains("physics module") || (t.contains("physics") && !t.contains("9") && !t.contains("grade")) -> 4768641L
+            t.contains("logic") -> 2753014L
+            t.contains("economics") -> 1882181L
+            t.contains("entrepreneurship") -> 2456883L
+            t.contains("history") -> 3285055L
+            t.contains("chemistry") -> 9492546L
+            t.contains("c++") || t.contains("cpp") -> 2347872L
+            t.contains("communicative english 2") || (t.contains("english") && t.contains("2")) -> 786264L
+            t.contains("math social") || (t.contains("math") && t.contains("social")) -> 5016415L
+            t.contains("psychology") -> 1906455L
+            t.contains("geography") -> 3089018L
+            t.contains("civic") -> 2298390L
+            t.contains("emerging") -> 2717979L
+            t.contains("global") -> 1973616L
+            t.contains("inclusiveness") -> 2604265L
+            t.contains("biology") -> 5309172L
+            t.contains("applied math") -> 2238923L
+            t.contains("digital logic") -> 8167554L
+            t.contains("thermodynamics") -> 2438550L
+            t.contains("physics grade 9") || (t.contains("physics") && t.contains("9")) -> 8931163L
+            t.contains("machine") -> 9073900L
+            t.contains("network analysis") -> 6901577L
+            t.contains("material pdf") -> 5917129L
+            else -> 0L
+        }
+    }
+
+    /**
+     * Fast, lightweight HEAD-only size probe.
+     * NEVER reads the response stream, NEVER downloads the body, NEVER saves to disk.
+     */
+    fun probeSizeOnline(ctx: Context, url: String): Long {
+        val known = getPdfSize(ctx, url)
+        if (known > 0L) return known
+
+        return try {
+            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+                requestMethod = "HEAD"
+                connectTimeout = 6_000
+                readTimeout = 6_000
+                instanceFollowRedirects = true
+                setRequestProperty("User-Agent", "WisdomTowerApp/1.0")
+                try {
+                    val cookies = CookieManager.getInstance().getCookie(url)
+                    if (!cookies.isNullOrBlank()) {
+                        setRequestProperty("Cookie", cookies)
+                    }
+                } catch (_: Exception) {}
+            }
+            conn.connect()
+            val cl = conn.contentLengthLong
+            conn.disconnect()
+            if (cl > 0L) {
+                cachePdfSize(ctx, url, cl)
+                cl
+            } else 0L
+        } catch (_: Exception) {
+            0L
+        }
+    }
 
     private fun ensureLegacyCleaned(ctx: Context) {
         val sp = prefs(ctx)

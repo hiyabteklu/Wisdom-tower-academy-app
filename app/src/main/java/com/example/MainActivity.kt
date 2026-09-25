@@ -97,6 +97,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -105,6 +106,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -177,62 +179,97 @@ private const val BOOK_PAGE_HELPERS_JS =
             "if(bytes<1024*1024)return (bytes/1024).toFixed(1)+' KB';" +
             "return (bytes/(1024*1024)).toFixed(1)+' MB';" +
         "}" +
+        "if(!window.__wta_fetch_probe_hook&&window.fetch){" +
+            "window.__wta_fetch_probe_hook=true;" +
+            "var _origFetch=window.fetch;" +
+            "window.fetch=function(input,init){" +
+                "var urlStr=(typeof input==='string')?input:(input&&input.url?input.url:'');" +
+                "if(urlStr&&(urlStr.indexOf('/api/content/pdf')!==-1||urlStr.indexOf('.pdf')!==-1)){" +
+                    "window.__wta_current_pdf_url=urlStr;" +
+                    "var m=(init&&init.method)?init.method.toUpperCase():'GET';" +
+                    "var h=init?init.headers:null;" +
+                    "var isRangeProbe=false;" +
+                    "if(h){" +
+                        "var r=(typeof h.get==='function')?h.get('Range'):(h.Range||h.range);" +
+                        "if(r&&(r.indexOf('bytes=0-0')!==-1||r.indexOf('bytes=0-1')!==-1))isRangeProbe=true;" +
+                    "}" +
+                    "if(m==='HEAD'||isRangeProbe){" +
+                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
+                            "var sz=window.AndroidOfflineVault.getPdfSize(urlStr);" +
+                            "if(sz&&sz>0){" +
+                                "var respH=new Headers();" +
+                                "respH.set('Content-Type','application/pdf');" +
+                                "respH.set('Content-Length',String(sz));" +
+                                "respH.set('Content-Range','bytes 0-0/'+sz);" +
+                                "respH.set('Accept-Ranges','bytes');" +
+                                "respH.set('Access-Control-Expose-Headers','Content-Length, Content-Range, Accept-Ranges, Content-Type');" +
+                                "return Promise.resolve(new Response(new ArrayBuffer(0),{status:200,statusText:'OK',headers:respH}));" +
+                            "}" +
+                        "}" +
+                    "}" +
+                "}" +
+                "return _origFetch.apply(this,arguments);" +
+            "};" +
+        "}" +
         "function updatePdfPreOpenLabels(){" +
             "try{" +
-                "var textNodes=[];" +
+                "var targetUrl=window.__wta_current_pdf_url||'';" +
+                "if(!targetUrl){" +
+                    "var links=document.querySelectorAll('a[href*=\".pdf\"],a[href*=\"/api/content/pdf\"],button[data-url],a[href*=\"/pdf\"]');" +
+                    "for(var i=0;i<links.length;i++){" +
+                        "var h=links[i].getAttribute('href')||links[i].getAttribute('data-url')||'';" +
+                        "if(h){targetUrl=h;break;}" +
+                    "}" +
+                "}" +
+                "var sz=0;" +
+                "if(targetUrl&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
+                    "sz=window.AndroidOfflineVault.getPdfSize(targetUrl);" +
+                "}" +
+                "if(!sz||sz<=0){" +
+                    "var titleEl=document.querySelector('h3,h2,.font-display');" +
+                    "var titleText=(titleEl?titleEl.textContent:'')||'';" +
+                    "if(titleText&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSizeByTitle==='function'){" +
+                        "sz=window.AndroidOfflineVault.getPdfSizeByTitle(titleText);" +
+                    "}" +
+                "}" +
+                "if(!sz||sz<=0)return;" +
+                "var formatted=formatBytes(sz);" +
+                "if(!formatted)return;" +
                 "var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);" +
                 "var n;" +
                 "while(n=walker.nextNode()){" +
                     "var val=n.nodeValue||'';" +
-                    "if(val.indexOf('Checking size')!==-1||val.indexOf('Checking size…')!==-1||val.trim()==='—'||val.indexOf('· —')!==-1){" +
-                        "textNodes.push(n);" +
-                    "}" +
-                "}" +
-                "if(textNodes.length===0)return;" +
-                "var cachedSizeFormatted='';" +
-                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
-                    "var links=document.querySelectorAll('a[href*=\".pdf\"],a[href*=\"/api/content/pdf\"],button[data-url],a[href*=\"/pdf\"]');" +
-                    "for(var i=0;i<links.length;i++){" +
-                        "var href=links[i].getAttribute('href')||links[i].getAttribute('data-url')||'';" +
-                        "if(href){" +
-                            "var sz=window.AndroidOfflineVault.getPdfSize(href);" +
-                            "if(sz&&sz>0){" +
-                                "cachedSizeFormatted=formatBytes(sz);" +
-                                "break;" +
+                    "if(val.indexOf('Checking size')!==-1||val.trim()==='—'||val.indexOf('· —')!==-1||val.indexOf('· Ready')!==-1||val.trim()==='Ready'){" +
+                        "var pText=(n.parentElement?n.parentElement.textContent:'')||'';" +
+                        "if(pText.indexOf('PDF book')!==-1||val.indexOf('Checking size')!==-1||val.indexOf('· —')!==-1||val.indexOf('· Ready')!==-1){" +
+                            "if(val.indexOf('· —')!==-1){" +
+                                "n.nodeValue=val.replace('· —','· '+formatted);" +
+                            "}else if(val.indexOf('· Ready')!==-1){" +
+                                "n.nodeValue=val.replace('· Ready','· '+formatted);" +
+                            "}else if(val.trim()==='—'||val.trim()==='Ready'){" +
+                                "n.nodeValue=formatted;" +
+                            "}else if(val.indexOf('Checking size')!==-1){" +
+                                "n.nodeValue=val.replace(/Checking size[….]*/g,formatted);" +
                             "}" +
                         "}" +
                     "}" +
                 "}" +
-                "for(var j=0;j<textNodes.length;j++){" +
-                    "var node=textNodes[j];" +
-                    "var t=node.nodeValue||'';" +
-                    "if(cachedSizeFormatted){" +
-                        "if(t.indexOf('· —')!==-1){" +
-                            "node.nodeValue=t.replace('· —','· '+cachedSizeFormatted);" +
-                        "}else if(t.trim()==='—'){" +
-                            "node.nodeValue=cachedSizeFormatted;" +
-                        "}else if(t.indexOf('Checking size')!==-1){" +
-                            "node.nodeValue=t.replace(/Checking size[….]*/g,cachedSizeFormatted);" +
-                        "}" +
-                    "}else{" +
-                        "var now=Date.now();" +
-                        "if(!window.__wta_size_check_start){window.__wta_size_check_start=now;}" +
-                        "if(now-window.__wta_size_check_start>3000){" +
-                            "if(t.indexOf('Checking size')!==-1){" +
-                                "node.nodeValue=t.replace(/Checking size[….]*/g,'Ready to open');" +
-                            "}else if(t.trim()==='—'){" +
-                                "node.nodeValue='Ready';" +
-                            "}else if(t.indexOf('· —')!==-1){" +
-                                "node.nodeValue=t.replace('· —','· Ready');" +
-                            "}" +
-                        "}" +
+                "var btns=document.querySelectorAll('button');" +
+                "for(var b=0;b<btns.length;b++){" +
+                    "var btn=btns[b];" +
+                    "var bt=(btn.textContent||'').trim();" +
+                    "if(bt.indexOf('Download & open')!==-1&&bt.indexOf('(')===-1){" +
+                        "var span=document.createElement('span');" +
+                        "span.className='opacity-80 font-semibold tabular-nums ml-1';" +
+                        "span.textContent='('+formatted+')';" +
+                        "btn.appendChild(span);" +
                     "}" +
                 "}" +
             "}catch(e){}" +
         "}" +
         "updatePdfPreOpenLabels();" +
         "if(!window.__wta_size_interval){" +
-            "window.__wta_size_interval=setInterval(updatePdfPreOpenLabels,1000);" +
+            "window.__wta_size_interval=setInterval(updatePdfPreOpenLabels,400);" +
         "}" +
     "}catch(e){}})();"
 
@@ -328,6 +365,72 @@ private fun isOnline(context: Context): Boolean {
         caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 }
 
+/**
+ * Maps a site URL / path to the corresponding bottom nav tab index with 100% precision.
+ * Tab 0: Home
+ * Tab 1: Learning (/learning, /academy, courses, subjects, books)
+ * Tab 2: Packages (/packages, /cart, /checkout, /orders)
+ * Tab 3: Account (/account, /settings, /login, /signup, /auth, etc.)
+ * /notifications: preserves currentTab (Architecture rule #6)
+ */
+private fun tabIndexForUrl(url: String?, currentTab: Int): Int {
+    if (url.isNullOrBlank() || url.startsWith("file://")) return currentTab
+    val clean = url.trim()
+    val path = try {
+        val uri = Uri.parse(clean)
+        uri.path?.removeSuffix("/")?.lowercase() ?: ""
+    } catch (_: Exception) {
+        clean.substringBefore("?").substringBefore("#").removeSuffix("/").lowercase()
+    }
+
+    if (path.contains("notifications") || clean.contains("/notifications")) {
+        return currentTab
+    }
+
+    // Tab 1: Learning
+    if (path == "/learning" || path.startsWith("/learning/") ||
+        path == "/academy" || path.startsWith("/academy/") ||
+        path.contains("learning") || path.contains("academy")
+    ) {
+        return 1
+    }
+
+    // Tab 2: Packages
+    if (path == "/packages" || path.startsWith("/packages/") ||
+        path == "/cart" || path.startsWith("/cart/") ||
+        path == "/orders" || path.startsWith("/orders/") ||
+        path.startsWith("/checkout") || path.contains("/checkout/")
+    ) {
+        return 2
+    }
+
+    // Tab 3: Account
+    if (path == "/account" || path.startsWith("/account/") ||
+        path == "/settings" || path.startsWith("/settings/") ||
+        path == "/login" || path.startsWith("/login/") ||
+        path == "/signup" || path.startsWith("/signup/") ||
+        path == "/register" || path.startsWith("/register/") ||
+        path == "/logout" || path.startsWith("/logout/") ||
+        path.startsWith("/auth") || path.contains("forgot-password") || path.contains("reset-password")
+    ) {
+        return 3
+    }
+
+    // Tab 0: Home
+    if (path.isEmpty() || path == "/" || path == "/home" ||
+        path == "/about" || path == "/contact" || path == "/faq" ||
+        path == "/privacy" || path == "/terms" ||
+        clean == "https://www.wisdom-tower-academy.live" ||
+        clean == "https://www.wisdom-tower-academy.live/" ||
+        clean == "https://wisdom-tower-academy.live" ||
+        clean == "https://wisdom-tower-academy.live/"
+    ) {
+        return 0
+    }
+
+    return currentTab
+}
+
 private val mainHandler = Handler(Looper.getMainLooper())
 
 @SuppressLint("SetJavaScriptEnabled")
@@ -342,7 +445,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
         BottomNavItem.Account
     )
 
-    var selectedIndex by remember { mutableIntStateOf(0) }
+    var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -377,9 +480,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
         val observer = LifecycleEventObserver { _, event ->
             if (event != Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
             val wv = webView ?: return@LifecycleEventObserver
+            val currentUrl = wv.url
+            if (!currentUrl.isNullOrBlank()) {
+                selectedIndex = tabIndexForUrl(currentUrl, selectedIndex)
+            }
             if (!isOnline(context)) return@LifecycleEventObserver
-            val url = wv.url ?: return@LifecycleEventObserver
-            if (url.startsWith("file://")) return@LifecycleEventObserver
+            if (currentUrl == null || currentUrl.startsWith("file://")) return@LifecycleEventObserver
             val now = System.currentTimeMillis()
             if (now - lastResumeRefreshAt < 4000L) return@LifecycleEventObserver
             lastResumeRefreshAt = now
@@ -493,6 +599,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
         OfflineVault.downloadAsync(ctx, cleanUrl) { file ->
             mainHandler.post {
                 if (file != null && file.exists() && file.length() > 0) {
+                    OfflineVault.cachePdfSize(ctx, cleanUrl, file.length())
                     Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
                     wv.loadUrl(OfflineVault.fileUrl(file))
                 } else {
@@ -791,8 +898,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun getPdfSize(url: String?): Long {
                                     if (url.isNullOrBlank()) return 0L
-                                    val f = OfflineVault.localFileFor(ctx, url) ?: return 0L
-                                    return f.length()
+                                    return OfflineVault.getPdfSize(ctx, url)
+                                }
+
+                                @JavascriptInterface
+                                fun getPdfSizeByTitle(title: String?): Long {
+                                    if (title.isNullOrBlank()) return 0L
+                                    return OfflineVault.getPdfSizeByTitle(title)
                                 }
 
                                 @JavascriptInterface
@@ -820,6 +932,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                    if (url != null && !url.startsWith("file://")) {
+                                        selectedIndex = tabIndexForUrl(url, selectedIndex)
+                                    }
                                     if (url != null && url.startsWith("file:///android_asset/")) {
                                         isInitialLoading = false
                                         isNavigating = false
@@ -829,6 +944,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
+                                    if (url != null && !url.startsWith("file://")) {
+                                        selectedIndex = tabIndexForUrl(url, selectedIndex)
+                                    }
                                     pageRendered = true
                                     if (minSplashElapsed) {
                                         isInitialLoading = false
@@ -841,6 +959,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
+                                    val curUrl = url ?: view?.url
+                                    if (curUrl != null && !curUrl.startsWith("file://")) {
+                                        selectedIndex = tabIndexForUrl(curUrl, selectedIndex)
+                                    }
                                     pageRendered = true
                                     if (minSplashElapsed) {
                                         isInitialLoading = false
@@ -866,20 +988,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
                                     super.doUpdateVisitedHistory(view, url, isReload)
                                     if (url != null && !url.startsWith("file://")) {
-                                        val path = url.substringBefore("?").removeSuffix("/")
-                                        selectedIndex = when {
-                                            path.endsWith("/learning") || path.contains("/learning/") || path.contains("/my-learning") -> 1
-                                            path.endsWith("/packages") || path.contains("/packages/") -> 2
-                                            path.endsWith("/account") || path.endsWith("/settings") ||
-                                                path.endsWith("/login") || path.endsWith("/auth") ||
-                                                path.endsWith("/logout") -> 3
-                                            path.contains("/notifications") -> selectedIndex
-                                            path == "https://www.wisdom-tower-academy.live" ||
-                                                path == "https://www.wisdom-tower-academy.live/" ||
-                                                path == "https://wisdom-tower-academy.live" ||
-                                                path == "https://wisdom-tower-academy.live/" -> 0
-                                            else -> selectedIndex
-                                        }
+                                        selectedIndex = tabIndexForUrl(url, selectedIndex)
                                     }
                                 }
 
@@ -944,22 +1053,64 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ): WebResourceResponse? {
                                     val req = request ?: return null
                                     val u = req.url?.toString() ?: return null
-                                    val isGet = req.method.equals("GET", ignoreCase = true)
-                                    val isHead = req.method.equals("HEAD", ignoreCase = true)
+                                    val method = req.method?.uppercase() ?: "GET"
+                                    val isGet = method == "GET"
+                                    val isHead = method == "HEAD"
 
                                     if ((isGet || isHead) && (u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u))) {
+                                        val rangeHeader = req.requestHeaders?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
+                                        val isRangeProbe = rangeHeader != null && rangeHeader.matches(Regex("""bytes=\s*0-\s*[01]"""))
+                                        val isProbe = isHead || isRangeProbe
+
+                                        // 1. Lightweight Size Probes: NEVER download the file body or save to OfflineVault
+                                        if (isProbe) {
+                                            val local = OfflineVault.localFileFor(ctx, u)
+                                            var size = if (local != null && local.exists() && local.length() > 0L) {
+                                                local.length()
+                                            } else {
+                                                OfflineVault.getPdfSize(ctx, u)
+                                            }
+                                            if (size <= 0L && isOnline(ctx)) {
+                                                size = OfflineVault.probeSizeOnline(ctx, u)
+                                            }
+                                            val headers = HashMap<String, String>().apply {
+                                                put("Access-Control-Allow-Origin", "*")
+                                                put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+                                                put("Access-Control-Allow-Headers", "*")
+                                                put("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
+                                                put("Content-Type", "application/pdf")
+                                                if (size > 0L) {
+                                                    put("Content-Length", size.toString())
+                                                    put("Content-Range", "bytes 0-0/$size")
+                                                }
+                                                put("Accept-Ranges", "bytes")
+                                                put("Cache-Control", "public, max-age=300")
+                                            }
+                                            return WebResourceResponse(
+                                                "application/pdf",
+                                                "binary",
+                                                200,
+                                                "OK",
+                                                headers,
+                                                ByteArrayInputStream(ByteArray(0))
+                                            )
+                                        }
+
+                                        // 2. Full Download/View (User explicitly clicked Download & open):
                                         val local = OfflineVault.localFileFor(ctx, u)
-                                        if (local != null && local.exists() && local.length() > 0) {
+                                        if (local != null && local.exists() && local.length() > 0L) {
                                             return try {
                                                 val headers = HashMap<String, String>().apply {
                                                     put("Access-Control-Allow-Origin", "*")
+                                                    put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+                                                    put("Access-Control-Allow-Headers", "*")
+                                                    put("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
                                                     put("Content-Type", "application/pdf")
                                                     put("Content-Length", local.length().toString())
                                                     put("Accept-Ranges", "bytes")
                                                     put("Cache-Control", "public, max-age=31536000, immutable")
                                                 }
-                                                val stream = if (isHead) ByteArrayInputStream(ByteArray(0)) else FileInputStream(local)
-                                                WebResourceResponse("application/pdf", "binary", 200, "OK", headers, stream)
+                                                WebResourceResponse("application/pdf", "binary", 200, "OK", headers, FileInputStream(local))
                                             } catch (_: Exception) {
                                                 null
                                             }
@@ -967,9 +1118,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         if (isOnline(ctx)) {
                                             return try {
                                                 val conn = (URL(u).openConnection() as HttpURLConnection).apply {
-                                                    requestMethod = if (isHead) "HEAD" else "GET"
-                                                    connectTimeout = 20_000
-                                                    readTimeout = 45_000
+                                                    requestMethod = "GET"
+                                                    connectTimeout = 30_000
+                                                    readTimeout = 60_000
                                                     instanceFollowRedirects = true
                                                     setRequestProperty("User-Agent", "WisdomTowerApp/1.0")
                                                     val cookies = CookieManager.getInstance().getCookie(u)
@@ -987,24 +1138,23 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                 val code = conn.responseCode
                                                 if (code in 200..299) {
                                                     val mime = conn.contentType ?: "application/pdf"
-                                                    val contentLength = conn.contentLengthLong
+                                                    val bytes = conn.inputStream.use { it.readBytes() }
+                                                    conn.disconnect()
+                                                    if (bytes.isNotEmpty()) {
+                                                        OfflineVault.saveBytesAsync(ctx, u, bytes)
+                                                        OfflineVault.cachePdfSize(ctx, u, bytes.size.toLong())
+                                                    }
                                                     val headers = HashMap<String, String>().apply {
                                                         put("Access-Control-Allow-Origin", "*")
+                                                        put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
+                                                        put("Access-Control-Allow-Headers", "*")
+                                                        put("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
                                                         put("Content-Type", mime)
-                                                        if (contentLength > 0) {
-                                                            put("Content-Length", contentLength.toString())
-                                                        }
+                                                        put("Content-Length", bytes.size.toString())
+                                                        put("Accept-Ranges", "bytes")
                                                         put("Cache-Control", "public, max-age=31536000, immutable")
                                                     }
-                                                    if (isHead) {
-                                                        conn.disconnect()
-                                                        WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(ByteArray(0)))
-                                                    } else {
-                                                        val bytes = conn.inputStream.use { it.readBytes() }
-                                                        conn.disconnect()
-                                                        OfflineVault.saveBytesAsync(ctx, u, bytes)
-                                                        WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(bytes))
-                                                    }
+                                                    WebResourceResponse(mime, "binary", 200, "OK", headers, ByteArrayInputStream(bytes))
                                                 } else {
                                                     conn.disconnect()
                                                     null
@@ -1155,8 +1305,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
 }
 
 /**
- * High-tactile alive bottom navigation bar with fluid spring physics,
- * glowing active capsule, bouncing icons, and haptic feedback.
+ * Sleek, native Apple-quality bottom navigation bar.
+ * Clean, precise icon + typography tinting, zero tacky gradients, zero clutter dots.
+ * Instant haptic response and pixel-perfect touch targets.
  */
 @Composable
 private fun AliveBottomNav(
@@ -1168,71 +1319,60 @@ private fun AliveBottomNav(
     val view = LocalView.current
     Surface(
         color = BarBg,
-        tonalElevation = 6.dp,
+        tonalElevation = 0.dp,
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .height(60.dp)
+            .height(56.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Hairline top border
+            // Crisp hairline top divider
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(1.dp)
-                    .background(Color(0x1A334155))
+                    .height(0.6.dp)
+                    .background(Color(0x2E94A3B8))
             )
 
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                    .padding(horizontal = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceAround
             ) {
                 items.forEachIndexed { index, item ->
                     val selected = selectedIndex == index
 
-                    // Bouncy spring scale on tap
-                    val iconScale by animateFloatAsState(
-                        targetValue = if (selected) 1.16f else 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = 0.45f,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
-                        label = "iconScale"
-                    )
-
-                    // Vertical lift on active
-                    val yOffset by animateDpAsState(
-                        targetValue = if (selected) (-2.5).dp else 0.dp,
-                        animationSpec = spring(
-                            dampingRatio = 0.55f,
-                            stiffness = Spring.StiffnessMediumLow
-                        ),
-                        label = "yOffset"
-                    )
-
                     val iconColor by animateColorAsState(
                         targetValue = if (selected) Accent else Muted,
-                        animationSpec = tween(180),
-                        label = "iconColor"
+                        animationSpec = tween(120),
+                        label = "tabIconColor"
                     )
 
                     val textColor by animateColorAsState(
                         targetValue = if (selected) Accent else Muted,
-                        animationSpec = tween(180),
-                        label = "textColor"
+                        animationSpec = tween(120),
+                        label = "tabTextColor"
+                    )
+
+                    val iconScale by animateFloatAsState(
+                        targetValue = if (selected) 1.05f else 1.0f,
+                        animationSpec = tween(140),
+                        label = "tabIconScale"
                     )
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .fillMaxHeight()
-                            .clip(RoundedCornerShape(14.dp))
+                            .clip(RoundedCornerShape(8.dp))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
-                                indication = null
+                                indication = ripple(
+                                    bounded = true,
+                                    color = Accent.copy(alpha = 0.15f)
+                                )
                             ) {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                 if (selectedIndex != index) {
@@ -1241,65 +1381,28 @@ private fun AliveBottomNav(
                             },
                         contentAlignment = Alignment.Center
                     ) {
-                        // Illuminated active capsule glow
-                        if (selected) {
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 4.dp, vertical = 2.dp)
-                                    .size(width = 66.dp, height = 46.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(
-                                        Brush.verticalGradient(
-                                            listOf(
-                                                Color(0x2600E5FF),
-                                                Color(0x0A00E5FF)
-                                            )
-                                        )
-                                    )
-                                    .border(
-                                        1.dp,
-                                        Color(0x3300E5FF),
-                                        RoundedCornerShape(12.dp)
-                                    )
-                            )
-                        }
-
                         Column(
                             horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier.offset(y = yOffset)
+                            verticalArrangement = Arrangement.Center
                         ) {
                             Icon(
                                 imageVector = item.icon,
                                 contentDescription = item.title,
                                 tint = iconColor,
                                 modifier = Modifier
-                                    .size(22.dp)
+                                    .size(24.dp)
                                     .scale(iconScale)
                             )
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(3.dp))
                             Text(
                                 text = item.title,
                                 color = textColor,
-                                fontSize = 10.5.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 11.sp,
+                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                letterSpacing = (-0.1).sp
                             )
-                            // Micro glowing active dot
-                            AnimatedVisibility(
-                                visible = selected,
-                                enter = fadeIn(tween(120)) + scaleIn(spring(dampingRatio = 0.5f)),
-                                exit = fadeOut(tween(80)) + scaleOut()
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(top = 1.dp)
-                                        .size(3.5.dp)
-                                        .clip(CircleShape)
-                                        .background(Accent)
-                                )
-                            }
                         }
                     }
                 }
