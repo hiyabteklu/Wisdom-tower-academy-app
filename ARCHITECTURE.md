@@ -103,6 +103,7 @@ Live in website: `FlashcardViewer.tsx` + ui-polish `.fc-*` classes — 3D flip, 
 
 | Date | Change |
 |------|--------|
+| 2026-09-26 | Fixed PDF size check & silent download: strictly prohibited probes from falling through to full GETs (unresolved probes return fabricated response without Content-Length), ensured vault writes occur ONLY on explicit user download actions, eliminated 'Ready' fallback in favor of 'Size unknown', and added single-flight cached UI state ('Already downloaded — opening…') |
 | 2026-09-25 | Replaced bottom navigation with native Apple-quality tab bar (removed tacky gradients, capsule boxes, and dots; crisp icon/typography tinting, subtle ripple and haptic feedback) and fixed tab highlight accuracy across all /academy, /packages, /account routes and on app resume after inactivity |
 | 2026-09-25 | Fixed book size check and silent download: pre-seeded book catalog sizes, hooked fetch probes with empty body + CORS expose headers, prevented premature vault writes on probes, and eliminated 'Ready' fallback |
 | 2026-09-21 | Pinned Refresh + Notifications in end Row; added getPdfSize to AndroidOfflineVault and enhanced BOOK_PAGE_HELPERS_JS |

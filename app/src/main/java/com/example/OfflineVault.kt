@@ -291,10 +291,11 @@ object OfflineVault {
     fun fileUrl(file: File): String = "file://${file.absolutePath}"
 
     /**
-     * Download [url] into the private vault on a background thread.
-     * [onDone] is called on the same background thread with the file or null.
+     * Explicit user-initiated download into private vault.
+     * This is the ONLY background download path that writes PDF bytes to disk.
+     * Probes (e.g. probeSizeOnline) NEVER call this function.
      */
-    fun downloadAsync(
+    fun downloadUserInitiated(
         ctx: Context,
         url: String,
         suggestedName: String? = null,
@@ -304,13 +305,21 @@ object OfflineVault {
             try {
                 existingOrDownload(ctx, url, suggestedName).also(onDone)
             } catch (e: Exception) {
-                Log.e("OfflineVault", "download failed: $url", e)
+                Log.e("OfflineVault", "user download failed: $url", e)
                 onDone(null)
             }
         }
     }
 
-    fun existingOrDownload(
+    @Deprecated("Use downloadUserInitiated to ensure downloads are strictly user-initiated")
+    fun downloadAsync(
+        ctx: Context,
+        url: String,
+        suggestedName: String? = null,
+        onDone: (File?) -> Unit
+    ) = downloadUserInitiated(ctx, url, suggestedName, onDone)
+
+    private fun existingOrDownload(
         ctx: Context,
         url: String,
         suggestedName: String? = null
