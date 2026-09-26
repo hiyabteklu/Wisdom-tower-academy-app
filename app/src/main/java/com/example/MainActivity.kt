@@ -314,6 +314,21 @@ private const val BOOK_PAGE_HELPERS_JS =
                     "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.markDownloadStarted==='function'){" +
                         "window.AndroidOfflineVault.markDownloadStarted(u);" +
                     "}" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getDownloadProgress==='function'){" +
+                        "var _pTimer=setInterval(function(){" +
+                            "try{" +
+                                "var raw=window.AndroidOfflineVault.getDownloadProgress(u);" +
+                                "if(raw){" +
+                                    "var p=JSON.parse(raw);" +
+                                    "if(p&&p.total>0&&p.loaded>0){" +
+                                        "window.dispatchEvent(new CustomEvent('wta:download-progress',{detail:{url:u,loaded:p.loaded,total:p.total}}));" +
+                                        "if(p.loaded>=p.total)clearInterval(_pTimer);" +
+                                    "}" +
+                                "}" +
+                            "}catch(_){}" +
+                        "},200);" +
+                        "setTimeout(function(){clearInterval(_pTimer);},60000);" +
+                    "}" +
                 "}catch(err){}" +
             "},true);" +
         "}" +
@@ -1000,6 +1015,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 }
 
                                 @JavascriptInterface
+                                fun getDownloadProgress(url: String?): String {
+                                    if (url.isNullOrBlank()) return "{\"loaded\":0,\"total\":0}"
+                                    val p = OfflineVault.getDownloadProgress(url) ?: return "{\"loaded\":0,\"total\":0}"
+                                    return "{\"loaded\":${p.loaded},\"total\":${p.total}}"
+                                }
+
+                                @JavascriptInterface
                                 fun onRouteChanged(path: String?) {
                                     if (!path.isNullOrBlank()) {
                                         mainHandler.post {
@@ -1275,7 +1297,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                     }
                                                     val stream = if (isExplicitDownload) {
                                                         val targetFile = OfflineVault.targetFileFor(ctx, u)
-                                                        CachingInputStream(conn.inputStream, targetFile) { savedFile ->
+                                                        val totalToUse = if (totalLen > 0L) totalLen else OfflineVault.getPdfSize(ctx, u)
+                                                        CachingInputStream(conn.inputStream, targetFile, u, totalToUse) { savedFile ->
                                                             OfflineVault.remember(ctx, u, savedFile.name)
                                                             OfflineVault.cachePdfSize(ctx, u, savedFile.length())
                                                         }

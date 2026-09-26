@@ -36,6 +36,23 @@ object OfflineVault {
     private const val DIR = "offline_vault"
     private val io = Executors.newSingleThreadExecutor()
     private val memorySizeCache = java.util.concurrent.ConcurrentHashMap<String, Long>()
+    data class DownloadProgress(val loaded: Long, val total: Long)
+    private val activeProgress = java.util.concurrent.ConcurrentHashMap<String, DownloadProgress>()
+
+    fun updateProgress(url: String, loaded: Long, total: Long) {
+        if (url.isBlank()) return
+        activeProgress[url.trim()] = DownloadProgress(loaded, total)
+    }
+
+    fun clearProgress(url: String) {
+        if (url.isBlank()) return
+        activeProgress.remove(url.trim())
+    }
+
+    fun getDownloadProgress(url: String): DownloadProgress? {
+        if (url.isBlank()) return null
+        return activeProgress[url.trim()]
+    }
 
     /**
      * Exact file sizes for WTA Academy books (bytes).
@@ -391,16 +408,35 @@ object OfflineVault {
 class CachingInputStream(
     private val source: java.io.InputStream,
     private val targetFile: File,
+    private val url: String = "",
+    private val totalSize: Long = 0L,
     private val onComplete: (File) -> Unit
 ) : java.io.InputStream() {
     private val tempFile = File(targetFile.parentFile, targetFile.name + ".tmp")
     private val fos = FileOutputStream(tempFile)
     private var completed = false
+    private var totalSoFar = 0L
+    private var lastReportedBytes = 0L
+    private var lastReportedTime = 0L
+
+    private fun checkAndReportProgress(bytesRead: Int) {
+        if (bytesRead <= 0) return
+        totalSoFar += bytesRead
+        val now = System.currentTimeMillis()
+        if (totalSoFar - lastReportedBytes >= 65536L || (now - lastReportedTime >= 100L && totalSoFar > lastReportedBytes)) {
+            lastReportedBytes = totalSoFar
+            lastReportedTime = now
+            if (url.isNotBlank()) {
+                OfflineVault.updateProgress(url, totalSoFar, totalSize)
+            }
+        }
+    }
 
     override fun read(): Int {
         val b = source.read()
         if (b != -1) {
             fos.write(b)
+            checkAndReportProgress(1)
         } else {
             finish()
         }
@@ -415,6 +451,7 @@ class CachingInputStream(
         val n = source.read(b, off, len)
         if (n > 0) {
             fos.write(b, off, n)
+            checkAndReportProgress(n)
         } else if (n == -1) {
             finish()
         }
@@ -435,6 +472,10 @@ class CachingInputStream(
                 }
             } catch (e: Exception) {
                 tempFile.delete()
+            } finally {
+                if (url.isNotBlank()) {
+                    OfflineVault.clearProgress(url)
+                }
             }
         }
     }
@@ -449,6 +490,9 @@ class CachingInputStream(
                     tempFile.delete()
                 }
             } catch (_: Exception) {}
+            if (url.isNotBlank()) {
+                OfflineVault.clearProgress(url)
+            }
         }
     }
 }
