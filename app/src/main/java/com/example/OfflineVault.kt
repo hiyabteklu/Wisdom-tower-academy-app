@@ -359,6 +359,10 @@ object OfflineVault {
         return outFile
     }
 
+    fun targetFileFor(ctx: Context, url: String, ext: String = "pdf"): File {
+        return File(vaultDir(ctx), "${keyFor(url)}.$ext")
+    }
+
     fun isPdfUrl(url: String): Boolean {
         val u = url.lowercase()
         return u.contains("/api/content/pdf") ||
@@ -366,5 +370,76 @@ object OfflineVault {
             u.contains("application/pdf") ||
             u.contains("/pdf") ||
             u.contains("content/pdf")
+    }
+}
+
+/**
+ * An InputStream that simultaneously streams bytes to the consumer (Chromium WebView / fetch reader)
+ * and writes them to a local cache file.
+ * This guarantees real-time download progress on the client with zero buffering lag,
+ * while transparently persisting the file into OfflineVault for offline availability.
+ */
+class CachingInputStream(
+    private val source: java.io.InputStream,
+    private val targetFile: File,
+    private val onComplete: (File) -> Unit
+) : java.io.InputStream() {
+    private val tempFile = File(targetFile.parentFile, targetFile.name + ".tmp")
+    private val fos = FileOutputStream(tempFile)
+    private var completed = false
+
+    override fun read(): Int {
+        val b = source.read()
+        if (b != -1) {
+            fos.write(b)
+        } else {
+            finish()
+        }
+        return b
+    }
+
+    override fun read(b: ByteArray): Int {
+        return read(b, 0, b.size)
+    }
+
+    override fun read(b: ByteArray, off: Int, len: Int): Int {
+        val n = source.read(b, off, len)
+        if (n > 0) {
+            fos.write(b, off, n)
+        } else if (n == -1) {
+            finish()
+        }
+        return n
+    }
+
+    override fun available(): Int = source.available()
+
+    private fun finish() {
+        if (!completed) {
+            completed = true
+            try {
+                fos.flush()
+                fos.close()
+                if (tempFile.exists() && tempFile.length() > 0) {
+                    tempFile.renameTo(targetFile)
+                    onComplete(targetFile)
+                }
+            } catch (e: Exception) {
+                tempFile.delete()
+            }
+        }
+    }
+
+    override fun close() {
+        try {
+            source.close()
+        } finally {
+            try {
+                fos.close()
+                if (!completed) {
+                    tempFile.delete()
+                }
+            } catch (_: Exception) {}
+        }
     }
 }
