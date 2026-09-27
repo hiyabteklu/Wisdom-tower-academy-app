@@ -163,7 +163,7 @@ private const val NATIVE_CHROME_JS =
         "s.textContent=" +
         "'header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
-        "[data-nprogress],.top-progress-bar,.loading-bar,[class*=\"progressbar\"],[class*=\"ProgressBar\"]" +
+        "[data-nprogress],#nextjs-toploader,.nextjs-toploader" +
         "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
         "}catch(e){}})();"
 
