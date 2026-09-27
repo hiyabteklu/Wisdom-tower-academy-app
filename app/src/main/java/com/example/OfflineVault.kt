@@ -34,7 +34,7 @@ object OfflineVault {
     private const val KEY_INDEX = "index_json"
     private const val KEY_LEGACY_CLEANED = "legacy_keys_cleaned_v2"
     private const val DIR = "offline_vault"
-    private val io = Executors.newSingleThreadExecutor()
+    internal val io = Executors.newSingleThreadExecutor()
     private val memorySizeCache = java.util.concurrent.ConcurrentHashMap<String, Long>()
     data class DownloadProgress(val loaded: Long, val total: Long)
     private val activeProgress = java.util.concurrent.ConcurrentHashMap<String, DownloadProgress>()
@@ -175,32 +175,87 @@ object OfflineVault {
         }
     }
 
+    fun normalizeUrl(url: String?): String {
+        if (url.isNullOrBlank()) return ""
+        val clean = url.trim()
+        return if (clean.startsWith("/")) {
+            "https://www.wisdom-tower-academy.live$clean"
+        } else {
+            clean
+        }
+    }
+
     /**
      * Fast, lightweight HEAD-only size probe.
      * NEVER reads the response stream, NEVER downloads the body, NEVER saves to disk.
      */
     fun probeSizeOnline(ctx: Context, url: String): Long {
-        val known = getPdfSize(ctx, url)
+        val fullUrl = normalizeUrl(url)
+        if (fullUrl.isBlank()) return 0L
+        val known = getPdfSize(ctx, fullUrl)
         if (known > 0L) return known
 
         return try {
-            val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+            val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
                 requestMethod = "HEAD"
                 connectTimeout = 6_000
                 readTimeout = 6_000
                 instanceFollowRedirects = true
                 setRequestProperty("User-Agent", "WisdomTowerApp/1.0")
                 try {
-                    val cookies = CookieManager.getInstance().getCookie(url)
+                    val cookies = CookieManager.getInstance().getCookie(fullUrl)
                     if (!cookies.isNullOrBlank()) {
                         setRequestProperty("Cookie", cookies)
                     }
                 } catch (_: Exception) {}
             }
             conn.connect()
-            val cl = conn.contentLengthLong
+            var cl = conn.contentLengthLong
+            if (cl <= 0L) {
+                val cr = conn.getHeaderField("Content-Range")
+                if (!cr.isNullOrBlank()) {
+                    val slash = cr.lastIndexOf('/')
+                    if (slash != -1 && slash + 1 < cr.length) {
+                        cl = cr.substring(slash + 1).trim().toLongOrNull() ?: 0L
+                    }
+                }
+            }
+            if (cl <= 0L) {
+                val xSize = conn.getHeaderField("X-File-Size") ?: conn.getHeaderField("x-file-size")
+                cl = xSize?.toLongOrNull() ?: 0L
+            }
             conn.disconnect()
+
+            // 1-byte range probe fallback if HEAD omitted Content-Length
+            if (cl <= 0L) {
+                val rangeConn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
+                    requestMethod = "GET"
+                    connectTimeout = 6_000
+                    readTimeout = 6_000
+                    instanceFollowRedirects = true
+                    setRequestProperty("Range", "bytes=0-0")
+                    setRequestProperty("User-Agent", "WisdomTowerApp/1.0")
+                    try {
+                        val cookies = CookieManager.getInstance().getCookie(fullUrl)
+                        if (!cookies.isNullOrBlank()) {
+                            setRequestProperty("Cookie", cookies)
+                        }
+                    } catch (_: Exception) {}
+                }
+                rangeConn.connect()
+                val cr = rangeConn.getHeaderField("Content-Range")
+                if (!cr.isNullOrBlank()) {
+                    val slash = cr.lastIndexOf('/')
+                    if (slash != -1 && slash + 1 < cr.length) {
+                        cl = cr.substring(slash + 1).trim().toLongOrNull() ?: 0L
+                    }
+                }
+                try { rangeConn.inputStream.use { it.read() } } catch (_: Exception) {}
+                rangeConn.disconnect()
+            }
+
             if (cl > 0L) {
+                cachePdfSize(ctx, fullUrl, cl)
                 cachePdfSize(ctx, url, cl)
                 cl
             } else 0L
@@ -423,11 +478,16 @@ class CachingInputStream(
         if (bytesRead <= 0) return
         totalSoFar += bytesRead
         val now = System.currentTimeMillis()
-        if (totalSoFar - lastReportedBytes >= 65536L || (now - lastReportedTime >= 100L && totalSoFar > lastReportedBytes)) {
+        if (totalSoFar - lastReportedBytes >= 32768L || (now - lastReportedTime >= 60L && totalSoFar > lastReportedBytes)) {
             lastReportedBytes = totalSoFar
             lastReportedTime = now
+            val effectiveTotal = if (totalSize > 0L) totalSize else (totalSoFar + 1_000_000L)
             if (url.isNotBlank()) {
-                OfflineVault.updateProgress(url, totalSoFar, totalSize)
+                OfflineVault.updateProgress(url, totalSoFar, effectiveTotal)
+                val norm = OfflineVault.normalizeUrl(url)
+                if (norm != url) {
+                    OfflineVault.updateProgress(norm, totalSoFar, effectiveTotal)
+                }
             }
         }
     }
@@ -474,7 +534,15 @@ class CachingInputStream(
                 tempFile.delete()
             } finally {
                 if (url.isNotBlank()) {
-                    OfflineVault.clearProgress(url)
+                    val finalTotal = if (totalSize > 0L) totalSize else totalSoFar
+                    OfflineVault.updateProgress(url, finalTotal, finalTotal)
+                    val norm = OfflineVault.normalizeUrl(url)
+                    if (norm != url) OfflineVault.updateProgress(norm, finalTotal, finalTotal)
+                    OfflineVault.io.execute {
+                        try { Thread.sleep(800L) } catch (_: Exception) {}
+                        OfflineVault.clearProgress(url)
+                        if (norm != url) OfflineVault.clearProgress(norm)
+                    }
                 }
             }
         }

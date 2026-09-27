@@ -162,8 +162,9 @@ private const val NATIVE_CHROME_JS =
         "if(!s){s=document.createElement('style');s.id=id;document.documentElement.appendChild(s);}" +
         "s.textContent=" +
         "'header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
-        "nav[aria-label=\"Main\"],.hide-on-app{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;}'" +
-        ";" +
+        "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
+        "[data-nprogress],.top-progress-bar,.loading-bar,[class*=\"progressbar\"],[class*=\"ProgressBar\"]" +
+        "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
         "}catch(e){}})();"
 
 private const val PRECACHE_AND_UNBLOCK_JS =
@@ -214,12 +215,14 @@ private const val BOOK_PAGE_HELPERS_JS =
                         "if(r&&(r.indexOf('bytes=0-0')!==-1||r.indexOf('bytes=0-1')!==-1))isRangeProbe=true;" +
                     "}" +
                     "if(m==='HEAD'||isRangeProbe){" +
+                        "var fullUrl=(typeof URL==='function')?(new URL(urlStr,window.location.href)).href:urlStr;" +
                         "var sz=0;" +
                         "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
-                            "sz=window.AndroidOfflineVault.getPdfSize(urlStr);" +
+                            "sz=window.AndroidOfflineVault.getPdfSize(fullUrl);" +
+                            "if(!sz||sz<=0)sz=window.AndroidOfflineVault.getPdfSize(urlStr);" +
                         "}" +
                         "if(!sz||sz<=0){" +
-                            "var titleEl=document.querySelector('h3,h2,.font-display');" +
+                            "var titleEl=document.querySelector('h1,h2,h3,.font-display,[data-book-title],[data-title]');" +
                             "var titleText=(titleEl?titleEl.textContent:'')||'';" +
                             "if(titleText&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSizeByTitle==='function'){" +
                                 "sz=window.AndroidOfflineVault.getPdfSizeByTitle(titleText);" +
@@ -236,7 +239,7 @@ private const val BOOK_PAGE_HELPERS_JS =
                             "var statusText=(m==='HEAD')?'OK':'Partial Content';" +
                             "return Promise.resolve(new Response(new Uint8Array(1),{status:status,statusText:statusText,headers:respH}));" +
                         "}else{" +
-                            "return Promise.resolve(new Response(new Uint8Array(0),{status:200,statusText:'OK',headers:respH}));" +
+                            "return Promise.resolve(new Response(new Uint8Array(0),{status:503,statusText:'Size Unknown',headers:respH}));" +
                         "}" +
                     "}" +
                 "}" +
@@ -315,19 +318,41 @@ private const val BOOK_PAGE_HELPERS_JS =
                         "window.AndroidOfflineVault.markDownloadStarted(u);" +
                     "}" +
                     "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getDownloadProgress==='function'){" +
+                        "var fullU=(typeof URL==='function'&&u)?(new URL(u,window.location.href)).href:u;" +
                         "var _pTimer=setInterval(function(){" +
                             "try{" +
-                                "var raw=window.AndroidOfflineVault.getDownloadProgress(u);" +
+                                "var raw=window.AndroidOfflineVault.getDownloadProgress(u)||window.AndroidOfflineVault.getDownloadProgress(fullU);" +
                                 "if(raw){" +
                                     "var p=JSON.parse(raw);" +
-                                    "if(p&&p.total>0&&p.loaded>0){" +
-                                        "window.dispatchEvent(new CustomEvent('wta:download-progress',{detail:{url:u,loaded:p.loaded,total:p.total}}));" +
-                                        "if(p.loaded>=p.total)clearInterval(_pTimer);" +
+                                    "if(p&&p.loaded>0){" +
+                                        "var tot=(p.total>0)?p.total:(p.loaded+500000);" +
+                                        "var pct=Math.min(99,Math.round((p.loaded/tot)*100));" +
+                                        "window.dispatchEvent(new CustomEvent('wta:download-progress',{detail:{url:u,loaded:p.loaded,total:tot,percent:pct}}));" +
+                                        "var pBars=document.querySelectorAll('[role=\"progressbar\"],.progress-bar,[data-progress]');" +
+                                        "for(var pi=0;pi<pBars.length;pi++){" +
+                                            "pBars[pi].style.width=pct+'%';" +
+                                            "pBars[pi].setAttribute('aria-valuenow',String(pct));" +
+                                        "}" +
+                                        "var pTexts=document.querySelectorAll('.progress-text,[data-progress-text]');" +
+                                        "for(var ti=0;ti<pTexts.length;ti++){" +
+                                            "pTexts[ti].textContent=pct+'% ('+formatBytes(p.loaded)+' / '+formatBytes(tot)+')';" +
+                                        "}" +
+                                        "var btns=document.querySelectorAll('button');" +
+                                        "for(var bi=0;bi<btns.length;bi++){" +
+                                            "var bEl=btns[bi];" +
+                                            "var bText=(bEl.textContent||'').trim();" +
+                                            "if(bText.indexOf('Download')!==-1||bText.indexOf('%')!==-1){" +
+                                                "bEl.innerHTML='<span style=\"display:inline-flex;align-items:center;gap:6px;\">Downloading '+pct+'% ('+formatBytes(p.loaded)+' / '+formatBytes(tot)+')</span>';" +
+                                            "}" +
+                                        "}" +
+                                        "if(p.loaded>=tot){" +
+                                            "clearInterval(_pTimer);" +
+                                        "}" +
                                     "}" +
                                 "}" +
                             "}catch(_){}" +
-                        "},200);" +
-                        "setTimeout(function(){clearInterval(_pTimer);},60000);" +
+                        "},80);" +
+                        "setTimeout(function(){clearInterval(_pTimer);},90000);" +
                     "}" +
                 "}catch(err){}" +
             "},true);" +
@@ -336,51 +361,60 @@ private const val BOOK_PAGE_HELPERS_JS =
             "try{" +
                 "var targetUrl=window.__wta_current_pdf_url||'';" +
                 "if(!targetUrl){" +
-                    "var links=document.querySelectorAll('a[href*=\".pdf\"],a[href*=\"/api/content/pdf\"],button[data-url],a[href*=\"/pdf\"]');" +
+                    "var links=document.querySelectorAll('a[href*=\".pdf\"],a[href*=\"/api/content/pdf\"],button[data-url],a[href*=\"/pdf\"],button[data-pdf]');" +
                     "for(var i=0;i<links.length;i++){" +
-                        "var h=links[i].getAttribute('href')||links[i].getAttribute('data-url')||'';" +
+                        "var h=links[i].getAttribute('href')||links[i].getAttribute('data-url')||links[i].getAttribute('data-pdf')||'';" +
                         "if(h){targetUrl=h;break;}" +
                     "}" +
                 "}" +
+                "var fullUrl=targetUrl?((typeof URL==='function')?(new URL(targetUrl,window.location.href)).href:targetUrl):'';" +
                 "var sz=0;" +
-                "if(targetUrl&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
+                "if(fullUrl&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
+                    "sz=window.AndroidOfflineVault.getPdfSize(fullUrl);" +
+                "}" +
+                "if((!sz||sz<=0)&&targetUrl&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
                     "sz=window.AndroidOfflineVault.getPdfSize(targetUrl);" +
                 "}" +
                 "if(!sz||sz<=0){" +
-                    "var titleEl=document.querySelector('h3,h2,.font-display');" +
+                    "var titleEl=document.querySelector('h1,h2,h3,.font-display,[data-book-title],[data-title]');" +
                     "var titleText=(titleEl?titleEl.textContent:'')||'';" +
                     "if(titleText&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSizeByTitle==='function'){" +
                         "sz=window.AndroidOfflineVault.getPdfSizeByTitle(titleText);" +
                     "}" +
                 "}" +
-                "var labelText=(sz&&sz>0)?formatBytes(sz):'Size unknown';" +
-                "var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);" +
-                "var n;" +
-                "while(n=walker.nextNode()){" +
-                    "var val=n.nodeValue||'';" +
-                    "if(val.indexOf('Checking size')!==-1||val.trim()==='—'||val.indexOf('· —')!==-1||val.indexOf('· Ready')!==-1||val.trim()==='Ready'){" +
-                        "var pText=(n.parentElement?n.parentElement.textContent:'')||'';" +
-                        "if(pText.indexOf('PDF book')!==-1||val.indexOf('Checking size')!==-1||val.indexOf('· —')!==-1||val.indexOf('· Ready')!==-1){" +
+                "if(!sz||sz<=0){" +
+                    "var p=window.location.pathname||'';" +
+                    "if(p&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSizeByTitle==='function'){" +
+                        "sz=window.AndroidOfflineVault.getPdfSizeByTitle(p);" +
+                    "}" +
+                "}" +
+                "if(sz&&sz>0){" +
+                    "var labelText=formatBytes(sz);" +
+                    "var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);" +
+                    "var n;" +
+                    "while(n=walker.nextNode()){" +
+                        "var val=n.nodeValue||'';" +
+                        "if(val.indexOf('Checking size')!==-1||val.trim()==='—'||val.indexOf('· —')!==-1||val.indexOf('· Ready')!==-1||val.trim()==='Ready'||val.indexOf('Size unknown')!==-1||val.indexOf('Ready to download')!==-1){" +
                             "if(val.indexOf('· —')!==-1){" +
                                 "n.nodeValue=val.replace('· —','· '+labelText);" +
                             "}else if(val.indexOf('· Ready')!==-1){" +
                                 "n.nodeValue=val.replace('· Ready','· '+labelText);" +
-                            "}else if(val.trim()==='—'||val.trim()==='Ready'){" +
+                            "}else if(val.indexOf('· Size unknown')!==-1){" +
+                                "n.nodeValue=val.replace('· Size unknown','· '+labelText);" +
+                            "}else if(val.trim()==='—'||val.trim()==='Ready'||val.trim()==='Size unknown'||val.trim()==='Ready to download'){" +
                                 "n.nodeValue=labelText;" +
                             "}else if(val.indexOf('Checking size')!==-1){" +
                                 "n.nodeValue=val.replace(/Checking size[….]*/g,labelText);" +
                             "}" +
                         "}" +
                     "}" +
-                "}" +
-                "if(sz&&sz>0){" +
                     "var btns=document.querySelectorAll('button');" +
                     "for(var b=0;b<btns.length;b++){" +
                         "var btn=btns[b];" +
                         "var bt=(btn.textContent||'').trim();" +
-                        "if(bt.indexOf('Download & open')!==-1&&bt.indexOf('(')===-1){" +
+                        "if((bt.indexOf('Download & open')!==-1||bt==='Download')&&bt.indexOf('(')===-1&&bt.indexOf('Already')===-1&&bt.indexOf('%')===-1){" +
                             "var span=document.createElement('span');" +
-                            "span.className='opacity-80 font-semibold tabular-nums ml-1';" +
+                            "span.className='wta-size-badge opacity-90 font-semibold tabular-nums ml-1.5 px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs';" +
                             "span.textContent='('+labelText+')';" +
                             "btn.appendChild(span);" +
                         "}" +
@@ -992,7 +1026,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun getPdfSize(url: String?): Long {
                                     if (url.isNullOrBlank()) return 0L
-                                    return OfflineVault.getPdfSize(ctx, url)
+                                    val clean = OfflineVault.normalizeUrl(url)
+                                    val known = OfflineVault.getPdfSize(ctx, clean)
+                                    if (known > 0L) return known
+                                    val knownOrig = OfflineVault.getPdfSize(ctx, url)
+                                    if (knownOrig > 0L) return knownOrig
+                                    val probed = OfflineVault.probeSizeOnline(ctx, clean)
+                                    if (probed > 0L) return probed
+                                    return 0L
                                 }
 
                                 @JavascriptInterface
@@ -1005,19 +1046,23 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 fun markDownloadStarted(url: String?) {
                                     if (!url.isNullOrBlank()) {
                                         startedDownloads.add(url.trim())
+                                        startedDownloads.add(OfflineVault.normalizeUrl(url))
                                     }
                                 }
 
                                 @JavascriptInterface
                                 fun isDownloadStarted(url: String?): Boolean {
                                     if (url.isNullOrBlank()) return false
-                                    return startedDownloads.contains(url.trim())
+                                    return startedDownloads.contains(url.trim()) ||
+                                           startedDownloads.contains(OfflineVault.normalizeUrl(url))
                                 }
 
                                 @JavascriptInterface
                                 fun getDownloadProgress(url: String?): String {
                                     if (url.isNullOrBlank()) return "{\"loaded\":0,\"total\":0}"
-                                    val p = OfflineVault.getDownloadProgress(url) ?: return "{\"loaded\":0,\"total\":0}"
+                                    val p = OfflineVault.getDownloadProgress(url)
+                                        ?: OfflineVault.getDownloadProgress(OfflineVault.normalizeUrl(url))
+                                        ?: return "{\"loaded\":0,\"total\":0}"
                                     return "{\"loaded\":${p.loaded},\"total\":${p.total}}"
                                 }
 
@@ -1205,10 +1250,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         // 1. Lightweight Size Probes: Answer ONLY from local/catalog/memory, NEVER download body or save to vault
                                         if (isProbe) {
                                             val local = OfflineVault.localFileFor(ctx, u)
-                                            val size = if (local != null && local.exists() && local.length() > 0L) {
+                                            var size = if (local != null && local.exists() && local.length() > 0L) {
                                                 local.length()
                                             } else {
                                                 OfflineVault.getPdfSize(ctx, u)
+                                            }
+                                            if (size <= 0L) {
+                                                size = OfflineVault.getPdfSize(ctx, OfflineVault.normalizeUrl(u))
+                                            }
+                                            if (size <= 0L) {
+                                                size = OfflineVault.probeSizeOnline(ctx, u)
                                             }
                                             val headers = HashMap<String, String>().apply {
                                                 put("Access-Control-Allow-Origin", "*")
@@ -1283,13 +1334,22 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                 if (code in 200..299) {
                                                     val totalLen = conn.contentLengthLong
                                                     val mime = conn.contentType ?: "application/pdf"
+                                                    var totalToUse = if (totalLen > 0L) totalLen else OfflineVault.getPdfSize(ctx, u)
+                                                    if (totalToUse <= 0L) {
+                                                        totalToUse = OfflineVault.getPdfSize(ctx, OfflineVault.normalizeUrl(u))
+                                                    }
+                                                    if (totalToUse <= 0L) {
+                                                        totalToUse = OfflineVault.probeSizeOnline(ctx, u)
+                                                    }
                                                     val headers = HashMap<String, String>().apply {
                                                         put("Access-Control-Allow-Origin", "*")
                                                         put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
                                                         put("Access-Control-Allow-Headers", "*")
                                                         put("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
                                                         put("Content-Type", mime)
-                                                        if (totalLen > 0L) {
+                                                        if (totalToUse > 0L) {
+                                                            put("Content-Length", totalToUse.toString())
+                                                        } else if (totalLen > 0L) {
                                                             put("Content-Length", totalLen.toString())
                                                         }
                                                         put("Accept-Ranges", "bytes")
@@ -1297,7 +1357,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                     }
                                                     val stream = if (isExplicitDownload) {
                                                         val targetFile = OfflineVault.targetFileFor(ctx, u)
-                                                        val totalToUse = if (totalLen > 0L) totalLen else OfflineVault.getPdfSize(ctx, u)
                                                         CachingInputStream(conn.inputStream, targetFile, u, totalToUse) { savedFile ->
                                                             OfflineVault.remember(ctx, u, savedFile.name)
                                                             OfflineVault.cachePdfSize(ctx, u, savedFile.length())
@@ -1507,26 +1566,38 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
                             Spacer(modifier = Modifier.height(18.dp))
 
-                            // Sleek rounded micro progress track
-                            Box(
+                            // High-speed cyber status pill (replaces horizontal website-like bar)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
                                 modifier = Modifier
-                                    .width(120.dp)
-                                    .height(3.dp)
-                                    .clip(RoundedCornerShape(2.dp))
+                                    .clip(RoundedCornerShape(12.dp))
                                     .background(Color(0x2600E5FF))
+                                    .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 12.dp, vertical = 5.dp)
                             ) {
-                                val progressFraction = (webProgress.coerceIn(0, 100)) / 100f
-                                val animProgress by animateFloatAsState(
-                                    targetValue = if (progressFraction < 0.2f) 0.35f else progressFraction,
-                                    animationSpec = tween(250),
-                                    label = "splashTrack"
+                                val infiniteTransition = rememberInfiniteTransition(label = "splashPulse")
+                                val dotAlpha by infiniteTransition.animateFloat(
+                                    initialValue = 0.4f,
+                                    targetValue = 1f,
+                                    animationSpec = infiniteRepeatable(
+                                        animation = tween(400, easing = FastOutSlowInEasing),
+                                        repeatMode = RepeatMode.Reverse
+                                    ),
+                                    label = "splashDot"
                                 )
                                 Box(
                                     modifier = Modifier
-                                        .fillMaxWidth(animProgress)
-                                        .fillMaxHeight()
-                                        .clip(RoundedCornerShape(2.dp))
-                                        .background(Accent)
+                                        .size(6.dp)
+                                        .clip(CircleShape)
+                                        .background(Accent.copy(alpha = dotAlpha))
+                                )
+                                Text(
+                                    text = if (webProgress in 1..99) "Loading $webProgress%" else "High-speed launch…",
+                                    color = Color(0xFF38BDF8),
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    letterSpacing = 0.2.sp
                                 )
                             }
                         }
@@ -1550,7 +1621,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
 /**
  * Advanced floating Dynamic Island HUD loader that completely replaces the plain website top bar.
  * Features high-speed dual orbital neon energy rings, animated brand GIF, energetic pulsing aura,
- * and live progress telemetry.
+ * and live progress telemetry — NO website-like horizontal bar.
  */
 @Composable
 private fun AdvancedNavLoader(
@@ -1559,8 +1630,8 @@ private fun AdvancedNavLoader(
     modifier: Modifier = Modifier,
 ) {
     Surface(
-        shape = RoundedCornerShape(22.dp),
-        color = Color(0xF2090F1E),
+        shape = RoundedCornerShape(26.dp),
+        color = Color(0xF2070E1B),
         border = BorderStroke(
             width = 1.2.dp,
             brush = Brush.horizontalGradient(
@@ -1572,17 +1643,17 @@ private fun AdvancedNavLoader(
                 )
             )
         ),
-        shadowElevation = 14.dp,
+        shadowElevation = 18.dp,
         modifier = modifier
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 14.dp, vertical = 7.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             // High-speed dual orbital neon spinner enclosing the animated GIF
             Box(
-                modifier = Modifier.size(34.dp),
+                modifier = Modifier.size(42.dp),
                 contentAlignment = Alignment.Center
             ) {
                 val infiniteTransition = rememberInfiniteTransition(label = "loaderRings")
@@ -1590,7 +1661,7 @@ private fun AdvancedNavLoader(
                     initialValue = 0f,
                     targetValue = 360f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(420, easing = LinearEasing),
+                        animation = tween(300, easing = LinearEasing),
                         repeatMode = RepeatMode.Restart
                     ),
                     label = "fastSpin"
@@ -1599,10 +1670,34 @@ private fun AdvancedNavLoader(
                     initialValue = 360f,
                     targetValue = 0f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(650, easing = LinearEasing),
+                        animation = tween(450, easing = LinearEasing),
                         repeatMode = RepeatMode.Restart
                     ),
                     label = "counterSpin"
+                )
+                val auraPulse by infiniteTransition.animateFloat(
+                    initialValue = 0.45f,
+                    targetValue = 1f,
+                    animationSpec = infiniteRepeatable(
+                        animation = tween(350, easing = FastOutSlowInEasing),
+                        repeatMode = RepeatMode.Reverse
+                    ),
+                    label = "auraPulse"
+                )
+
+                // Neon cyan aura glow
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .clip(CircleShape)
+                        .background(
+                            Brush.radialGradient(
+                                listOf(
+                                    Color(0xFF00E5FF).copy(alpha = 0.35f * auraPulse),
+                                    Color.Transparent
+                                )
+                            )
+                        )
                 )
 
                 // High-speed primary neon cyan orbit ring
@@ -1615,7 +1710,7 @@ private fun AdvancedNavLoader(
                         brush = Brush.sweepGradient(
                             listOf(
                                 Color(0x0000E5FF),
-                                Color(0x5500E5FF),
+                                Color(0x6600E5FF),
                                 Color(0xFF00E5FF),
                                 Color(0xFF38BDF8)
                             )
@@ -1623,33 +1718,33 @@ private fun AdvancedNavLoader(
                         startAngle = 0f,
                         sweepAngle = 270f,
                         useCenter = false,
-                        style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
                     )
                 }
 
                 // High-speed counter-rotating inner orbital ring
                 Canvas(
                     modifier = Modifier
-                        .size(26.dp)
+                        .size(32.dp)
                         .rotate(counterSpin)
                 ) {
                     drawArc(
                         brush = Brush.sweepGradient(
                             listOf(
                                 Color(0x00818CF8),
-                                Color(0x66818CF8),
+                                Color(0x77818CF8),
                                 Color(0xFF00E5FF)
                             )
                         ),
                         startAngle = 180f,
                         sweepAngle = 220f,
                         useCenter = false,
-                        style = Stroke(width = 1.6.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
                     )
                 }
 
-                // Brand animated GIF in center
-                BrandLoader(size = 20.dp, showCard = false)
+                // Brand animated GIF running in high-speed center
+                BrandLoader(size = 26.dp, showCard = false)
             }
 
             Column(verticalArrangement = Arrangement.Center) {
@@ -1657,62 +1752,35 @@ private fun AdvancedNavLoader(
                     Text(
                         text = "Wisdom Tower",
                         color = Color.White,
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.2.sp
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.3.sp
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     val pulseAlpha by rememberInfiniteTransition(label = "pulse").animateFloat(
                         initialValue = 0.35f,
                         targetValue = 1f,
                         animationSpec = infiniteRepeatable(
-                            animation = tween(400, easing = FastOutSlowInEasing),
+                            animation = tween(350, easing = FastOutSlowInEasing),
                             repeatMode = RepeatMode.Reverse
                         ),
                         label = "pulseAlpha"
                     )
                     Box(
                         modifier = Modifier
-                            .size(5.dp)
+                            .size(6.dp)
                             .clip(CircleShape)
                             .background(Color(0xFF00E5FF).copy(alpha = pulseAlpha))
                     )
                 }
                 Spacer(modifier = Modifier.height(2.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    val progressFraction = (progress.coerceIn(0, 100)) / 100f
-                    val animatedProgress by animateFloatAsState(
-                        targetValue = if (isNavigating && progressFraction < 0.25f) 0.45f else progressFraction,
-                        animationSpec = tween(180),
-                        label = "hudProgress"
-                    )
-                    Box(
-                        modifier = Modifier
-                            .width(66.dp)
-                            .height(3.dp)
-                            .clip(RoundedCornerShape(1.5.dp))
-                            .background(Color(0x3300E5FF))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(animatedProgress)
-                                .fillMaxHeight()
-                                .clip(RoundedCornerShape(1.5.dp))
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(Color(0xFF00E5FF), Color(0xFF38BDF8))
-                                    )
-                                )
-                        )
-                    }
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (progress in 1..99) "$progress%" else "Fast load…",
+                        text = if (progress in 1..99) "⚡ Speed load • $progress%" else "⚡ Loading fast…",
                         color = Color(0xFF38BDF8),
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Medium
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.1.sp
                     )
                 }
             }
@@ -1723,7 +1791,7 @@ private fun AdvancedNavLoader(
 /**
  * Advanced, high-tech bottom navigation bar.
  * Clean, precise icon + typography tinting, ZERO clutter dots.
- * Icons are strictly contained within their capsule bounds with tactile micro-press damping (0.94f)
+ * Icons are strictly contained within their capsule bounds with non-bouncy micro-press damping
  * to guarantee icons NEVER go out of their box on hover, click, or tap.
  */
 @Composable
@@ -1735,15 +1803,15 @@ private fun AliveBottomNav(
 ) {
     val view = LocalView.current
     Surface(
-        color = Color(0xF2090F1E),
+        color = Color(0xF2070E1B),
         tonalElevation = 0.dp,
         modifier = modifier
             .fillMaxWidth()
             .windowInsetsPadding(WindowInsets.navigationBars)
-            .height(64.dp)
+            .height(66.dp)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
-            // Elegant gradient top border line
+            // Elegant cyber glow top border line
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1751,11 +1819,11 @@ private fun AliveBottomNav(
                     .background(
                         Brush.horizontalGradient(
                             listOf(
-                                Color(0x0000E5FF),
+                                Color.Transparent,
                                 Color(0x3300E5FF),
-                                Color(0x4038BDF8),
+                                Color(0x6638BDF8),
                                 Color(0x3300E5FF),
-                                Color(0x0000E5FF)
+                                Color.Transparent
                             )
                         )
                     )
@@ -1764,9 +1832,9 @@ private fun AliveBottomNav(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                    .padding(horizontal = 10.dp, vertical = 5.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceAround
+                horizontalArrangement = Arrangement.SpaceEvenly
             ) {
                 items.forEachIndexed { index, item ->
                     val selected = selectedIndex == index
@@ -1774,35 +1842,35 @@ private fun AliveBottomNav(
                     val isPressed by interactionSource.collectIsPressedAsState()
                     val isHovered by interactionSource.collectIsHoveredAsState()
 
-                    // Tactile micro-press: compress inward to 0.94f when pressed/clicked so icon NEVER leaves its box!
-                    val itemScale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.94f else 1.0f,
+                    // Non-bouncy smooth micro-press: inward to 0.95f, zero overshoot on release so icon NEVER pops out!
+                    val contentScale by animateFloatAsState(
+                        targetValue = if (isPressed) 0.95f else 1.0f,
                         animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
+                            dampingRatio = Spring.DampingRatioNoBouncy,
                             stiffness = Spring.StiffnessMedium
                         ),
-                        label = "tabItemScale"
+                        label = "tabContentScale"
                     )
 
                     val iconColor by animateColorAsState(
                         targetValue = if (selected) Accent else if (isHovered) Color.White else Muted,
-                        animationSpec = tween(150),
+                        animationSpec = tween(160),
                         label = "tabIconColor"
                     )
 
                     val textColor by animateColorAsState(
                         targetValue = if (selected) Accent else if (isHovered) Color.White else Muted,
-                        animationSpec = tween(150),
+                        animationSpec = tween(160),
                         label = "tabTextColor"
                     )
 
-                    val capsuleShape = RoundedCornerShape(14.dp)
+                    val capsuleShape = RoundedCornerShape(16.dp)
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(52.dp)
-                            .scale(itemScale)
+                            .padding(horizontal = 3.dp)
                             .clip(capsuleShape)
                             .then(
                                 if (selected) {
@@ -1810,7 +1878,7 @@ private fun AliveBottomNav(
                                         .background(
                                             Brush.verticalGradient(
                                                 listOf(
-                                                    Color(0x2E00E5FF),
+                                                    Color(0x3300E5FF),
                                                     Color(0x1400E5FF)
                                                 )
                                             )
@@ -1820,15 +1888,15 @@ private fun AliveBottomNav(
                                                 1.dp,
                                                 Brush.verticalGradient(
                                                     listOf(
-                                                        Color(0x5900E5FF),
-                                                        Color(0x1A00E5FF)
+                                                        Color(0x8000E5FF),
+                                                        Color(0x2400E5FF)
                                                     )
                                                 )
                                             ),
                                             capsuleShape
                                         )
                                 } else if (isHovered) {
-                                    Modifier.background(Color(0x0FFFFFFF))
+                                    Modifier.background(Color(0x12FFFFFF))
                                 } else {
                                     Modifier
                                 }
@@ -1837,7 +1905,7 @@ private fun AliveBottomNav(
                                 interactionSource = interactionSource,
                                 indication = ripple(
                                     bounded = true,
-                                    color = Accent.copy(alpha = 0.15f)
+                                    color = Accent.copy(alpha = 0.2f)
                                 )
                             ) {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -1852,12 +1920,29 @@ private fun AliveBottomNav(
                             verticalArrangement = Arrangement.Center,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                                .scale(contentScale)
+                                .padding(vertical = 4.dp)
                         ) {
                             Box(
                                 modifier = Modifier.size(24.dp),
                                 contentAlignment = Alignment.Center
                             ) {
+                                if (selected) {
+                                    // Subtle cybernetic neon glow behind active icon
+                                    Box(
+                                        modifier = Modifier
+                                            .size(24.dp)
+                                            .clip(CircleShape)
+                                            .background(
+                                                Brush.radialGradient(
+                                                    listOf(
+                                                        Color(0x4000E5FF),
+                                                        Color.Transparent
+                                                    )
+                                                )
+                                            )
+                                    )
+                                }
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = item.title,
@@ -1870,10 +1955,10 @@ private fun AliveBottomNav(
                                 text = item.title,
                                 color = textColor,
                                 fontSize = 11.sp,
-                                fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Medium,
+                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                letterSpacing = 0.sp
+                                letterSpacing = 0.2.sp
                             )
                         }
                     }
