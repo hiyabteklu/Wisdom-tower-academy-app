@@ -34,7 +34,7 @@ There is **no separate backend** for the app. The app is a secure, offline-capab
 │  │         loads https://wisdom-tower-academy.live       │  │
 │  │                                                       │  │
 │  ├───────────────────────────────────────────────────────┴  │
-│  │  Bottom nav: Home / Learning / Packages / Account     │  │
+│  │  Bottom nav: Home / Learning / Packages / Account / Settings │
 │  └───────────────────────────────────────────────────────┘  │
 │                                                             │
 │  + OfflineVault (private app storage for PDFs)              │
@@ -47,12 +47,13 @@ There is **no separate backend** for the app. The app is a secure, offline-capab
 1. **Website is the source of truth**
 2. **Native chrome owns the header + bottom nav** — fixed; website header/footer hidden via injected CSS
 3. **Status bar is clean** — solid navy behind system icons; content padded with WindowInsets.statusBars
-4. **Top-left menu** — About, Contact us, FAQ, Privacy, Terms, My account
+4. **Top-left menu** — Compact native Card with About, Contact us, FAQ, Privacy, Terms
 5. **Notification bell** opens `https://wisdom-tower-academy.live/notifications` only (package / order status list — **not** Settings)
 6. Visiting `/notifications` must **not** force bottom-nav tab to Home or Account
-7. **Offline PDF vault** in private app storage
-8. **FLAG_SECURE** on
-9. **Back button** uses WebView history first
+7. **5-tab bottom navigation** — Home, Learning, Packages, Account, Settings
+8. **Offline PDF vault** in private app storage
+9. **FLAG_SECURE** on
+10. **Back button** uses WebView history first
 
 ---
 
@@ -103,7 +104,7 @@ Live in website: `FlashcardViewer.tsx` + ui-polish `.fc-*` classes — 3D flip, 
 
 | Date | Change |
 |------|--------|
-| 2026-09-27 | Added anti-copy DOM protection (disabled text selection, context menu, and copy/drag while preserving text fields), clean in-place download progress update (removed floating HUD/parallel bars, updates existing bar and small byte/percent text), Universal Big Centered Circular Loader with dual neon orbital rings, and synchronized CI base64 backup chunks with MainActivity.kt |
+| 2026-09-27 | Redesigned hamburger menu into a compact native Card Dialog (removed duplicated/bloated items: Settings, Account, Logout, Telegram; kept 5 essential links: About, Contact us, FAQ, Privacy, Terms), added Settings as 5th tab on bottom navigation (Home — Learning — Packages — Account — Settings), added anti-copy DOM protection, and clean in-place download progress update |
 | 2026-09-26 | Fixed PDF size check & silent download: strictly prohibited probes from falling through to full GETs (unresolved probes return fabricated response without Content-Length), ensured vault writes occur ONLY on explicit user download actions, eliminated 'Ready' fallback in favor of 'Size unknown', and added single-flight cached UI state ('Already downloaded — opening…') |
 | 2026-09-25 | Replaced bottom navigation with native Apple-quality tab bar (removed tacky gradients, capsule boxes, and dots; crisp icon/typography tinting, subtle ripple and haptic feedback) and fixed tab highlight accuracy across all /academy, /packages, /account routes and on app resume after inactivity |
 | 2026-09-25 | Fixed book size check and silent download: pre-seeded book catalog sizes, hooked fetch probes with empty body + CORS expose headers, prevented premature vault writes on probes, and eliminated 'Ready' fallback |

@@ -9,6 +9,8 @@ Includes:
 - FLAG_SECURE window protection for educational materials
 - Double-back press to exit pattern
 - OfflineVault private PDF caching
-- Native Compose chrome with fixed top bar and bottom navigation
+- Native compact hamburger menu Card (removed redundant links like settings, account, telegram, logout; sleek modal card with quick navigation)
+- 5-item native bottom navigation bar: Home — Learning — Packages — Account — Settings
+- Native Compose chrome with fixed top bar and 5-tab bottom navigation
 Artifact name: Wisdom-tower-academy.apk
 

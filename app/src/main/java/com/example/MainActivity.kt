@@ -92,6 +92,8 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.automirrored.filled.Logout
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Send
@@ -108,6 +110,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -524,26 +529,19 @@ sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: St
     object Learning : BottomNavItem("Learning", Icons.AutoMirrored.Filled.MenuBook, "https://www.wisdom-tower-academy.live/learning")
     object Packages : BottomNavItem("Packages", Icons.AutoMirrored.Filled.ViewList, "https://www.wisdom-tower-academy.live/packages")
     object Account : BottomNavItem("Account", Icons.Filled.Person, "https://www.wisdom-tower-academy.live/account")
+    object Settings : BottomNavItem("Settings", Icons.Filled.Settings, "https://www.wisdom-tower-academy.live/settings")
 }
 
 private data class MenuLink(
     val label: String,
     val url: String,
     val icon: ImageVector,
-    val external: Boolean = false,
 )
 
 private val overflowMenuLinks = listOf(
-    MenuLink("Settings", "https://www.wisdom-tower-academy.live/settings", Icons.Filled.Settings),
-    MenuLink("My account", "https://www.wisdom-tower-academy.live/account", Icons.Filled.Person),
-    MenuLink("Sign out", "https://www.wisdom-tower-academy.live/logout", Icons.AutoMirrored.Filled.Logout),
     MenuLink("About", "https://www.wisdom-tower-academy.live/about", Icons.Filled.Info),
     MenuLink("Contact us", "https://www.wisdom-tower-academy.live/contact", Icons.Outlined.Email),
     MenuLink("FAQ", "https://www.wisdom-tower-academy.live/academy/faq", Icons.AutoMirrored.Outlined.HelpOutline),
-    MenuLink("Wisdom Digital", "https://wisdomtower.tech", Icons.AutoMirrored.Filled.OpenInNew, external = true),
-    MenuLink("Telegram group", "https://t.me/wisdom_tower1", Icons.AutoMirrored.Filled.Send, external = true),
-    MenuLink("Telegram channel", "https://t.me/wisdom_tower2", Icons.Filled.Campaign, external = true),
-    MenuLink("LinkedIn", "https://www.linkedin.com/company/wisdom-tower/", Icons.Filled.Business, external = true),
     MenuLink("Privacy", "https://www.wisdom-tower-academy.live/privacy", Icons.Outlined.PrivacyTip),
     MenuLink("Terms", "https://www.wisdom-tower-academy.live/terms", Icons.Outlined.Policy),
 )
@@ -561,7 +559,8 @@ private fun isOnline(context: Context): Boolean {
  * Tab 0: Home
  * Tab 1: Learning (/learning, /academy, courses, subjects, books)
  * Tab 2: Packages (/packages, /cart, /checkout, /orders)
- * Tab 3: Account (/account, /settings, /login, /signup, /auth, etc.)
+ * Tab 3: Account (/account, /login, /signup, /auth, etc.)
+ * Tab 4: Settings (/settings)
  * /notifications: preserves currentTab (Architecture rule #6)
  */
 private fun tabIndexForUrl(url: String?, currentTab: Int): Int {
@@ -576,6 +575,11 @@ private fun tabIndexForUrl(url: String?, currentTab: Int): Int {
 
     if (path.contains("notifications") || clean.contains("/notifications")) {
         return currentTab
+    }
+
+    // Tab 4: Settings
+    if (path == "/settings" || path.startsWith("/settings/")) {
+        return 4
     }
 
     // Tab 1: Learning
@@ -597,7 +601,6 @@ private fun tabIndexForUrl(url: String?, currentTab: Int): Int {
 
     // Tab 3: Account
     if (path == "/account" || path.startsWith("/account/") ||
-        path == "/settings" || path.startsWith("/settings/") ||
         path == "/login" || path.startsWith("/login/") ||
         path == "/signup" || path.startsWith("/signup/") ||
         path == "/register" || path.startsWith("/register/") ||
@@ -633,7 +636,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
         BottomNavItem.Home,
         BottomNavItem.Learning,
         BottomNavItem.Packages,
-        BottomNavItem.Account
+        BottomNavItem.Account,
+        BottomNavItem.Settings
     )
 
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
@@ -694,6 +698,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
     val activity = context as? ComponentActivity
     BackHandler {
+        if (menuExpanded) {
+            menuExpanded = false
+            return@BackHandler
+        }
         if (showOnboarding) return@BackHandler
         if (showExitDialog) {
             showExitDialog = false
@@ -842,70 +850,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        // Left: Hamburger menu
-                        Box {
-                            IconButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    menuExpanded = true
-                                },
-                                modifier = Modifier.size(46.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Menu,
-                                    contentDescription = "Menu",
-                                    tint = Accent,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                            DropdownMenu(
-                                expanded = menuExpanded,
-                                onDismissRequest = { menuExpanded = false },
-                                containerColor = BarBg,
-                                shape = RoundedCornerShape(16.dp),
-                                modifier = Modifier.widthIn(min = 260.dp)
-                            ) {
-                                overflowMenuLinks.forEach { link ->
-                                    DropdownMenuItem(
-                                        text = {
-                                            Text(
-                                                text = link.label,
-                                                color = Color.White,
-                                                fontSize = 15.sp,
-                                                fontWeight = FontWeight.Medium
-                                            )
-                                        },
-                                        leadingIcon = {
-                                            Icon(
-                                                imageVector = link.icon,
-                                                contentDescription = null,
-                                                tint = if (link.label == "Sign out") Color(0xFFF87171) else Accent,
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        },
-                                        onClick = {
-                                            menuExpanded = false
-                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                            if (link.external) {
-                                                try {
-                                                    context.startActivity(
-                                                        Intent(Intent.ACTION_VIEW, Uri.parse(link.url))
-                                                    )
-                                                } catch (_: Exception) {
-                                                    navigateTo(link.url)
-                                                }
-                                            } else {
-                                                val tab = when {
-                                                    link.url.contains("/account") -> 3
-                                                    link.url.contains("/settings") -> 3
-                                                    else -> null
-                                                }
-                                                navigateTo(link.url, tab)
-                                            }
-                                        }
-                                    )
-                                }
-                            }
+                        // Left: Hamburger menu button
+                        IconButton(
+                            onClick = {
+                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                menuExpanded = true
+                            },
+                            modifier = Modifier.size(46.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Menu,
+                                contentDescription = "Menu",
+                                tint = Accent,
+                                modifier = Modifier.size(24.dp)
+                            )
                         }
 
                         // Center: Brand Logo and Title
@@ -1495,6 +1453,178 @@ fun MainScreen(onReady: () -> Unit = {}) {
             }
         }
 
+        if (menuExpanded) {
+            Dialog(
+                onDismissRequest = { menuExpanded = false },
+                properties = DialogProperties(
+                    dismissOnBackPress = true,
+                    dismissOnClickOutside = true,
+                    usePlatformDefaultWidth = false
+                )
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color(0x88000000))
+                        .clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { menuExpanded = false },
+                    contentAlignment = Alignment.TopStart
+                ) {
+                    Surface(
+                        color = Color(0xF4080F1E),
+                        shape = RoundedCornerShape(22.dp),
+                        border = BorderStroke(1.dp, Color(0x3300E5FF)),
+                        shadowElevation = 20.dp,
+                        modifier = Modifier
+                            .padding(start = 14.dp, top = 54.dp, end = 14.dp)
+                            .widthIn(min = 260.dp, max = 300.dp)
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { /* prevent close on card click */ }
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(14.dp)
+                        ) {
+                            // Header
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(32.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0x2600E5FF)),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Menu,
+                                            contentDescription = null,
+                                            tint = Accent,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = "Menu",
+                                        color = Color.White,
+                                        fontSize = 16.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = 0.2.sp
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        menuExpanded = false
+                                    },
+                                    modifier = Modifier.size(32.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Close",
+                                        tint = Muted,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(Color(0x2200E5FF))
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            // 5 clean links
+                            overflowMenuLinks.forEach { link ->
+                                val linkInteraction = remember { MutableInteractionSource() }
+                                val linkPressed by linkInteraction.collectIsPressedAsState()
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(if (linkPressed) Color(0x2600E5FF) else Color.Transparent)
+                                        .clickable(
+                                            interactionSource = linkInteraction,
+                                            indication = ripple(color = Accent.copy(alpha = 0.2f))
+                                        ) {
+                                            menuExpanded = false
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                            navigateTo(link.url)
+                                        }
+                                        .padding(horizontal = 8.dp, vertical = 9.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(30.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                                .background(Color(0x1A00E5FF)),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = link.icon,
+                                                contentDescription = null,
+                                                tint = Accent,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = link.label,
+                                            color = Color.White,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                    }
+                                    Icon(
+                                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+                                        contentDescription = null,
+                                        tint = Muted.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(12.dp)
+                                    )
+                                }
+                            }
+
+                            Spacer(modifier = Modifier.height(10.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(Color(0x14FFFFFF))
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+
+                            Text(
+                                text = "Wisdom Tower Academy",
+                                color = Muted.copy(alpha = 0.6f),
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Normal,
+                                modifier = Modifier.fillMaxWidth(),
+                                textAlign = TextAlign.Center
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         if (showExitDialog) {
             ExitGuiltDialog(
                 onStay = { showExitDialog = false },
@@ -1717,7 +1847,7 @@ private fun AliveBottomNav(
             Row(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(horizontal = 10.dp, vertical = 5.dp),
+                    .padding(horizontal = 4.dp, vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
@@ -1749,13 +1879,13 @@ private fun AliveBottomNav(
                         label = "tabTextColor"
                     )
 
-                    val capsuleShape = RoundedCornerShape(16.dp)
+                    val capsuleShape = RoundedCornerShape(14.dp)
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
                             .height(52.dp)
-                            .padding(horizontal = 3.dp)
+                            .padding(horizontal = 1.5.dp)
                             .clip(capsuleShape)
                             .then(
                                 if (selected) {
@@ -1806,17 +1936,17 @@ private fun AliveBottomNav(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .scale(contentScale)
-                                .padding(vertical = 4.dp)
+                                .padding(vertical = 3.dp)
                         ) {
                             Box(
-                                modifier = Modifier.size(24.dp),
+                                modifier = Modifier.size(22.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (selected) {
                                     // Subtle cybernetic neon glow behind active icon
                                     Box(
                                         modifier = Modifier
-                                            .size(24.dp)
+                                            .size(22.dp)
                                             .clip(CircleShape)
                                             .background(
                                                 Brush.radialGradient(
@@ -1832,18 +1962,18 @@ private fun AliveBottomNav(
                                     imageVector = item.icon,
                                     contentDescription = item.title,
                                     tint = iconColor,
-                                    modifier = Modifier.size(22.dp)
+                                    modifier = Modifier.size(20.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = item.title,
                                 color = textColor,
-                                fontSize = 11.sp,
+                                fontSize = 10.sp,
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                letterSpacing = 0.2.sp
+                                letterSpacing = 0.sp
                             )
                         }
                     }
