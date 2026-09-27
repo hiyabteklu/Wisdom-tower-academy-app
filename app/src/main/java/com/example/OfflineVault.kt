@@ -54,6 +54,10 @@ object OfflineVault {
         return activeProgress[url.trim()]
     }
 
+    fun getActiveProgressAny(): DownloadProgress? {
+        return activeProgress.values.firstOrNull { it.loaded > 0 }
+    }
+
     /**
      * Exact file sizes for WTA Academy books (bytes).
      * Pre-seeded so size check is instant (0ms) and never triggers silent download.
@@ -481,7 +485,14 @@ class CachingInputStream(
         if (totalSoFar - lastReportedBytes >= 32768L || (now - lastReportedTime >= 60L && totalSoFar > lastReportedBytes)) {
             lastReportedBytes = totalSoFar
             lastReportedTime = now
-            val effectiveTotal = if (totalSize > 0L) totalSize else (totalSoFar + 1_000_000L)
+            val knownFallback = OfflineVault.PRESEEDED_BOOK_SIZES.entries.firstOrNull {
+                url.contains(it.key, ignoreCase = true)
+            }?.value ?: 0L
+            val effectiveTotal = when {
+                totalSize > 0L -> totalSize
+                knownFallback > 0L -> knownFallback
+                else -> totalSoFar + 1_000_000L
+            }
             if (url.isNotBlank()) {
                 OfflineVault.updateProgress(url, totalSoFar, effectiveTotal)
                 val norm = OfflineVault.normalizeUrl(url)

@@ -165,6 +165,22 @@ private const val NATIVE_CHROME_JS =
         "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
         "[data-nprogress],#nextjs-toploader,.nextjs-toploader" +
         "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
+        "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
+        "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.documentElement.appendChild(cs);}" +
+        "cs.textContent=" +
+        "'*,html,body,div,p,span,h1,h2,h3,h4,h5,h6,a,li,table,td,th,article,section,main,pre,code{" +
+        "-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}" +
+        "input,textarea,[contenteditable=\"true\"]{" +
+        "-webkit-user-select:auto!important;-moz-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;}';" +
+        "if(!window.__wta_copy_blocked){" +
+        "window.__wta_copy_blocked=true;" +
+        "document.addEventListener('copy',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;},true);" +
+        "document.addEventListener('cut',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
+        "document.addEventListener('contextmenu',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
+        "document.addEventListener('selectstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
+        "document.addEventListener('dragstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
+        "document.addEventListener('selectionchange',function(){try{var s=window.getSelection();if(!s||s.isCollapsed)return;var a=s.anchorNode;var p=a?(a.nodeType===1?a:a.parentElement):null;if(p&&p.closest&&p.closest('input,textarea,[contenteditable=\"true\"]'))return;s.removeAllRanges();}catch(_){}});" +
+        "}" +
         "}catch(e){}})();"
 
 private const val PRECACHE_AND_UNBLOCK_JS =
@@ -321,32 +337,69 @@ private const val BOOK_PAGE_HELPERS_JS =
                         "var fullU=(typeof URL==='function'&&u)?(new URL(u,window.location.href)).href:u;" +
                         "var _pTimer=setInterval(function(){" +
                             "try{" +
-                                "var raw=window.AndroidOfflineVault.getDownloadProgress(u)||window.AndroidOfflineVault.getDownloadProgress(fullU);" +
+                                "var raw=window.AndroidOfflineVault.getDownloadProgress(u)||" +
+                                        "window.AndroidOfflineVault.getDownloadProgress(fullU)||" +
+                                        "window.AndroidOfflineVault.getDownloadProgress('');" +
                                 "if(raw){" +
                                     "var p=JSON.parse(raw);" +
                                     "if(p&&p.loaded>0){" +
                                         "var tot=(p.total>0)?p.total:(p.loaded+500000);" +
                                         "var pct=Math.min(99,Math.round((p.loaded/tot)*100));" +
+                                        "var loadedStr=formatBytes(p.loaded);" +
+                                        "var totStr=formatBytes(tot);" +
                                         "window.dispatchEvent(new CustomEvent('wta:download-progress',{detail:{url:u,loaded:p.loaded,total:tot,percent:pct}}));" +
                                         "var pBars=document.querySelectorAll('[role=\"progressbar\"],.progress-bar,[data-progress]');" +
                                         "for(var pi=0;pi<pBars.length;pi++){" +
                                             "pBars[pi].style.width=pct+'%';" +
                                             "pBars[pi].setAttribute('aria-valuenow',String(pct));" +
                                         "}" +
-                                        "var pTexts=document.querySelectorAll('.progress-text,[data-progress-text]');" +
-                                        "for(var ti=0;ti<pTexts.length;ti++){" +
-                                            "pTexts[ti].textContent=pct+'% ('+formatBytes(p.loaded)+' / '+formatBytes(tot)+')';" +
+                                        "var hud=document.getElementById('wta-floating-download-hud');" +
+                                        "if(!hud){" +
+                                            "hud=document.createElement('div');" +
+                                            "hud.id='wta-floating-download-hud';" +
+                                            "hud.style.cssText='position:fixed;bottom:76px;left:14px;right:14px;z-index:999999;background:rgba(8,14,26,0.96);backdrop-filter:blur(16px);border:1.2px solid rgba(0,229,255,0.45);box-shadow:0 12px 36px rgba(0,0,0,0.75);border-radius:18px;padding:12px 16px;color:#fff;font-family:system-ui,-apple-system,sans-serif;pointer-events:none;transition:opacity 0.3s ease;';" +
+                                            "document.body.appendChild(hud);" +
+                                        "}" +
+                                        "hud.innerHTML='<div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;\">' +" +
+                                            "'<div style=\"display:flex;align-items:center;gap:8px;\">' +" +
+                                                "'<span style=\"display:inline-block;width:8px;height:8px;background:#00e5ff;border-radius:50%;box-shadow:0 0 8px #00e5ff;\"></span>' +" +
+                                                "'<span style=\"font-size:13px;font-weight:700;color:#fff;\">Downloading Book</span>' +" +
+                                            "'</div>' +" +
+                                            "'<span style=\"font-size:13px;font-weight:700;color:#00e5ff;font-variant-numeric:tabular-nums;\">' + pct + '%</span>' +" +
+                                        "'</div>' +" +
+                                        "'<div style=\"height:6px;width:100%;background:rgba(255,255,255,0.15);border-radius:3px;overflow:hidden;margin-bottom:6px;\">' +" +
+                                            "'<div style=\"height:100%;width:' + pct + '%;background:linear-gradient(90deg,#00e5ff,#38bdf8);border-radius:3px;transition:width 0.1s linear;\"></div>' +" +
+                                        "'</div>' +" +
+                                        "'<div style=\"display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;font-weight:600;font-variant-numeric:tabular-nums;\">' +" +
+                                            "'<span>' + loadedStr + ' downloaded</span>' +" +
+                                            "'<span>' + totStr + ' total</span>' +" +
+                                        "'</div>';" +
+                                        "var modTexts=document.querySelectorAll('[role=\"dialog\"] span,[role=\"dialog\"] p,.modal-content span,.modal-content p,.progress-text,[data-progress-text]');" +
+                                        "for(var ti=0;ti<modTexts.length;ti++){" +
+                                            "var tEl=modTexts[ti];" +
+                                            "if(tEl.children.length>0)continue;" +
+                                            "var tt=(tEl.textContent||'').trim();" +
+                                            "if(tt.indexOf('Downloading')!==-1||tt.indexOf('%')!==-1||tt.indexOf('downloading')!==-1){" +
+                                                "tEl.textContent='Downloading ' + pct + '% (' + loadedStr + ' / ' + totStr + ')';" +
+                                            "}" +
                                         "}" +
                                         "var btns=document.querySelectorAll('button');" +
                                         "for(var bi=0;bi<btns.length;bi++){" +
                                             "var bEl=btns[bi];" +
                                             "var bText=(bEl.textContent||'').trim();" +
                                             "if(bText.indexOf('Download')!==-1||bText.indexOf('%')!==-1){" +
-                                                "bEl.innerHTML='<span style=\"display:inline-flex;align-items:center;gap:6px;\">Downloading '+pct+'% ('+formatBytes(p.loaded)+' / '+formatBytes(tot)+')</span>';" +
+                                                "bEl.innerHTML='<span style=\"display:inline-flex;align-items:center;gap:6px;\">Downloading ' + pct + '% (' + loadedStr + ' / ' + totStr + ')</span>';" +
                                             "}" +
                                         "}" +
                                         "if(p.loaded>=tot){" +
                                             "clearInterval(_pTimer);" +
+                                            "setTimeout(function(){" +
+                                                "var h=document.getElementById('wta-floating-download-hud');" +
+                                                "if(h){" +
+                                                    "h.style.opacity='0';" +
+                                                    "setTimeout(function(){if(h&&h.parentNode)h.parentNode.removeChild(h);},350);" +
+                                                "}" +
+                                            "},1500);" +
                                         "}" +
                                     "}" +
                                 "}" +
@@ -359,14 +412,15 @@ private const val BOOK_PAGE_HELPERS_JS =
         "}" +
         "function updatePdfPreOpenLabels(){" +
             "try{" +
+                "var path=window.location.pathname||'';" +
+                "var hasPdfModal=document.querySelector('[data-book-download],button[data-url*=\".pdf\"],button[data-url*=\"/api/content/pdf\"],a[href*=\"/api/content/pdf\"],a[href*=\".pdf\"]');" +
+                "var isBookContext=(path.indexOf('/read')!==-1||path.indexOf('/book')!==-1||path.indexOf('/material')!==-1||path.indexOf('/content')!==-1||Boolean(hasPdfModal));" +
+                "if(!isBookContext)return;" +
                 "var targetUrl=window.__wta_current_pdf_url||'';" +
-                "if(!targetUrl){" +
-                    "var links=document.querySelectorAll('a[href*=\".pdf\"],a[href*=\"/api/content/pdf\"],button[data-url],a[href*=\"/pdf\"],button[data-pdf]');" +
-                    "for(var i=0;i<links.length;i++){" +
-                        "var h=links[i].getAttribute('href')||links[i].getAttribute('data-url')||links[i].getAttribute('data-pdf')||'';" +
-                        "if(h){targetUrl=h;break;}" +
-                    "}" +
+                "if(!targetUrl&&hasPdfModal){" +
+                    "targetUrl=(typeof hasPdfModal.getAttribute==='function')?(hasPdfModal.getAttribute('href')||hasPdfModal.getAttribute('data-url')||''):'';" +
                 "}" +
+                "if(!targetUrl)return;" +
                 "var fullUrl=targetUrl?((typeof URL==='function')?(new URL(targetUrl,window.location.href)).href:targetUrl):'';" +
                 "var sz=0;" +
                 "if(fullUrl&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
@@ -382,41 +436,42 @@ private const val BOOK_PAGE_HELPERS_JS =
                         "sz=window.AndroidOfflineVault.getPdfSizeByTitle(titleText);" +
                     "}" +
                 "}" +
-                "if(!sz||sz<=0){" +
-                    "var p=window.location.pathname||'';" +
-                    "if(p&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSizeByTitle==='function'){" +
-                        "sz=window.AndroidOfflineVault.getPdfSizeByTitle(p);" +
-                    "}" +
-                "}" +
                 "if(sz&&sz>0){" +
                     "var labelText=formatBytes(sz);" +
-                    "var walker=document.createTreeWalker(document.body,NodeFilter.SHOW_TEXT,null,false);" +
-                    "var n;" +
-                    "while(n=walker.nextNode()){" +
-                        "var val=n.nodeValue||'';" +
-                        "if(val.indexOf('Checking size')!==-1||val.trim()==='—'||val.indexOf('· —')!==-1||val.indexOf('· Ready')!==-1||val.trim()==='Ready'||val.indexOf('Size unknown')!==-1||val.indexOf('Ready to download')!==-1){" +
-                            "if(val.indexOf('· —')!==-1){" +
-                                "n.nodeValue=val.replace('· —','· '+labelText);" +
-                            "}else if(val.indexOf('· Ready')!==-1){" +
-                                "n.nodeValue=val.replace('· Ready','· '+labelText);" +
-                            "}else if(val.indexOf('· Size unknown')!==-1){" +
-                                "n.nodeValue=val.replace('· Size unknown','· '+labelText);" +
-                            "}else if(val.trim()==='—'||val.trim()==='Ready'||val.trim()==='Size unknown'||val.trim()==='Ready to download'){" +
-                                "n.nodeValue=labelText;" +
-                            "}else if(val.indexOf('Checking size')!==-1){" +
-                                "n.nodeValue=val.replace(/Checking size[….]*/g,labelText);" +
-                            "}" +
-                        "}" +
-                    "}" +
-                    "var btns=document.querySelectorAll('button');" +
+                    "var btns=document.querySelectorAll('button,a[data-download],a[download]');" +
                     "for(var b=0;b<btns.length;b++){" +
                         "var btn=btns[b];" +
                         "var bt=(btn.textContent||'').trim();" +
-                        "if((bt.indexOf('Download & open')!==-1||bt==='Download')&&bt.indexOf('(')===-1&&bt.indexOf('Already')===-1&&bt.indexOf('%')===-1){" +
-                            "var span=document.createElement('span');" +
-                            "span.className='wta-size-badge opacity-90 font-semibold tabular-nums ml-1.5 px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs';" +
-                            "span.textContent='('+labelText+')';" +
-                            "btn.appendChild(span);" +
+                        "if((bt.indexOf('Download & open')!==-1||bt==='Download'||bt.indexOf('Download (')!==-1)&&bt.indexOf('Already')===-1&&bt.indexOf('%')===-1){" +
+                            "var badge=btn.querySelector('.wta-size-badge');" +
+                            "if(!badge&&bt.indexOf('(')===-1){" +
+                                "var span=document.createElement('span');" +
+                                "span.className='wta-size-badge opacity-90 font-semibold tabular-nums ml-1.5 px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs';" +
+                                "span.textContent='('+labelText+')';" +
+                                "btn.appendChild(span);" +
+                            "}else if(badge){" +
+                                "badge.textContent='('+labelText+')';" +
+                            "}" +
+                        "}" +
+                    "}" +
+                    "var modals=document.querySelectorAll('[role=\"dialog\"],[data-book-modal],.modal-content,[data-download-modal],[data-book-download]');" +
+                    "for(var mi=0;mi<modals.length;mi++){" +
+                        "var mEl=modals[mi];" +
+                        "var mText=(mEl.textContent||'');" +
+                        "if(mText.indexOf('Download')===-1&&mText.indexOf('PDF')===-1&&mText.indexOf('Book')===-1)continue;" +
+                        "if(mText.indexOf('STREAK')!==-1||mText.indexOf('Streak')!==-1||mText.indexOf('EXAM')!==-1||mText.indexOf('Exam')!==-1)continue;" +
+                        "var leafEls=mEl.querySelectorAll('span,p,div');" +
+                        "for(var li=0;li<leafEls.length;li++){" +
+                            "var leaf=leafEls[li];" +
+                            "if(leaf.children.length>0)continue;" +
+                            "var lt=(leaf.textContent||'').trim();" +
+                            "if(lt.indexOf('Checking size')!==-1){" +
+                                "leaf.textContent=lt.replace(/Checking size[….]*/g,labelText);" +
+                            "}else if(lt==='· Size unknown'||lt==='Size unknown'){" +
+                                "leaf.textContent='· '+labelText;" +
+                            "}else if(lt==='Ready to download'){" +
+                                "leaf.textContent=labelText;" +
+                            "}" +
                         "}" +
                     "}" +
                 "}" +
@@ -988,6 +1043,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
+                            isLongClickable = false
+                            setOnLongClickListener {
+                                val hit = hitTestResult
+                                hit?.type == WebView.HitTestResult.EDIT_TEXT_TYPE
+                            }
                             settings.apply {
                                 javaScriptEnabled = true
                                 domStorageEnabled = true
@@ -1059,10 +1119,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
                                 @JavascriptInterface
                                 fun getDownloadProgress(url: String?): String {
-                                    if (url.isNullOrBlank()) return "{\"loaded\":0,\"total\":0}"
-                                    val p = OfflineVault.getDownloadProgress(url)
-                                        ?: OfflineVault.getDownloadProgress(OfflineVault.normalizeUrl(url))
-                                        ?: return "{\"loaded\":0,\"total\":0}"
+                                    val clean = url?.trim().orEmpty()
+                                    val p = if (clean.isNotBlank()) {
+                                        OfflineVault.getDownloadProgress(clean)
+                                            ?: OfflineVault.getDownloadProgress(OfflineVault.normalizeUrl(clean))
+                                            ?: OfflineVault.getActiveProgressAny()
+                                    } else {
+                                        OfflineVault.getActiveProgressAny()
+                                    } ?: return "{\"loaded\":0,\"total\":0}"
                                     return "{\"loaded\":${p.loaded},\"total\":${p.total}}"
                                 }
 
@@ -1355,7 +1419,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                         put("Accept-Ranges", "bytes")
                                                         put("Cache-Control", "public, max-age=31536000, immutable")
                                                     }
-                                                    val stream = if (isExplicitDownload) {
+                                                    val stream = if (isExplicitDownload || u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u)) {
                                                         val targetFile = OfflineVault.targetFileFor(ctx, u)
                                                         CachingInputStream(conn.inputStream, targetFile, u, totalToUse) { savedFile ->
                                                             OfflineVault.remember(ctx, u, savedFile.name)
@@ -1417,28 +1481,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Advanced Floating High-Speed Dynamic HUD Loader (completely replaces the website-like horizontal bar)
+                // Centered Big Circular Loader for all page transitions and loading waits
                 AnimatedVisibility(
                     visible = isNavigating || (webProgress in 1..95 && !isInitialLoading),
-                    enter = slideInVertically(
-                        initialOffsetY = { -it },
-                        animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioMediumBouncy,
-                            stiffness = Spring.StiffnessMedium
-                        )
-                    ) + fadeIn(tween(160)),
-                    exit = slideOutVertically(
-                        targetOffsetY = { -it },
-                        animationSpec = tween(180)
-                    ) + fadeOut(tween(180)),
+                    enter = fadeIn(tween(160)),
+                    exit = fadeOut(tween(200)),
                     modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .padding(top = 10.dp)
+                        .fillMaxSize()
                         .zIndex(100f)
                 ) {
-                    AdvancedNavLoader(
-                        progress = webProgress,
-                        isNavigating = isNavigating
+                    CenteredBigCircularLoader(
+                        modifier = Modifier.background(Color(0xD9070E1B)),
+                        statusText = "Wisdom Tower Academy",
+                        subText = "Loading…",
+                        progress = webProgress
                     )
                 }
 
@@ -1448,160 +1504,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     enter = fadeIn(tween(150)),
                     exit = fadeOut(tween(380, easing = FastOutSlowInEasing))
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(BarBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        // Ambient radial glowing aura behind card
-                        Box(
-                            modifier = Modifier
-                                .size(240.dp)
-                                .clip(CircleShape)
-                                .background(
-                                    Brush.radialGradient(
-                                        listOf(
-                                            Color(0x2E00E5FF),
-                                            Color(0x0A00E5FF),
-                                            Color.Transparent
-                                        )
-                                    )
-                                )
-                        )
-
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
-                            modifier = Modifier.padding(24.dp)
-                        ) {
-                            // High-speed dual orbital neon ring around the brand GIF
-                            Box(
-                                modifier = Modifier.size(160.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val splashTransition = rememberInfiniteTransition(label = "splashRings")
-                                val fastSpin by splashTransition.animateFloat(
-                                    initialValue = 0f,
-                                    targetValue = 360f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(1000, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Restart
-                                    ),
-                                    label = "splashFastSpin"
-                                )
-                                val counterSpin by splashTransition.animateFloat(
-                                    initialValue = 360f,
-                                    targetValue = 0f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(1500, easing = LinearEasing),
-                                        repeatMode = RepeatMode.Restart
-                                    ),
-                                    label = "splashCounterSpin"
-                                )
-
-                                Canvas(
-                                    modifier = Modifier
-                                        .size(154.dp)
-                                        .rotate(fastSpin)
-                                ) {
-                                    drawArc(
-                                        brush = Brush.sweepGradient(
-                                            listOf(
-                                                Color(0x0000E5FF),
-                                                Color(0x4400E5FF),
-                                                Color(0xFF00E5FF),
-                                                Color(0xFF38BDF8)
-                                            )
-                                        ),
-                                        startAngle = 0f,
-                                        sweepAngle = 270f,
-                                        useCenter = false,
-                                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                                    )
-                                }
-
-                                Canvas(
-                                    modifier = Modifier
-                                        .size(138.dp)
-                                        .rotate(counterSpin)
-                                ) {
-                                    drawArc(
-                                        brush = Brush.sweepGradient(
-                                            listOf(
-                                                Color(0x00818CF8),
-                                                Color(0x55818CF8),
-                                                Color(0xFF00E5FF)
-                                            )
-                                        ),
-                                        startAngle = 180f,
-                                        sweepAngle = 210f,
-                                        useCenter = false,
-                                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                                    )
-                                }
-
-                                // High-quality animated brand logo GIF
-                                BrandLoader(size = 110.dp, showCard = false)
-                            }
-
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            Text(
-                                text = "Wisdom Tower Academy",
-                                color = Color.White,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.3.sp
-                            )
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            Text(
-                                text = "Preparing your learning space…",
-                                color = Muted,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Normal
-                            )
-
-                            Spacer(modifier = Modifier.height(18.dp))
-
-                            // High-speed cyber status pill (replaces horizontal website-like bar)
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(Color(0x2600E5FF))
-                                    .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
-                                    .padding(horizontal = 12.dp, vertical = 5.dp)
-                            ) {
-                                val infiniteTransition = rememberInfiniteTransition(label = "splashPulse")
-                                val dotAlpha by infiniteTransition.animateFloat(
-                                    initialValue = 0.4f,
-                                    targetValue = 1f,
-                                    animationSpec = infiniteRepeatable(
-                                        animation = tween(400, easing = FastOutSlowInEasing),
-                                        repeatMode = RepeatMode.Reverse
-                                    ),
-                                    label = "splashDot"
-                                )
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(Accent.copy(alpha = dotAlpha))
-                                )
-                                Text(
-                                    text = if (webProgress in 1..99) "Loading $webProgress%" else "High-speed launch…",
-                                    color = Color(0xFF38BDF8),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    letterSpacing = 0.2.sp
-                                )
-                            }
-                        }
-                    }
+                    CenteredBigCircularLoader(
+                        modifier = Modifier.background(BarBg),
+                        statusText = "Wisdom Tower Academy",
+                        subText = "Preparing your learning space…",
+                        progress = webProgress
+                    )
                 }
             }
         }
@@ -1619,98 +1527,77 @@ fun MainScreen(onReady: () -> Unit = {}) {
 }
 
 /**
- * Advanced floating Dynamic Island HUD loader that completely replaces the plain website top bar.
- * Features high-speed dual orbital neon energy rings, animated brand GIF, energetic pulsing aura,
- * and live progress telemetry — NO website-like horizontal bar.
+ * Universal high-speed centered circular animated loader (same big size as on splash).
+ * Displays dual orbital neon cyan & violet spinning rings enclosing the brand animated GIF,
+ * ambient glowing radial aura, clean typography, and zero emoji clutter.
  */
 @Composable
-private fun AdvancedNavLoader(
-    progress: Int,
-    isNavigating: Boolean,
+private fun CenteredBigCircularLoader(
     modifier: Modifier = Modifier,
+    statusText: String = "Wisdom Tower Academy",
+    subText: String = "Loading…",
+    progress: Int = 0,
 ) {
-    Surface(
-        shape = RoundedCornerShape(26.dp),
-        color = Color(0xF2070E1B),
-        border = BorderStroke(
-            width = 1.2.dp,
-            brush = Brush.horizontalGradient(
-                listOf(
-                    Color(0xFF00E5FF),
-                    Color(0xFF38BDF8),
-                    Color(0xFF818CF8),
-                    Color(0xFF00E5FF)
-                )
-            )
-        ),
-        shadowElevation = 18.dp,
-        modifier = modifier
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
     ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        // Ambient radial glowing aura behind rings
+        Box(
+            modifier = Modifier
+                .size(240.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.radialGradient(
+                        listOf(
+                            Color(0x2E00E5FF),
+                            Color(0x0A00E5FF),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
+
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
         ) {
-            // High-speed dual orbital neon spinner enclosing the animated GIF
+            // High-speed dual orbital neon ring around the brand GIF (160.dp)
             Box(
-                modifier = Modifier.size(42.dp),
+                modifier = Modifier.size(160.dp),
                 contentAlignment = Alignment.Center
             ) {
-                val infiniteTransition = rememberInfiniteTransition(label = "loaderRings")
-                val fastSpin by infiniteTransition.animateFloat(
+                val transition = rememberInfiniteTransition(label = "loaderRings")
+                val fastSpin by transition.animateFloat(
                     initialValue = 0f,
                     targetValue = 360f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(300, easing = LinearEasing),
+                        animation = tween(1000, easing = LinearEasing),
                         repeatMode = RepeatMode.Restart
                     ),
                     label = "fastSpin"
                 )
-                val counterSpin by infiniteTransition.animateFloat(
+                val counterSpin by transition.animateFloat(
                     initialValue = 360f,
                     targetValue = 0f,
                     animationSpec = infiniteRepeatable(
-                        animation = tween(450, easing = LinearEasing),
+                        animation = tween(1500, easing = LinearEasing),
                         repeatMode = RepeatMode.Restart
                     ),
                     label = "counterSpin"
                 )
-                val auraPulse by infiniteTransition.animateFloat(
-                    initialValue = 0.45f,
-                    targetValue = 1f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(350, easing = FastOutSlowInEasing),
-                        repeatMode = RepeatMode.Reverse
-                    ),
-                    label = "auraPulse"
-                )
 
-                // Neon cyan aura glow
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.radialGradient(
-                                listOf(
-                                    Color(0xFF00E5FF).copy(alpha = 0.35f * auraPulse),
-                                    Color.Transparent
-                                )
-                            )
-                        )
-                )
-
-                // High-speed primary neon cyan orbit ring
                 Canvas(
                     modifier = Modifier
-                        .fillMaxSize()
+                        .size(154.dp)
                         .rotate(fastSpin)
                 ) {
                     drawArc(
                         brush = Brush.sweepGradient(
                             listOf(
                                 Color(0x0000E5FF),
-                                Color(0x6600E5FF),
+                                Color(0x4400E5FF),
                                 Color(0xFF00E5FF),
                                 Color(0xFF38BDF8)
                             )
@@ -1718,69 +1605,86 @@ private fun AdvancedNavLoader(
                         startAngle = 0f,
                         sweepAngle = 270f,
                         useCenter = false,
-                        style = Stroke(width = 2.4.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
                     )
                 }
 
-                // High-speed counter-rotating inner orbital ring
                 Canvas(
                     modifier = Modifier
-                        .size(32.dp)
+                        .size(138.dp)
                         .rotate(counterSpin)
                 ) {
                     drawArc(
                         brush = Brush.sweepGradient(
                             listOf(
                                 Color(0x00818CF8),
-                                Color(0x77818CF8),
+                                Color(0x55818CF8),
                                 Color(0xFF00E5FF)
                             )
                         ),
                         startAngle = 180f,
-                        sweepAngle = 220f,
+                        sweepAngle = 210f,
                         useCenter = false,
-                        style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round)
+                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
                     )
                 }
 
-                // Brand animated GIF running in high-speed center
-                BrandLoader(size = 26.dp, showCard = false)
+                // Brand animated GIF running in high-speed center (110.dp)
+                BrandLoader(size = 110.dp, showCard = false)
             }
 
-            Column(verticalArrangement = Arrangement.Center) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Wisdom Tower",
-                        color = Color.White,
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.3.sp
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    val pulseAlpha by rememberInfiniteTransition(label = "pulse").animateFloat(
-                        initialValue = 0.35f,
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = statusText,
+                color = Color.White,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.3.sp
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = subText,
+                color = Muted,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Normal
+            )
+
+            if (progress in 1..99) {
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color(0x2600E5FF))
+                        .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 5.dp)
+                ) {
+                    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
+                    val dotAlpha by infiniteTransition.animateFloat(
+                        initialValue = 0.4f,
                         targetValue = 1f,
                         animationSpec = infiniteRepeatable(
-                            animation = tween(350, easing = FastOutSlowInEasing),
+                            animation = tween(400, easing = FastOutSlowInEasing),
                             repeatMode = RepeatMode.Reverse
                         ),
-                        label = "pulseAlpha"
+                        label = "dotAlpha"
                     )
                     Box(
                         modifier = Modifier
                             .size(6.dp)
                             .clip(CircleShape)
-                            .background(Color(0xFF00E5FF).copy(alpha = pulseAlpha))
+                            .background(Accent.copy(alpha = dotAlpha))
                     )
-                }
-                Spacer(modifier = Modifier.height(2.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = if (progress in 1..99) "⚡ Speed load • $progress%" else "⚡ Loading fast…",
+                        text = "Loading $progress%",
                         color = Color(0xFF38BDF8),
                         fontSize = 11.sp,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.1.sp
+                        letterSpacing = 0.2.sp
                     )
                 }
             }
