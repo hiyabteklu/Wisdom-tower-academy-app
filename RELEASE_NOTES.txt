@@ -1,15 +1,22 @@
 Wisdom Tower Academy — production APK
 Build trigger: 2026-09-27
-Includes:
-- Full working MainActivity synchronized with all recent features
+Version: versionName "1.0.0", versionCode 3
+Application ID: com.wisdomtower.academy
+
+Production Changes & Hardening:
+- FLAG_SECURE enabled: screenshots and screen recordings blocked via window.addFlags(FLAG_SECURE) in onCreate and enforced onResume
+- allowBackup false: android:allowBackup="false" configured in AndroidManifest.xml (usesCleartextTraffic="false" preserved)
+- Must sign with Play upload keystore via GitHub secrets:
+  * Preferred secrets: KEYSTORE_BASE64 (or KEYSTORE_PATH), STORE_PASSWORD, KEY_PASSWORD
+  * keyAlias: upload
+  * If secrets are missing in CI, fallback keystore prints clear warning: "WARNING: using fallback keystore — NOT for Play Store or public Telegram production"
 - Content protection: CSS user-select:none and event listeners blocking copy, cut, drag, contextmenu (inputs/textareas preserved)
-- Clean in-place book download progress: updates existing progress bar and small tabular byte/percent text directly (no competing or floating bars)
-- Futuristic fast-spinning cyber loader: pure circular gear spinner with subtle translucent circle backing (removed all rectangular cards, boxes, and text clutter), debounced auto-duration display that never triggers on text boxes, flashcards, or fast-loaded pages, and immediately dismisses the instant content is ready
-- Fixed GitHub Actions CI pipeline so it preserves the latest source code and synchronizes base64 chunks
-- FLAG_SECURE window protection for educational materials
+- Clean in-place book download progress: updates existing progress bar and small tabular byte/percent text directly
+- Futuristic fast-spinning cyber loader: pure circular gear spinner with subtle translucent circle backing, debounced auto-duration display
+- Fixed GitHub Actions CI pipeline preserving source code and synchronizing base64 chunks
 - Double-back press to exit pattern
 - OfflineVault private PDF caching
-- Native compact hamburger menu Card (removed redundant links like settings, account, telegram, logout; sleek modal card with quick navigation)
+- Native compact hamburger menu Card
 - 5-item native bottom navigation bar: Home — Learning — Packages — Account — Settings
 - Native Compose chrome with fixed top bar and 5-tab bottom navigation
 Artifact name: Wisdom-tower-academy.apk

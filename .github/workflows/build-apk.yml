@@ -41,14 +41,24 @@ jobs:
           sdkmanager "platforms;android-35" "build-tools;35.0.0" "platform-tools" 2>/dev/null || \
           sdkmanager "platforms;android-34" "build-tools;34.0.0" "platform-tools" 2>/dev/null || true
 
-      - name: Generate signing keystore
+      - name: Configure signing keystore
         run: |
           if [ -n "${{ secrets.STORE_PASSWORD }}" ] && [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "Using Play upload keystore from KEYSTORE_BASE64 secret"
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
             echo "KEYSTORE_PATH=$PWD/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=upload" >> $GITHUB_ENV
+          elif [ -n "${{ secrets.STORE_PASSWORD }}" ] && [ -n "${{ secrets.KEYSTORE_PATH }}" ] && [ -f "${{ secrets.KEYSTORE_PATH }}" ]; then
+            echo "Using Play upload keystore from KEYSTORE_PATH secret"
+            echo "KEYSTORE_PATH=${{ secrets.KEYSTORE_PATH }}" >> $GITHUB_ENV
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=upload" >> $GITHUB_ENV
           else
+            echo "::warning::WARNING: using fallback keystore — NOT for Play Store or public Telegram production"
+            echo "WARNING: using fallback keystore — NOT for Play Store or public Telegram production"
             keytool -genkeypair -v \
               -keystore distribution.keystore \
               -storepass wisdomtower \
@@ -61,6 +71,7 @@ jobs:
             echo "KEYSTORE_PATH=$PWD/distribution.keystore" >> $GITHUB_ENV
             echo "STORE_PASSWORD=wisdomtower" >> $GITHUB_ENV
             echo "KEY_PASSWORD=wisdomtower" >> $GITHUB_ENV
+            echo "KEY_ALIAS=upload" >> $GITHUB_ENV
           fi
 
       - name: Setup Gradle
@@ -81,6 +92,11 @@ jobs:
 
       - name: Build Release APK
         id: build
+        env:
+          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
+          STORE_PASSWORD: ${{ env.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
         run: |
           set -o pipefail
           ./gradlew assembleRelease --stacktrace --no-daemon 2>&1 | tee build.log

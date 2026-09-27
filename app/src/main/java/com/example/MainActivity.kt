@@ -551,7 +551,7 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { keepSplash }
         super.onCreate(savedInstanceState)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        window.clearFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#0F172A")
         @Suppress("DEPRECATION")
@@ -565,6 +565,11 @@ class MainActivity : ComponentActivity() {
                 MainScreen(onReady = { keepSplash = false })
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 }
 

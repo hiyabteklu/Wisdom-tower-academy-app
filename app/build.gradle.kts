@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -25,11 +26,20 @@ android {
 
   signingConfigs {
     create("release") {
-      val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
+      val base64Key = System.getenv("KEYSTORE_BASE64")
+      val keystorePath = System.getenv("KEYSTORE_PATH") ?: if (!base64Key.isNullOrBlank()) {
+        val decodedFile = file("${rootDir}/my-upload-key.jks")
+        if (!decodedFile.exists() || decodedFile.length() == 0L) {
+          decodedFile.writeBytes(Base64.getDecoder().decode(base64Key.trim()))
+        }
+        decodedFile.absolutePath
+      } else {
+        "${rootDir}/my-upload-key.jks"
+      }
       storeFile = file(keystorePath)
       storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+      keyPassword = System.getenv("KEY_PASSWORD") ?: System.getenv("STORE_PASSWORD")
     }
     create("debugConfig") {
       storeFile = file("${rootDir}/debug.keystore")
@@ -45,9 +55,14 @@ android {
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       val releaseStore = System.getenv("KEYSTORE_PATH")
-      signingConfig = if (!releaseStore.isNullOrBlank() && file(releaseStore).exists()) {
+      val hasKeystore = (!releaseStore.isNullOrBlank() && file(releaseStore).exists()) ||
+          (!System.getenv("KEYSTORE_BASE64").isNullOrBlank()) ||
+          file("${rootDir}/my-upload-key.jks").exists()
+      val hasReleaseEnv = hasKeystore && !System.getenv("STORE_PASSWORD").isNullOrBlank()
+      signingConfig = if (hasReleaseEnv) {
         signingConfigs.getByName("release")
       } else {
+        logger.warn("WARNING: using fallback keystore — NOT for Play Store or public Telegram production")
         signingConfigs.getByName("debugConfig")
       }
     }
