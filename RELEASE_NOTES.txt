@@ -3,7 +3,7 @@ Build trigger: 2026-09-27
 Includes:
 - Full working MainActivity synchronized with all recent features
 - Content protection: CSS user-select:none and event listeners blocking copy, cut, drag, contextmenu (inputs/textareas preserved)
-- Real-time book download progress HUD (percentage, loaded byte counters, floating frosted-glass design)
+- Clean in-place book download progress: updates existing progress bar and small tabular byte/percent text directly (no competing or floating bars)
 - Universal Big Centered Circular Loader with high-speed neon orbital rings and brand loader
 - Fixed GitHub Actions CI pipeline so it preserves the latest source code and synchronizes base64 chunks
 - FLAG_SECURE window protection for educational materials

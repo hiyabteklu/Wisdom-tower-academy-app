@@ -210,6 +210,8 @@ private const val BOOK_PAGE_HELPERS_JS =
             "if(bytes<1024*1024)return (bytes/1024).toFixed(1)+' KB';" +
             "return (bytes/(1024*1024)).toFixed(1)+' MB';" +
         "}" +
+        "var existingHud=document.getElementById('wta-floating-download-hud');" +
+        "if(existingHud&&existingHud.parentNode){existingHud.parentNode.removeChild(existingHud);}" +
         "if(!window.__wta_fetch_probe_hook&&window.fetch){" +
             "window.__wta_fetch_probe_hook=true;" +
             "var _origFetch=window.fetch;" +
@@ -337,75 +339,54 @@ private const val BOOK_PAGE_HELPERS_JS =
                         "var fullU=(typeof URL==='function'&&u)?(new URL(u,window.location.href)).href:u;" +
                         "var _pTimer=setInterval(function(){" +
                             "try{" +
+                                "var isBookOpen=Boolean(document.querySelector('[data-page],canvas,.react-pdf__Page,[data-pdf-page],button[title=\"Top\"],input[type=\"number\"]'));" +
+                                "if(isBookOpen){" +
+                                    "clearInterval(_pTimer);" +
+                                    "return;" +
+                                "}" +
                                 "var raw=window.AndroidOfflineVault.getDownloadProgress(u)||" +
                                         "window.AndroidOfflineVault.getDownloadProgress(fullU)||" +
                                         "window.AndroidOfflineVault.getDownloadProgress('');" +
                                 "if(raw){" +
                                     "var p=JSON.parse(raw);" +
                                     "if(p&&p.loaded>0){" +
-                                        "var tot=(p.total>0)?p.total:(p.loaded+500000);" +
-                                        "var pct=Math.min(99,Math.round((p.loaded/tot)*100));" +
+                                        "var tot=(p.total>0)?p.total:(p.loaded);" +
+                                        "var pct=(tot>0)?Math.min(100,Math.round((p.loaded/tot)*100)):0;" +
                                         "var loadedStr=formatBytes(p.loaded);" +
                                         "var totStr=formatBytes(tot);" +
                                         "window.dispatchEvent(new CustomEvent('wta:download-progress',{detail:{url:u,loaded:p.loaded,total:tot,percent:pct}}));" +
-                                        "var pBars=document.querySelectorAll('[role=\"progressbar\"],.progress-bar,[data-progress]');" +
+                                        "var pBars=document.querySelectorAll('[role=\"progressbar\"],.progress-bar,[data-progress],div[class*=\"max-w-xs\"] div[class*=\"bg-cyan\"]');" +
                                         "for(var pi=0;pi<pBars.length;pi++){" +
                                             "pBars[pi].style.width=pct+'%';" +
                                             "pBars[pi].setAttribute('aria-valuenow',String(pct));" +
                                         "}" +
-                                        "var hud=document.getElementById('wta-floating-download-hud');" +
-                                        "if(!hud){" +
-                                            "hud=document.createElement('div');" +
-                                            "hud.id='wta-floating-download-hud';" +
-                                            "hud.style.cssText='position:fixed;bottom:76px;left:14px;right:14px;z-index:999999;background:rgba(8,14,26,0.96);backdrop-filter:blur(16px);border:1.2px solid rgba(0,229,255,0.45);box-shadow:0 12px 36px rgba(0,0,0,0.75);border-radius:18px;padding:12px 16px;color:#fff;font-family:system-ui,-apple-system,sans-serif;pointer-events:none;transition:opacity 0.3s ease;';" +
-                                            "document.body.appendChild(hud);" +
-                                        "}" +
-                                        "hud.innerHTML='<div style=\"display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;\">' +" +
-                                            "'<div style=\"display:flex;align-items:center;gap:8px;\">' +" +
-                                                "'<span style=\"display:inline-block;width:8px;height:8px;background:#00e5ff;border-radius:50%;box-shadow:0 0 8px #00e5ff;\"></span>' +" +
-                                                "'<span style=\"font-size:13px;font-weight:700;color:#fff;\">Downloading Book</span>' +" +
-                                            "'</div>' +" +
-                                            "'<span style=\"font-size:13px;font-weight:700;color:#00e5ff;font-variant-numeric:tabular-nums;\">' + pct + '%</span>' +" +
-                                        "'</div>' +" +
-                                        "'<div style=\"height:6px;width:100%;background:rgba(255,255,255,0.15);border-radius:3px;overflow:hidden;margin-bottom:6px;\">' +" +
-                                            "'<div style=\"height:100%;width:' + pct + '%;background:linear-gradient(90deg,#00e5ff,#38bdf8);border-radius:3px;transition:width 0.1s linear;\"></div>' +" +
-                                        "'</div>' +" +
-                                        "'<div style=\"display:flex;justify-content:space-between;font-size:11px;color:#94a3b8;font-weight:600;font-variant-numeric:tabular-nums;\">' +" +
-                                            "'<span>' + loadedStr + ' downloaded</span>' +" +
-                                            "'<span>' + totStr + ' total</span>' +" +
-                                        "'</div>';" +
-                                        "var modTexts=document.querySelectorAll('[role=\"dialog\"] span,[role=\"dialog\"] p,.modal-content span,.modal-content p,.progress-text,[data-progress-text]');" +
-                                        "for(var ti=0;ti<modTexts.length;ti++){" +
-                                            "var tEl=modTexts[ti];" +
+                                        "var textEls=document.querySelectorAll('p[class*=\"tabular-nums\"],.tabular-nums,[role=\"dialog\"] p,[role=\"dialog\"] span,.modal-content p');" +
+                                        "for(var ti=0;ti<textEls.length;ti++){" +
+                                            "var tEl=textEls[ti];" +
                                             "if(tEl.children.length>0)continue;" +
                                             "var tt=(tEl.textContent||'').trim();" +
-                                            "if(tt.indexOf('Downloading')!==-1||tt.indexOf('%')!==-1||tt.indexOf('downloading')!==-1){" +
-                                                "tEl.textContent='Downloading ' + pct + '% (' + loadedStr + ' / ' + totStr + ')';" +
+                                            "if(tt.indexOf('/')!==-1&&(tt.indexOf('MB')!==-1||tt.indexOf('KB')!==-1)){" +
+                                                "tEl.textContent=pct+'% • '+loadedStr+' / '+totStr;" +
                                             "}" +
                                         "}" +
                                         "var btns=document.querySelectorAll('button');" +
                                         "for(var bi=0;bi<btns.length;bi++){" +
                                             "var bEl=btns[bi];" +
                                             "var bText=(bEl.textContent||'').trim();" +
-                                            "if(bText.indexOf('Download')!==-1||bText.indexOf('%')!==-1){" +
-                                                "bEl.innerHTML='<span style=\"display:inline-flex;align-items:center;gap:6px;\">Downloading ' + pct + '% (' + loadedStr + ' / ' + totStr + ')</span>';" +
+                                            "if(bText.indexOf('Downloading')!==-1||bText.indexOf('Save')!==-1||bText.indexOf('Download')!==-1){" +
+                                                "if(bText.indexOf('(')!==-1||bText.indexOf('%')!==-1||bText.indexOf('•')!==-1){" +
+                                                    "bEl.innerHTML='<span style=\"display:inline-flex;align-items:center;gap:6px;\">Downloading ' + pct + '% (' + loadedStr + ' / ' + totStr + ')</span>';" +
+                                                "}" +
                                             "}" +
                                         "}" +
-                                        "if(p.loaded>=tot){" +
+                                        "if(p.loaded>=tot&&tot>0){" +
                                             "clearInterval(_pTimer);" +
-                                            "setTimeout(function(){" +
-                                                "var h=document.getElementById('wta-floating-download-hud');" +
-                                                "if(h){" +
-                                                    "h.style.opacity='0';" +
-                                                    "setTimeout(function(){if(h&&h.parentNode)h.parentNode.removeChild(h);},350);" +
-                                                "}" +
-                                            "},1500);" +
                                         "}" +
                                     "}" +
                                 "}" +
                             "}catch(_){}" +
-                        "},80);" +
-                        "setTimeout(function(){clearInterval(_pTimer);},90000);" +
+                        "},120);" +
+                        "setTimeout(function(){clearInterval(_pTimer);},45000);" +
                     "}" +
                 "}catch(err){}" +
             "},true);" +
