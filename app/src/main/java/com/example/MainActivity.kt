@@ -188,57 +188,47 @@ private const val NATIVE_CHROME_JS =
         "document.addEventListener('dragstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
         "document.addEventListener('selectionchange',function(){try{var s=window.getSelection();if(!s||s.isCollapsed)return;var a=s.anchorNode;var p=a?(a.nodeType===1?a:a.parentElement):null;if(p&&p.closest&&p.closest('input,textarea,[contenteditable=\"true\"]'))return;s.removeAllRanges();}catch(_){}});" +
         "}" +
-        "if(!window.__wta_interactive_loader_bound){" +
-            "window.__wta_interactive_loader_bound=true;" +
+        "if(!window.__wta_route_monitor){" +
+            "window.__wta_route_monitor=true;" +
             "var _navT=null;" +
-            "function _startNav(){" +
-                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingStarted==='function'){" +
-                    "window.AndroidOfflineVault.notifyLoadingStarted('Loading…');" +
-                "}" +
-                "clearTimeout(_navT);" +
-                "_navT=setTimeout(_stopNav,3500);" +
-            "}" +
-            "function _stopNav(){" +
-                "clearTimeout(_navT);" +
+            "function _cancelSlowNav(){" +
+                "if(_navT){clearTimeout(_navT);_navT=null;}" +
                 "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingFinished==='function'){" +
                     "window.AndroidOfflineVault.notifyLoadingFinished();" +
                 "}" +
             "}" +
+            "function _checkRouteNav(newUrl){" +
+                "if(!newUrl)return;" +
+                "var cur=window.location.pathname+window.location.search;" +
+                "var target=(typeof newUrl==='string'&&newUrl.indexOf('http')===0)?(new URL(newUrl,window.location.href)).pathname+(new URL(newUrl,window.location.href)).search:newUrl;" +
+                "if(target===cur||target==='#'||target.indexOf('javascript:')===0)return;" +
+                "if(_navT)clearTimeout(_navT);" +
+                "_navT=setTimeout(function(){" +
+                    "_navT=null;" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingStarted==='function'){" +
+                        "window.AndroidOfflineVault.notifyLoadingStarted();" +
+                    "}" +
+                "},400);" +
+            "}" +
             "var _origPush=history.pushState;" +
-            "history.pushState=function(){" +
-                "_startNav();" +
+            "history.pushState=function(s,t,u){" +
+                "if(u)_checkRouteNav(u);" +
                 "return _origPush.apply(this,arguments);" +
             "};" +
             "var _origReplace=history.replaceState;" +
-            "history.replaceState=function(){" +
-                "_startNav();" +
+            "history.replaceState=function(s,t,u){" +
+                "if(u)_checkRouteNav(u);" +
                 "return _origReplace.apply(this,arguments);" +
             "};" +
-            "document.addEventListener('click',function(e){" +
-                "var el=e.target;" +
-                "while(el&&el!==document.body){" +
-                    "var tag=(el.tagName||'').toLowerCase();" +
-                    "var href=el.getAttribute?(el.getAttribute('href')||''):'';" +
-                    "var cls=(el.className||'').toString().toLowerCase();" +
-                    "var isInteractive=cls.indexOf('card')!==-1||cls.indexOf('subject')!==-1||cls.indexOf('hub')!==-1||cls.indexOf('module')!==-1||cls.indexOf('item')!==-1||cls.indexOf('cursor-pointer')!==-1||(el.getAttribute&&(el.getAttribute('role')==='button'||el.hasAttribute('data-subject')||el.hasAttribute('data-slug')||el.hasAttribute('data-hub')));" +
-                    "if((tag==='a'&&href&&href.charAt(0)!=='#'&&href.indexOf('javascript:')===-1)||isInteractive){" +
-                        "if(!href||href.charAt(0)==='/'||href.indexOf('wisdom-tower-academy.live')!==-1){" +
-                            "_startNav();" +
-                        "}" +
-                        "break;" +
-                    "}" +
-                    "el=el.parentElement;" +
-                "}" +
-            "},true);" +
             "var _lastUrl=window.location.href;" +
             "var _obs=new MutationObserver(function(){" +
                 "if(window.location.href!==_lastUrl){" +
                     "_lastUrl=window.location.href;" +
-                    "setTimeout(_stopNav,200);" +
+                    "_cancelSlowNav();" +
                 "}" +
             "});" +
             "_obs.observe(document.documentElement,{subtree:true,childList:true});" +
-            "window.addEventListener('popstate',function(){setTimeout(_stopNav,200);});" +
+            "window.addEventListener('popstate',function(){_cancelSlowNav();});" +
         "}" +
         "}catch(e){}})();"
 
@@ -704,18 +694,35 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var pageRendered by remember { mutableStateOf(false) }
     var webProgress by remember { mutableIntStateOf(0) }
     var isNavigating by remember { mutableStateOf(false) }
+    var navShowRunnable by remember { mutableStateOf<Runnable?>(null) }
     var navTimeoutRunnable by remember { mutableStateOf<Runnable?>(null) }
 
-    val startNavigationLoading: () -> Unit = {
-        isNavigating = true
+    fun startNavigationLoading(delayMs: Long = 350L) {
+        navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        val r = Runnable { isNavigating = false }
-        navTimeoutRunnable = r
-        mainHandler.postDelayed(r, 3800L)
+        if (delayMs <= 0L) {
+            isNavigating = true
+            val timeout = Runnable { isNavigating = false }
+            navTimeoutRunnable = timeout
+            mainHandler.postDelayed(timeout, 3500L)
+        } else {
+            val show = Runnable {
+                isNavigating = true
+                val timeout = Runnable { isNavigating = false }
+                navTimeoutRunnable = timeout
+                mainHandler.postDelayed(timeout, 3500L)
+            }
+            navShowRunnable = show
+            mainHandler.postDelayed(show, delayMs)
+        }
     }
-    val stopNavigationLoading: () -> Unit = {
-        isNavigating = false
+
+    fun stopNavigationLoading() {
+        navShowRunnable?.let { mainHandler.removeCallbacks(it) }
+        navShowRunnable = null
         navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        navTimeoutRunnable = null
+        isNavigating = false
     }
 
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
@@ -1171,7 +1178,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun notifyLoadingStarted(msg: String?) {
                                     mainHandler.post {
-                                        startNavigationLoading()
+                                        startNavigationLoading(0L)
                                     }
                                 }
 
@@ -1186,7 +1193,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     webProgress = newProgress
-                                    if (newProgress >= 100) {
+                                    if (newProgress >= 80) {
                                         stopNavigationLoading()
                                     }
                                     if (newProgress >= 70) {
@@ -1501,22 +1508,17 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Centered Big Circular Loader for all page transitions and loading waits
+                // Centered Circular Loader for page transitions and loading waits
                 AnimatedVisibility(
-                    visible = isNavigating || (webProgress in 1..95 && !isInitialLoading),
-                    enter = fadeIn(tween(160)),
-                    exit = fadeOut(tween(200)),
+                    visible = isNavigating && !isInitialLoading,
+                    enter = fadeIn(tween(140)),
+                    exit = fadeOut(tween(160)),
                     modifier = Modifier
                         .fillMaxSize()
                         .zIndex(100f)
                 ) {
                     CenteredBigCircularLoader(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0x66030712)),
-                        statusText = "Wisdom Tower Academy",
-                        subText = "Loading…",
-                        progress = webProgress,
+                        modifier = Modifier.fillMaxSize(),
                         isSplash = false
                     )
                 }
@@ -1797,61 +1799,23 @@ private fun CenteredBigCircularLoader(
                 }
             }
         } else {
-            // Compact usual loader on a subtle frosted card with ambient backdrop
+            // Circular only with subtle circular transparent background (no card, no box)
             Box(
                 modifier = Modifier
-                    .clip(RoundedCornerShape(22.dp))
-                    .background(Color(0xF20B1528))
-                    .border(
-                        1.dp,
-                        Brush.verticalGradient(
-                            listOf(
-                                Color(0x4400E5FF),
-                                Color(0x2238BDF8),
-                                Color(0x18818CF8)
-                            )
-                        ),
-                        RoundedCornerShape(22.dp)
-                    )
-                    .padding(horizontal = 26.dp, vertical = 20.dp)
+                    .size(80.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x40070E1A))
+                    .border(1.dp, Color(0x3300E5FF), CircleShape),
+                contentAlignment = Alignment.Center
             ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    FuturisticGearRings(
-                        size = 86.dp,
-                        brandSize = 46.dp,
-                        numTicks = 14,
-                        tickInnerRatio = 0.68f,
-                        tickOuterRatio = 0.88f,
-                        tickWidth = 3.dp
-                    )
-
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Text(
-                        text = statusText,
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.2.sp
-                    )
-
-                    Spacer(modifier = Modifier.height(3.dp))
-
-                    Text(
-                        text = subText,
-                        color = Muted,
-                        fontSize = 11.5.sp,
-                        fontWeight = FontWeight.Normal
-                    )
-
-                    if (progress in 1..99) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LoaderProgressPill(progress = progress, compact = true)
-                    }
-                }
+                FuturisticGearRings(
+                    size = 76.dp,
+                    brandSize = 40.dp,
+                    numTicks = 14,
+                    tickInnerRatio = 0.68f,
+                    tickOuterRatio = 0.88f,
+                    tickWidth = 2.5.dp
+                )
             }
         }
     }
