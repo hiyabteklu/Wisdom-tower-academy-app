@@ -4,7 +4,7 @@ Includes:
 - Full working MainActivity synchronized with all recent features
 - Content protection: CSS user-select:none and event listeners blocking copy, cut, drag, contextmenu (inputs/textareas preserved)
 - Clean in-place book download progress: updates existing progress bar and small tabular byte/percent text directly (no competing or floating bars)
-- Universal Big Centered Circular Loader with high-speed neon orbital rings and brand loader
+- Futuristic fast-spinning cyber loader: dual opposite-direction neon rings with radial outward thick gear teeth/cog ticks, centered compact subtle frosted dark glass card, and instant interactive feedback for cards/subjects/hubs
 - Fixed GitHub Actions CI pipeline so it preserves the latest source code and synchronizes base64 chunks
 - FLAG_SECURE window protection for educational materials
 - Double-back press to exit pattern

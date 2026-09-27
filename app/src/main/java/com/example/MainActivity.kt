@@ -128,7 +128,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -185,6 +187,58 @@ private const val NATIVE_CHROME_JS =
         "document.addEventListener('selectstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
         "document.addEventListener('dragstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
         "document.addEventListener('selectionchange',function(){try{var s=window.getSelection();if(!s||s.isCollapsed)return;var a=s.anchorNode;var p=a?(a.nodeType===1?a:a.parentElement):null;if(p&&p.closest&&p.closest('input,textarea,[contenteditable=\"true\"]'))return;s.removeAllRanges();}catch(_){}});" +
+        "}" +
+        "if(!window.__wta_interactive_loader_bound){" +
+            "window.__wta_interactive_loader_bound=true;" +
+            "var _navT=null;" +
+            "function _startNav(){" +
+                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingStarted==='function'){" +
+                    "window.AndroidOfflineVault.notifyLoadingStarted('Loading…');" +
+                "}" +
+                "clearTimeout(_navT);" +
+                "_navT=setTimeout(_stopNav,3500);" +
+            "}" +
+            "function _stopNav(){" +
+                "clearTimeout(_navT);" +
+                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingFinished==='function'){" +
+                    "window.AndroidOfflineVault.notifyLoadingFinished();" +
+                "}" +
+            "}" +
+            "var _origPush=history.pushState;" +
+            "history.pushState=function(){" +
+                "_startNav();" +
+                "return _origPush.apply(this,arguments);" +
+            "};" +
+            "var _origReplace=history.replaceState;" +
+            "history.replaceState=function(){" +
+                "_startNav();" +
+                "return _origReplace.apply(this,arguments);" +
+            "};" +
+            "document.addEventListener('click',function(e){" +
+                "var el=e.target;" +
+                "while(el&&el!==document.body){" +
+                    "var tag=(el.tagName||'').toLowerCase();" +
+                    "var href=el.getAttribute?(el.getAttribute('href')||''):'';" +
+                    "var cls=(el.className||'').toString().toLowerCase();" +
+                    "var isInteractive=cls.indexOf('card')!==-1||cls.indexOf('subject')!==-1||cls.indexOf('hub')!==-1||cls.indexOf('module')!==-1||cls.indexOf('item')!==-1||cls.indexOf('cursor-pointer')!==-1||(el.getAttribute&&(el.getAttribute('role')==='button'||el.hasAttribute('data-subject')||el.hasAttribute('data-slug')||el.hasAttribute('data-hub')));" +
+                    "if((tag==='a'&&href&&href.charAt(0)!=='#'&&href.indexOf('javascript:')===-1)||isInteractive){" +
+                        "if(!href||href.charAt(0)==='/'||href.indexOf('wisdom-tower-academy.live')!==-1){" +
+                            "_startNav();" +
+                        "}" +
+                        "break;" +
+                    "}" +
+                    "el=el.parentElement;" +
+                "}" +
+            "},true);" +
+            "var _lastUrl=window.location.href;" +
+            "var _obs=new MutationObserver(function(){" +
+                "if(window.location.href!==_lastUrl){" +
+                    "_lastUrl=window.location.href;" +
+                    "setTimeout(_stopNav,200);" +
+                "}" +
+            "});" +
+            "_obs.observe(document.documentElement,{subtree:true,childList:true});" +
+            "window.addEventListener('popstate',function(){setTimeout(_stopNav,200);});" +
         "}" +
         "}catch(e){}})();"
 
@@ -650,6 +704,19 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var pageRendered by remember { mutableStateOf(false) }
     var webProgress by remember { mutableIntStateOf(0) }
     var isNavigating by remember { mutableStateOf(false) }
+    var navTimeoutRunnable by remember { mutableStateOf<Runnable?>(null) }
+
+    val startNavigationLoading: () -> Unit = {
+        isNavigating = true
+        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        val r = Runnable { isNavigating = false }
+        navTimeoutRunnable = r
+        mainHandler.postDelayed(r, 3800L)
+    }
+    val stopNavigationLoading: () -> Unit = {
+        isNavigating = false
+        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+    }
 
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
     var showOnboarding by remember { mutableStateOf(!hasCompletedOnboarding(context)) }
@@ -733,7 +800,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
     fun showOffline(wv: WebView) {
         isInitialLoading = false
-        isNavigating = false
+        stopNavigationLoading()
         wv.loadUrl(OFFLINE_ASSET)
     }
 
@@ -741,7 +808,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
         val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
         if (resetHistory) pendingClearHistory = true
-        isNavigating = true
+        startNavigationLoading()
         webProgress = 20
 
         val online = isOnline(context)
@@ -903,7 +970,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = webView
                                     val currentUrl = wv?.url ?: ""
                                     if (wv != null) {
-                                        isNavigating = true
+                                        startNavigationLoading()
                                         webProgress = 15
                                         if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
                                             if (isOnline(context)) {
@@ -1100,13 +1167,27 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show()
                                     }
                                 }
+
+                                @JavascriptInterface
+                                fun notifyLoadingStarted(msg: String?) {
+                                    mainHandler.post {
+                                        startNavigationLoading()
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun notifyLoadingFinished() {
+                                    mainHandler.post {
+                                        stopNavigationLoading()
+                                    }
+                                }
                             }, "AndroidOfflineVault")
 
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     webProgress = newProgress
                                     if (newProgress >= 100) {
-                                        isNavigating = false
+                                        stopNavigationLoading()
                                     }
                                     if (newProgress >= 70) {
                                         pageRendered = true
@@ -1124,7 +1205,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     }
                                     if (url != null && url.startsWith("file:///android_asset/")) {
                                         isInitialLoading = false
-                                        isNavigating = false
+                                        stopNavigationLoading()
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
@@ -1138,7 +1219,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (minSplashElapsed) {
                                         isInitialLoading = false
                                     }
-                                    isNavigating = false
+                                    stopNavigationLoading()
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
@@ -1154,7 +1235,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (minSplashElapsed) {
                                         isInitialLoading = false
                                     }
-                                    isNavigating = false
+                                    stopNavigationLoading()
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
@@ -1430,10 +1511,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         .zIndex(100f)
                 ) {
                     CenteredBigCircularLoader(
-                        modifier = Modifier.background(Color(0xD9070E1B)),
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0x66030712)),
                         statusText = "Wisdom Tower Academy",
                         subText = "Loading…",
-                        progress = webProgress
+                        progress = webProgress,
+                        isSplash = false
                     )
                 }
 
@@ -1447,7 +1531,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         modifier = Modifier.background(BarBg),
                         statusText = "Wisdom Tower Academy",
                         subText = "Preparing your learning space…",
-                        progress = webProgress
+                        progress = webProgress,
+                        isSplash = true
                     )
                 }
             }
@@ -1638,9 +1723,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
 }
 
 /**
- * Universal high-speed centered circular animated loader (same big size as on splash).
- * Displays dual orbital neon cyan & violet spinning rings enclosing the brand animated GIF,
- * ambient glowing radial aura, clean typography, and zero emoji clutter.
+ * Universal high-speed centered circular animated loader.
+ * Futuristic cybernetic aesthetic:
+ * 1. Fast dual opposite-direction spinning neon rings (cyan & violet/indigo).
+ * 2. Radial outward thick gear ticks / cog teeth rotating fast between the two circles.
+ * 3. Subtle frosted card background with ambient glow (compact for page loads/navigation, full-screen for splash).
  */
 @Composable
 private fun CenteredBigCircularLoader(
@@ -1648,158 +1735,291 @@ private fun CenteredBigCircularLoader(
     statusText: String = "Wisdom Tower Academy",
     subText: String = "Loading…",
     progress: Int = 0,
+    isSplash: Boolean = false,
 ) {
     Box(
         modifier = modifier.fillMaxSize(),
         contentAlignment = Alignment.Center
     ) {
-        // Ambient radial glowing aura behind rings
-        Box(
-            modifier = Modifier
-                .size(240.dp)
-                .clip(CircleShape)
-                .background(
-                    Brush.radialGradient(
-                        listOf(
-                            Color(0x2E00E5FF),
-                            Color(0x0A00E5FF),
-                            Color.Transparent
+        if (isSplash) {
+            // Full-screen splash layout
+            Box(
+                modifier = Modifier
+                    .size(240.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                Color(0x2E00E5FF),
+                                Color(0x0A00E5FF),
+                                Color.Transparent
+                            )
                         )
                     )
-                )
-        )
+            )
 
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.padding(24.dp)
-        ) {
-            // High-speed dual orbital neon ring around the brand GIF (160.dp)
-            Box(
-                modifier = Modifier.size(160.dp),
-                contentAlignment = Alignment.Center
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(24.dp)
             ) {
-                val transition = rememberInfiniteTransition(label = "loaderRings")
-                val fastSpin by transition.animateFloat(
-                    initialValue = 0f,
-                    targetValue = 360f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1000, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    label = "fastSpin"
-                )
-                val counterSpin by transition.animateFloat(
-                    initialValue = 360f,
-                    targetValue = 0f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(1500, easing = LinearEasing),
-                        repeatMode = RepeatMode.Restart
-                    ),
-                    label = "counterSpin"
+                FuturisticGearRings(
+                    size = 160.dp,
+                    brandSize = 100.dp,
+                    numTicks = 18,
+                    tickInnerRatio = 0.70f,
+                    tickOuterRatio = 0.88f,
+                    tickWidth = 4.dp
                 )
 
-                Canvas(
-                    modifier = Modifier
-                        .size(154.dp)
-                        .rotate(fastSpin)
-                ) {
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            listOf(
-                                Color(0x0000E5FF),
-                                Color(0x4400E5FF),
-                                Color(0xFF00E5FF),
-                                Color(0xFF38BDF8)
-                            )
-                        ),
-                        startAngle = 0f,
-                        sweepAngle = 270f,
-                        useCenter = false,
-                        style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
+                Spacer(modifier = Modifier.height(20.dp))
 
-                Canvas(
-                    modifier = Modifier
-                        .size(138.dp)
-                        .rotate(counterSpin)
-                ) {
-                    drawArc(
-                        brush = Brush.sweepGradient(
-                            listOf(
-                                Color(0x00818CF8),
-                                Color(0x55818CF8),
-                                Color(0xFF00E5FF)
-                            )
-                        ),
-                        startAngle = 180f,
-                        sweepAngle = 210f,
-                        useCenter = false,
-                        style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round)
-                    )
-                }
+                Text(
+                    text = statusText,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.3.sp
+                )
 
-                // Brand animated GIF running in high-speed center (110.dp)
-                BrandLoader(size = 110.dp, showCard = false)
+                Spacer(modifier = Modifier.height(6.dp))
+
+                Text(
+                    text = subText,
+                    color = Muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal
+                )
+
+                if (progress in 1..99) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    LoaderProgressPill(progress = progress, compact = false)
+                }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = statusText,
-                color = Color.White,
-                fontSize = 17.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.3.sp
-            )
-
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Text(
-                text = subText,
-                color = Muted,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Normal
-            )
-
-            if (progress in 1..99) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x2600E5FF))
-                        .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 5.dp)
-                ) {
-                    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-                    val dotAlpha by infiniteTransition.animateFloat(
-                        initialValue = 0.4f,
-                        targetValue = 1f,
-                        animationSpec = infiniteRepeatable(
-                            animation = tween(400, easing = FastOutSlowInEasing),
-                            repeatMode = RepeatMode.Reverse
+        } else {
+            // Compact usual loader on a subtle frosted card with ambient backdrop
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(22.dp))
+                    .background(Color(0xF20B1528))
+                    .border(
+                        1.dp,
+                        Brush.verticalGradient(
+                            listOf(
+                                Color(0x4400E5FF),
+                                Color(0x2238BDF8),
+                                Color(0x18818CF8)
+                            )
                         ),
-                        label = "dotAlpha"
+                        RoundedCornerShape(22.dp)
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(6.dp)
-                            .clip(CircleShape)
-                            .background(Accent.copy(alpha = dotAlpha))
+                    .padding(horizontal = 26.dp, vertical = 20.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    FuturisticGearRings(
+                        size = 86.dp,
+                        brandSize = 46.dp,
+                        numTicks = 14,
+                        tickInnerRatio = 0.68f,
+                        tickOuterRatio = 0.88f,
+                        tickWidth = 3.dp
                     )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
                     Text(
-                        text = "Loading $progress%",
-                        color = Color(0xFF38BDF8),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.SemiBold,
+                        text = statusText,
+                        color = Color.White,
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
                         letterSpacing = 0.2.sp
                     )
+
+                    Spacer(modifier = Modifier.height(3.dp))
+
+                    Text(
+                        text = subText,
+                        color = Muted,
+                        fontSize = 11.5.sp,
+                        fontWeight = FontWeight.Normal
+                    )
+
+                    if (progress in 1..99) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LoaderProgressPill(progress = progress, compact = true)
+                    }
                 }
             }
         }
+    }
+}
+
+/**
+ * High-speed dual orbital neon rings with outward thick gear ticks / teeth rotating between them.
+ */
+@Composable
+private fun FuturisticGearRings(
+    size: Dp,
+    brandSize: Dp,
+    numTicks: Int,
+    tickInnerRatio: Float,
+    tickOuterRatio: Float,
+    tickWidth: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center
+    ) {
+        val transition = rememberInfiniteTransition(label = "futuristicGear")
+        val fastSpin by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(750, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "fastSpin"
+        )
+        val gearSpin by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(850, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "gearSpin"
+        )
+        val counterSpin by transition.animateFloat(
+            initialValue = 360f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(950, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "counterSpin"
+        )
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val centerOffset = Offset(this.size.width / 2f, this.size.height / 2f)
+            val outerRadius = this.size.width / 2f - 3.dp.toPx()
+            val innerRadius = outerRadius * 0.62f
+            val rGearInner = outerRadius * tickInnerRatio
+            val rGearOuter = outerRadius * tickOuterRatio
+            val tickPx = tickWidth.toPx()
+
+            // 1. Futuristic Gear base track circle
+            drawCircle(
+                color = Color(0x3300E5FF),
+                radius = rGearInner,
+                center = centerOffset,
+                style = Stroke(width = 1.dp.toPx())
+            )
+
+            // 2. Outward thick gear teeth / ticks spinning fast
+            for (i in 0 until numTicks) {
+                val tickAngle = gearSpin + (i * 360f / numTicks)
+                val rad = Math.toRadians(tickAngle.toDouble())
+                val cos = Math.cos(rad).toFloat()
+                val sin = Math.sin(rad).toFloat()
+                val p1 = Offset(centerOffset.x + rGearInner * cos, centerOffset.y + rGearInner * sin)
+                val p2 = Offset(centerOffset.x + rGearOuter * cos, centerOffset.y + rGearOuter * sin)
+                val tickColor = if (i % 2 == 0) Color(0xFF00E5FF) else Color(0xFF38BDF8)
+                drawLine(
+                    color = tickColor,
+                    start = p1,
+                    end = p2,
+                    strokeWidth = tickPx,
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // 3. Outer Neon Cyan Arc spinning fast (clockwise)
+            drawArc(
+                brush = Brush.sweepGradient(
+                    listOf(
+                        Color(0x0000E5FF),
+                        Color(0x5500E5FF),
+                        Color(0xFF00E5FF),
+                        Color(0xFF38BDF8)
+                    )
+                ),
+                startAngle = fastSpin,
+                sweepAngle = 270f,
+                useCenter = false,
+                topLeft = Offset(centerOffset.x - outerRadius, centerOffset.y - outerRadius),
+                size = androidx.compose.ui.geometry.Size(outerRadius * 2, outerRadius * 2),
+                style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            // 4. Inner Neon Violet Arc spinning fast in opposite direction (counter-clockwise)
+            drawArc(
+                brush = Brush.sweepGradient(
+                    listOf(
+                        Color(0x00818CF8),
+                        Color(0x55818CF8),
+                        Color(0xFF818CF8),
+                        Color(0xFF00E5FF)
+                    )
+                ),
+                startAngle = counterSpin,
+                sweepAngle = 220f,
+                useCenter = false,
+                topLeft = Offset(centerOffset.x - innerRadius, centerOffset.y - innerRadius),
+                size = androidx.compose.ui.geometry.Size(innerRadius * 2, innerRadius * 2),
+                style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+
+        // Brand animated GIF in center
+        BrandLoader(size = brandSize, showCard = false)
+    }
+}
+
+@Composable
+private fun LoaderProgressPill(
+    progress: Int,
+    compact: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0x2600E5FF))
+            .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
+            .padding(
+                horizontal = if (compact) 9.dp else 12.dp,
+                vertical = if (compact) 3.5.dp else 5.dp
+            )
+    ) {
+        val infiniteTransition = rememberInfiniteTransition(label = "loaderPulse")
+        val dotAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.4f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "loaderDotAlpha"
+        )
+        Box(
+            modifier = Modifier
+                .size(if (compact) 5.dp else 6.dp)
+                .clip(CircleShape)
+                .background(Accent.copy(alpha = dotAlpha))
+        )
+        Text(
+            text = "Loading $progress%",
+            color = Color(0xFF38BDF8),
+            fontSize = if (compact) 10.sp else 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.2.sp
+        )
     }
 }
 
