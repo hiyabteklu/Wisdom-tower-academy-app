@@ -71,6 +71,13 @@ def from_known_good() -> None:
     write_raw(raw)
 
 
+# Check if MainActivity.kt is already valid and present
+if target.exists() and target.stat().st_size > 50000:
+    current_bytes = target.read_bytes()
+    if b"class MainActivity" in current_bytes:
+        print(f"MainActivity.kt is already valid and present ({len(current_bytes)} bytes). Preserving latest source.")
+        sys.exit(0)
+
 if try_blobs():
     sys.exit(0)
 
