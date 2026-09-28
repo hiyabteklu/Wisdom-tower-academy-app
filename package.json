@@ -1,0 +1,10 @@
+{
+  "name": "wisdom-tower-academy",
+  "version": "1.0.0",
+  "description": "Wisdom Tower Academy education platform Android app and dev preview.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  }
+}
