@@ -7,6 +7,7 @@ import android.graphics.Color as AndroidColor
 import android.net.Uri
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -14,6 +15,7 @@ import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.ViewGroup
 import android.view.WindowManager
+import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
@@ -167,16 +169,16 @@ private const val MIN_SPLASH_DISPLAY_MS = 2200L
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
         "document.documentElement.classList.add('wta-native-app');" +
-        "if(document.body){document.body.classList.add('wta-native-app');document.body.style.pointerEvents='auto';}" +
+        "if(document.body){document.body.classList.add('wta-native-app');}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
-        "if(!s){s=document.createElement('style');s.id=id;document.documentElement.appendChild(s);}" +
+        "if(!s){s=document.createElement('style');s.id=id;document.head?document.head.appendChild(s):document.documentElement.appendChild(s);}" +
         "s.textContent=" +
         "'header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
         "[data-nprogress],#nextjs-toploader,.nextjs-toploader" +
         "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
-        "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.documentElement.appendChild(cs);}" +
+        "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
         "cs.textContent=" +
         "'*,html,body,div,p,span,h1,h2,h3,h4,h5,h6,a,li,table,td,th,article,section,main,pre,code{" +
         "-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}" +
@@ -187,68 +189,15 @@ private const val NATIVE_CHROME_JS =
         "document.addEventListener('copy',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;},true);" +
         "document.addEventListener('cut',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
         "document.addEventListener('contextmenu',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
-        "document.addEventListener('selectstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
         "document.addEventListener('dragstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
-        "document.addEventListener('selectionchange',function(){try{var s=window.getSelection();if(!s||s.isCollapsed)return;var a=s.anchorNode;var p=a?(a.nodeType===1?a:a.parentElement):null;if(p&&p.closest&&p.closest('input,textarea,[contenteditable=\"true\"]'))return;s.removeAllRanges();}catch(_){}});" +
         "}" +
         "if(!window.__wta_route_monitor){" +
             "window.__wta_route_monitor=true;" +
-            "var _navT=null;" +
-            "function _cancelSlowNav(){" +
-                "if(_navT){clearTimeout(_navT);_navT=null;}" +
+            "window.addEventListener('popstate',function(){" +
                 "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingFinished==='function'){" +
                     "window.AndroidOfflineVault.notifyLoadingFinished();" +
                 "}" +
-            "}" +
-            "function _checkRouteNav(newUrl){" +
-                "if(!newUrl)return;" +
-                "var cur=window.location.pathname+window.location.search;" +
-                "var target=(typeof newUrl==='string'&&newUrl.indexOf('http')===0)?(new URL(newUrl,window.location.href)).pathname+(new URL(newUrl,window.location.href)).search:newUrl;" +
-                "if(target===cur||target==='#'||target.indexOf('javascript:')===0)return;" +
-                "if(_navT)clearTimeout(_navT);" +
-                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingStarted==='function'){" +
-                    "window.AndroidOfflineVault.notifyLoadingStarted();" +
-                "}" +
-                "_navT=setTimeout(function(){" +
-                    "if(!navigator.onLine&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                        "window.AndroidOfflineVault.showOfflinePage();" +
-                    "}" +
-                "},7000);" +
-            "}" +
-            "document.addEventListener('click',function(e){" +
-                "var t=e.target;" +
-                "var a=t?(t.closest?t.closest('a'):null):null;" +
-                "if(a&&a.href&&!a.href.startsWith('javascript:')&&!a.href.includes('#')){" +
-                    "if(!navigator.onLine){" +
-                        "e.preventDefault();" +
-                        "e.stopPropagation();" +
-                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                            "window.AndroidOfflineVault.showOfflinePage();" +
-                        "}" +
-                        "return false;" +
-                    "}" +
-                    "_checkRouteNav(a.href);" +
-                "}" +
-            "},true);" +
-            "var _origPush=history.pushState;" +
-            "history.pushState=function(s,t,u){" +
-                "if(u)_checkRouteNav(u);" +
-                "return _origPush.apply(this,arguments);" +
-            "};" +
-            "var _origReplace=history.replaceState;" +
-            "history.replaceState=function(s,t,u){" +
-                "if(u)_checkRouteNav(u);" +
-                "return _origReplace.apply(this,arguments);" +
-            "};" +
-            "var _lastUrl=window.location.href;" +
-            "var _obs=new MutationObserver(function(){" +
-                "if(window.location.href!==_lastUrl){" +
-                    "_lastUrl=window.location.href;" +
-                    "_cancelSlowNav();" +
-                "}" +
             "});" +
-            "_obs.observe(document.documentElement,{subtree:true,childList:true});" +
-            "window.addEventListener('popstate',function(){_cancelSlowNav();});" +
         "}" +
         "}catch(e){}})();"
 
@@ -257,82 +206,20 @@ private const val PRECACHE_AND_UNBLOCK_JS =
         "var imgs=document.querySelectorAll('img[loading=\"lazy\"]');" +
         "for(var i=0;i<imgs.length;i++){imgs[i].removeAttribute('loading');imgs[i].setAttribute('decoding','async');}" +
         "if('serviceWorker' in navigator&&navigator.serviceWorker.controller){" +
-            "var links=document.querySelectorAll('a[href^=\"/\"],a[href*=\"wisdom-tower-academy.live\"]');" +
-            "var urls=[];" +
-            "for(var j=0;j<Math.min(links.length,25);j++){" +
-                "var h=links[j].href;" +
-                "if(h&&!h.includes('#')&&!h.includes('logout')&&urls.indexOf(h)===-1)urls.push(h);" +
-            "}" +
-            "if(urls.length>0){" +
-                "navigator.serviceWorker.controller.postMessage({type:'PRECACHE_URLS',urls:urls});" +
-            "}" +
+        "var links=document.querySelectorAll('a[href^=\"/\"],a[href*=\"wisdom-tower-academy.live\"]');" +
+        "var urls=[];" +
+        "for(var j=0;j<Math.min(links.length,25);j++){" +
+            "var h=links[j].href;" +
+            "if(h&&!h.includes('#')&&!h.includes('logout')&&urls.indexOf(h)===-1)urls.push(h);" +
+        "}" +
+        "if(urls.length>0){" +
+            "navigator.serviceWorker.controller.postMessage({type:'PRECACHE_URLS',urls:urls});" +
+        "}" +
         "}" +
     "}catch(e){}})();"
 
 private const val BOOK_PAGE_HELPERS_JS =
     "(function(){try{" +
-        "if(window.AndroidOfflineVault&&!window.__wta_vault_synced){" +
-            "window.__wta_vault_synced=true;" +
-        "}" +
-        "function formatBytes(bytes){" +
-            "if(!bytes||bytes<=0)return '';" +
-            "if(bytes<1024*1024)return (bytes/1024).toFixed(1)+' KB';" +
-            "return (bytes/(1024*1024)).toFixed(1)+' MB';" +
-        "}" +
-        "var existingHud=document.getElementById('wta-floating-download-hud');" +
-        "if(existingHud&&existingHud.parentNode){existingHud.parentNode.removeChild(existingHud);}" +
-        "if(!window.__wta_fetch_probe_hook&&window.fetch){" +
-            "window.__wta_fetch_probe_hook=true;" +
-            "var _origFetch=window.fetch;" +
-            "window.fetch=function(input,init){" +
-                "var urlStr=(typeof input==='string')?input:(input&&input.url?input.url:'');" +
-                "if(urlStr&&(urlStr.indexOf('/api/content/pdf')!==-1||urlStr.indexOf('.pdf')!==-1)){" +
-                    "window.__wta_current_pdf_url=urlStr;" +
-                    "var m=(init&&init.method)?init.method.toUpperCase():(input&&input.method?input.method.toUpperCase():'GET');" +
-                    "var h=(init&&init.headers)?init.headers:(input&&input.headers?input.headers:null);" +
-                    "var isRangeProbe=false;" +
-                    "if(h){" +
-                        "var r='';" +
-                        "if(typeof h.get==='function'){r=h.get('Range')||h.get('range')||'';}" +
-                        "else if(Array.isArray(h)){" +
-                            "for(var hi=0;hi<h.length;hi++){" +
-                                "if(h[hi]&&h[hi][0]&&h[hi][0].toLowerCase()==='range'){r=h[hi][1];break;}" +
-                            "}" +
-                        "}else if(typeof h==='object'){r=h.Range||h.range||'';}" +
-                        "if(r&&(r.indexOf('bytes=0-0')!==-1||r.indexOf('bytes=0-1')!==-1))isRangeProbe=true;" +
-                    "}" +
-                    "if(m==='HEAD'||isRangeProbe){" +
-                        "var fullUrl=(typeof URL==='function')?(new URL(urlStr,window.location.href)).href:urlStr;" +
-                        "var sz=0;" +
-                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
-                            "sz=window.AndroidOfflineVault.getPdfSize(fullUrl);" +
-                            "if(!sz||sz<=0)sz=window.AndroidOfflineVault.getPdfSize(urlStr);" +
-                        "}" +
-                        "if(!sz||sz<=0){" +
-                            "var titleEl=document.querySelector('h1,h2,h3,.font-display,[data-book-title],[data-title]');" +
-                            "var titleText=(titleEl?titleEl.textContent:'')||'';" +
-                            "if(titleText&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSizeByTitle==='function'){" +
-                                "sz=window.AndroidOfflineVault.getPdfSizeByTitle(titleText);" +
-                            "}" +
-                        "}" +
-                        "var respH=new Headers();" +
-                        "respH.set('Content-Type','application/pdf');" +
-                        "respH.set('Accept-Ranges','bytes');" +
-                        "respH.set('Access-Control-Expose-Headers','Content-Length, Content-Range, Accept-Ranges, Content-Type');" +
-                        "if(sz&&sz>0){" +
-                            "respH.set('Content-Length',String(sz));" +
-                            "respH.set('Content-Range','bytes 0-0/'+sz);" +
-                            "var status=(m==='HEAD')?200:206;" +
-                            "var statusText=(m==='HEAD')?'OK':'Partial Content';" +
-                            "return Promise.resolve(new Response(new Uint8Array(1),{status:status,statusText:statusText,headers:respH}));" +
-                        "}else{" +
-                            "return Promise.resolve(new Response(new Uint8Array(0),{status:503,statusText:'Size Unknown',headers:respH}));" +
-                        "}" +
-                    "}" +
-                "}" +
-                "return _origFetch.apply(this,arguments);" +
-            "};" +
-        "}" +
         "if(!window.__wta_route_hook){" +
             "window.__wta_route_hook=true;" +
             "function syncRoute(){" +
@@ -383,153 +270,21 @@ private const val BOOK_PAGE_HELPERS_JS =
                     "if(isCached){" +
                         "e.preventDefault();" +
                         "e.stopPropagation();" +
-                        "var orig=btn.innerHTML;" +
-                        "btn.innerHTML='<span style=\"display:inline-flex;align-items:center;gap:6px;\">Already downloaded — opening…</span>';" +
-                        "btn.disabled=true;" +
                         "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.openCachedPdf==='function'){" +
                             "window.AndroidOfflineVault.openCachedPdf(u);" +
                         "}else if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.markDownloadStarted==='function'){" +
                             "window.AndroidOfflineVault.markDownloadStarted(u);" +
                         "}" +
-                        "setTimeout(function(){btn.disabled=false;btn.innerHTML=orig;},2500);" +
                         "return;" +
                     "}" +
-                    "if(_wta_download_in_flight){" +
-                        "e.preventDefault();" +
-                        "e.stopPropagation();" +
-                        "return;" +
-                    "}" +
+                    "if(_wta_download_in_flight)return;" +
                     "_wta_download_in_flight=true;" +
                     "setTimeout(function(){_wta_download_in_flight=false;},8000);" +
                     "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.markDownloadStarted==='function'){" +
                         "window.AndroidOfflineVault.markDownloadStarted(u);" +
                     "}" +
-                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getDownloadProgress==='function'){" +
-                        "var fullU=(typeof URL==='function'&&u)?(new URL(u,window.location.href)).href:u;" +
-                        "var _pTimer=setInterval(function(){" +
-                            "try{" +
-                                "var isBookOpen=Boolean(document.querySelector('[data-page],canvas,.react-pdf__Page,[data-pdf-page],button[title=\"Top\"],input[type=\"number\"]'));" +
-                                "if(isBookOpen){" +
-                                    "clearInterval(_pTimer);" +
-                                    "return;" +
-                                "}" +
-                                "var raw=window.AndroidOfflineVault.getDownloadProgress(u)||" +
-                                        "window.AndroidOfflineVault.getDownloadProgress(fullU)||" +
-                                        "window.AndroidOfflineVault.getDownloadProgress('');" +
-                                "if(raw){" +
-                                    "var p=JSON.parse(raw);" +
-                                    "if(p&&p.loaded>0){" +
-                                        "var tot=(p.total>0)?p.total:(p.loaded);" +
-                                        "var pct=(tot>0)?Math.min(100,Math.round((p.loaded/tot)*100)):0;" +
-                                        "var loadedStr=formatBytes(p.loaded);" +
-                                        "var totStr=formatBytes(tot);" +
-                                        "window.dispatchEvent(new CustomEvent('wta:download-progress',{detail:{url:u,loaded:p.loaded,total:tot,percent:pct}}));" +
-                                        "var pBars=document.querySelectorAll('[role=\"progressbar\"],.progress-bar,[data-progress],div[class*=\"max-w-xs\"] div[class*=\"bg-cyan\"]');" +
-                                        "for(var pi=0;pi<pBars.length;pi++){" +
-                                            "pBars[pi].style.width=pct+'%';" +
-                                            "pBars[pi].setAttribute('aria-valuenow',String(pct));" +
-                                        "}" +
-                                        "var textEls=document.querySelectorAll('p[class*=\"tabular-nums\"],.tabular-nums,[role=\"dialog\"] p,[role=\"dialog\"] span,.modal-content p');" +
-                                        "for(var ti=0;ti<textEls.length;ti++){" +
-                                            "var tEl=textEls[ti];" +
-                                            "if(tEl.children.length>0)continue;" +
-                                            "var tt=(tEl.textContent||'').trim();" +
-                                            "if(tt.indexOf('/')!==-1&&(tt.indexOf('MB')!==-1||tt.indexOf('KB')!==-1)){" +
-                                                "tEl.textContent=pct+'% • '+loadedStr+' / '+totStr;" +
-                                            "}" +
-                                        "}" +
-                                        "var btns=document.querySelectorAll('button');" +
-                                        "for(var bi=0;bi<btns.length;bi++){" +
-                                            "var bEl=btns[bi];" +
-                                            "var bText=(bEl.textContent||'').trim();" +
-                                            "if(bText.indexOf('Downloading')!==-1||bText.indexOf('Save')!==-1||bText.indexOf('Download')!==-1){" +
-                                                "if(bText.indexOf('(')!==-1||bText.indexOf('%')!==-1||bText.indexOf('•')!==-1){" +
-                                                    "bEl.innerHTML='<span style=\"display:inline-flex;align-items:center;gap:6px;\">Downloading ' + pct + '% (' + loadedStr + ' / ' + totStr + ')</span>';" +
-                                                "}" +
-                                            "}" +
-                                        "}" +
-                                        "if(p.loaded>=tot&&tot>0){" +
-                                            "clearInterval(_pTimer);" +
-                                        "}" +
-                                    "}" +
-                                "}" +
-                            "}catch(_){}" +
-                        "},120);" +
-                        "setTimeout(function(){clearInterval(_pTimer);},45000);" +
-                    "}" +
                 "}catch(err){}" +
             "},true);" +
-        "}" +
-        "function updatePdfPreOpenLabels(){" +
-            "try{" +
-                "var path=window.location.pathname||'';" +
-                "var hasPdfModal=document.querySelector('[data-book-download],button[data-url*=\".pdf\"],button[data-url*=\"/api/content/pdf\"],a[href*=\"/api/content/pdf\"],a[href*=\".pdf\"]');" +
-                "var isBookContext=(path.indexOf('/read')!==-1||path.indexOf('/book')!==-1||path.indexOf('/material')!==-1||path.indexOf('/content')!==-1||Boolean(hasPdfModal));" +
-                "if(!isBookContext)return;" +
-                "var targetUrl=window.__wta_current_pdf_url||'';" +
-                "if(!targetUrl&&hasPdfModal){" +
-                    "targetUrl=(typeof hasPdfModal.getAttribute==='function')?(hasPdfModal.getAttribute('href')||hasPdfModal.getAttribute('data-url')||''):'';" +
-                "}" +
-                "if(!targetUrl)return;" +
-                "var fullUrl=targetUrl?((typeof URL==='function')?(new URL(targetUrl,window.location.href)).href:targetUrl):'';" +
-                "var sz=0;" +
-                "if(fullUrl&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
-                    "sz=window.AndroidOfflineVault.getPdfSize(fullUrl);" +
-                "}" +
-                "if((!sz||sz<=0)&&targetUrl&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSize==='function'){" +
-                    "sz=window.AndroidOfflineVault.getPdfSize(targetUrl);" +
-                "}" +
-                "if(!sz||sz<=0){" +
-                    "var titleEl=document.querySelector('h1,h2,h3,.font-display,[data-book-title],[data-title]');" +
-                    "var titleText=(titleEl?titleEl.textContent:'')||'';" +
-                    "if(titleText&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.getPdfSizeByTitle==='function'){" +
-                        "sz=window.AndroidOfflineVault.getPdfSizeByTitle(titleText);" +
-                    "}" +
-                "}" +
-                "if(sz&&sz>0){" +
-                    "var labelText=formatBytes(sz);" +
-                    "var btns=document.querySelectorAll('button,a[data-download],a[download]');" +
-                    "for(var b=0;b<btns.length;b++){" +
-                        "var btn=btns[b];" +
-                        "var bt=(btn.textContent||'').trim();" +
-                        "if((bt.indexOf('Download & open')!==-1||bt==='Download'||bt.indexOf('Download (')!==-1)&&bt.indexOf('Already')===-1&&bt.indexOf('%')===-1){" +
-                            "var badge=btn.querySelector('.wta-size-badge');" +
-                            "if(!badge&&bt.indexOf('(')===-1){" +
-                                "var span=document.createElement('span');" +
-                                "span.className='wta-size-badge opacity-90 font-semibold tabular-nums ml-1.5 px-2 py-0.5 rounded bg-cyan-500/20 text-cyan-300 text-xs';" +
-                                "span.textContent='('+labelText+')';" +
-                                "btn.appendChild(span);" +
-                            "}else if(badge){" +
-                                "badge.textContent='('+labelText+')';" +
-                            "}" +
-                        "}" +
-                    "}" +
-                    "var modals=document.querySelectorAll('[role=\"dialog\"],[data-book-modal],.modal-content,[data-download-modal],[data-book-download]');" +
-                    "for(var mi=0;mi<modals.length;mi++){" +
-                        "var mEl=modals[mi];" +
-                        "var mText=(mEl.textContent||'');" +
-                        "if(mText.indexOf('Download')===-1&&mText.indexOf('PDF')===-1&&mText.indexOf('Book')===-1)continue;" +
-                        "if(mText.indexOf('STREAK')!==-1||mText.indexOf('Streak')!==-1||mText.indexOf('EXAM')!==-1||mText.indexOf('Exam')!==-1)continue;" +
-                        "var leafEls=mEl.querySelectorAll('span,p,div');" +
-                        "for(var li=0;li<leafEls.length;li++){" +
-                            "var leaf=leafEls[li];" +
-                            "if(leaf.children.length>0)continue;" +
-                            "var lt=(leaf.textContent||'').trim();" +
-                            "if(lt.indexOf('Checking size')!==-1){" +
-                                "leaf.textContent=lt.replace(/Checking size[….]*/g,labelText);" +
-                            "}else if(lt==='· Size unknown'||lt==='Size unknown'){" +
-                                "leaf.textContent='· '+labelText;" +
-                            "}else if(lt==='Ready to download'){" +
-                                "leaf.textContent=labelText;" +
-                            "}" +
-                        "}" +
-                    "}" +
-                "}" +
-            "}catch(e){}" +
-        "}" +
-        "updatePdfPreOpenLabels();" +
-        "if(!window.__wta_size_interval){" +
-            "window.__wta_size_interval=setInterval(updatePdfPreOpenLabels,400);" +
         "}" +
     "}catch(e){}})();"
 
@@ -543,32 +298,22 @@ private const val DETECT_AND_RECOVER_JS =
                 "window.location.replace('" + OFFLINE_ASSET + "');" +
             "}" +
         "}" +
-        "var body=document.body;if(!body)return;" +
-        "var text=(body.innerText||body.textContent||'').toLowerCase();" +
-        "var isErrorShell=false;" +
-        "if(text.indexOf('application error')!==-1&&" +
-           "(text.indexOf('client-side exception')!==-1||text.indexOf('browser console')!==-1)){" +
-            "isErrorShell=true;" +
-        "}else if(document.querySelector('div[id=\"__next-build-watcher\"],nextjs-portal')){" +
-            "if(text.indexOf('application error')!==-1)isErrorShell=true;" +
-        "}else if(text.indexOf('net::err_')!==-1||text.indexOf('webpage not available')!==-1||text.indexOf('dns_probe_')!==-1||text.indexOf('err_connection_')!==-1){" +
-            "isErrorShell=true;" +
-        "}else if(navigator.onLine===false&&" +
-                 "(text.indexOf('this page could not be found')!==-1||" +
-                  "text.indexOf('internal server error')!==-1||" +
-                  "(text.length<120&&text.indexOf('404')!==-1))){" +
-            "isErrorShell=true;" +
-        "}else if(navigator.onLine===false&&text.trim().length<30&&!document.querySelector('img,video,canvas,iframe')){" +
-            "isErrorShell=true;" +
-        "}" +
-        "if(isErrorShell){" +
-            "goOffline();" +
-            "return;" +
-        "}" +
         "if(!window.__wta_err_bound){" +
             "window.__wta_err_bound=true;" +
-            "window.addEventListener('error',function(){if(!navigator.onLine)goOffline();});" +
-            "window.addEventListener('unhandledrejection',function(){if(!navigator.onLine)goOffline();});" +
+            "window.addEventListener('error',function(e){" +
+                "if(!navigator.onLine){goOffline();return;}" +
+                "var msg=(e&&e.message)?e.message:'';" +
+                "if(msg.indexOf('client-side exception')!==-1||(document.body&&document.body.textContent&&document.body.textContent.indexOf('client-side exception')!==-1)){" +
+                    "var k='__wta_recov_'+window.location.pathname;" +
+                    "if(!sessionStorage.getItem(k)){" +
+                        "sessionStorage.setItem(k,'1');" +
+                        "window.location.reload();" +
+                    "}" +
+                "}" +
+            "});" +
+            "window.addEventListener('unhandledrejection',function(){" +
+                "if(!navigator.onLine)goOffline();" +
+            "});" +
         "}" +
     "}catch(e){}})();"
 
@@ -576,71 +321,48 @@ private const val STUDY_TIMER_BRIDGE_JS =
     "(function(){try{" +
         "if(window.__wta_timer_bridge_hooked)return;" +
         "window.__wta_timer_bridge_hooked=true;" +
-        "function parseSeconds(txt){" +
-            "if(!txt)return -1;" +
-            "var m=txt.match(/(\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);" +
-            "if(!m)return -1;" +
-            "if(m[3]){" +
-                "return parseInt(m[1],10)*3600+parseInt(m[2],10)*60+parseInt(m[3],10);" +
-            "}else{" +
-                "return parseInt(m[1],10)*60+parseInt(m[2],10);" +
-            "}" +
-        "}" +
-        "function detectTimer(){" +
+        "function checkFocusTimer(){" +
             "try{" +
-                "var timerEl=document.querySelector('[data-study-timer],[data-timer],.study-timer,.pomodoro-timer,[aria-label*=\"timer\" i]');" +
-                "var sec=-1;" +
-                "var title='Study Timer';" +
-                "if(timerEl){" +
-                    "sec=parseSeconds(timerEl.textContent);" +
-                "}" +
-                "if(sec<0){" +
-                    "var timeEls=document.querySelectorAll('span,p,div,h2,h3');" +
-                    "for(var i=0;i<timeEls.length;i++){" +
-                        "var el=timeEls[i];" +
-                        "if(el.children.length>0)continue;" +
-                        "var t=(el.textContent||'').trim();" +
-                        "if(/^(?:\\d{1,2}:)?\\d{2}:\\d{2}$/.test(t)){" +
-                            "var p=el.parentElement;" +
-                            "var pText=((p?p.textContent:'')||'').toLowerCase();" +
-                            "if(pText.indexOf('study')!==-1||pText.indexOf('timer')!==-1||pText.indexOf('pomodoro')!==-1||pText.indexOf('focus')!==-1||pText.indexOf('session')!==-1){" +
-                                "sec=parseSeconds(t);" +
-                                "break;" +
-                            "}" +
-                        "}" +
-                    "}" +
-                "}" +
-                "if(sec>=0){" +
-                    "var isRunning=true;" +
-                    "var playBtn=document.querySelector('button[aria-label*=\"resume\" i],button[aria-label*=\"play\" i],button:has(.fa-play)');" +
-                    "if(playBtn&&playBtn.offsetParent!==null)isRunning=false;" +
-                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
-                        "window.AndroidOfflineVault.syncStudyTimer(isRunning,sec,sec,title);" +
-                    "}" +
-                "}" +
-            "}catch(_){}" +
-        "}" +
-        "window.addEventListener('wta-study-timer-update',function(e){" +
-            "try{" +
-                "var d=e.detail||{};" +
+                "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                "if(!raw)return;" +
+                "var s=JSON.parse(raw);" +
+                "var now=Date.now();" +
+                "var isRunning=Boolean(s.running&&s.endAt&&s.endAt>now);" +
+                "var rem=isRunning?Math.max(0,Math.ceil((s.endAt-now)/1000)):Math.max(0,s.leftWhenPaused||0);" +
+                "var tot=s.totalSec||1500;" +
                 "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
-                    "window.AndroidOfflineVault.syncStudyTimer(Boolean(d.isRunning),d.remainingSeconds||0,d.totalSeconds||0,d.title||'Study Timer');" +
+                    "window.AndroidOfflineVault.syncStudyTimer(isRunning,rem,tot,'Study Timer');" +
                 "}" +
             "}catch(_){}" +
-        "});" +
+        "}" +
+        "window.addEventListener('wt-focus-timer',checkFocusTimer);" +
+        "window.addEventListener('storage',function(e){if(e.key==='wt_focus_timer_v1')checkFocusTimer();});" +
         "window.addEventListener('wta-study-timer-control',function(e){" +
             "try{" +
-                "var action=(e.detail&&e.detail.action)?e.detail.action:'';" +
-                "if(action==='pause'||action==='resume'||action==='toggle'){" +
-                    "var btn=document.querySelector('[data-timer-toggle],[data-study-timer-toggle],button[aria-label*=\"timer\" i],button[aria-label*=\"pause\" i],button[aria-label*=\"play\" i]');" +
-                    "if(btn)btn.click();" +
-                "}else if(action==='stop'||action==='close'){" +
-                    "var sBtn=document.querySelector('[data-timer-stop],[data-study-timer-stop],button[aria-label*=\"stop\" i],button[aria-label*=\"reset\" i]');" +
-                    "if(sBtn)sBtn.click();" +
+                "var act=(e.detail&&e.detail.action)?e.detail.action:'';" +
+                "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                "var s=raw?JSON.parse(raw):null;" +
+                "if(!s)return;" +
+                "var now=Date.now();" +
+                "if(act==='pause'){" +
+                    "var left=(s.running&&s.endAt)?Math.max(0,Math.ceil((s.endAt-now)/1000)):(s.leftWhenPaused||0);" +
+                    "s.running=false;s.endAt=null;s.leftWhenPaused=left;" +
+                    "localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));" +
+                    "window.dispatchEvent(new CustomEvent('wt-focus-timer'));" +
+                "}else if(act==='resume'){" +
+                    "var left=(s.leftWhenPaused&&s.leftWhenPaused>0)?s.leftWhenPaused:(s.totalSec||1500);" +
+                    "s.running=true;s.endAt=now+(left*1000);" +
+                    "localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));" +
+                    "window.dispatchEvent(new CustomEvent('wt-focus-timer'));" +
+                "}else if(act==='stop'||act==='close'){" +
+                    "s.running=false;s.endAt=null;s.leftWhenPaused=s.totalSec||1500;" +
+                    "localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));" +
+                    "window.dispatchEvent(new CustomEvent('wt-focus-timer'));" +
                 "}" +
             "}catch(_){}" +
         "});" +
-        "setInterval(detectTimer,1000);" +
+        "setInterval(checkFocusTimer,1000);" +
+        "checkFocusTimer();" +
     "}catch(e){}})();"
 
 class MainActivity : ComponentActivity() {
@@ -657,6 +379,10 @@ class MainActivity : ComponentActivity() {
         window.statusBarColor = navy
         @Suppress("DEPRECATION")
         window.navigationBarColor = navy
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            window.isNavigationBarContrastEnforced = false
+            window.isStatusBarContrastEnforced = false
+        }
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightStatusBars = false
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = false
         setContent {
@@ -806,33 +532,18 @@ fun MainScreen(onReady: () -> Unit = {}) {
         navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
         navigationStartTime = System.currentTimeMillis()
-        if (delayMs <= 0L) {
-            isNavigating = true
-            val timeout = Runnable { isNavigating = false }
-            navTimeoutRunnable = timeout
-            mainHandler.postDelayed(timeout, 3500L)
-        } else {
-            val show = Runnable {
-                isNavigating = true
-                val timeout = Runnable { isNavigating = false }
-                navTimeoutRunnable = timeout
-                mainHandler.postDelayed(timeout, 3500L)
-            }
-            navShowRunnable = show
-            mainHandler.postDelayed(show, delayMs)
-        }
+        isNavigating = true
+        val timeout = Runnable { isNavigating = false }
+        navTimeoutRunnable = timeout
+        mainHandler.postDelayed(timeout, 1200L)
     }
 
     fun stopNavigationLoading() {
-        val elapsed = System.currentTimeMillis() - navigationStartTime
-        val remaining = (550L - elapsed).coerceAtLeast(0L)
-        mainHandler.postDelayed({
-            navShowRunnable?.let { mainHandler.removeCallbacks(it) }
-            navShowRunnable = null
-            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-            navTimeoutRunnable = null
-            isNavigating = false
-        }, remaining)
+        navShowRunnable?.let { mainHandler.removeCallbacks(it) }
+        navShowRunnable = null
+        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        navTimeoutRunnable = null
+        isNavigating = false
     }
 
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
@@ -964,17 +675,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
         val currentUrl = wv.url ?: ""
         if (currentUrl.contains("wisdom-tower-academy.live") && url.contains("wisdom-tower-academy.live")) {
-            val js = "(function(){" +
-                "try{" +
-                    "var a = document.createElement('a');" +
-                    "a.href = '$url';" +
-                    "document.body.appendChild(a);" +
-                    "a.click();" +
-                    "a.remove();" +
-                "}catch(e){" +
-                    "window.location.href = '$url';" +
-                "}" +
-            "})();"
+            val js = "(function(){try{window.location.assign('$url');}catch(e){window.location.href='$url';}})();"
             wv.evaluateJavascript(js, null)
         } else {
             wv.loadUrl(url)
@@ -1369,6 +1070,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     }
                                 }
+
+                                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
+                                    val msg = consoleMessage?.message().orEmpty()
+                                    val line = consoleMessage?.lineNumber() ?: 0
+                                    val src = consoleMessage?.sourceId().orEmpty()
+                                    android.util.Log.d("WTA_JS", "[$src:$line] $msg")
+                                    return true
+                                }
                             }
 
                             webViewClient = object : WebViewClient() {
@@ -1380,9 +1089,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         isInitialLoading = false
                                         stopNavigationLoading()
                                     }
-                                    view?.evaluateJavascript(NATIVE_CHROME_JS, null)
-                                    view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
-                                    view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
@@ -1669,18 +1375,31 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Centered Circular Loader for page transitions and loading waits
+                // Sleek high-tech neon cyan progress line at top of WebView: non-blocking, lightning fast!
                 AnimatedVisibility(
                     visible = isNavigating && !isInitialLoading,
-                    enter = fadeIn(tween(140)),
-                    exit = fadeOut(tween(160)),
+                    enter = fadeIn(tween(80)),
+                    exit = fadeOut(tween(250)),
                     modifier = Modifier
-                        .fillMaxSize()
+                        .align(Alignment.TopCenter)
+                        .fillMaxWidth()
+                        .height(2.5.dp)
                         .zIndex(100f)
                 ) {
-                    CenteredBigCircularLoader(
-                        modifier = Modifier.fillMaxSize(),
-                        isSplash = false
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.horizontalGradient(
+                                    listOf(
+                                        Color(0x3300E5FF),
+                                        Color(0xFF00E5FF),
+                                        Color(0xFF38BDF8),
+                                        Color(0xFF00E5FF),
+                                        Color(0x3300E5FF)
+                                    )
+                                )
+                            )
                     )
                 }
 

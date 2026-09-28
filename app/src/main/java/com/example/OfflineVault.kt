@@ -449,12 +449,15 @@ object OfflineVault {
     }
 
     fun isPdfUrl(url: String): Boolean {
-        val u = url.lowercase()
-        return u.contains("/api/content/pdf") ||
-            u.contains(".pdf") ||
-            u.contains("application/pdf") ||
-            u.contains("/pdf") ||
-            u.contains("content/pdf")
+        if (url.isBlank()) return false
+        val clean = url.substringBefore('?').substringBefore('#').lowercase()
+        // Never treat javascript chunks, css, html, or api routes as PDF unless explicitly the PDF stream
+        if (clean.endsWith(".js") || clean.endsWith(".css") || clean.endsWith(".html") || clean.endsWith(".png") || clean.endsWith(".jpg") || clean.endsWith(".webp")) {
+            return false
+        }
+        return clean.endsWith(".pdf") ||
+            url.contains("/api/content/pdf") ||
+            clean.contains("/content/pdf/")
     }
 }
 
