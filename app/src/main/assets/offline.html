@@ -2,89 +2,239 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-  <title>Offline</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>You're offline • Wisdom Tower Academy</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+      background-color: #0F172A;
+      color: #F8FAFC;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      user-select: none;
+      -webkit-user-select: none;
+    }
     body {
-      font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-      background: #0F172A;
-      color: #e2e8f0;
-      min-height: 100vh;
       display: flex;
       align-items: center;
       justify-content: center;
       padding: 24px;
+    }
+    .offline-card {
+      width: 100%;
+      max-width: 330px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
       text-align: center;
+      background: rgba(30, 41, 59, 0.7);
+      border: 1px solid rgba(0, 229, 255, 0.22);
+      border-radius: 24px;
+      padding: 32px 24px 28px;
+      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.45);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
     }
-    .card { max-width: 320px; width: 100%; }
-    .icon-wrap {
-      width: 80px; height: 80px; margin: 0 auto 22px;
-      border-radius: 22px;
-      background: #1E293B;
-      border: 1px solid rgba(0, 229, 255, 0.28);
-      display: flex; align-items: center; justify-content: center;
+    .icon-container {
+      position: relative;
+      width: 84px;
+      height: 84px;
+      border-radius: 24px;
+      background: radial-gradient(circle at center, rgba(0, 229, 255, 0.16) 0%, rgba(15, 23, 42, 0.8) 100%);
+      border: 1.5px solid rgba(0, 229, 255, 0.35);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 22px;
+      box-shadow: 0 0 24px rgba(0, 229, 255, 0.18);
     }
-    .wifi-off {
-      width: 40px; height: 32px; position: relative;
+    .icon-container svg {
+      width: 44px;
+      height: 44px;
+      fill: none;
+      stroke: #00E5FF;
+      stroke-width: 2;
+      stroke-linecap: round;
+      stroke-linejoin: round;
     }
-    .wifi-off span {
-      position: absolute; left: 50%;
-      border: 2.5px solid #00E5FF;
+    .offline-title {
+      font-size: 1.35rem;
+      font-weight: 700;
+      color: #FFFFFF;
+      letter-spacing: -0.01em;
+      margin-bottom: 10px;
+    }
+    .offline-desc {
+      font-size: 0.95rem;
+      line-height: 1.5;
+      color: #94A3B8;
+      margin-bottom: 26px;
+      max-width: 280px;
+    }
+    .btn-retry {
+      width: 100%;
+      height: 48px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: #00E5FF;
+      color: #0F172A;
+      font-weight: 700;
+      font-size: 0.98rem;
+      border: none;
+      border-radius: 14px;
+      cursor: pointer;
+      box-shadow: 0 4px 14px rgba(0, 229, 255, 0.3);
+      transition: transform 0.1s ease, background 0.15s ease, opacity 0.15s ease;
+    }
+    .btn-retry:active {
+      transform: scale(0.97);
+      background: #38BDF8;
+    }
+    .btn-retry:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+    .spinner {
+      display: none;
+      width: 18px;
+      height: 18px;
+      border: 2.5px solid rgba(15, 23, 42, 0.3);
+      border-top-color: #0F172A;
       border-radius: 50%;
-      border-bottom-color: transparent;
-      border-left-color: transparent;
-      transform: translateX(-50%) rotate(-45deg);
-      opacity: 0.9;
+      animation: spin 0.7s linear infinite;
     }
-    .wifi-off span:nth-child(1) { width: 10px; height: 10px; bottom: 2px; }
-    .wifi-off span:nth-child(2) { width: 22px; height: 22px; bottom: 0; opacity: 0.7; }
-    .wifi-off span:nth-child(3) { width: 34px; height: 34px; bottom: -2px; opacity: 0.45; }
-    .slash {
-      position: absolute; left: 50%; top: 0; bottom: 0;
-      width: 2.5px; background: #00E5FF;
-      transform: translateX(-50%) rotate(35deg);
-      border-radius: 2px;
+    @keyframes spin {
+      to { transform: rotate(360deg); }
     }
-    h1 { font-size: 1.3rem; font-weight: 800; margin-bottom: 12px; color: #f8fafc; }
-    p { font-size: 0.98rem; line-height: 1.55; color: #94a3b8; margin-bottom: 26px; }
-    button {
-      appearance: none; border: none;
-      background: #00E5FF; color: #0f172a;
-      font-weight: 700; font-size: 1rem;
-      padding: 14px 28px; border-radius: 14px;
-      width: 100%; cursor: pointer;
+    .status-hint {
+      margin-top: 16px;
+      font-size: 0.8rem;
+      color: #64748B;
+      display: flex;
+      align-items: center;
+      gap: 6px;
     }
-    button:active { opacity: 0.85; }
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #EF4444;
+    }
   </style>
 </head>
 <body>
-  <div class="card">
-    <div class="icon-wrap" aria-hidden="true">
-      <div class="wifi-off">
-        <span></span><span></span><span></span>
-        <div class="slash"></div>
-      </div>
+  <div class="offline-card">
+    <div class="icon-container" aria-hidden="true">
+      <svg viewBox="0 0 24 24">
+        <line x1="1" y1="1" x2="23" y2="23" stroke="#EF4444" stroke-width="2.2" />
+        <path d="M16.72 11.06A10.94 10.94 0 0 1 19 12.55" />
+        <path d="M5 12.55a10.94 10.94 0 0 1 5.17-2.39" />
+        <path d="M10.71 5.05A16 16 0 0 1 22.58 9" />
+        <path d="M1.42 9a15.91 15.91 0 0 1 4.7-2.88" />
+        <path d="M8.53 16.11a6 6 0 0 1 6.95 0" />
+        <line x1="12" y1="20" x2="12.01" y2="20" stroke-width="3" />
+      </svg>
     </div>
-    <h1>Connection required</h1>
-    <p>Please turn on your mobile data or connect to WiFi to continue.</p>
-    <button type="button" onclick="tryAgain()">Try again</button>
+    <h1 class="offline-title">You're offline</h1>
+    <p class="offline-desc">No internet connection found. Check your Wi-Fi or mobile data and try again.</p>
+    
+    <button id="retryBtn" class="btn-retry" type="button" onclick="doRetry()">
+      <span class="spinner" id="retrySpinner"></span>
+      <span id="retryLabel">Try again</span>
+    </button>
+
+    <div class="status-hint">
+      <span class="status-dot" id="liveDot"></span>
+      <span id="liveText">Waiting for connection…</span>
+    </div>
   </div>
+
   <script>
-    function tryAgain() {
+    var isChecking = false;
+
+    function navigateBackOnline() {
+      if (window.AndroidOfflineVault && typeof window.AndroidOfflineVault.reloadLastOnlinePage === 'function') {
+        window.AndroidOfflineVault.reloadLastOnlinePage();
+        return;
+      }
       if (window.history.length > 1) {
         window.history.back();
       } else {
-        window.location.href = 'https://wisdom-tower-academy.live/';
+        window.location.replace('https://www.wisdom-tower-academy.live/');
       }
     }
-    window.addEventListener('online', function () {
-      if (window.history.length > 1) {
-        window.history.back();
-      } else {
-        window.location.href = 'https://wisdom-tower-academy.live/';
+
+    function doRetry() {
+      if (isChecking) return;
+      isChecking = true;
+      var btn = document.getElementById('retryBtn');
+      var spinner = document.getElementById('retrySpinner');
+      var label = document.getElementById('retryLabel');
+      
+      btn.disabled = true;
+      spinner.style.display = 'inline-block';
+      label.textContent = 'Checking connection…';
+
+      function checkComplete(online) {
+        if (online) {
+          label.textContent = 'Connected! Reopening…';
+          document.getElementById('liveDot').style.background = '#10B981';
+          document.getElementById('liveText').textContent = 'Online';
+          setTimeout(navigateBackOnline, 400);
+        } else {
+          setTimeout(function() {
+            isChecking = false;
+            btn.disabled = false;
+            spinner.style.display = 'none';
+            label.textContent = 'Try again';
+          }, 600);
+        }
       }
+
+      if (navigator.onLine === false) {
+        checkComplete(false);
+        return;
+      }
+
+      // Quick fetch probe
+      var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+      var timeout = setTimeout(function() {
+        if (controller) controller.abort();
+        checkComplete(false);
+      }, 2500);
+
+      fetch('https://www.wisdom-tower-academy.live/api/health', {
+        method: 'HEAD',
+        cache: 'no-store',
+        signal: controller ? controller.signal : undefined
+      }).then(function(resp) {
+        clearTimeout(timeout);
+        checkComplete(true);
+      }).catch(function() {
+        clearTimeout(timeout);
+        // Fallback check navigator
+        checkComplete(navigator.onLine);
+      });
+    }
+
+    window.addEventListener('online', function() {
+      document.getElementById('liveDot').style.background = '#10B981';
+      document.getElementById('liveText').textContent = 'Back online! Reopening…';
+      setTimeout(navigateBackOnline, 500);
     });
+
+    // Background auto-reconnect polling every 2.5s
+    setInterval(function() {
+      if (navigator.onLine && !isChecking) {
+        document.getElementById('liveDot').style.background = '#10B981';
+        document.getElementById('liveText').textContent = 'Connection restored';
+        navigateBackOnline();
+      }
+    }, 2500);
   </script>
 </body>
 </html>

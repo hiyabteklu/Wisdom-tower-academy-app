@@ -93,6 +93,9 @@ import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Pause
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.automirrored.filled.ArrowForwardIos
 import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -203,13 +206,30 @@ private const val NATIVE_CHROME_JS =
                 "var target=(typeof newUrl==='string'&&newUrl.indexOf('http')===0)?(new URL(newUrl,window.location.href)).pathname+(new URL(newUrl,window.location.href)).search:newUrl;" +
                 "if(target===cur||target==='#'||target.indexOf('javascript:')===0)return;" +
                 "if(_navT)clearTimeout(_navT);" +
+                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingStarted==='function'){" +
+                    "window.AndroidOfflineVault.notifyLoadingStarted();" +
+                "}" +
                 "_navT=setTimeout(function(){" +
-                    "_navT=null;" +
-                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingStarted==='function'){" +
-                        "window.AndroidOfflineVault.notifyLoadingStarted();" +
+                    "if(!navigator.onLine&&window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                        "window.AndroidOfflineVault.showOfflinePage();" +
                     "}" +
-                "},400);" +
+                "},7000);" +
             "}" +
+            "document.addEventListener('click',function(e){" +
+                "var t=e.target;" +
+                "var a=t?(t.closest?t.closest('a'):null):null;" +
+                "if(a&&a.href&&!a.href.startsWith('javascript:')&&!a.href.includes('#')){" +
+                    "if(!navigator.onLine){" +
+                        "e.preventDefault();" +
+                        "e.stopPropagation();" +
+                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                            "window.AndroidOfflineVault.showOfflinePage();" +
+                        "}" +
+                        "return false;" +
+                    "}" +
+                    "_checkRouteNav(a.href);" +
+                "}" +
+            "},true);" +
             "var _origPush=history.pushState;" +
             "history.pushState=function(s,t,u){" +
                 "if(u)_checkRouteNav(u);" +
@@ -516,7 +536,13 @@ private const val BOOK_PAGE_HELPERS_JS =
 private const val DETECT_AND_RECOVER_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
-        "function goOffline(){window.location.replace('" + OFFLINE_ASSET + "');}" +
+        "function goOffline(){" +
+            "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                "window.AndroidOfflineVault.showOfflinePage();" +
+            "}else{" +
+                "window.location.replace('" + OFFLINE_ASSET + "');" +
+            "}" +
+        "}" +
         "var body=document.body;if(!body)return;" +
         "var text=(body.innerText||body.textContent||'').toLowerCase();" +
         "var isErrorShell=false;" +
@@ -525,6 +551,8 @@ private const val DETECT_AND_RECOVER_JS =
             "isErrorShell=true;" +
         "}else if(document.querySelector('div[id=\"__next-build-watcher\"],nextjs-portal')){" +
             "if(text.indexOf('application error')!==-1)isErrorShell=true;" +
+        "}else if(text.indexOf('net::err_')!==-1||text.indexOf('webpage not available')!==-1||text.indexOf('dns_probe_')!==-1||text.indexOf('err_connection_')!==-1){" +
+            "isErrorShell=true;" +
         "}else if(navigator.onLine===false&&" +
                  "(text.indexOf('this page could not be found')!==-1||" +
                   "text.indexOf('internal server error')!==-1||" +
@@ -542,6 +570,77 @@ private const val DETECT_AND_RECOVER_JS =
             "window.addEventListener('error',function(){if(!navigator.onLine)goOffline();});" +
             "window.addEventListener('unhandledrejection',function(){if(!navigator.onLine)goOffline();});" +
         "}" +
+    "}catch(e){}})();"
+
+private const val STUDY_TIMER_BRIDGE_JS =
+    "(function(){try{" +
+        "if(window.__wta_timer_bridge_hooked)return;" +
+        "window.__wta_timer_bridge_hooked=true;" +
+        "function parseSeconds(txt){" +
+            "if(!txt)return -1;" +
+            "var m=txt.match(/(\\d{1,2}):(\\d{2})(?::(\\d{2}))?/);" +
+            "if(!m)return -1;" +
+            "if(m[3]){" +
+                "return parseInt(m[1],10)*3600+parseInt(m[2],10)*60+parseInt(m[3],10);" +
+            "}else{" +
+                "return parseInt(m[1],10)*60+parseInt(m[2],10);" +
+            "}" +
+        "}" +
+        "function detectTimer(){" +
+            "try{" +
+                "var timerEl=document.querySelector('[data-study-timer],[data-timer],.study-timer,.pomodoro-timer,[aria-label*=\"timer\" i]');" +
+                "var sec=-1;" +
+                "var title='Study Timer';" +
+                "if(timerEl){" +
+                    "sec=parseSeconds(timerEl.textContent);" +
+                "}" +
+                "if(sec<0){" +
+                    "var timeEls=document.querySelectorAll('span,p,div,h2,h3');" +
+                    "for(var i=0;i<timeEls.length;i++){" +
+                        "var el=timeEls[i];" +
+                        "if(el.children.length>0)continue;" +
+                        "var t=(el.textContent||'').trim();" +
+                        "if(/^(?:\\d{1,2}:)?\\d{2}:\\d{2}$/.test(t)){" +
+                            "var p=el.parentElement;" +
+                            "var pText=((p?p.textContent:'')||'').toLowerCase();" +
+                            "if(pText.indexOf('study')!==-1||pText.indexOf('timer')!==-1||pText.indexOf('pomodoro')!==-1||pText.indexOf('focus')!==-1||pText.indexOf('session')!==-1){" +
+                                "sec=parseSeconds(t);" +
+                                "break;" +
+                            "}" +
+                        "}" +
+                    "}" +
+                "}" +
+                "if(sec>=0){" +
+                    "var isRunning=true;" +
+                    "var playBtn=document.querySelector('button[aria-label*=\"resume\" i],button[aria-label*=\"play\" i],button:has(.fa-play)');" +
+                    "if(playBtn&&playBtn.offsetParent!==null)isRunning=false;" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
+                        "window.AndroidOfflineVault.syncStudyTimer(isRunning,sec,sec,title);" +
+                    "}" +
+                "}" +
+            "}catch(_){}" +
+        "}" +
+        "window.addEventListener('wta-study-timer-update',function(e){" +
+            "try{" +
+                "var d=e.detail||{};" +
+                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
+                    "window.AndroidOfflineVault.syncStudyTimer(Boolean(d.isRunning),d.remainingSeconds||0,d.totalSeconds||0,d.title||'Study Timer');" +
+                "}" +
+            "}catch(_){}" +
+        "});" +
+        "window.addEventListener('wta-study-timer-control',function(e){" +
+            "try{" +
+                "var action=(e.detail&&e.detail.action)?e.detail.action:'';" +
+                "if(action==='pause'||action==='resume'||action==='toggle'){" +
+                    "var btn=document.querySelector('[data-timer-toggle],[data-study-timer-toggle],button[aria-label*=\"timer\" i],button[aria-label*=\"pause\" i],button[aria-label*=\"play\" i]');" +
+                    "if(btn)btn.click();" +
+                "}else if(action==='stop'||action==='close'){" +
+                    "var sBtn=document.querySelector('[data-timer-stop],[data-study-timer-stop],button[aria-label*=\"stop\" i],button[aria-label*=\"reset\" i]');" +
+                    "if(sBtn)sBtn.click();" +
+                "}" +
+            "}catch(_){}" +
+        "});" +
+        "setInterval(detectTimer,1000);" +
     "}catch(e){}})();"
 
 class MainActivity : ComponentActivity() {
@@ -816,10 +915,35 @@ fun MainScreen(onReady: () -> Unit = {}) {
         }
     }
 
+    var isTimerRunning by remember { mutableStateOf(false) }
+    var timerRemainingSeconds by remember { mutableIntStateOf(0) }
+    var timerTotalSeconds by remember { mutableIntStateOf(0) }
+    var timerTitle by remember { mutableStateOf("Study Timer") }
+    var isTimerWidgetVisible by remember { mutableStateOf(false) }
+    var lastOnlineUrl by remember { mutableStateOf(SITE) }
+
+    LaunchedEffect(isTimerRunning, timerRemainingSeconds) {
+        if (isTimerRunning && timerRemainingSeconds > 0) {
+            delay(1000L)
+            timerRemainingSeconds = (timerRemainingSeconds - 1).coerceAtLeast(0)
+            if (timerRemainingSeconds == 0) {
+                isTimerRunning = false
+            }
+        }
+    }
+
     fun showOffline(wv: WebView) {
         isInitialLoading = false
         stopNavigationLoading()
-        wv.loadUrl(OFFLINE_ASSET)
+        mainHandler.post {
+            val current = wv.url.orEmpty()
+            if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
+                lastOnlineUrl = current
+            }
+            if (!current.contains("offline.html")) {
+                wv.loadUrl(OFFLINE_ASSET)
+            }
+        }
     }
 
     fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
@@ -830,23 +954,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
         webProgress = 20
 
         val online = isOnline(context)
-        wv.settings.cacheMode = if (online) {
-            WebSettings.LOAD_DEFAULT
-        } else {
-            WebSettings.LOAD_CACHE_ELSE_NETWORK
-        }
-
         if (!online) {
-            wv.loadUrl(url)
-            mainHandler.postDelayed({
-                val current = wv.url ?: ""
-                if (!isOnline(context) && !current.startsWith("file://") &&
-                    (wv.progress < 100 || current.isEmpty() || current == "about:blank")) {
-                    showOffline(wv)
-                }
-            }, 600L)
+            showOffline(wv)
             return
         }
+
+        lastOnlineUrl = url
+        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
 
         val currentUrl = wv.url ?: ""
         if (currentUrl.contains("wisdom-tower-academy.live") && url.contains("wisdom-tower-academy.live")) {
@@ -1199,6 +1313,47 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         stopNavigationLoading()
                                     }
                                 }
+
+                                @JavascriptInterface
+                                fun reloadLastOnlinePage() {
+                                    mainHandler.post {
+                                        webView?.let { wv ->
+                                            val target = if (lastOnlineUrl.isNotBlank() && !lastOnlineUrl.startsWith("file://")) {
+                                                lastOnlineUrl
+                                            } else {
+                                                SITE
+                                            }
+                                            navigateTo(target, null)
+                                        }
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun showOfflinePage() {
+                                    mainHandler.post {
+                                        webView?.let { showOffline(it) }
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun syncStudyTimer(isRunning: Boolean, secondsLeft: Int, totalSeconds: Int, title: String?) {
+                                    mainHandler.post {
+                                        isTimerRunning = isRunning
+                                        timerRemainingSeconds = secondsLeft.coerceAtLeast(0)
+                                        timerTotalSeconds = totalSeconds.coerceAtLeast(0)
+                                        if (!title.isNullOrBlank()) {
+                                            timerTitle = title
+                                        }
+                                        if (secondsLeft > 0 || isRunning) {
+                                            isTimerWidgetVisible = true
+                                        }
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun isStudyTimerActive(): Boolean {
+                                    return isTimerWidgetVisible && timerRemainingSeconds > 0
+                                }
                             }, "AndroidOfflineVault")
 
                             webChromeClient = object : WebChromeClient() {
@@ -1227,6 +1382,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     }
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+                                    view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
@@ -1241,6 +1397,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+                                    view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
                                     view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                 }
 
@@ -1257,12 +1414,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                     view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                     view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+                                    view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
                                     view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                     mainHandler.postDelayed({
                                         val cur = view?.url ?: ""
                                         if (!cur.startsWith("file://")) {
                                             view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                             view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+                                            view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
                                         }
                                     }, 800L)
                                     if (pendingClearHistory) {
@@ -1288,9 +1447,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val statusCode = errorResponse?.statusCode ?: 0
                                     val failedUrl = request.url?.toString() ?: ""
                                     if (failedUrl.startsWith("file://")) return
-                                    if (statusCode >= 400 && !isOnline(ctx)) {
-                                        showOffline(wv)
-                                    } else if (statusCode >= 500) {
+                                    if ((statusCode >= 400 && !isOnline(ctx)) || statusCode in listOf(404, 500, 502, 503, 504)) {
                                         showOffline(wv)
                                     }
                                 }
@@ -1302,14 +1459,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ) {
                                     if (request?.isForMainFrame != true) return
                                     val wv = view ?: return
-                                    val failedUrl = request.url?.toString()
-                                    if (failedUrl != null && !failedUrl.startsWith("file://") &&
-                                        wv.settings.cacheMode != WebSettings.LOAD_CACHE_ELSE_NETWORK) {
-                                        wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                        wv.loadUrl(failedUrl)
-                                        return
-                                    }
-                                    if (failedUrl == null || !failedUrl.contains("offline.html")) {
+                                    val failedUrl = request.url?.toString().orEmpty()
+                                    if (!failedUrl.startsWith("file:///android_asset/")) {
                                         showOffline(wv)
                                     }
                                 }
@@ -1322,13 +1473,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     failingUrl: String?
                                 ) {
                                     val wv = view ?: return
-                                    if (failingUrl != null && failingUrl == wv.url &&
-                                        !failingUrl.contains("offline.html")) {
-                                        if (wv.settings.cacheMode != WebSettings.LOAD_CACHE_ELSE_NETWORK) {
-                                            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                            wv.loadUrl(failingUrl)
-                                            return
-                                        }
+                                    val failedUrl = failingUrl.orEmpty()
+                                    if (!failedUrl.startsWith("file:///android_asset/")) {
                                         showOffline(wv)
                                     }
                                 }
@@ -1484,6 +1630,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     request: WebResourceRequest?
                                 ): Boolean {
                                     val u = request?.url?.toString() ?: return false
+                                    if (u.startsWith("chrome-error://") || u.startsWith("about:neterror")) {
+                                        view?.let { showOffline(it) }
+                                        return true
+                                    }
                                     if (u.contains("/my-learning")) {
                                         navigateTo("https://www.wisdom-tower-academy.live/learning", 1)
                                         return true
@@ -1546,6 +1696,43 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         subText = "Preparing your learning space…",
                         progress = webProgress,
                         isSplash = true
+                    )
+                }
+
+                // MP3-player style floating Study Timer widget: positioned upper right below refresh and notification icons
+                AnimatedVisibility(
+                    visible = isTimerWidgetVisible && timerRemainingSeconds > 0,
+                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(top = 8.dp, end = 10.dp)
+                        .zIndex(90f)
+                ) {
+                    FloatingStudyTimerWidget(
+                        isRunning = isTimerRunning,
+                        remainingSeconds = timerRemainingSeconds,
+                        title = timerTitle,
+                        onTogglePlayPause = {
+                            isTimerRunning = !isTimerRunning
+                            val action = if (isTimerRunning) "resume" else "pause"
+                            val js = "(function(){try{" +
+                                "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'$action'}}));" +
+                                "var btn=document.querySelector('[data-timer-toggle],[data-study-timer-toggle],button[aria-label*=\"timer\" i],button[aria-label*=\"pause\" i],button[aria-label*=\"play\" i]');" +
+                                "if(btn)btn.click();" +
+                                "}catch(e){}})();"
+                            webView?.evaluateJavascript(js, null)
+                        },
+                        onClose = {
+                            isTimerRunning = false
+                            isTimerWidgetVisible = false
+                            val js = "(function(){try{" +
+                                "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'stop'}}));" +
+                                "var btn=document.querySelector('[data-timer-stop],[data-study-timer-stop],button[aria-label*=\"stop\" i],button[aria-label*=\"reset\" i]');" +
+                                "if(btn)btn.click();" +
+                                "}catch(e){}})();"
+                            webView?.evaluateJavascript(js, null)
+                        }
                     )
                 }
             }
@@ -1999,10 +2186,111 @@ private fun LoaderProgressPill(
 }
 
 /**
+ * MP3-player style floating Study Timer widget.
+ * Positioned in the upper right corner, right below the refresh and notification bell icons.
+ * Controls: Play / Pause toggle, Close / Stop, and live countdown.
+ */
+@Composable
+private fun FloatingStudyTimerWidget(
+    isRunning: Boolean,
+    remainingSeconds: Int,
+    title: String,
+    onTogglePlayPause: () -> Unit,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val view = LocalView.current
+    val hours = remainingSeconds / 3600
+    val minutes = (remainingSeconds % 3600) / 60
+    val seconds = remainingSeconds % 60
+    val timeFormatted = if (hours > 0) {
+        String.format("%d:%02d:%02d", hours, minutes, seconds)
+    } else {
+        String.format("%02d:%02d", minutes, seconds)
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "studyTimerDot")
+    val dotAlpha by infiniteTransition.animateFloat(
+        initialValue = 0.35f,
+        targetValue = 1f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(500, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "studyTimerDotAlpha"
+    )
+
+    Surface(
+        color = Color(0xF20B132B),
+        shape = RoundedCornerShape(20.dp),
+        border = BorderStroke(1.2.dp, Color(0x6600E5FF)),
+        shadowElevation = 14.dp,
+        modifier = modifier
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(7.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+        ) {
+            // Pulsing status dot (cyan when running, amber when paused)
+            Box(
+                modifier = Modifier
+                    .size(8.dp)
+                    .clip(CircleShape)
+                    .background(
+                        if (isRunning) Accent.copy(alpha = dotAlpha) else Color(0xFFF59E0B)
+                    )
+            )
+
+            // Countdown display in bold tabular digits
+            Text(
+                text = timeFormatted,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 0.4.sp
+            )
+
+            // Play / Pause MP3-player style toggle button
+            IconButton(
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    onTogglePlayPause()
+                },
+                modifier = Modifier.size(28.dp)
+            ) {
+                Icon(
+                    imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isRunning) "Pause" else "Play",
+                    tint = Accent,
+                    modifier = Modifier.size(17.dp)
+                )
+            }
+
+            // Close / Stop MP3-player style button
+            IconButton(
+                onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    onClose()
+                },
+                modifier = Modifier.size(26.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Close,
+                    contentDescription = "Close",
+                    tint = Muted.copy(alpha = 0.8f),
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+        }
+    }
+}
+
+/**
  * Advanced, high-tech bottom navigation bar.
  * Clean, precise icon + typography tinting, ZERO clutter dots.
- * Icons are strictly contained within their capsule bounds with non-bouncy micro-press damping
- * to guarantee icons NEVER go out of their box on hover, click, or tap.
+ * Icons are strictly contained within their capsule bounds with non-bouncy micro-press damping.
+ * Background blends 100% seamlessly into the mobile screen bottom edge with NO gap and NO color difference.
  */
 @Composable
 private fun AliveBottomNav(
@@ -2013,14 +2301,15 @@ private fun AliveBottomNav(
 ) {
     val view = LocalView.current
     Surface(
-        color = Color(0xF2070E1B),
+        color = BarBg,
         tonalElevation = 0.dp,
-        modifier = modifier
-            .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.navigationBars)
-            .height(66.dp)
+        modifier = modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .windowInsetsPadding(WindowInsets.navigationBars)
+        ) {
             // Elegant cyber glow top border line
             Box(
                 modifier = Modifier
@@ -2041,8 +2330,9 @@ private fun AliveBottomNav(
 
             Row(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                    .fillMaxWidth()
+                    .height(58.dp)
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceEvenly
             ) {
