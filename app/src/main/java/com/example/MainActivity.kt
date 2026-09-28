@@ -19,6 +19,7 @@ import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
+import android.webkit.ServiceWorkerController
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
 import android.webkit.WebResourceRequest
@@ -291,17 +292,9 @@ private const val BOOK_PAGE_HELPERS_JS =
 private const val DETECT_AND_RECOVER_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
-        "function goOffline(){" +
-            "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                "window.AndroidOfflineVault.showOfflinePage();" +
-            "}else{" +
-                "window.location.replace('" + OFFLINE_ASSET + "');" +
-            "}" +
-        "}" +
         "if(!window.__wta_err_bound){" +
             "window.__wta_err_bound=true;" +
             "window.addEventListener('error',function(e){" +
-                "if(!navigator.onLine){goOffline();return;}" +
                 "var msg=(e&&e.message)?e.message:'';" +
                 "if(msg.indexOf('client-side exception')!==-1||(document.body&&document.body.textContent&&document.body.textContent.indexOf('client-side exception')!==-1)){" +
                     "var k='__wta_recov_'+window.location.pathname;" +
@@ -310,9 +303,6 @@ private const val DETECT_AND_RECOVER_JS =
                         "window.location.reload();" +
                     "}" +
                 "}" +
-            "});" +
-            "window.addEventListener('unhandledrejection',function(){" +
-                "if(!navigator.onLine)goOffline();" +
             "});" +
         "}" +
     "}catch(e){}})();"
@@ -424,8 +414,7 @@ private fun isOnline(context: Context): Boolean {
     val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     val network = cm.activeNetwork ?: return false
     val caps = cm.getNetworkCapabilities(network) ?: return false
-    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
-        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
 }
 
 /**
@@ -665,13 +654,21 @@ fun MainScreen(onReady: () -> Unit = {}) {
         webProgress = 20
 
         val online = isOnline(context)
+        wv.settings.cacheMode = if (online) {
+            WebSettings.LOAD_DEFAULT
+        } else {
+            WebSettings.LOAD_CACHE_ELSE_NETWORK
+        }
+
         if (!online) {
-            showOffline(wv)
-            return
+            val isCached = WebCacheVault.has(context, url)
+            if (!isCached && !WebCacheVault.hasAnyPage(context)) {
+                showOffline(wv)
+                return
+            }
         }
 
         lastOnlineUrl = url
-        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
 
         val currentUrl = wv.url ?: ""
         if (currentUrl.contains("wisdom-tower-academy.live") && url.contains("wisdom-tower-academy.live")) {
@@ -711,6 +708,34 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     wv.loadUrl(cleanUrl)
                 }
             }
+        }
+    }
+
+    DisposableEffect(context, webView) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                mainHandler.post {
+                    webView?.settings?.cacheMode = WebSettings.LOAD_DEFAULT
+                    if (webView?.url?.contains("offline.html") == true) {
+                        val target = if (lastOnlineUrl.isNotBlank() && !lastOnlineUrl.startsWith("file://")) lastOnlineUrl else SITE
+                        navigateTo(target, null)
+                    }
+                }
+                WebCacheVault.precacheHubsAsync(context)
+            }
+
+            override fun onLost(network: android.net.Network) {
+                mainHandler.post {
+                    webView?.settings?.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                }
+            }
+        }
+        try {
+            cm.registerDefaultNetworkCallback(callback)
+        } catch (_: Exception) {}
+        onDispose {
+            try { cm.unregisterNetworkCallback(callback) } catch (_: Exception) {}
         }
     }
 
@@ -909,6 +934,19 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     WebSettings.LOAD_CACHE_ELSE_NETWORK
                                 }
                             }
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                                try {
+                                    val swController = ServiceWorkerController.getInstance()
+                                    val swSettings = swController.serviceWorkerWebSettings
+                                    swSettings.cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                    swSettings.allowContentAccess = true
+                                    swSettings.allowFileAccess = true
+                                    swSettings.blockNetworkLoads = false
+                                } catch (_: Exception) {}
+                            }
+                            if (isOnline(ctx)) {
+                                WebCacheVault.precacheHubsAsync(ctx)
+                            }
                             val cookieMgr = CookieManager.getInstance()
                             cookieMgr.setAcceptCookie(true)
                             cookieMgr.setAcceptThirdPartyCookies(this, true)
@@ -1026,6 +1064,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             }
                                             navigateTo(target, null)
                                         }
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun openOfflineUrl(url: String?) {
+                                    if (url.isNullOrBlank()) return
+                                    mainHandler.post {
+                                        navigateTo(url, null)
                                     }
                                 }
 
@@ -1153,7 +1199,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val statusCode = errorResponse?.statusCode ?: 0
                                     val failedUrl = request.url?.toString() ?: ""
                                     if (failedUrl.startsWith("file://")) return
-                                    if ((statusCode >= 400 && !isOnline(ctx)) || statusCode in listOf(404, 500, 502, 503, 504)) {
+
+                                    if (!isOnline(ctx)) {
+                                        if (WebCacheVault.has(ctx, failedUrl)) {
+                                            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ONLY
+                                            wv.loadUrl(failedUrl)
+                                            return
+                                        }
+                                    }
+
+                                    if (statusCode in listOf(500, 502, 503, 504)) {
                                         showOffline(wv)
                                     }
                                 }
@@ -1166,9 +1221,22 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (request?.isForMainFrame != true) return
                                     val wv = view ?: return
                                     val failedUrl = request.url?.toString().orEmpty()
-                                    if (!failedUrl.startsWith("file:///android_asset/")) {
-                                        showOffline(wv)
+                                    if (failedUrl.startsWith("file:///android_asset/")) return
+
+                                    if (!isOnline(ctx)) {
+                                        if (WebCacheVault.has(ctx, failedUrl)) {
+                                            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ONLY
+                                            wv.loadUrl(failedUrl)
+                                            return
+                                        }
+                                        if (WebCacheVault.has(ctx, SITE) && failedUrl != SITE) {
+                                            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ONLY
+                                            wv.loadUrl(SITE)
+                                            return
+                                        }
                                     }
+
+                                    showOffline(wv)
                                 }
 
                                 @Deprecated("Deprecated in Java")
@@ -1180,9 +1248,22 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ) {
                                     val wv = view ?: return
                                     val failedUrl = failingUrl.orEmpty()
-                                    if (!failedUrl.startsWith("file:///android_asset/")) {
-                                        showOffline(wv)
+                                    if (failedUrl.startsWith("file:///android_asset/")) return
+
+                                    if (!isOnline(ctx)) {
+                                        if (WebCacheVault.has(ctx, failedUrl)) {
+                                            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ONLY
+                                            wv.loadUrl(failedUrl)
+                                            return
+                                        }
+                                        if (WebCacheVault.has(ctx, SITE) && failedUrl != SITE) {
+                                             wv.settings.cacheMode = WebSettings.LOAD_CACHE_ONLY
+                                             wv.loadUrl(SITE)
+                                             return
+                                        }
                                     }
+
+                                    showOffline(wv)
                                 }
 
                                 override fun shouldInterceptRequest(
@@ -1328,6 +1409,56 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             }
                                         }
                                     }
+
+                                    // 2. WebCacheVault handling for HTML pages, thumbnails, Next.js static assets, notes, and hubs
+                                    if (!isOnline(ctx)) {
+                                        val cached = WebCacheVault.getCachedResponse(ctx, u)
+                                        if (cached != null) return cached
+
+                                        val clean = u.lowercase()
+                                        // Transparent 1x1 PNG for images/thumbnails not in cache so UI never breaks
+                                        if (clean.endsWith(".png") || clean.endsWith(".jpg") || clean.endsWith(".jpeg") ||
+                                            clean.endsWith(".webp") || clean.endsWith(".svg") || clean.endsWith(".gif") ||
+                                            clean.contains("/_next/image")
+                                        ) {
+                                            return WebResourceResponse(
+                                                "image/png",
+                                                null,
+                                                200,
+                                                "OK",
+                                                mapOf("Access-Control-Allow-Origin" to "*"),
+                                                ByteArrayInputStream(WebCacheVault.EMPTY_PNG)
+                                            )
+                                        }
+
+                                        // Dummy 200 for third-party analytics / telemetry so page does not fail
+                                        if (clean.contains("google-analytics") || clean.contains("googletagmanager") ||
+                                            clean.contains("clarity.ms") || clean.contains("hotjar")
+                                        ) {
+                                            return WebResourceResponse(
+                                                "text/plain",
+                                                "utf-8",
+                                                200,
+                                                "OK",
+                                                emptyMap(),
+                                                ByteArrayInputStream(ByteArray(0))
+                                            )
+                                        }
+                                    } else {
+                                        // ONLINE:
+                                        // A) Immutable Next.js static assets: if cached, serve from disk for instant speed
+                                        if (u.contains("/_next/static/") && WebCacheVault.has(ctx, u)) {
+                                            val cached = WebCacheVault.getCachedResponse(ctx, u)
+                                            if (cached != null) return cached
+                                        }
+
+                                        // B) Cacheable resources from academy domain or images: stream & cache
+                                        if (WebCacheVault.isCacheable(u)) {
+                                            val resp = WebCacheVault.fetchAndCache(ctx, req)
+                                            if (resp != null) return resp
+                                        }
+                                    }
+
                                     return super.shouldInterceptRequest(view, request)
                                 }
 

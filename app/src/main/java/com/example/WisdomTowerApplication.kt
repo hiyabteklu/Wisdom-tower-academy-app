@@ -41,6 +41,9 @@ class WisdomTowerApplication : Application(), ImageLoaderFactory {
         // Pre-warm GIF bytes directly in memory
         BrandBytes.preload(this)
 
+        // Initialize Web Cache Vault for instant offline availability of all visited pages
+        WebCacheVault.init(this)
+
         // Pre-decode GIF animation directly into Coil's memory cache
         val preWarmAssetRequest = ImageRequest.Builder(this)
             .data("file:///android_asset/brand/animation.gif")
