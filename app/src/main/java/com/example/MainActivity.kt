@@ -159,7 +159,7 @@ private val Muted = Color(0xFF94A3B8)
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 // Direct 200 URL (eliminates 308 redirect round-trip delay)
 private const val SITE = "https://www.wisdom-tower-academy.live/"
-private const val MIN_SPLASH_DISPLAY_MS = 1000L
+private const val MIN_SPLASH_DISPLAY_MS = 2200L
 
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
@@ -699,12 +699,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var pageRendered by remember { mutableStateOf(false) }
     var webProgress by remember { mutableIntStateOf(0) }
     var isNavigating by remember { mutableStateOf(false) }
+    var navigationStartTime by remember { mutableLongStateOf(0L) }
     var navShowRunnable by remember { mutableStateOf<Runnable?>(null) }
     var navTimeoutRunnable by remember { mutableStateOf<Runnable?>(null) }
 
-    fun startNavigationLoading(delayMs: Long = 350L) {
+    fun startNavigationLoading(delayMs: Long = 0L) {
         navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        navigationStartTime = System.currentTimeMillis()
         if (delayMs <= 0L) {
             isNavigating = true
             val timeout = Runnable { isNavigating = false }
@@ -723,11 +725,15 @@ fun MainScreen(onReady: () -> Unit = {}) {
     }
 
     fun stopNavigationLoading() {
-        navShowRunnable?.let { mainHandler.removeCallbacks(it) }
-        navShowRunnable = null
-        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        navTimeoutRunnable = null
-        isNavigating = false
+        val elapsed = System.currentTimeMillis() - navigationStartTime
+        val remaining = (550L - elapsed).coerceAtLeast(0L)
+        mainHandler.postDelayed({
+            navShowRunnable?.let { mainHandler.removeCallbacks(it) }
+            navShowRunnable = null
+            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            navTimeoutRunnable = null
+            isNavigating = false
+        }, remaining)
     }
 
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }

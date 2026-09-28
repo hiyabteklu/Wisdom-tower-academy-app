@@ -151,13 +151,17 @@ fun BrandLoader(
 ) {
     val context = LocalContext.current
     val loader = rememberBrandImageLoader()
-    val model = remember {
+    val model = remember(context) {
+        val gifBytes = BrandBytes.gif(context)
+        val dataSrc: Any = if (gifBytes.isNotEmpty()) gifBytes else "file:///android_asset/brand/animation.gif"
         ImageRequest.Builder(context)
-            .data(BrandBytes.gif(context))
+            .data(dataSrc)
+            .memoryCacheKey("brand_animation_gif")
             .crossfade(false)
+            .allowHardware(true)
             .build()
     }
-    var ready by remember { mutableStateOf(false) }
+    var ready by remember { mutableStateOf(true) }
     val pad = if (size > 100.dp) 28.dp else 16.dp
     val radius = if (size > 100.dp) 28.dp else 20.dp
 

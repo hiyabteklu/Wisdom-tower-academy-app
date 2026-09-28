@@ -24,9 +24,10 @@ export const App: React.FC = () => {
   const [isSplashLoading, setIsSplashLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
-  // Navigation state
+  // Navigation & Loading state
   const [currentTab, setCurrentTab] = useState<TabType>('home');
   const [activeRoute, setActiveRoute] = useState<string | null>(null);
+  const [isNavigating, setIsNavigating] = useState(false);
 
   // Dialogs & Modals state
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -47,7 +48,7 @@ export const App: React.FC = () => {
   const [showOfflineScreen, setShowOfflineScreen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Splash timing matching MainActivity.kt
+  // Cinematic splash timing guaranteeing user sees the full custom brand animation
   useEffect(() => {
     const onboardingDone = localStorage.getItem('wta_onboarding_done') === 'true';
     const timer = setTimeout(() => {
@@ -55,9 +56,27 @@ export const App: React.FC = () => {
       if (!onboardingDone) {
         setShowOnboarding(true);
       }
-    }, 1200);
+    }, 2200);
 
     return () => clearTimeout(timer);
+  }, []);
+
+  const handleTabChange = useCallback((tab: TabType) => {
+    if (tab === currentTab && !activeRoute) return;
+    setIsNavigating(true);
+    setActiveRoute(null);
+    setCurrentTab(tab);
+    setTimeout(() => {
+      setIsNavigating(false);
+    }, 450);
+  }, [currentTab, activeRoute]);
+
+  const handleRouteChange = useCallback((route: string | null) => {
+    setIsNavigating(true);
+    setActiveRoute(route);
+    setTimeout(() => {
+      setIsNavigating(false);
+    }, 400);
   }, []);
 
   // Online / Offline listener
@@ -221,11 +240,20 @@ export const App: React.FC = () => {
       {/* Fixed Native Top Bar */}
       <TopBar
         onOpenMenu={() => setIsMenuOpen(true)}
-        onOpenNotifications={() => setActiveRoute('/notifications')}
+        onOpenNotifications={() => handleRouteChange('/notifications')}
         onRefresh={handleRefresh}
         isRefreshing={isRefreshing}
         unreadCount={2}
       />
+
+      {/* Futuristic loader overlay on navigation / content fetch */}
+      {isNavigating && (
+        <FuturisticLoader
+          isSplash={false}
+          statusText="Wisdom Tower Academy"
+          subText="Loading module…"
+        />
+      )}
 
       {/* Main Content Area */}
       <main className="flex-1 w-full max-w-7xl mx-auto">
@@ -235,10 +263,7 @@ export const App: React.FC = () => {
       {/* Apple-Quality 5-Tab Bottom Navigation Bar */}
       <BottomNav
         currentTab={currentTab}
-        onSelectTab={(tab) => {
-          setActiveRoute(null);
-          setCurrentTab(tab);
-        }}
+        onSelectTab={handleTabChange}
       />
 
       {/* Hamburger Menu Card Dialog */}
@@ -247,7 +272,7 @@ export const App: React.FC = () => {
         onClose={() => setIsMenuOpen(false)}
         onNavigate={(route) => {
           setIsMenuOpen(false);
-          setActiveRoute(route);
+          handleRouteChange(route);
         }}
       />
 
