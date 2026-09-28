@@ -513,6 +513,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var pageRendered by remember { mutableStateOf(false) }
     var webProgress by remember { mutableIntStateOf(0) }
     var isNavigating by remember { mutableStateOf(false) }
+    var navigationStatusText by remember { mutableStateOf("Loading…") }
     var navigationStartTime by remember { mutableLongStateOf(0L) }
     var navShowRunnable by remember { mutableStateOf<Runnable?>(null) }
     var navTimeoutRunnable by remember { mutableStateOf<Runnable?>(null) }
@@ -524,15 +525,27 @@ fun MainScreen(onReady: () -> Unit = {}) {
         isNavigating = true
         val timeout = Runnable { isNavigating = false }
         navTimeoutRunnable = timeout
-        mainHandler.postDelayed(timeout, 1200L)
+        mainHandler.postDelayed(timeout, 2500L)
     }
 
     fun stopNavigationLoading() {
         navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navShowRunnable = null
-        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        navTimeoutRunnable = null
-        isNavigating = false
+        val elapsed = System.currentTimeMillis() - navigationStartTime
+        val minDisplayMs = 500L
+        if (elapsed < minDisplayMs) {
+            val remaining = minDisplayMs - elapsed
+            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            val delayedStop = Runnable {
+                isNavigating = false
+            }
+            navTimeoutRunnable = delayedStop
+            mainHandler.postDelayed(delayedStop, remaining)
+        } else {
+            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            navTimeoutRunnable = null
+            isNavigating = false
+        }
     }
 
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
@@ -650,6 +663,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
         val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
         if (resetHistory) pendingClearHistory = true
+        val targetTitle = when {
+            tabIndex != null && tabIndex in items.indices -> items[tabIndex].title
+            else -> {
+                val idx = tabIndexForUrl(url, selectedIndex)
+                if (idx in items.indices) items[idx].title else "Wisdom Tower Academy"
+            }
+        }
+        navigationStatusText = "Opening $targetTitle…"
         startNavigationLoading()
         webProgress = 20
 
@@ -1042,6 +1063,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun notifyLoadingStarted(msg: String?) {
                                     mainHandler.post {
+                                        if (!msg.isNullOrBlank()) {
+                                            navigationStatusText = msg
+                                        }
                                         startNavigationLoading(0L)
                                     }
                                 }
@@ -1129,7 +1153,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                     if (url != null && !url.startsWith("file://")) {
-                                        selectedIndex = tabIndexForUrl(url, selectedIndex)
+                                        val newIdx = tabIndexForUrl(url, selectedIndex)
+                                        selectedIndex = newIdx
+                                        if (!isInitialLoading) {
+                                            val title = if (newIdx in items.indices) items[newIdx].title else "Wisdom Tower Academy"
+                                            navigationStatusText = "Opening $title…"
+                                            startNavigationLoading()
+                                        }
                                     }
                                     if (url != null && url.startsWith("file:///android_asset/")) {
                                         isInitialLoading = false
@@ -1534,6 +1564,24 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     )
                 }
 
+                // Custom loading animation in transitions (learning to home.. To setting etc..)
+                AnimatedVisibility(
+                    visible = isNavigating && !isInitialLoading,
+                    enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.92f, animationSpec = tween(180)),
+                    exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.96f, animationSpec = tween(220)),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(95f)
+                ) {
+                    CenteredBigCircularLoader(
+                        modifier = Modifier.background(Color(0x8A070E1A)),
+                        statusText = navigationStatusText,
+                        subText = "Switching section…",
+                        progress = webProgress,
+                        isSplash = false
+                    )
+                }
+
                 // Perfect Timing Splash / Loading Overlay: Eliminates blank screens
                 AnimatedVisibility(
                     visible = isInitialLoading,
@@ -1847,23 +1895,43 @@ private fun CenteredBigCircularLoader(
                 }
             }
         } else {
-            // Circular only with subtle circular transparent background (no card, no box)
-            Box(
-                modifier = Modifier
-                    .size(80.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x40070E1A))
-                    .border(1.dp, Color(0x3300E5FF), CircleShape),
-                contentAlignment = Alignment.Center
+            // Elegant frosted transition card with custom animated loader, glowing neon border, and section title
+            Surface(
+                color = Color(0xF20B132B),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0x8000E5FF), Color(0x33818CF8)))),
+                shadowElevation = 16.dp,
+                modifier = Modifier.padding(24.dp)
             ) {
-                FuturisticGearRings(
-                    size = 76.dp,
-                    brandSize = 40.dp,
-                    numTicks = 14,
-                    tickInnerRatio = 0.68f,
-                    tickOuterRatio = 0.88f,
-                    tickWidth = 2.5.dp
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 20.dp)
+                ) {
+                    FuturisticGearRings(
+                        size = 88.dp,
+                        brandSize = 52.dp,
+                        numTicks = 14,
+                        tickInnerRatio = 0.68f,
+                        tickOuterRatio = 0.88f,
+                        tickWidth = 2.8.dp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = statusText,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.2.sp
+                    )
+
+                    if (progress in 1..99) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LoaderProgressPill(progress = progress, compact = true)
+                    }
+                }
             }
         }
     }
