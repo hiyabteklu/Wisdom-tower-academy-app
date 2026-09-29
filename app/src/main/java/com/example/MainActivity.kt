@@ -19,6 +19,7 @@ import android.webkit.ConsoleMessage
 import android.webkit.CookieManager
 import android.webkit.DownloadListener
 import android.webkit.JavascriptInterface
+import android.webkit.RenderProcessGoneDetail
 import android.webkit.ServiceWorkerController
 import android.webkit.WebChromeClient
 import android.webkit.WebResourceError
@@ -176,23 +177,22 @@ private const val NATIVE_CHROME_JS =
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;document.head?document.head.appendChild(s):document.documentElement.appendChild(s);}" +
         "s.textContent=" +
-        "'header,[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
+        "'header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
         "[data-nprogress],#nextjs-toploader,.nextjs-toploader" +
         "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
         "cs.textContent=" +
-        "'html,body,p,span,h1,h2,h3,h4,h5,h6,table,td,th,article,section,main{" +
+        "'html,body,table,td,th,article,section,main{" +
         "-webkit-user-select:none;user-select:none;}" +
-        "a,button,[role=\"button\"],.cursor-pointer,input,textarea,select{" +
+        "a,button,[role=\"button\"],.cursor-pointer,input,textarea,select,p,span,h1,h2,h3,h4,h5,h6{" +
         "-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;" +
         "pointer-events:auto!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(0,229,255,0.2)!important;}';" +
         "if(!window.__wta_copy_blocked){" +
         "window.__wta_copy_blocked=true;" +
         "document.addEventListener('copy',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;});" +
         "document.addEventListener('cut',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;});" +
-        "document.addEventListener('dragstart',function(e){var t=e.target;if(t&&t.tagName==='IMG'){e.preventDefault();return false;}});" +
         "}" +
         "if(!window.__wta_route_monitor){" +
             "window.__wta_route_monitor=true;" +
@@ -563,24 +563,38 @@ fun MainScreen(onReady: () -> Unit = {}) {
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner, webView) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event != Lifecycle.Event.ON_RESUME) return@LifecycleEventObserver
-            val wv = webView ?: return@LifecycleEventObserver
-            wv.evaluateJavascript("(function(){return window.location.pathname||'';})();") { rawPath ->
-                val p = rawPath?.trim('"')?.trim() ?: ""
-                if (p.isNotBlank() && p != "null") {
-                    selectedIndex = tabIndexForUrl(p, selectedIndex)
+            when (event) {
+                Lifecycle.Event.ON_RESUME -> {
+                    val wv = webView ?: return@LifecycleEventObserver
+                    wv.onResume()
+                    wv.resumeTimers()
+                    wv.evaluateJavascript("(function(){return window.location.pathname||'';})();") { rawPath ->
+                        val p = rawPath?.trim('"')?.trim() ?: ""
+                        if (p.isNotBlank() && p != "null") {
+                            selectedIndex = tabIndexForUrl(p, selectedIndex)
+                        }
+                    }
+                    if (isOnline(context)) {
+                        val currentUrl = wv.url
+                        if (currentUrl != null && !currentUrl.startsWith("file://")) {
+                            val now = System.currentTimeMillis()
+                            if (now - lastResumeRefreshAt >= 5000L) {
+                                lastResumeRefreshAt = now
+                                wv.evaluateJavascript(
+                                    "(function(){try{window.dispatchEvent(new CustomEvent('wta-refresh',{detail:{source:'app-resume'}}));}catch(e){}})();",
+                                    null
+                                )
+                            }
+                        }
+                    }
                 }
+                Lifecycle.Event.ON_PAUSE -> {
+                    val wv = webView ?: return@LifecycleEventObserver
+                    wv.onPause()
+                    wv.pauseTimers()
+                }
+                else -> {}
             }
-            if (!isOnline(context)) return@LifecycleEventObserver
-            val currentUrl = wv.url
-            if (currentUrl == null || currentUrl.startsWith("file://")) return@LifecycleEventObserver
-            val now = System.currentTimeMillis()
-            if (now - lastResumeRefreshAt < 4000L) return@LifecycleEventObserver
-            lastResumeRefreshAt = now
-            wv.evaluateJavascript(
-                "(function(){try{window.dispatchEvent(new CustomEvent('wta-refresh',{detail:{source:'app-resume'}}));}catch(e){}})();",
-                null
-            )
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -683,16 +697,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
         }
 
         lastOnlineUrl = url
-
-        val currentUrl = wv.url ?: ""
-        val normCurrent = currentUrl.trim().removeSuffix("/")
-        val normTarget = url.trim().removeSuffix("/")
-        if (normCurrent.isNotBlank() && normCurrent == normTarget) {
-            wv.evaluateJavascript("(function(){try{window.scrollTo({top:0,behavior:'smooth'});}catch(_){}})();", null)
-            stopNavigationLoading()
-        } else {
-            wv.loadUrl(url)
-        }
+        wv.loadUrl(url)
     }
 
     fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
@@ -1333,6 +1338,22 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     showOffline(wv)
                                 }
 
+                                override fun onRenderProcessGone(
+                                    view: WebView?,
+                                    detail: RenderProcessGoneDetail?
+                                ): Boolean {
+                                    val wv = view ?: return true
+                                    try {
+                                        (wv.parent as? ViewGroup)?.removeView(wv)
+                                        wv.destroy()
+                                    } catch (_: Exception) {}
+                                    mainHandler.post {
+                                        val targetUrl = lastOnlineUrl.ifBlank { SITE }
+                                        webView?.loadUrl(targetUrl)
+                                    }
+                                    return true
+                                }
+
                                 override fun shouldInterceptRequest(
                                     view: WebView?,
                                     request: WebResourceRequest?
@@ -1513,13 +1534,17 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     } else {
                                         // ONLINE:
-                                        // A) Immutable Next.js static assets: if cached, serve from disk for instant speed
-                                        if (u.contains("/_next/static/") && WebCacheVault.has(ctx, u)) {
+                                        // 1. If resource is already cached in WebCacheVault (HTML, CSS, JS, thumbnails, images, fonts),
+                                        // serve immediately from disk for 0ms load speed
+                                        if (WebCacheVault.has(ctx, u)) {
                                             val cached = WebCacheVault.getCachedResponse(ctx, u)
                                             if (cached != null) return cached
                                         }
-                                        // All other online resources (thumbnails, images, HTML, API) load natively
-                                        // through Chromium's optimized concurrent network stack without Java thread blocking
+
+                                        // 2. Schedule background caching so subsequent loads are instant
+                                        if (WebCacheVault.isCacheable(u)) {
+                                            WebCacheVault.cacheUrlAsync(ctx, u)
+                                        }
                                     }
 
                                     return super.shouldInterceptRequest(view, request)
