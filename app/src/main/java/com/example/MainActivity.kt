@@ -183,16 +183,16 @@ private const val NATIVE_CHROME_JS =
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
         "cs.textContent=" +
-        "'*,html,body,div,p,span,h1,h2,h3,h4,h5,h6,a,li,table,td,th,article,section,main,pre,code{" +
-        "-webkit-user-select:none!important;-moz-user-select:none!important;-ms-user-select:none!important;user-select:none!important;-webkit-touch-callout:none!important;}" +
-        "input,textarea,[contenteditable=\"true\"]{" +
-        "-webkit-user-select:auto!important;-moz-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;}';" +
+        "'html,body,p,span,h1,h2,h3,h4,h5,h6,table,td,th,article,section,main{" +
+        "-webkit-user-select:none;user-select:none;}" +
+        "a,button,[role=\"button\"],.cursor-pointer,input,textarea,select{" +
+        "-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;" +
+        "pointer-events:auto!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(0,229,255,0.2)!important;}';" +
         "if(!window.__wta_copy_blocked){" +
         "window.__wta_copy_blocked=true;" +
-        "document.addEventListener('copy',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;},true);" +
-        "document.addEventListener('cut',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
-        "document.addEventListener('contextmenu',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
-        "document.addEventListener('dragstart',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;},true);" +
+        "document.addEventListener('copy',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;});" +
+        "document.addEventListener('cut',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;});" +
+        "document.addEventListener('dragstart',function(e){var t=e.target;if(t&&t.tagName==='IMG'){e.preventDefault();return false;}});" +
         "}" +
         "if(!window.__wta_route_monitor){" +
             "window.__wta_route_monitor=true;" +
@@ -206,12 +206,10 @@ private const val NATIVE_CHROME_JS =
 
 private const val PRECACHE_AND_UNBLOCK_JS =
     "(function(){try{" +
-        "var imgs=document.querySelectorAll('img[loading=\"lazy\"]');" +
-        "for(var i=0;i<imgs.length;i++){imgs[i].removeAttribute('loading');imgs[i].setAttribute('decoding','async');}" +
         "if('serviceWorker' in navigator&&navigator.serviceWorker.controller){" +
         "var links=document.querySelectorAll('a[href^=\"/\"],a[href*=\"wisdom-tower-academy.live\"]');" +
         "var urls=[];" +
-        "for(var j=0;j<Math.min(links.length,25);j++){" +
+        "for(var j=0;j<Math.min(links.length,10);j++){" +
             "var h=links[j].href;" +
             "if(h&&!h.includes('#')&&!h.includes('logout')&&urls.indexOf(h)===-1)urls.push(h);" +
         "}" +
@@ -538,21 +536,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
     fun stopNavigationLoading() {
         navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navShowRunnable = null
-        val elapsed = System.currentTimeMillis() - navigationStartTime
-        val minDisplayMs = 500L
-        if (elapsed < minDisplayMs) {
-            val remaining = minDisplayMs - elapsed
-            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-            val delayedStop = Runnable {
-                isNavigating = false
-            }
-            navTimeoutRunnable = delayedStop
-            mainHandler.postDelayed(delayedStop, remaining)
-        } else {
-            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-            navTimeoutRunnable = null
-            isNavigating = false
-        }
+        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        navTimeoutRunnable = null
+        isNavigating = false
     }
 
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
@@ -699,9 +685,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
         lastOnlineUrl = url
 
         val currentUrl = wv.url ?: ""
-        if (currentUrl.contains("wisdom-tower-academy.live") && url.contains("wisdom-tower-academy.live")) {
-            val js = "(function(){try{window.location.assign('$url');}catch(e){window.location.href='$url';}})();"
-            wv.evaluateJavascript(js, null)
+        val normCurrent = currentUrl.trim().removeSuffix("/")
+        val normTarget = url.trim().removeSuffix("/")
+        if (normCurrent.isNotBlank() && normCurrent == normTarget) {
+            wv.evaluateJavascript("(function(){try{window.scrollTo({top:0,behavior:'smooth'});}catch(_){}})();", null)
+            stopNavigationLoading()
         } else {
             wv.loadUrl(url)
         }
@@ -979,7 +967,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             isLongClickable = false
                             setOnLongClickListener {
                                 val hit = hitTestResult
-                                hit?.type == WebView.HitTestResult.EDIT_TEXT_TYPE
+                                hit?.type != WebView.HitTestResult.EDIT_TEXT_TYPE
                             }
                             settings.apply {
                                 javaScriptEnabled = true
@@ -996,7 +984,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 // Ultra-smooth rendering and fast hydration
                                 useWideViewPort = true
                                 loadWithOverviewMode = true
-                                offscreenPreRaster = true
+                                offscreenPreRaster = false
                                 cacheMode = if (isOnline(ctx)) {
                                     WebSettings.LOAD_DEFAULT
                                 } else {
@@ -1081,6 +1069,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (!path.isNullOrBlank()) {
                                         mainHandler.post {
                                             selectedIndex = tabIndexForUrl(path, selectedIndex)
+                                            stopNavigationLoading()
                                         }
                                     }
                                 }
@@ -1178,10 +1167,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     webProgress = newProgress
-                                    if (newProgress >= 80) {
+                                    if (newProgress >= 70) {
                                         stopNavigationLoading()
                                     }
-                                    if (newProgress >= 70) {
+                                    if (newProgress >= 60) {
                                         pageRendered = true
                                         if (minSplashElapsed) {
                                             isInitialLoading = false
@@ -1529,12 +1518,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             val cached = WebCacheVault.getCachedResponse(ctx, u)
                                             if (cached != null) return cached
                                         }
-
-                                        // B) Cacheable resources from academy domain or images: stream & cache
-                                        if (WebCacheVault.isCacheable(u)) {
-                                            val resp = WebCacheVault.fetchAndCache(ctx, req)
-                                            if (resp != null) return resp
-                                        }
+                                        // All other online resources (thumbnails, images, HTML, API) load natively
+                                        // through Chromium's optimized concurrent network stack without Java thread blocking
                                     }
 
                                     return super.shouldInterceptRequest(view, request)
@@ -2323,9 +2308,7 @@ private fun AliveBottomNav(
                                 )
                             ) {
                                 view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                if (selectedIndex != index) {
-                                    onItemSelected(index, item)
-                                }
+                                onItemSelected(index, item)
                             },
                         contentAlignment = Alignment.Center
                     ) {

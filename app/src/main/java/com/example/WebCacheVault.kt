@@ -372,6 +372,8 @@ object WebCacheVault {
     fun precacheHubsAsync(ctx: Context) {
         io.execute {
             try {
+                // Short initial delay so user's active page load and immediate taps get 100% bandwidth
+                try { Thread.sleep(3000L) } catch (_: InterruptedException) {}
                 if (!initialized) init(ctx)
                 for (hub in CORE_HUBS) {
                     try {
