@@ -206,16 +206,30 @@ private const val NATIVE_CHROME_JS =
 
 private const val PRECACHE_AND_UNBLOCK_JS =
     "(function(){try{" +
+        "function unblockImgs(){" +
+            "var imgs=document.querySelectorAll('img');" +
+            "for(var i=0;i<imgs.length;i++){" +
+                "var img=imgs[i];" +
+                "if(img.getAttribute('loading')==='lazy'){img.removeAttribute('loading');}" +
+                "if(img.getAttribute('fetchpriority')==='low'){img.removeAttribute('fetchpriority');}" +
+                "img.setAttribute('decoding','async');" +
+            "}" +
+        "}" +
+        "unblockImgs();" +
+        "if(!window.__wta_img_observer&&window.MutationObserver){" +
+            "window.__wta_img_observer=new MutationObserver(function(){unblockImgs();});" +
+            "window.__wta_img_observer.observe(document.body||document.documentElement,{childList:true,subtree:true});" +
+        "}" +
         "if('serviceWorker' in navigator&&navigator.serviceWorker.controller){" +
-        "var links=document.querySelectorAll('a[href^=\"/\"],a[href*=\"wisdom-tower-academy.live\"]');" +
-        "var urls=[];" +
-        "for(var j=0;j<Math.min(links.length,10);j++){" +
-            "var h=links[j].href;" +
-            "if(h&&!h.includes('#')&&!h.includes('logout')&&urls.indexOf(h)===-1)urls.push(h);" +
-        "}" +
-        "if(urls.length>0){" +
-            "navigator.serviceWorker.controller.postMessage({type:'PRECACHE_URLS',urls:urls});" +
-        "}" +
+            "var links=document.querySelectorAll('a[href^=\"/\"],a[href*=\"wisdom-tower-academy.live\"]');" +
+            "var urls=[];" +
+            "for(var j=0;j<Math.min(links.length,15);j++){" +
+                "var h=links[j].href;" +
+                "if(h&&!h.includes('#')&&!h.includes('logout')&&urls.indexOf(h)===-1)urls.push(h);" +
+            "}" +
+            "if(urls.length>0){" +
+                "navigator.serviceWorker.controller.postMessage({type:'PRECACHE_URLS',urls:urls});" +
+            "}" +
         "}" +
     "}catch(e){}})();"
 
@@ -697,6 +711,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
         }
 
         lastOnlineUrl = url
+        try {
+            wv.stopLoading()
+        } catch (_: Exception) {}
         wv.loadUrl(url)
     }
 
@@ -1534,16 +1551,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     } else {
                                         // ONLINE:
-                                        // 1. If resource is already cached in WebCacheVault (HTML, CSS, JS, thumbnails, images, fonts),
-                                        // serve immediately from disk for 0ms load speed
+                                        // If resource is already cached in WebCacheVault (HTML, CSS, JS, thumbnails, images, fonts),
+                                        // serve immediately from disk for 0ms load speed.
+                                        // Otherwise let Chromium download natively via its high-performance HTTP/2 pipeline into its disk cache.
                                         if (WebCacheVault.has(ctx, u)) {
                                             val cached = WebCacheVault.getCachedResponse(ctx, u)
                                             if (cached != null) return cached
-                                        }
-
-                                        // 2. Schedule background caching so subsequent loads are instant
-                                        if (WebCacheVault.isCacheable(u)) {
-                                            WebCacheVault.cacheUrlAsync(ctx, u)
                                         }
                                     }
 

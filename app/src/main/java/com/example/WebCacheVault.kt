@@ -33,7 +33,7 @@ object WebCacheVault {
     private const val INDEX_FILE = "web_index_v2.json"
     private const val PREFS = "wta_web_cache_prefs"
 
-    val io = Executors.newFixedThreadPool(6)
+    val io = Executors.newFixedThreadPool(2)
     private var initialized = false
 
     data class EntryMeta(
@@ -421,32 +421,30 @@ object WebCacheVault {
             try {
                 if (!initialized) init(ctx)
                 for (hub in CORE_HUBS) {
-                    io.execute {
-                        try {
-                            val conn = (URL(hub).openConnection() as HttpURLConnection).apply {
-                                connectTimeout = 6_000
-                                readTimeout = 10_000
-                                setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
-                                try {
-                                    val cookies = CookieManager.getInstance().getCookie(hub)
-                                    if (!cookies.isNullOrBlank()) setRequestProperty("Cookie", cookies)
-                                } catch (_: Exception) {}
-                            }
-                            conn.connect()
-                            if (conn.responseCode in 200..299) {
-                                val bytes = conn.inputStream.use { it.readBytes() }
-                                val rawMime = conn.contentType ?: "text/html"
-                                val mime = rawMime.substringBefore(';').trim()
-                                save(ctx, hub, mime, "utf-8", bytes)
-
-                                // Extract Next.js script chunks, stylesheets, and images to cache them too
-                                val html = String(bytes, Charsets.UTF_8)
-                                extractAndPrecacheAssets(ctx, html)
-                            }
-                            conn.disconnect()
-                        } catch (e: Exception) {
-                            Log.d(TAG, "Hub pre-cache skipped for $hub: ${e.message}")
+                    try {
+                        val conn = (URL(hub).openConnection() as HttpURLConnection).apply {
+                            connectTimeout = 6_000
+                            readTimeout = 10_000
+                            setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
+                            try {
+                                val cookies = CookieManager.getInstance().getCookie(hub)
+                                if (!cookies.isNullOrBlank()) setRequestProperty("Cookie", cookies)
+                            } catch (_: Exception) {}
                         }
+                        conn.connect()
+                        if (conn.responseCode in 200..299) {
+                            val bytes = conn.inputStream.use { it.readBytes() }
+                            val rawMime = conn.contentType ?: "text/html"
+                            val mime = rawMime.substringBefore(';').trim()
+                            save(ctx, hub, mime, "utf-8", bytes)
+
+                            // Extract Next.js script chunks, stylesheets, and images to cache them too
+                            val html = String(bytes, Charsets.UTF_8)
+                            extractAndPrecacheAssets(ctx, html)
+                        }
+                        conn.disconnect()
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Hub pre-cache skipped for $hub: ${e.message}")
                     }
                 }
             } catch (e: Exception) {
@@ -503,36 +501,33 @@ object WebCacheVault {
             }
         }
 
-        // Download each asset concurrently in background
+        // Download each asset sequentially in background without choking bandwidth
         for (rel in staticAssets) {
             val fullUrl = normalizeUrl(rel)
             if (has(ctx, fullUrl)) continue
-            io.execute {
-                try {
-                    if (has(ctx, fullUrl)) return@execute
-                    val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
-                        connectTimeout = 5_000
-                        readTimeout = 8_000
-                        setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
+            try {
+                val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
+                    connectTimeout = 5_000
+                    readTimeout = 8_000
+                    setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
+                }
+                conn.connect()
+                if (conn.responseCode in 200..299) {
+                    val assetBytes = conn.inputStream.use { it.readBytes() }
+                    val rawMime = conn.contentType ?: when {
+                        fullUrl.contains(".js") -> "application/javascript"
+                        fullUrl.contains(".css") -> "text/css"
+                        fullUrl.contains(".png") -> "image/png"
+                        fullUrl.contains(".jpg") || fullUrl.contains(".jpeg") -> "image/jpeg"
+                        fullUrl.contains(".webp") -> "image/webp"
+                        fullUrl.contains(".svg") -> "image/svg+xml"
+                        else -> "application/octet-stream"
                     }
-                    conn.connect()
-                    if (conn.responseCode in 200..299) {
-                        val assetBytes = conn.inputStream.use { it.readBytes() }
-                        val rawMime = conn.contentType ?: when {
-                            fullUrl.contains(".js") -> "application/javascript"
-                            fullUrl.contains(".css") -> "text/css"
-                            fullUrl.contains(".png") -> "image/png"
-                            fullUrl.contains(".jpg") || fullUrl.contains(".jpeg") -> "image/jpeg"
-                            fullUrl.contains(".webp") -> "image/webp"
-                            fullUrl.contains(".svg") -> "image/svg+xml"
-                            else -> "application/octet-stream"
-                        }
-                        val mime = rawMime.substringBefore(';').trim()
-                        save(ctx, fullUrl, mime, null, assetBytes)
-                    }
-                    conn.disconnect()
-                } catch (_: Exception) {}
-            }
+                    val mime = rawMime.substringBefore(';').trim()
+                    save(ctx, fullUrl, mime, null, assetBytes)
+                }
+                conn.disconnect()
+            } catch (_: Exception) {}
         }
     }
 }
