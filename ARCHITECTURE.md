@@ -100,10 +100,21 @@ Live in website: `FlashcardViewer.tsx` + ui-polish `.fc-*` classes — 3D flip, 
 
 ---
 
-## 7. Change log
+## 7. Study Timer (Pomodoro Focus Timer)
+
+- **Website is the primary control:** The web Focus timer (`PomodoroTimer.tsx` + `focus-timer` library) is the single source of truth and full control interface (presets, start/pause/reset, sound/nudges).
+- **No separate floating player in content area:** The app must NEVER show a secondary permanent or floating music-player style widget over the WebView.
+- **Top Bar Indicator:** While the timer is actively running (`isRunning && timerRemainingSeconds > 0`), the native top bar displays a compact, non-intrusive status pill cleanly positioned directly below the notification bell.
+- **Reliable Stop & Clean Dismiss:** The top bar pill includes an inline close `(X)` button that immediately stops the timer in both the web layer (`wt-focus-timer` / `localStorage`) and native state, hiding the pill completely.
+- **Process Death & Restart:** On app launch or after process death, if the timer is not actively running, no timer UI is shown.
+
+---
+
+## 8. Change log
 
 | Date | Change |
 |------|--------|
+| 2026-09-29 | Fixed Study Timer: removed duplicate floating music-player style widget from WebView content area. Added compact status pill in the native top bar cleanly under the notification bell that only displays while actively running. Added reliable inline (X) stop control that updates web localStorage + events, and ensured timer indicator never awkwardly persists or reappears after app restart when stopped. |
 | 2026-09-27 | Streamlined futuristic loader: purely circular design with a subtle translucent circular backing matching the spinner dimensions (removed card/box and text clutter), debounced auto-duration display that never triggers on text boxes, email/password inputs, flashcards, or fast-loaded pages, and immediately dismisses the instant content is ready |
 | 2026-09-27 | Redesigned hamburger menu into a compact native Card Dialog (removed duplicated/bloated items: Settings, Account, Logout, Telegram; kept 5 essential links: About, Contact us, FAQ, Privacy, Terms), added Settings as 5th tab on bottom navigation (Home — Learning — Packages — Account — Settings), added anti-copy DOM protection, and clean in-place download progress update |
 | 2026-09-26 | Fixed PDF size check & silent download: strictly prohibited probes from falling through to full GETs (unresolved probes return fabricated response without Content-Length), ensured vault writes occur ONLY on explicit user download actions, eliminated 'Ready' fallback in favor of 'Size unknown', and added single-flight cached UI state ('Already downloaded — opening…') |

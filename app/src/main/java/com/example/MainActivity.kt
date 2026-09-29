@@ -50,10 +50,12 @@ import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
@@ -314,11 +316,16 @@ private const val STUDY_TIMER_BRIDGE_JS =
         "function checkFocusTimer(){" +
             "try{" +
                 "var raw=localStorage.getItem('wt_focus_timer_v1');" +
-                "if(!raw)return;" +
+                "if(!raw){" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
+                        "window.AndroidOfflineVault.syncStudyTimer(false,0,0,'');" +
+                    "}" +
+                    "return;" +
+                "}" +
                 "var s=JSON.parse(raw);" +
                 "var now=Date.now();" +
                 "var isRunning=Boolean(s.running&&s.endAt&&s.endAt>now);" +
-                "var rem=isRunning?Math.max(0,Math.ceil((s.endAt-now)/1000)):Math.max(0,s.leftWhenPaused||0);" +
+                "var rem=isRunning?Math.max(0,Math.ceil((s.endAt-now)/1000)):0;" +
                 "var tot=s.totalSec||1500;" +
                 "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
                     "window.AndroidOfflineVault.syncStudyTimer(isRunning,rem,tot,'Study Timer');" +
@@ -632,7 +639,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var timerRemainingSeconds by remember { mutableIntStateOf(0) }
     var timerTotalSeconds by remember { mutableIntStateOf(0) }
     var timerTitle by remember { mutableStateOf("Study Timer") }
-    var isTimerWidgetVisible by remember { mutableStateOf(false) }
+    var isTimerDismissed by remember { mutableStateOf(false) }
     var lastOnlineUrl by remember { mutableStateOf(SITE) }
 
     LaunchedEffect(isTimerRunning, timerRemainingSeconds) {
@@ -893,6 +900,47 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         }
                     }
 
+                    // Compact Study Timer Indicator placed cleanly under the notification bell
+                    AnimatedVisibility(
+                        visible = isTimerRunning && timerRemainingSeconds > 0 && !isTimerDismissed,
+                        enter = expandVertically(tween(180)) + fadeIn(tween(160)),
+                        exit = shrinkVertically(tween(180)) + fadeOut(tween(160))
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(end = 12.dp, bottom = 6.dp),
+                            horizontalArrangement = Arrangement.End,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            TopBarStudyTimerIndicator(
+                                remainingSeconds = timerRemainingSeconds,
+                                onOpenWebTimer = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    val js = "(function(){try{" +
+                                        "var el=document.querySelector('#focus-timer,[data-focus-timer],.focus-timer,[id*=\"pomodoro\" i],[class*=\"pomodoro\" i],[id*=\"timer\" i]');" +
+                                        "if(el){el.scrollIntoView({behavior:'smooth',block:'center'});}" +
+                                        "}catch(e){}})();"
+                                    webView?.evaluateJavascript(js, null)
+                                },
+                                onStopTimer = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    isTimerRunning = false
+                                    timerRemainingSeconds = 0
+                                    isTimerDismissed = true
+                                    val js = "(function(){try{" +
+                                        "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'stop'}}));" +
+                                        "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                                        "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
+                                        "var btn=document.querySelector('[data-timer-stop],[data-study-timer-stop],button[aria-label*=\"stop\" i],button[aria-label*=\"reset\" i]');" +
+                                        "if(btn)btn.click();" +
+                                        "}catch(e){}})();"
+                                    webView?.evaluateJavascript(js, null)
+                                }
+                            )
+                        }
+                    }
+
                     // Hairline subtle divider
                     Box(
                         modifier = Modifier
@@ -1110,20 +1158,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 fun syncStudyTimer(isRunning: Boolean, secondsLeft: Int, totalSeconds: Int, title: String?) {
                                     mainHandler.post {
                                         isTimerRunning = isRunning
-                                        timerRemainingSeconds = secondsLeft.coerceAtLeast(0)
+                                        timerRemainingSeconds = if (isRunning) secondsLeft.coerceAtLeast(0) else 0
                                         timerTotalSeconds = totalSeconds.coerceAtLeast(0)
                                         if (!title.isNullOrBlank()) {
                                             timerTitle = title
                                         }
-                                        if (secondsLeft > 0 || isRunning) {
-                                            isTimerWidgetVisible = true
+                                        if (!isRunning) {
+                                            isTimerDismissed = false
                                         }
                                     }
                                 }
 
                                 @JavascriptInterface
                                 fun isStudyTimerActive(): Boolean {
-                                    return isTimerWidgetVisible && timerRemainingSeconds > 0
+                                    return isTimerRunning && timerRemainingSeconds > 0 && !isTimerDismissed
                                 }
                             }, "AndroidOfflineVault")
 
@@ -1594,43 +1642,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         subText = "Preparing your learning space…",
                         progress = webProgress,
                         isSplash = true
-                    )
-                }
-
-                // MP3-player style floating Study Timer widget: positioned upper right below refresh and notification icons
-                AnimatedVisibility(
-                    visible = isTimerWidgetVisible && timerRemainingSeconds > 0,
-                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(top = 8.dp, end = 10.dp)
-                        .zIndex(90f)
-                ) {
-                    FloatingStudyTimerWidget(
-                        isRunning = isTimerRunning,
-                        remainingSeconds = timerRemainingSeconds,
-                        title = timerTitle,
-                        onTogglePlayPause = {
-                            isTimerRunning = !isTimerRunning
-                            val action = if (isTimerRunning) "resume" else "pause"
-                            val js = "(function(){try{" +
-                                "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'$action'}}));" +
-                                "var btn=document.querySelector('[data-timer-toggle],[data-study-timer-toggle],button[aria-label*=\"timer\" i],button[aria-label*=\"pause\" i],button[aria-label*=\"play\" i]');" +
-                                "if(btn)btn.click();" +
-                                "}catch(e){}})();"
-                            webView?.evaluateJavascript(js, null)
-                        },
-                        onClose = {
-                            isTimerRunning = false
-                            isTimerWidgetVisible = false
-                            val js = "(function(){try{" +
-                                "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'stop'}}));" +
-                                "var btn=document.querySelector('[data-timer-stop],[data-study-timer-stop],button[aria-label*=\"stop\" i],button[aria-label*=\"reset\" i]');" +
-                                "if(btn)btn.click();" +
-                                "}catch(e){}})();"
-                            webView?.evaluateJavascript(js, null)
-                        }
                     )
                 }
             }
@@ -2104,20 +2115,17 @@ private fun LoaderProgressPill(
 }
 
 /**
- * MP3-player style floating Study Timer widget.
- * Positioned in the upper right corner, right below the refresh and notification bell icons.
- * Controls: Play / Pause toggle, Close / Stop, and live countdown.
+ * Compact native Study Timer status indicator in the top bar directly under the notification bell.
+ * Displays only while the web Pomodoro/Focus timer is actively running.
+ * Tapping the pill scrolls/opens the web timer; tapping the inline close (X) reliably stops the timer.
  */
 @Composable
-private fun FloatingStudyTimerWidget(
-    isRunning: Boolean,
+private fun TopBarStudyTimerIndicator(
     remainingSeconds: Int,
-    title: String,
-    onTogglePlayPause: () -> Unit,
-    onClose: () -> Unit,
+    onOpenWebTimer: () -> Unit,
+    onStopTimer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val view = LocalView.current
     val hours = remainingSeconds / 3600
     val minutes = (remainingSeconds % 3600) / 60
     val seconds = remainingSeconds % 60
@@ -2127,77 +2135,65 @@ private fun FloatingStudyTimerWidget(
         String.format("%02d:%02d", minutes, seconds)
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "studyTimerDot")
+    val infiniteTransition = rememberInfiniteTransition(label = "topBarTimerPulse")
     val dotAlpha by infiniteTransition.animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(500, easing = FastOutSlowInEasing),
+            animation = tween(600, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "studyTimerDotAlpha"
+        label = "topBarTimerDotAlpha"
     )
 
     Surface(
         color = Color(0xF20B132B),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.2.dp, Color(0x6600E5FF)),
-        shadowElevation = 14.dp,
+        shape = RoundedCornerShape(14.dp),
+        border = BorderStroke(1.dp, Color(0x6600E5FF)),
+        shadowElevation = 4.dp,
         modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .clickable(onClick = onOpenWebTimer)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(7.dp),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp)
         ) {
-            // Pulsing status dot (cyan when running, amber when paused)
+            // Pulsing cyan indicator dot
             Box(
                 modifier = Modifier
-                    .size(8.dp)
+                    .size(6.dp)
                     .clip(CircleShape)
-                    .background(
-                        if (isRunning) Accent.copy(alpha = dotAlpha) else Color(0xFFF59E0B)
-                    )
+                    .background(Accent.copy(alpha = dotAlpha))
             )
 
-            // Countdown display in bold tabular digits
+            // Live countdown text
             Text(
                 text = timeFormatted,
                 color = Color.White,
-                fontSize = 13.sp,
+                fontSize = 11.5.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.4.sp
+                letterSpacing = 0.3.sp
             )
 
-            // Play / Pause MP3-player style toggle button
-            IconButton(
-                onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onTogglePlayPause()
-                },
-                modifier = Modifier.size(28.dp)
-            ) {
-                Icon(
-                    imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isRunning) "Pause" else "Play",
-                    tint = Accent,
-                    modifier = Modifier.size(17.dp)
-                )
-            }
-
-            // Close / Stop MP3-player style button
-            IconButton(
-                onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                    onClose()
-                },
-                modifier = Modifier.size(26.dp)
+            // Clear, always-visible Stop / Close (X) button
+            Box(
+                modifier = Modifier
+                    .size(20.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x33FFFFFF))
+                    .clickable(
+                        onClick = onStopTimer,
+                        role = androidx.compose.ui.semantics.Role.Button
+                    ),
+                contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = "Close",
-                    tint = Muted.copy(alpha = 0.8f),
-                    modifier = Modifier.size(15.dp)
+                    contentDescription = "Stop timer",
+                    tint = Color.White.copy(alpha = 0.85f),
+                    modifier = Modifier.size(12.dp)
                 )
             }
         }
