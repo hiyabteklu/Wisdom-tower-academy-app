@@ -82,11 +82,11 @@ Output location:
    - **Free or paid:** Free
 3. Accept the Developer Program Policies and US export laws.
 
-### B. Personal Account Requirement (20-Tester Closed Test)
-*If publishing under a personal developer account created after Nov 13, 2023:*
+### B. Personal Account Requirement (12-Tester Closed Test)
+*Official Google requirement for personal developer accounts created after Nov 13, 2023:*
 1. Create a **Closed testing** track.
-2. Recruit at least **20 testers** who opt into your closed test on Android for at least **14 consecutive days**.
-3. Once 14 days have completed with active test feedback, apply for production access in Play Console.
+2. Recruit at least **12 testers** who opt into your closed test on Android for at least **14 continuous days**.
+3. Once 14 consecutive days have completed with active tester engagement and opt-ins, apply for production access in Play Console.
 
 ### C. Privacy Policy & Data Safety
 1. **Privacy Policy Link:**

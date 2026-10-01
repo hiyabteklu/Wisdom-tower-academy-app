@@ -415,38 +415,63 @@ const HTML_CONTENT = `<!DOCTYPE html>
 </html>`;
 
 const server = http.createServer((req, res) => {
-  const host = req.headers.host || 'localhost:3000';
-  const urlObj = new URL(req.url, 'http://' + host);
-  const pathname = urlObj.pathname;
+  try {
+    const host = req.headers.host || 'localhost:3000';
+    let pathname = '/';
+    try {
+      const urlObj = new URL(req.url, 'http://' + host);
+      pathname = urlObj.pathname;
+    } catch {
+      pathname = req.url.split('?')[0] || '/';
+    }
 
-  if (pathname === '/download-apk' || pathname === '/app-debug.apk') {
-    if (fs.existsSync(APK_PATH)) {
-      const stat = fs.statSync(APK_PATH);
-      res.writeHead(200, {
-        'Content-Type': 'application/vnd.android.package-archive',
-        'Content-Disposition': 'attachment; filename="Wisdom-Tower-Academy-debug.apk"',
-        'Content-Length': stat.size
-      });
-      fs.createReadStream(APK_PATH).pipe(res);
-      return;
-    } else {
-      res.writeHead(404, { 'Content-Type': 'text/plain' });
-      res.end('APK not found. Please compile the app first.');
+    if (pathname === '/download-apk' || pathname === '/app-debug.apk') {
+      if (fs.existsSync(APK_PATH)) {
+        const stat = fs.statSync(APK_PATH);
+        res.writeHead(200, {
+          'Content-Type': 'application/vnd.android.package-archive',
+          'Content-Disposition': 'attachment; filename="Wisdom-Tower-Academy-debug.apk"',
+          'Content-Length': stat.size
+        });
+        fs.createReadStream(APK_PATH).pipe(res);
+        return;
+      } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('APK not found. Please compile the app first.');
+        return;
+      }
+    }
+
+    if (pathname === '/api/health' || pathname === '/health') {
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
       return;
     }
-  }
 
-  if (pathname === '/api/health' || pathname === '/health') {
-    res.writeHead(200, { 'Content-Type': 'application/json' });
-    res.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
-    return;
+    res.writeHead(200, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Cache-Control': 'no-cache'
+    });
+    res.end(HTML_CONTENT);
+  } catch (err) {
+    console.error('Request handling error:', err);
+    if (!res.headersSent) {
+      res.writeHead(500, { 'Content-Type': 'text/plain' });
+      res.end('Internal Server Error');
+    }
   }
+});
 
-  res.writeHead(200, {
-    'Content-Type': 'text/html; charset=utf-8',
-    'Cache-Control': 'no-cache'
-  });
-  res.end(HTML_CONTENT);
+server.on('error', (err) => {
+  console.error('Server error:', err);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
 server.listen(PORT, '0.0.0.0', () => {

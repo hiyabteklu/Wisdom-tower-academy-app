@@ -93,6 +93,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Business
@@ -111,6 +112,8 @@ import androidx.compose.material.icons.automirrored.outlined.HelpOutline
 import androidx.compose.material.icons.outlined.Email
 import androidx.compose.material.icons.outlined.Policy
 import androidx.compose.material.icons.outlined.PrivacyTip
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
@@ -119,6 +122,9 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
+import androidx.compose.foundation.layout.PaddingValues
+import android.webkit.SslErrorHandler
+import android.net.http.SslError
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -179,20 +185,38 @@ private const val NATIVE_CHROME_JS =
         "s.textContent=" +
         "'header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
-        "[data-nprogress],#nextjs-toploader,.nextjs-toploader" +
+        "[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
+        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]" +
         "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
-        "cs.textContent=" +
-        "'html,body,table,td,th,article,section,main{" +
-        "-webkit-user-select:none;user-select:none;}" +
-        "a,button,[role=\"button\"],.cursor-pointer,input,textarea,select,p,span,h1,h2,h3,h4,h5,h6{" +
-        "-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;" +
-        "pointer-events:auto!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(0,229,255,0.2)!important;}';" +
-        "if(!window.__wta_copy_blocked){" +
-        "window.__wta_copy_blocked=true;" +
-        "document.addEventListener('copy',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;});" +
-        "document.addEventListener('cut',function(e){var t=e.target;if(t&&(t.tagName==='INPUT'||t.tagName==='TEXTAREA'||t.isContentEditable))return;e.preventDefault();return false;});" +
+        "var p=(window.location.pathname||'').toLowerCase();" +
+        "var isAuthOrLearning=p.indexOf('/login')!==-1||p.indexOf('/auth')!==-1||p.indexOf('/signin')!==-1||p.indexOf('/sign-in')!==-1||p.indexOf('/signup')!==-1||p.indexOf('/register')!==-1||p.indexOf('password')!==-1||p.indexOf('/account')!==-1||p.indexOf('/learning')!==-1||p.indexOf('/notes')!==-1||p.indexOf('/study')!==-1;" +
+        "if(isAuthOrLearning){" +
+            "cs.textContent='* { -webkit-user-select:text!important; user-select:text!important; -webkit-touch-callout:default!important; } input,textarea,[contenteditable=\"true\"],.note,.notes { -webkit-user-select:auto!important; user-select:auto!important; }';" +
+        "}else{" +
+            "cs.textContent=" +
+            "'html,body,table,td,th,article,section,main{" +
+            "-webkit-user-select:none;user-select:none;}" +
+            "a,button,[role=\"button\"],.cursor-pointer,input,textarea,select,p,span,h1,h2,h3,h4,h5,h6{" +
+            "-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;" +
+            "pointer-events:auto!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(0,229,255,0.2)!important;}" +
+            "input,textarea,[contenteditable=\"true\"],.note,.notes,[data-notes]{-webkit-user-select:text!important;user-select:text!important;}';" +
+        "}" +
+        "if(!window.__wta_copy_handler){" +
+            "window.__wta_copy_handler=true;" +
+            "function isAllowedCopy(el){" +
+                "var curP=(window.location.pathname||'').toLowerCase();" +
+                "if(curP.indexOf('/login')!==-1||curP.indexOf('/auth')!==-1||curP.indexOf('/signin')!==-1||curP.indexOf('/signup')!==-1||curP.indexOf('/register')!==-1||curP.indexOf('password')!==-1||curP.indexOf('/account')!==-1||curP.indexOf('/learning')!==-1||curP.indexOf('/notes')!==-1||curP.indexOf('/study')!==-1) return true;" +
+                "if(!el) return false;" +
+                "if(el.tagName==='INPUT'||el.tagName==='TEXTAREA'||el.isContentEditable) return true;" +
+                "if(el.closest && el.closest('input,textarea,[contenteditable=\"true\"],.note,.notes,[data-notes],.ql-editor,.DraftEditor-root,form')) return true;" +
+                "return false;" +
+            "}" +
+            "document.addEventListener('copy',function(e){if(isAllowedCopy(e.target))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;},true);" +
+            "document.addEventListener('cut',function(e){if(isAllowedCopy(e.target))return;e.preventDefault();return false;},true);" +
+            "window.addEventListener('error',function(e){if(e&&e.message&&(e.message.indexOf('fetch')!==-1||e.message.indexOf('Network')!==-1)){e.preventDefault();}});" +
+            "window.addEventListener('unhandledrejection',function(e){if(e&&e.reason&&(String(e.reason).indexOf('fetch')!==-1||String(e.reason).indexOf('Network')!==-1)){e.preventDefault();}});" +
         "}" +
         "if(!window.__wta_route_monitor){" +
             "window.__wta_route_monitor=true;" +
@@ -381,7 +405,8 @@ class MainActivity : ComponentActivity() {
         splash.setKeepOnScreenCondition { keepSplash }
         super.onCreate(savedInstanceState)
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // TODO: Re-enable FLAG_SECURE before final production release to prevent unauthorized screen captures
+        // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#0F172A")
         @Suppress("DEPRECATION")
@@ -403,7 +428,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // TODO: Re-enable FLAG_SECURE before final production release to prevent unauthorized screen captures
+        // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 }
 
@@ -526,8 +552,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
 
+    // First-open and cold-start offline state handling
+    var isOfflineState by remember { mutableStateOf(!isOnline(context) && !WebCacheVault.has(context, SITE)) }
+    var lastTargetUrl by remember { mutableStateOf(SITE) }
+
     // Loading states for zero blank screen and lively navigation feedback
-    var isInitialLoading by remember { mutableStateOf(true) }
+    var isInitialLoading by remember { mutableStateOf(!isOfflineState) }
     var minSplashElapsed by remember { mutableStateOf(false) }
     var pageRendered by remember { mutableStateOf(false) }
     var webProgress by remember { mutableIntStateOf(0) }
@@ -561,17 +591,66 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
     var pendingClearHistory by remember { mutableStateOf(false) }
 
-    // Hand-off from system splash to brand animated loader with smooth minimum cinematic timing
+    // Immediate cold-start check for airplane mode / offline
     LaunchedEffect(Unit) {
         onReady()
-        delay(MIN_SPLASH_DISPLAY_MS)
-        minSplashElapsed = true
-        if (pageRendered) {
+        val online = isOnline(context)
+        if (!online && !WebCacheVault.has(context, SITE)) {
+            // Cold start offline without cache: show native offline state instantly!
+            minSplashElapsed = true
+            isInitialLoading = false
+            isOfflineState = true
+        } else {
+            delay(MIN_SPLASH_DISPLAY_MS)
+            minSplashElapsed = true
+            if (pageRendered) {
+                isInitialLoading = false
+            }
+            // Safety timeout: ensure loader never hangs
+            delay(2500L)
             isInitialLoading = false
         }
-        // Safety timeout: ensure loader never hangs if network is slow
-        delay(4000L)
-        isInitialLoading = false
+    }
+
+    // Active network monitoring for instant auto-recovery
+    DisposableEffect(context) {
+        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) {
+                mainHandler.post {
+                    if (isOfflineState) {
+                        isOfflineState = false
+                        webView?.let { wv ->
+                            val target = lastTargetUrl.ifBlank { SITE }
+                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                            wv.loadUrl(target)
+                        }
+                    }
+                }
+            }
+            override fun onLost(network: android.net.Network) {
+                mainHandler.post {
+                    if (!isOnline(context)) {
+                        val current = webView?.url.orEmpty()
+                        if (!WebCacheVault.has(context, current) && !WebCacheVault.has(context, lastTargetUrl)) {
+                            isOfflineState = true
+                            stopNavigationLoading()
+                        }
+                    }
+                }
+            }
+        }
+        val request = android.net.NetworkRequest.Builder()
+            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        try {
+            cm?.registerNetworkCallback(request, callback)
+        } catch (_: Exception) {}
+        onDispose {
+            try {
+                cm?.unregisterNetworkCallback(callback)
+            } catch (_: Exception) {}
+        }
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -674,15 +753,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
             if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
                 lastOnlineUrl = current
             }
-            if (!current.contains("offline.html")) {
-                wv.loadUrl(OFFLINE_ASSET)
-            }
+            isOfflineState = true
         }
     }
 
     fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
         val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
+        lastTargetUrl = url
         if (resetHistory) pendingClearHistory = true
         val targetTitle = when {
             tabIndex != null && tabIndex in items.indices -> items[tabIndex].title
@@ -704,12 +782,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
         if (!online) {
             val isCached = WebCacheVault.has(context, url)
-            if (!isCached && !WebCacheVault.hasAnyPage(context)) {
-                showOffline(wv)
+            if (!isCached) {
+                isOfflineState = true
+                stopNavigationLoading()
                 return
             }
         }
 
+        isOfflineState = false
         lastOnlineUrl = url
         try {
             wv.stopLoading()
@@ -966,7 +1046,21 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     selectedIndex = selectedIndex,
                     onItemSelected = { index, item ->
                         selectedIndex = index
-                        navigateTo(item.url, index)
+                        lastTargetUrl = item.url
+                        val online = isOnline(context)
+                        if (!online) {
+                            val isCached = WebCacheVault.has(context, item.url)
+                            if (!isCached) {
+                                isOfflineState = true
+                                stopNavigationLoading()
+                            } else {
+                                isOfflineState = false
+                                navigateTo(item.url, index)
+                            }
+                        } else {
+                            isOfflineState = false
+                            navigateTo(item.url, index)
+                        }
                     }
                 )
             }
@@ -986,10 +1080,21 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ViewGroup.LayoutParams.MATCH_PARENT,
                                 ViewGroup.LayoutParams.MATCH_PARENT
                             )
-                            isLongClickable = false
+                            isLongClickable = true
                             setOnLongClickListener {
                                 val hit = hitTestResult
-                                hit?.type != WebView.HitTestResult.EDIT_TEXT_TYPE
+                                val isEditText = hit?.type == WebView.HitTestResult.EDIT_TEXT_TYPE
+                                val currentUrl = url?.lowercase().orEmpty()
+                                val isAllowedPage = currentUrl.contains("/login") || currentUrl.contains("/auth") ||
+                                                    currentUrl.contains("/signin") || currentUrl.contains("/signup") ||
+                                                    currentUrl.contains("/register") || currentUrl.contains("/learning") ||
+                                                    currentUrl.contains("/notes") || currentUrl.contains("/study") ||
+                                                    currentUrl.contains("/account")
+                                if (isEditText || isAllowedPage) {
+                                    false
+                                } else {
+                                    true
+                                }
                             }
                             settings.apply {
                                 javaScriptEnabled = true
@@ -1244,8 +1349,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     val curUrl = url ?: view?.url
-                                    if (curUrl != null && !curUrl.startsWith("file://")) {
+                                    if (curUrl != null && !curUrl.startsWith("file://") && !curUrl.contains("offline.html")) {
                                         selectedIndex = tabIndexForUrl(curUrl, selectedIndex)
+                                        isOfflineState = false
                                     }
                                     pageRendered = true
                                     if (minSplashElapsed) {
@@ -1297,7 +1403,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     }
 
-                                    if (statusCode in listOf(500, 502, 503, 504)) {
+                                    if (statusCode in listOf(404, 500, 502, 503, 504)) {
                                         showOffline(wv)
                                     }
                                 }
@@ -1352,6 +1458,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     }
 
+                                    showOffline(wv)
+                                }
+
+                                override fun onReceivedSslError(
+                                    view: WebView?,
+                                    handler: SslErrorHandler?,
+                                    error: SslError?
+                                ) {
+                                    handler?.cancel()
+                                    val wv = view ?: return
                                     showOffline(wv)
                                 }
 
@@ -1665,6 +1781,36 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         subText = "Preparing your learning space…",
                         progress = webProgress,
                         isSplash = true
+                    )
+                }
+
+                // Native Compose Offline / Error Notice Overlay
+                AnimatedVisibility(
+                    visible = isOfflineState,
+                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.95f),
+                    exit = fadeOut(tween(180)),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(140f)
+                ) {
+                    NativeOfflineNotice(
+                        onRetry = {
+                            val online = isOnline(context)
+                            if (online) {
+                                isOfflineState = false
+                                webView?.let { wv ->
+                                    val target = lastTargetUrl.ifBlank { SITE }
+                                    wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                    wv.loadUrl(target)
+                                }
+                            } else {
+                                Toast.makeText(
+                                    context,
+                                    "You're offline. Please connect to Wi-Fi or mobile data and try again.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        }
                     )
                 }
             }
@@ -2397,6 +2543,103 @@ private fun AliveBottomNav(
                             )
                         }
                     }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Clean native Jetpack Compose Offline Notice Screen
+ * Replaces emoji-heavy version with native Android vector icon (satellite / cloud-off)
+ * and clear, actionable retry mechanism.
+ */
+@Composable
+private fun NativeOfflineNotice(
+    onRetry: () -> Unit
+) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(BarBg)
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier
+                .fillMaxWidth()
+                .widthIn(max = 380.dp)
+                .clip(RoundedCornerShape(24.dp))
+                .background(Color(0xFF1E293B))
+                .border(BorderStroke(1.dp, Color(0x3300E5FF)), RoundedCornerShape(24.dp))
+                .padding(horizontal = 24.dp, vertical = 32.dp)
+        ) {
+            // Native satellite / cloud-off style vector icon (NO emojis)
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .clip(CircleShape)
+                    .background(Color(0x1A00E5FF))
+                    .border(BorderStroke(1.5.dp, Color(0x4D00E5FF)), CircleShape),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CloudOff,
+                    contentDescription = "Offline indicator",
+                    tint = Accent,
+                    modifier = Modifier.size(36.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+
+            Text(
+                text = "You're offline",
+                color = Color.White,
+                fontSize = 20.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            Text(
+                text = "You're offline. Please connect to Wi-Fi or mobile data and try again.",
+                color = Muted,
+                fontSize = 14.sp,
+                lineHeight = 21.sp,
+                textAlign = TextAlign.Center
+            )
+
+            Spacer(modifier = Modifier.height(26.dp))
+
+            Button(
+                onClick = onRetry,
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Accent,
+                    contentColor = BarBg
+                ),
+                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Refresh,
+                        contentDescription = null,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Try again",
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
         }
