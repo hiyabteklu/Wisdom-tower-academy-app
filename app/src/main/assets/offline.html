@@ -151,28 +151,10 @@
       <span class="status-dot" id="liveDot"></span>
       <span id="liveText">Waiting for connection…</span>
     </div>
-
-    <div style="margin-top: 20px; width: 100%; border-top: 1px solid rgba(255,255,255,0.12); padding-top: 16px;">
-      <p style="font-size: 0.78rem; color: #94A3B8; margin-bottom: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.05em; text-align: center;">Saved Offline Sections</p>
-      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
-        <button type="button" onclick="openOfflineSection('https://www.wisdom-tower-academy.live/')" style="padding: 10px 8px; font-size: 0.82rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(0,229,255,0.25); color: #F8FAFC; border-radius: 12px; font-weight: 600; cursor: pointer;">Home</button>
-        <button type="button" onclick="openOfflineSection('https://www.wisdom-tower-academy.live/learning')" style="padding: 10px 8px; font-size: 0.82rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(0,229,255,0.25); color: #F8FAFC; border-radius: 12px; font-weight: 600; cursor: pointer;">Learning</button>
-        <button type="button" onclick="openOfflineSection('https://www.wisdom-tower-academy.live/academy')" style="padding: 10px 8px; font-size: 0.82rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(0,229,255,0.25); color: #F8FAFC; border-radius: 12px; font-weight: 600; cursor: pointer;">Academy</button>
-        <button type="button" onclick="openOfflineSection('https://www.wisdom-tower-academy.live/academy/success-stories')" style="padding: 10px 8px; font-size: 0.82rem; background: rgba(255,255,255,0.06); border: 1px solid rgba(0,229,255,0.25); color: #F8FAFC; border-radius: 12px; font-weight: 600; cursor: pointer;">Resources</button>
-      </div>
-    </div>
   </div>
 
   <script>
     var isChecking = false;
-
-    function openOfflineSection(url) {
-      if (window.AndroidOfflineVault && typeof window.AndroidOfflineVault.openOfflineUrl === 'function') {
-        window.AndroidOfflineVault.openOfflineUrl(url);
-      } else {
-        window.location.replace(url);
-      }
-    }
 
     function navigateBackOnline() {
       if (window.AndroidOfflineVault && typeof window.AndroidOfflineVault.reloadLastOnlinePage === 'function') {
@@ -202,7 +184,7 @@
           label.textContent = 'Connected! Reopening…';
           document.getElementById('liveDot').style.background = '#10B981';
           document.getElementById('liveText').textContent = 'Online';
-          setTimeout(navigateBackOnline, 400);
+          setTimeout(navigateBackOnline, 300);
         } else {
           setTimeout(function() {
             isChecking = false;
@@ -213,12 +195,22 @@
         }
       }
 
+      if (window.AndroidOfflineVault && typeof window.AndroidOfflineVault.reloadLastOnlinePage === 'function') {
+        window.AndroidOfflineVault.reloadLastOnlinePage();
+        setTimeout(function() {
+          isChecking = false;
+          btn.disabled = false;
+          spinner.style.display = 'none';
+          label.textContent = 'Try again';
+        }, 1200);
+        return;
+      }
+
       if (navigator.onLine === false) {
         checkComplete(false);
         return;
       }
 
-      // Quick fetch probe
       var controller = (typeof AbortController !== 'undefined') ? new AbortController() : null;
       var timeout = setTimeout(function() {
         if (controller) controller.abort();
@@ -234,7 +226,6 @@
         checkComplete(true);
       }).catch(function() {
         clearTimeout(timeout);
-        // Fallback check navigator
         checkComplete(navigator.onLine);
       });
     }
@@ -242,14 +233,11 @@
     window.addEventListener('online', function() {
       document.getElementById('liveDot').style.background = '#10B981';
       document.getElementById('liveText').textContent = 'Back online! Reopening…';
-      setTimeout(navigateBackOnline, 500);
+      setTimeout(navigateBackOnline, 400);
     });
 
-    // Background auto-reconnect polling every 2.5s
     setInterval(function() {
       if (navigator.onLine && !isChecking) {
-        document.getElementById('liveDot').style.background = '#10B981';
-        document.getElementById('liveText').textContent = 'Connection restored';
         navigateBackOnline();
       }
     }, 2500);
