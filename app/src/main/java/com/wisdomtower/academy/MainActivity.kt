@@ -36,8 +36,15 @@ import java.net.HttpURLConnection
 import java.net.URL
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
+import android.content.pm.PackageManager
+import android.Manifest
+import com.wisdomtower.academy.fcm.AcademyFirebaseMessagingService
+import com.wisdomtower.academy.fcm.FcmTokenRegistrar
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -488,7 +495,11 @@ private const val STUDY_TIMER_BRIDGE_JS =
     "}catch(e){}})();"
 
 class MainActivity : ComponentActivity() {
+
+    private val pendingNotificationUrl = mutableStateOf<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
+        extractNotificationUrl(intent)
         val splash = installSplashScreen()
         var keepSplash = true
         splash.setKeepOnScreenCondition { keepSplash }
@@ -513,8 +524,29 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = false
         setContent {
             MyApplicationTheme {
-                MainScreen(onReady = { keepSplash = false })
+                MainScreen(
+                    onReady = { keepSplash = false },
+                    initialNotificationUrl = pendingNotificationUrl.value,
+                    onNotificationUrlConsumed = { pendingNotificationUrl.value = null }
+                )
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        extractNotificationUrl(intent)
+    }
+
+    private fun extractNotificationUrl(intent: Intent?) {
+        val target = intent?.getStringExtra(AcademyFirebaseMessagingService.EXTRA_TARGET_URL)
+            ?: intent?.getStringExtra("url")
+            ?: intent?.getStringExtra("link")
+            ?: intent?.getStringExtra("path")
+            ?: intent?.dataString
+        if (!target.isNullOrBlank()) {
+            pendingNotificationUrl.value = FcmTokenRegistrar.resolveTargetUrl(target)
         }
     }
 
@@ -639,7 +671,11 @@ private val mainHandler = Handler(Looper.getMainLooper())
 
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
-fun MainScreen(onReady: () -> Unit = {}) {
+fun MainScreen(
+    onReady: () -> Unit = {},
+    initialNotificationUrl: String? = null,
+    onNotificationUrlConsumed: () -> Unit = {}
+) {
     val context = LocalContext.current
     val view = LocalView.current
     val items = listOf(
@@ -650,13 +686,33 @@ fun MainScreen(onReady: () -> Unit = {}) {
         BottomNavItem.Settings
     )
 
+    val notificationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            FcmTokenRegistrar.checkAndRegisterToken(context)
+        }
+    }
+
+    val requestNotificationPermission = {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(
+                    context,
+                    Manifest.permission.POST_NOTIFICATIONS
+                ) != PackageManager.PERMISSION_GRANTED
+            ) {
+                notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
+        }
+    }
+
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
 
     // Instant cold-start and process-death network validation
     val isInitiallyOnline = isOnline(context)
-    var lastTargetUrl by remember { mutableStateOf(SITE) }
+    var lastTargetUrl by remember { mutableStateOf(initialNotificationUrl?.takeIf { it.isNotBlank() } ?: SITE) }
 
     // Loading states for zero blank screen and lively navigation feedback
     var isInitialLoading by remember { mutableStateOf(true) }
@@ -815,8 +871,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var showExitDialog by remember { mutableStateOf(false) }
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
 
+    LaunchedEffect(initialNotificationUrl) {
+        if (!initialNotificationUrl.isNullOrBlank()) {
+            navigateTo(initialNotificationUrl, null)
+            onNotificationUrlConsumed()
+        }
+    }
+
     // Immediate cold-start / process-death check for offline
     LaunchedEffect(Unit) {
+        FcmTokenRegistrar.checkAndRegisterToken(context)
         onReady()
         delay(MIN_SPLASH_DISPLAY_MS)
         minSplashElapsed = true
@@ -993,6 +1057,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
             onFinished = {
                 setOnboardingCompleted(context)
                 showOnboarding = false
+                requestNotificationPermission()
             }
         )
         return
@@ -1118,6 +1183,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             IconButton(
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    requestNotificationPermission()
                                     navigateTo("https://www.wisdom-tower-academy.live/notifications", null)
                                 },
                                 modifier = Modifier.size(44.dp)
@@ -1349,7 +1415,16 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             selectedIndex = tabIndexForUrl(path, selectedIndex)
                                             stopNavigationLoading()
                                         }
+                                        val lower = path.lowercase()
+                                        if (lower.contains("login") || lower.contains("account") || lower.contains("dashboard") || lower.contains("learning")) {
+                                            FcmTokenRegistrar.checkAndRegisterToken(ctx)
+                                        }
                                     }
+                                }
+
+                                @JavascriptInterface
+                                fun onUserLogin(userId: String? = null) {
+                                    FcmTokenRegistrar.checkAndRegisterToken(ctx)
                                 }
 
                                 @JavascriptInterface

@@ -58,6 +58,9 @@ class WisdomTowerApplication : Application(), ImageLoaderFactory {
             .allowHardware(true)
             .build()
         imageLoader.enqueue(preWarmBytesRequest)
+
+        // Quiet background FCM token registration
+        com.wisdomtower.academy.fcm.FcmTokenRegistrar.checkAndRegisterToken(this)
     }
 
     companion object {
