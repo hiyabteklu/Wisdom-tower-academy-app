@@ -412,7 +412,10 @@ class MainActivity : ComponentActivity() {
         @Suppress("DEPRECATION")
         window.statusBarColor = navy
         @Suppress("DEPRECATION")
-        window.navigationBarColor = navy
+        window.navigationBarColor = AndroidColor.TRANSPARENT
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            window.navigationBarDividerColor = AndroidColor.TRANSPARENT
+        }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
             window.isNavigationBarContrastEnforced = false
             window.isStatusBarContrastEnforced = false
@@ -586,11 +589,81 @@ fun MainScreen(onReady: () -> Unit = {}) {
         isNavigating = false
     }
 
+    var lastOnlineUrl by remember { mutableStateOf(SITE) }
+    var pendingClearHistory by remember { mutableStateOf(false) }
+
+    fun showOffline(wv: WebView) {
+        isInitialLoading = false
+        stopNavigationLoading()
+        isOfflineState = true
+        mainHandler.post {
+            val current = wv.url.orEmpty()
+            if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
+                lastOnlineUrl = current
+                lastTargetUrl = current
+            }
+            try {
+                wv.stopLoading()
+            } catch (_: Exception) {}
+            wv.loadUrl(OFFLINE_ASSET)
+        }
+    }
+
+    fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
+        val wv = webView ?: return
+        if (tabIndex != null) selectedIndex = tabIndex
+        lastTargetUrl = url
+        if (resetHistory) pendingClearHistory = true
+
+        val online = isOnline(context)
+        if (!online) {
+            showOffline(wv)
+            return
+        }
+
+        val targetTitle = when {
+            tabIndex != null && tabIndex in items.indices -> items[tabIndex].title
+            else -> {
+                val idx = tabIndexForUrl(url, selectedIndex)
+                if (idx in items.indices) items[idx].title else "Wisdom Tower Academy"
+            }
+        }
+        navigationStatusText = "Opening $targetTitle…"
+        startNavigationLoading()
+        webProgress = 20
+
+        isOfflineState = false
+        lastOnlineUrl = url
+        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+        try {
+            wv.stopLoading()
+        } catch (_: Exception) {}
+        wv.loadUrl(url)
+    }
+
+    // MP3-player style Study Timer state
+    var isTimerRunning by remember { mutableStateOf(false) }
+    var isTimerPaused by remember { mutableStateOf(false) }
+    var timerRemainingSeconds by remember { mutableIntStateOf(0) }
+    var timerTotalSeconds by remember { mutableIntStateOf(0) }
+    var timerTitle by remember { mutableStateOf("Study Timer") }
+    var isTimerDismissed by remember { mutableStateOf(false) }
+
+    LaunchedEffect(isTimerRunning, timerRemainingSeconds) {
+        if (isTimerRunning && timerRemainingSeconds > 0) {
+            delay(1000L)
+            timerRemainingSeconds = (timerRemainingSeconds - 1).coerceAtLeast(0)
+            if (timerRemainingSeconds == 0) {
+                isTimerRunning = false
+                isTimerPaused = false
+            }
+        }
+    }
+
     var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
     var showOnboarding by remember { mutableStateOf(!hasCompletedOnboarding(context)) }
     var showExitDialog by remember { mutableStateOf(false) }
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
-    var pendingClearHistory by remember { mutableStateOf(false) }
 
     // Immediate cold-start / process-death check for offline
     LaunchedEffect(Unit) {
@@ -732,74 +805,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
         }
     }
 
-    var isTimerRunning by remember { mutableStateOf(false) }
-    var timerRemainingSeconds by remember { mutableIntStateOf(0) }
-    var timerTotalSeconds by remember { mutableIntStateOf(0) }
-    var timerTitle by remember { mutableStateOf("Study Timer") }
-    var isTimerDismissed by remember { mutableStateOf(false) }
-    var lastOnlineUrl by remember { mutableStateOf(SITE) }
-
-    LaunchedEffect(isTimerRunning, timerRemainingSeconds) {
-        if (isTimerRunning && timerRemainingSeconds > 0) {
-            delay(1000L)
-            timerRemainingSeconds = (timerRemainingSeconds - 1).coerceAtLeast(0)
-            if (timerRemainingSeconds == 0) {
-                isTimerRunning = false
-            }
-        }
-    }
-
-    fun showOffline(wv: WebView) {
-        isInitialLoading = false
-        stopNavigationLoading()
-        isOfflineState = true
-        mainHandler.post {
-            val current = wv.url.orEmpty()
-            if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
-                lastOnlineUrl = current
-                lastTargetUrl = current
-            }
-            try {
-                wv.stopLoading()
-            } catch (_: Exception) {}
-            if (!current.contains("offline.html")) {
-                wv.loadUrl(OFFLINE_ASSET)
-            }
-        }
-    }
-
-    fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
-        val wv = webView ?: return
-        if (tabIndex != null) selectedIndex = tabIndex
-        lastTargetUrl = url
-        if (resetHistory) pendingClearHistory = true
-
-        val online = isOnline(context)
-        if (!online) {
-            showOffline(wv)
-            return
-        }
-
-        val targetTitle = when {
-            tabIndex != null && tabIndex in items.indices -> items[tabIndex].title
-            else -> {
-                val idx = tabIndexForUrl(url, selectedIndex)
-                if (idx in items.indices) items[idx].title else "Wisdom Tower Academy"
-            }
-        }
-        navigationStatusText = "Opening $targetTitle…"
-        startNavigationLoading()
-        webProgress = 20
-
-        isOfflineState = false
-        lastOnlineUrl = url
-        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-        try {
-            wv.stopLoading()
-        } catch (_: Exception) {}
-        wv.loadUrl(url)
-    }
-
     fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
         val cleanUrl = url.trim()
         val local = OfflineVault.localFileFor(ctx, cleanUrl)
@@ -829,34 +834,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     wv.loadUrl(cleanUrl)
                 }
             }
-        }
-    }
-
-    DisposableEffect(context, webView) {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: android.net.Network) {
-                mainHandler.post {
-                    webView?.settings?.cacheMode = WebSettings.LOAD_DEFAULT
-                    if (webView?.url?.contains("offline.html") == true) {
-                        val target = if (lastOnlineUrl.isNotBlank() && !lastOnlineUrl.startsWith("file://")) lastOnlineUrl else SITE
-                        navigateTo(target, null)
-                    }
-                }
-                WebCacheVault.precacheHubsAsync(context)
-            }
-
-            override fun onLost(network: android.net.Network) {
-                mainHandler.post {
-                    webView?.settings?.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                }
-            }
-        }
-        try {
-            cm.registerDefaultNetworkCallback(callback)
-        } catch (_: Exception) {}
-        onDispose {
-            try { cm.unregisterNetworkCallback(callback) } catch (_: Exception) {}
         }
     }
 
@@ -993,9 +970,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         }
                     }
 
-                    // Compact Study Timer Indicator placed cleanly under the notification bell
+                    // MP3-player style Study Timer Pill placed cleanly under refresh & notification bell
                     AnimatedVisibility(
-                        visible = isTimerRunning && timerRemainingSeconds > 0 && !isTimerDismissed,
+                        visible = (isTimerRunning || (isTimerPaused && timerRemainingSeconds > 0)) && !isTimerDismissed,
                         enter = expandVertically(tween(180)) + fadeIn(tween(160)),
                         exit = shrinkVertically(tween(180)) + fadeOut(tween(160))
                     ) {
@@ -1006,27 +983,54 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             horizontalArrangement = Arrangement.End,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            TopBarStudyTimerIndicator(
+                            StudyTimerPlayerPill(
                                 remainingSeconds = timerRemainingSeconds,
-                                onOpenWebTimer = {
+                                isRunning = isTimerRunning,
+                                isPaused = isTimerPaused,
+                                onTogglePlayPause = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    val js = "(function(){try{" +
-                                        "var el=document.querySelector('#focus-timer,[data-focus-timer],.focus-timer,[id*=\"pomodoro\" i],[class*=\"pomodoro\" i],[id*=\"timer\" i]');" +
-                                        "if(el){el.scrollIntoView({behavior:'smooth',block:'center'});}" +
-                                        "}catch(e){}})();"
-                                    webView?.evaluateJavascript(js, null)
+                                    if (isTimerRunning) {
+                                        // Pause
+                                        isTimerRunning = false
+                                        isTimerPaused = true
+                                        val js = "(function(){try{" +
+                                            "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'pause'}}));" +
+                                            "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                                            "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=$timerRemainingSeconds;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
+                                            "}catch(e){}})();"
+                                        webView?.evaluateJavascript(js, null)
+                                    } else {
+                                        // Resume
+                                        isTimerRunning = true
+                                        isTimerPaused = false
+                                        val js = "(function(){try{" +
+                                            "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'resume'}}));" +
+                                            "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                                            "if(raw){var s=JSON.parse(raw);s.running=true;s.endAt=Date.now()+($timerRemainingSeconds*1000);localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
+                                            "}catch(e){}})();"
+                                        webView?.evaluateJavascript(js, null)
+                                    }
                                 },
-                                onStopTimer = {
+                                onClose = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     isTimerRunning = false
+                                    isTimerPaused = false
                                     timerRemainingSeconds = 0
                                     isTimerDismissed = true
                                     val js = "(function(){try{" +
                                         "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'stop'}}));" +
                                         "var raw=localStorage.getItem('wt_focus_timer_v1');" +
-                                        "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
+                                        "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=s.totalSec||1500;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
                                         "var btn=document.querySelector('[data-timer-stop],[data-study-timer-stop],button[aria-label*=\"stop\" i],button[aria-label*=\"reset\" i]');" +
                                         "if(btn)btn.click();" +
+                                        "}catch(e){}})();"
+                                    webView?.evaluateJavascript(js, null)
+                                },
+                                onOpenWebTimer = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    val js = "(function(){try{" +
+                                        "var el=document.querySelector('#focus-timer,[data-focus-timer],.focus-timer,[id*=\"pomodoro\" i],[class*=\"pomodoro\" i],[id*=\"timer\" i]');" +
+                                        "if(el){el.scrollIntoView({behavior:'smooth',block:'center'});}" +
                                         "}catch(e){}})();"
                                     webView?.evaluateJavascript(js, null)
                                 }
@@ -1110,17 +1114,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 useWideViewPort = true
                                 loadWithOverviewMode = true
                                 offscreenPreRaster = false
-                                cacheMode = if (isOnline(ctx)) {
-                                    WebSettings.LOAD_DEFAULT
-                                } else {
-                                    WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                }
+                                cacheMode = WebSettings.LOAD_DEFAULT
                             }
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                                 try {
                                     val swController = ServiceWorkerController.getInstance()
                                     val swSettings = swController.serviceWorkerWebSettings
-                                    swSettings.cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                    swSettings.cacheMode = WebSettings.LOAD_DEFAULT
                                     swSettings.allowContentAccess = true
                                     swSettings.allowFileAccess = true
                                     swSettings.blockNetworkLoads = false
@@ -1285,20 +1285,29 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 fun syncStudyTimer(isRunning: Boolean, secondsLeft: Int, totalSeconds: Int, title: String?) {
                                     mainHandler.post {
                                         isTimerRunning = isRunning
-                                        timerRemainingSeconds = if (isRunning) secondsLeft.coerceAtLeast(0) else 0
+                                        if (isRunning) {
+                                            isTimerPaused = false
+                                            timerRemainingSeconds = secondsLeft.coerceAtLeast(0)
+                                            isTimerDismissed = false
+                                        } else {
+                                            if (secondsLeft > 0 && !isTimerDismissed) {
+                                                isTimerPaused = true
+                                                timerRemainingSeconds = secondsLeft
+                                            } else {
+                                                isTimerPaused = false
+                                                timerRemainingSeconds = 0
+                                            }
+                                        }
                                         timerTotalSeconds = totalSeconds.coerceAtLeast(0)
                                         if (!title.isNullOrBlank()) {
                                             timerTitle = title
-                                        }
-                                        if (!isRunning) {
-                                            isTimerDismissed = false
                                         }
                                     }
                                 }
 
                                 @JavascriptInterface
                                 fun isStudyTimerActive(): Boolean {
-                                    return isTimerRunning && timerRemainingSeconds > 0 && !isTimerDismissed
+                                    return (isTimerRunning || (isTimerPaused && timerRemainingSeconds > 0)) && !isTimerDismissed
                                 }
                             }, "AndroidOfflineVault")
 
@@ -1626,7 +1635,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             mainHandler.post {
                                                 view?.let { showOffline(it) }
                                             }
-                                            return WebResourceResponse("text/html", "utf-8", 200, "OK", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+                                            return try {
+                                                val assetStream = ctx.assets.open("offline.html")
+                                                WebResourceResponse("text/html", "utf-8", 200, "OK", emptyMap(), assetStream)
+                                            } catch (_: Exception) {
+                                                WebResourceResponse("text/html", "utf-8", 200, "OK", emptyMap(), ByteArrayInputStream(ByteArray(0)))
+                                            }
                                         }
                                         if (OfflineVault.isPdfUrl(u)) {
                                             val local = OfflineVault.localFileFor(ctx, u)
@@ -1641,10 +1655,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         return null
                                     } else {
                                         // ONLINE:
-                                        // If resource is already cached in WebCacheVault (HTML, CSS, JS, thumbnails, images, fonts),
-                                        // serve immediately from disk for 0ms load speed.
-                                        // Otherwise let Chromium download natively via its high-performance HTTP/2 pipeline into its disk cache.
-                                        if (WebCacheVault.has(ctx, u)) {
+                                        // If static non-HTML asset is already cached in WebCacheVault (thumbnails, images, fonts, notes),
+                                        // serve immediately from disk for 0ms load speed. NEVER serve stale HTML!
+                                        if (!u.contains(".html") && !u.endsWith("/") && WebCacheVault.has(ctx, u)) {
                                             val cached = WebCacheVault.getCachedResponse(ctx, u)
                                             if (cached != null) return cached
                                         }
@@ -2267,15 +2280,21 @@ private fun LoaderProgressPill(
 }
 
 /**
- * Compact native Study Timer status indicator in the top bar directly under the notification bell.
- * Displays only while the web Pomodoro/Focus timer is actively running.
- * Tapping the pill scrolls/opens the web timer; tapping the inline close (X) reliably stops the timer.
+ * MP3-player style Study Timer Pill located in the upper right corner right below the refresh and notification icons.
+ * Features:
+ * - Play / Pause toggle button to pause and resume the study countdown like an MP3 player
+ * - Clickable countdown time (mm:ss) to view on the website
+ * - Close (X) button to easily stop and dismiss
+ * - Pulsing status indicator dot (cyan when running, amber when paused)
  */
 @Composable
-private fun TopBarStudyTimerIndicator(
+private fun StudyTimerPlayerPill(
     remainingSeconds: Int,
+    isRunning: Boolean,
+    isPaused: Boolean,
+    onTogglePlayPause: () -> Unit,
+    onClose: () -> Unit,
     onOpenWebTimer: () -> Unit,
-    onStopTimer: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val hours = remainingSeconds / 3600
@@ -2287,46 +2306,68 @@ private fun TopBarStudyTimerIndicator(
         String.format("%02d:%02d", minutes, seconds)
     }
 
-    val infiniteTransition = rememberInfiniteTransition(label = "topBarTimerPulse")
+    val infiniteTransition = rememberInfiniteTransition(label = "studyTimerPulse")
     val dotAlpha by infiniteTransition.animateFloat(
         initialValue = 0.35f,
         targetValue = 1f,
         animationSpec = infiniteRepeatable(
-            animation = tween(600, easing = FastOutSlowInEasing),
+            animation = tween(700, easing = LinearEasing),
             repeatMode = RepeatMode.Reverse
         ),
-        label = "topBarTimerDotAlpha"
+        label = "studyTimerDotAlpha"
     )
 
     Surface(
         color = Color(0xF20B132B),
-        shape = RoundedCornerShape(14.dp),
+        shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.dp, Color(0x6600E5FF)),
-        shadowElevation = 4.dp,
+        shadowElevation = 6.dp,
         modifier = modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(onClick = onOpenWebTimer)
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
-            modifier = Modifier.padding(start = 8.dp, end = 4.dp, top = 3.dp, bottom = 3.dp)
+            modifier = Modifier.padding(start = 6.dp, end = 6.dp, top = 4.dp, bottom = 4.dp)
         ) {
-            // Pulsing cyan indicator dot
+            // Play / Pause MP3 Player toggle button
+            Box(
+                modifier = Modifier
+                    .size(24.dp)
+                    .clip(CircleShape)
+                    .background(if (isRunning) Color(0x3300E5FF) else Color(0x22FFFFFF))
+                    .clickable(
+                        onClick = onTogglePlayPause,
+                        role = androidx.compose.ui.semantics.Role.Button
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                    contentDescription = if (isRunning) "Pause timer" else "Resume timer",
+                    tint = if (isRunning) Accent else Color.White,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+
+            // Pulsing status dot
             Box(
                 modifier = Modifier
                     .size(6.dp)
                     .clip(CircleShape)
-                    .background(Accent.copy(alpha = dotAlpha))
+                    .background(if (isRunning) Accent.copy(alpha = dotAlpha) else Color(0xFFF59E0B))
             )
 
             // Live countdown text
             Text(
                 text = timeFormatted,
                 color = Color.White,
-                fontSize = 11.5.sp,
+                fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
-                letterSpacing = 0.3.sp
+                letterSpacing = 0.4.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable(onClick = onOpenWebTimer)
+                    .padding(horizontal = 2.dp, vertical = 1.dp)
             )
 
             // Clear, always-visible Stop / Close (X) button
@@ -2334,18 +2375,18 @@ private fun TopBarStudyTimerIndicator(
                 modifier = Modifier
                     .size(20.dp)
                     .clip(CircleShape)
-                    .background(Color(0x33FFFFFF))
+                    .background(Color(0x2AFFFFFF))
                     .clickable(
-                        onClick = onStopTimer,
+                        onClick = onClose,
                         role = androidx.compose.ui.semantics.Role.Button
                     ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.Filled.Close,
-                    contentDescription = "Stop timer",
+                    contentDescription = "Stop and close timer",
                     tint = Color.White.copy(alpha = 0.85f),
-                    modifier = Modifier.size(12.dp)
+                    modifier = Modifier.size(11.dp)
                 )
             }
         }
@@ -2374,6 +2415,7 @@ private fun AliveBottomNav(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
+                .background(BarBg)
                 .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
             // Elegant cyber glow top border line
