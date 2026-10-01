@@ -360,6 +360,7 @@ private const val DETECT_AND_RECOVER_JS =
         "if(window.location.protocol==='file:')return;" +
         "function checkBrokenPage(){" +
             "try{" +
+                "if(navigator.onLine)return;" +
                 "var text=(document.body&&document.body.textContent)?document.body.textContent:'';" +
                 "var isNextError=text.indexOf('Application error')!==-1||" +
                     "text.indexOf('client-side exception')!==-1||" +
@@ -368,24 +369,21 @@ private const val DETECT_AND_RECOVER_JS =
                     "text.indexOf('Unhandled error boundary')!==-1||" +
                     "text.indexOf('open this hub once online to cache it')!==-1||" +
                     "(text.indexOf('Network error')!==-1&&text.indexOf('Try again')!==-1);" +
-                "var errorCard=document.querySelector('[class*=\"border-rose\"],[class*=\"bg-rose-500/10\"],[data-nextjs-dialog]');" +
-                "if(isNextError||errorCard){" +
+                "if(isNextError){" +
                     "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
                         "window.AndroidOfflineVault.showOfflinePage();return;" +
                     "}" +
                 "}" +
-                "if(!navigator.onLine){" +
-                    "var sheets=document.styleSheets;" +
-                    "var hasRules=false;" +
-                    "if(sheets&&sheets.length>0){" +
-                        "for(var i=0;i<sheets.length;i++){" +
-                            "try{if(sheets[i].cssRules&&sheets[i].cssRules.length>0){hasRules=true;break;}}catch(_){hasRules=true;break;}" +
-                        "}" +
+                "var sheets=document.styleSheets;" +
+                "var hasRules=false;" +
+                "if(sheets&&sheets.length>0){" +
+                    "for(var i=0;i<sheets.length;i++){" +
+                        "try{if(sheets[i].cssRules&&sheets[i].cssRules.length>0){hasRules=true;break;}}catch(_){hasRules=true;break;}" +
                     "}" +
-                    "if(!hasRules&&document.body&&document.body.children.length>0){" +
-                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                            "window.AndroidOfflineVault.showOfflinePage();return;" +
-                        "}" +
+                "}" +
+                "if(!hasRules&&document.body&&document.body.children.length>0){" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                        "window.AndroidOfflineVault.showOfflinePage();return;" +
                     "}" +
                 "}" +
             "}catch(_){}" +
@@ -421,6 +419,7 @@ private const val DETECT_AND_RECOVER_JS =
         "}" +
         "function checkPageImages(){" +
             "try{" +
+                "if(navigator.onLine)return;" +
                 "var imgs=document.querySelectorAll('img');" +
                 "if(!imgs||imgs.length===0)return;" +
                 "var brokenCount=0;var totalImgs=imgs.length;" +
@@ -431,7 +430,7 @@ private const val DETECT_AND_RECOVER_JS =
                         "repairImage(im);" +
                     "}" +
                 "}" +
-                "if(!navigator.onLine&&(brokenCount>=3||(totalImgs>=2&&brokenCount/totalImgs>=0.4))){" +
+                "if(brokenCount>=3||(totalImgs>=2&&brokenCount/totalImgs>=0.4)){" +
                     "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
                         "window.AndroidOfflineVault.showOfflinePage();" +
                     "}" +
@@ -444,16 +443,18 @@ private const val DETECT_AND_RECOVER_JS =
                 "var t=e.target;" +
                 "if(t&&t.tagName==='IMG'){" +
                     "repairImage(t);" +
-                    "checkPageImages();" +
-                "}else{" +
+                    "if(!navigator.onLine)checkPageImages();" +
+                "}else if(!navigator.onLine){" +
                     "checkBrokenPage();" +
                 "}" +
             "},true);" +
         "}" +
-        "checkBrokenPage();" +
-        "checkPageImages();" +
-        "setTimeout(function(){checkBrokenPage();checkPageImages();},600);" +
-        "setTimeout(function(){checkBrokenPage();checkPageImages();},1800);" +
+        "if(!navigator.onLine){" +
+            "checkBrokenPage();" +
+            "checkPageImages();" +
+            "setTimeout(function(){if(!navigator.onLine){checkBrokenPage();checkPageImages();}},600);" +
+            "setTimeout(function(){if(!navigator.onLine){checkBrokenPage();checkPageImages();}},1800);" +
+        "}" +
     "}catch(e){}})();"
 
 private const val STUDY_TIMER_BRIDGE_JS =
@@ -705,6 +706,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var pendingClearHistory by remember { mutableStateOf(false) }
 
     fun showOffline(wv: WebView) {
+        if (isOnline(context)) {
+            // Absolute safety check: Never show offline page if online
+            return
+        }
         isInitialLoading = false
         stopNavigationLoading()
         val current = wv.url.orEmpty()
@@ -1375,7 +1380,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun showOfflinePage() {
                                     mainHandler.post {
-                                        webView?.let { showOffline(it) }
+                                        if (!isOnline(context)) {
+                                            webView?.let { showOffline(it) }
+                                        }
                                     }
                                 }
 
@@ -1539,10 +1546,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (failedUrl.startsWith("file:///android_asset/")) return
 
                                     if (statusCode in listOf(404, 500, 502, 503, 504)) {
-                                        try {
-                                            wv.stopLoading()
-                                        } catch (_: Exception) {}
-                                        showOffline(wv)
+                                        if (!isOnline(context)) {
+                                            try {
+                                                wv.stopLoading()
+                                            } catch (_: Exception) {}
+                                            showOffline(wv)
+                                        }
                                     }
                                 }
 
@@ -1555,10 +1564,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = request.url?.toString().orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
-                                    try {
-                                        wv.stopLoading()
-                                    } catch (_: Exception) {}
-                                    showOffline(wv)
+                                    if (!isOnline(context)) {
+                                        try {
+                                            wv.stopLoading()
+                                        } catch (_: Exception) {}
+                                        showOffline(wv)
+                                    }
                                 }
 
                                 @Deprecated("Deprecated in Java")
@@ -1571,10 +1582,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = failingUrl.orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
-                                    try {
-                                        wv.stopLoading()
-                                    } catch (_: Exception) {}
-                                    showOffline(wv)
+                                    if (!isOnline(context)) {
+                                        try {
+                                            wv.stopLoading()
+                                        } catch (_: Exception) {}
+                                        showOffline(wv)
+                                    }
                                 }
 
                                 override fun onReceivedSslError(
