@@ -71,7 +71,7 @@ cd Wisdom-tower-academy-app
 ./gradlew assembleDebug
 ```
 
-- Main: `app/src/main/java/com/example/MainActivity.kt`
+- Main: `app/src/main/java/com/wisdomtower/academy/MainActivity.kt`
 - Offline: `OfflineVault.kt`
 - CI: `.github/workflows/build-apk.yml` uploads **Wisdom-Tower-Academy-debug** artifact
 

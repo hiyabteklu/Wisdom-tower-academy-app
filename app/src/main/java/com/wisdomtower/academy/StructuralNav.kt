@@ -1,4 +1,4 @@
-package com.example
+package com.wisdomtower.academy
 
 /**
  * JS bridges for structural back and hard refresh.

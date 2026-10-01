@@ -1,21 +1,32 @@
-# Add project specific ProGuard rules here.
-# You can control the set of applied configuration files using the
-# proguardFiles setting in build.gradle.
-#
-# For more details, see
-#   http://developer.android.com/guide/developing/tools/proguard.html
+# ProGuard and R8 rules for Wisdom Tower Academy (Google Play Production)
 
-# If your project uses WebView with JS, uncomment the following
-# and specify the fully qualified class name to the JavaScript interface
-# class:
-#-keepclassmembers class fqcn.of.javascript.interface.for.webview {
-#   public *;
-#}
+# 1. Preserve JavaScript Interface methods called from WebView JavaScript
+-keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
 
-# Uncomment this to preserve the line number information for
-# debugging stack traces.
-#-keepattributes SourceFile,LineNumberTable
+# 2. Keep WebViewClient and WebChromeClient callbacks
+-keepclassmembers class * extends android.webkit.WebViewClient {
+    public *;
+}
+-keepclassmembers class * extends android.webkit.WebChromeClient {
+    public *;
+}
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# 3. Preserve source file and line numbers for de-obfuscated crash reports in Play Console
+-keepattributes SourceFile,LineNumberTable
+-renamesourcefileattribute SourceFile
+
+# 4. Keep main components referenced by AndroidManifest.xml
+-keep class com.wisdomtower.academy.WisdomTowerApplication { *; }
+-keep class com.wisdomtower.academy.MainActivity { *; }
+
+# 5. Keep data models and serialization structures
+-keepclassmembers class com.wisdomtower.academy.OfflineVault$* { *; }
+-keepclassmembers class com.wisdomtower.academy.WebCacheVault$* { *; }
+-keep class com.wisdomtower.academy.OfflineVault$DownloadProgress { *; }
+-keep class com.wisdomtower.academy.WebCacheVault$EntryMeta { *; }
+
+# 6. Coil & Coil GIF decoder
+-keep class coil.** { *; }
+-dontwarn coil.**

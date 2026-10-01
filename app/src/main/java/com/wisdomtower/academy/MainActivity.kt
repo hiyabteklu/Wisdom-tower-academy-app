@@ -1,4 +1,4 @@
-package com.example
+package com.wisdomtower.academy
 
 import android.annotation.SuppressLint
 import android.content.Context
@@ -157,7 +157,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
-import com.example.ui.theme.MyApplicationTheme
+import com.wisdomtower.academy.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
 
 private val BarBg = Color(0xFF0F172A)

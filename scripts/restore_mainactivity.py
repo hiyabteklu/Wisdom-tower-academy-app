@@ -11,7 +11,7 @@ import sys
 import urllib.request
 
 root = pathlib.Path(__file__).resolve().parents[1]
-target = root / "app/src/main/java/com/example/MainActivity.kt"
+target = root / "app/src/main/java/com/wisdomtower/academy/MainActivity.kt"
 target.parent.mkdir(parents=True, exist_ok=True)
 
 KNOWN_GOOD = (

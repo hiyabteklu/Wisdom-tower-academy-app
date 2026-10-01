@@ -6,7 +6,7 @@ import math
 import pathlib
 
 root = pathlib.Path(__file__).resolve().parents[1]
-src = root / "app/src/main/java/com/example/MainActivity.kt"
+src = root / "app/src/main/java/com/wisdomtower/academy/MainActivity.kt"
 scripts = root / "scripts"
 
 if not src.exists():

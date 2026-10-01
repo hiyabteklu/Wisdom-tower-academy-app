@@ -1,4 +1,4 @@
-package com.example
+package com.wisdomtower.academy
 
 import android.app.Application
 import android.os.Build

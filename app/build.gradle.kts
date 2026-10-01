@@ -1,4 +1,3 @@
-import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
 import java.util.Base64
 
 plugins {
@@ -7,11 +6,10 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.secrets)
-  alias(libs.plugins.google.services)
 }
 
 android {
-  namespace = "com.example"
+  namespace = "com.wisdomtower.academy"
   compileSdk { version = release(36) { minorApiLevel = 1 } }
 
   defaultConfig {
@@ -52,7 +50,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       val releaseStore = System.getenv("KEYSTORE_PATH")
       val hasKeystore = (!releaseStore.isNullOrBlank() && file(releaseStore).exists()) ||
@@ -61,6 +60,8 @@ android {
       val hasReleaseEnv = hasKeystore && !System.getenv("STORE_PASSWORD").isNullOrBlank()
       signingConfig = if (hasReleaseEnv) {
         signingConfigs.getByName("release")
+      } else if (System.getenv("CI") == "true") {
+        throw GradleException("Production release build requires valid upload keystore secrets (KEYSTORE_BASE64/KEYSTORE_PATH and STORE_PASSWORD) in CI.")
       } else {
         logger.warn("WARNING: using fallback keystore — NOT for Play Store or public Telegram production")
         signingConfigs.getByName("debugConfig")
@@ -114,12 +115,9 @@ secrets {
   ignoreList.add("STORE_PASSWORD")
 }
 
-googleServices { missingGoogleServicesStrategy = MissingGoogleServicesStrategy.WARN }
-
 dependencies {
   implementation("androidx.webkit:webkit:1.12.1")
   implementation(platform(libs.androidx.compose.bom))
-  implementation(platform(libs.firebase.bom))
   implementation(libs.androidx.activity.compose)
   implementation(libs.androidx.compose.material.icons.core)
   implementation(libs.androidx.compose.material.icons.extended)
@@ -137,9 +135,6 @@ dependencies {
   implementation(libs.coil.compose)
   implementation("io.coil-kt:coil-gif:2.7.0")
   implementation(libs.converter.moshi)
-  implementation(libs.firebase.ai)
-  implementation(libs.firebase.appcheck.recaptcha)
-  implementation(libs.firebase.appcheck.debug)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.logging.interceptor)

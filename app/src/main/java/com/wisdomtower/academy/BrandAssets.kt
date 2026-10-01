@@ -1,4 +1,4 @@
-package com.example
+package com.wisdomtower.academy
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
