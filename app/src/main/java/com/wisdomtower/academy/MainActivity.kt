@@ -704,23 +704,27 @@ fun MainScreen(onReady: () -> Unit = {}) {
             return
         }
         isInitialLoading = false
-        stopNavigationLoading()
         val current = wv.url.orEmpty()
         if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
             lastOnlineUrl = current
-            lastTargetUrl = current
         }
         mainHandler.post {
             if (!force && isOnline(context)) return@post
             try {
                 wv.stopLoading()
             } catch (_: Exception) {}
-            wv.loadUrl(OFFLINE_ASSET)
+            if (wv.url == OFFLINE_ASSET) {
+                wv.reload()
+            } else {
+                wv.loadUrl(OFFLINE_ASSET)
+            }
         }
+        mainHandler.postDelayed({
+            stopNavigationLoading()
+        }, 400L)
     }
 
     fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
-        val wv = webView ?: return
         if (tabIndex != null) selectedIndex = tabIndex
         lastTargetUrl = url
         if (resetHistory) pendingClearHistory = true
@@ -735,6 +739,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
         navigationStatusText = "Opening $targetTitle…"
         startNavigationLoading()
         webProgress = 20
+
+        val wv = webView
+        if (wv == null) {
+            mainHandler.postDelayed({
+                stopNavigationLoading()
+            }, 600L)
+            return
+        }
 
         val online = isOnline(context)
         if (online) {
@@ -751,7 +763,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                 } catch (_: Exception) {}
                 wv.loadUrl(url)
             } else {
-                showOffline(wv, force = true)
+                mainHandler.postDelayed({
+                    showOffline(wv, force = true)
+                }, 550L)
             }
         }
     }
@@ -784,16 +798,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
     LaunchedEffect(Unit) {
         onReady()
         if (!isOnline(context)) {
+            delay(MIN_SPLASH_DISPLAY_MS)
             minSplashElapsed = true
-            // If nothing at all has ever been cached in the app:
+            isInitialLoading = false
             if (!WebCacheVault.hasAnyPage(context)) {
-                isInitialLoading = false
-                webView?.let { showOffline(it) }
-            } else {
-                // Content is cached in the app! Allow WebView to load it from cache
-                delay(300L)
-                minSplashElapsed = true
-                isInitialLoading = false
+                webView?.let { showOffline(it, force = true) }
             }
         } else {
             delay(MIN_SPLASH_DISPLAY_MS)
@@ -1044,19 +1053,31 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = webView
                                     val currentUrl = wv?.url ?: ""
                                     if (wv != null) {
+                                        navigationStatusText = "Refreshing…"
                                         startNavigationLoading()
                                         webProgress = 15
-                                        if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
-                                            if (isOnline(context)) {
-                                                navigateTo("https://www.wisdom-tower-academy.live/", null)
+                                        if (isOnline(context)) {
+                                            if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
+                                                val target = lastTargetUrl.ifBlank { SITE }
+                                                wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                                wv.loadUrl(target)
                                             } else {
-                                                wv.reload()
+                                                wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) {
+                                                    Handler(Looper.getMainLooper()).post {
+                                                        wv.reload()
+                                                    }
+                                                }
                                             }
                                         } else {
-                                            wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) {
-                                                Handler(Looper.getMainLooper()).post {
-                                                    wv.reload()
-                                                }
+                                            val target = lastTargetUrl.ifBlank { SITE }
+                                            if (WebCacheVault.has(context, target)) {
+                                                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                                wv.loadUrl(target)
+                                            } else {
+                                                wv.reload()
+                                                mainHandler.postDelayed({
+                                                    stopNavigationLoading()
+                                                }, 700L)
                                             }
                                         }
                                     }
@@ -1351,16 +1372,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun reloadLastOnlinePage() {
                                     mainHandler.post {
-                                        webView?.let { wv ->
-                                            val online = isOnline(context)
-                                            val target = lastTargetUrl.ifBlank { SITE }
-                                            if (online) {
-                                                wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                                try {
-                                                    wv.stopLoading()
-                                                } catch (_: Exception) {}
-                                                wv.loadUrl(target)
-                                            } else {
+                                        navigationStatusText = "Connecting…"
+                                        startNavigationLoading(0L)
+                                        webProgress = 25
+                                        val wv = webView ?: return@post
+                                        val online = isOnline(context)
+                                        val target = lastTargetUrl.ifBlank { SITE }
+                                        if (online) {
+                                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                            try {
+                                                wv.stopLoading()
+                                            } catch (_: Exception) {}
+                                            wv.loadUrl(target)
+                                        } else {
+                                            mainHandler.postDelayed({
                                                 if (WebCacheVault.has(context, target)) {
                                                     wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                                                     try {
@@ -1368,9 +1393,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                     } catch (_: Exception) {}
                                                     wv.loadUrl(target)
                                                 } else {
+                                                    stopNavigationLoading()
                                                     wv.evaluateJavascript("if(typeof onRetryFailed==='function')onRetryFailed();", null)
                                                 }
-                                            }
+                                            }, 800L)
                                         }
                                     }
                                 }
@@ -1464,7 +1490,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     wv.settings.cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                                     if (url != null && !url.startsWith("file://")) {
                                         val newIdx = tabIndexForUrl(url, selectedIndex)
-                                        selectedIndex = newIdx
+                                        val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
+                                        if (!isNavigating || newIdx == targetIdx) {
+                                            selectedIndex = newIdx
+                                        }
                                         if (!isInitialLoading) {
                                             val title = if (newIdx in items.indices) items[newIdx].title else "Wisdom Tower Academy"
                                             navigationStatusText = "Opening $title…"
@@ -1473,7 +1502,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     }
                                     if (url != null && url.startsWith("file:///android_asset/")) {
                                         isInitialLoading = false
-                                        stopNavigationLoading()
                                     }
                                 }
 
@@ -1483,7 +1511,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         return
                                     }
                                     if (url != null && !url.startsWith("file://")) {
-                                        selectedIndex = tabIndexForUrl(url, selectedIndex)
+                                        val newIdx = tabIndexForUrl(url, selectedIndex)
+                                        val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
+                                        if (!isNavigating || newIdx == targetIdx) {
+                                            selectedIndex = newIdx
+                                        }
                                     }
                                     pageRendered = true
                                     if (minSplashElapsed) {
@@ -1505,7 +1537,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         return
                                     }
                                     if (curUrl != null && !curUrl.startsWith("file://") && !curUrl.contains("offline.html")) {
-                                        selectedIndex = tabIndexForUrl(curUrl, selectedIndex)
+                                        val newIdx = tabIndexForUrl(curUrl, selectedIndex)
+                                        val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
+                                        if (!isNavigating || newIdx == targetIdx) {
+                                            selectedIndex = newIdx
+                                        }
                                         lastOnlineUrl = curUrl
                                         lastTargetUrl = curUrl
 
@@ -1923,40 +1959,37 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Splash Overlay: Reusing the existing custom spinning GIF from splash
+                // Custom loading animation in transitions (learning to home.. To setting etc..)
+                AnimatedVisibility(
+                    visible = isNavigating && !isInitialLoading,
+                    enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.92f, animationSpec = tween(180)),
+                    exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.96f, animationSpec = tween(220)),
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .zIndex(95f)
+                ) {
+                    CenteredBigCircularLoader(
+                        modifier = Modifier.background(Color(0x8A070E1A)),
+                        statusText = navigationStatusText,
+                        subText = "Switching section…",
+                        progress = webProgress,
+                        isSplash = false
+                    )
+                }
+
+                // Perfect Timing Splash / Loading Overlay: Eliminates blank screens
                 AnimatedVisibility(
                     visible = isInitialLoading,
                     enter = fadeIn(tween(150)),
-                    exit = fadeOut(tween(280, easing = FastOutSlowInEasing))
+                    exit = fadeOut(tween(380, easing = FastOutSlowInEasing))
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(BarBg),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        WisdomTowerGifLoader(
-                            size = 140.dp
-                        )
-                    }
-                }
-
-                // Page Transition / Navigation Loading Overlay: Reusing the exact same custom spinning GIF
-                AnimatedVisibility(
-                    visible = isNavigating && !isInitialLoading,
-                    enter = fadeIn(tween(120)),
-                    exit = fadeOut(tween(180, easing = FastOutSlowInEasing))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color(0x66000000)),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        WisdomTowerGifLoader(
-                            size = 90.dp
-                        )
-                    }
+                    CenteredBigCircularLoader(
+                        modifier = Modifier.background(BarBg),
+                        statusText = "Wisdom Tower Academy",
+                        subText = "Preparing your learning space…",
+                        progress = webProgress,
+                        isSplash = true
+                    )
                 }
             }
         }
@@ -2336,7 +2369,7 @@ private fun AliveBottomNav(
             ) {
                 items.forEachIndexed { index, item ->
                     val selected = selectedIndex == index
-                    val interactionSource = remember { MutableInteractionSource() }
+                    val interactionSource = remember(index) { MutableInteractionSource() }
                     val isPressed by interactionSource.collectIsPressedAsState()
                     val isHovered by interactionSource.collectIsHoveredAsState()
 
@@ -2461,5 +2494,279 @@ private fun AliveBottomNav(
                 }
             }
         }
+    }
+}
+
+/**
+ * Universal high-speed centered circular animated loader.
+ * Futuristic cybernetic aesthetic:
+ * 1. Fast dual opposite-direction spinning neon rings (cyan & violet/indigo).
+ * 2. Radial outward thick gear ticks / cog teeth rotating fast between the two circles.
+ * 3. Subtle frosted card background with ambient glow (compact for page loads/navigation, full-screen for splash).
+ */
+@Composable
+private fun CenteredBigCircularLoader(
+    modifier: Modifier = Modifier,
+    statusText: String = "Wisdom Tower Academy",
+    subText: String = "Loading…",
+    progress: Int = 0,
+    isSplash: Boolean = false,
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+        contentAlignment = Alignment.Center
+    ) {
+        if (isSplash) {
+            // Full-screen splash layout
+            Box(
+                modifier = Modifier
+                    .size(240.dp)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.radialGradient(
+                            listOf(
+                                Color(0x2E00E5FF),
+                                Color(0x0A00E5FF),
+                                Color.Transparent
+                            )
+                        )
+                    )
+            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(24.dp)
+            ) {
+                FuturisticGearRings(
+                    size = 160.dp,
+                    brandSize = 100.dp,
+                    numTicks = 18,
+                    tickInnerRatio = 0.70f,
+                    tickOuterRatio = 0.88f,
+                    tickWidth = 4.dp
+                )
+                Spacer(modifier = Modifier.height(20.dp))
+                Text(
+                    text = statusText,
+                    color = Color.White,
+                    fontSize = 17.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.3.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = subText,
+                    color = Muted,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Normal
+                )
+                if (progress in 1..99) {
+                    Spacer(modifier = Modifier.height(14.dp))
+                    LoaderProgressPill(progress = progress, compact = false)
+                }
+            }
+        } else {
+            // Elegant frosted transition card with custom animated loader, glowing neon border, and section title
+            Surface(
+                color = Color(0xF20B132B),
+                shape = RoundedCornerShape(24.dp),
+                border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0x8000E5FF), Color(0x33818CF8)))),
+                shadowElevation = 16.dp,
+                modifier = Modifier.padding(24.dp)
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 20.dp)
+                ) {
+                    FuturisticGearRings(
+                        size = 88.dp,
+                        brandSize = 52.dp,
+                        numTicks = 14,
+                        tickInnerRatio = 0.68f,
+                        tickOuterRatio = 0.88f,
+                        tickWidth = 2.8.dp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    Text(
+                        text = statusText,
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.2.sp
+                    )
+                    if (progress in 1..99) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        LoaderProgressPill(progress = progress, compact = true)
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * High-speed dual orbital neon rings with outward thick gear ticks / teeth rotating between them.
+ */
+@Composable
+private fun FuturisticGearRings(
+    size: Dp,
+    brandSize: Dp,
+    numTicks: Int,
+    tickInnerRatio: Float,
+    tickOuterRatio: Float,
+    tickWidth: Dp,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.size(size),
+        contentAlignment = Alignment.Center
+    ) {
+        val transition = rememberInfiniteTransition(label = "futuristicGear")
+        val fastSpin by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(750, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "fastSpin"
+        )
+        val gearSpin by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 360f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(850, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "gearSpin"
+        )
+        val counterSpin by transition.animateFloat(
+            initialValue = 360f,
+            targetValue = 0f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(950, easing = LinearEasing),
+                repeatMode = RepeatMode.Restart
+            ),
+            label = "counterSpin"
+        )
+
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val centerOffset = Offset(this.size.width / 2f, this.size.height / 2f)
+            val outerRadius = this.size.width / 2f - 3.dp.toPx()
+            val innerRadius = outerRadius * 0.62f
+            val rGearInner = outerRadius * tickInnerRatio
+            val rGearOuter = outerRadius * tickOuterRatio
+            val tickPx = tickWidth.toPx()
+
+            // 1. Futuristic Gear base track circle
+            drawCircle(
+                color = Color(0x3300E5FF),
+                radius = rGearInner,
+                center = centerOffset,
+                style = Stroke(width = 1.dp.toPx())
+            )
+
+            // 2. Outward thick gear teeth / ticks spinning fast
+            for (i in 0 until numTicks) {
+                val tickAngle = gearSpin + (i * 360f / numTicks)
+                val rad = Math.toRadians(tickAngle.toDouble())
+                val cos = Math.cos(rad).toFloat()
+                val sin = Math.sin(rad).toFloat()
+                val p1 = Offset(centerOffset.x + rGearInner * cos, centerOffset.y + rGearInner * sin)
+                val p2 = Offset(centerOffset.x + rGearOuter * cos, centerOffset.y + rGearOuter * sin)
+                val tickColor = if (i % 2 == 0) Color(0xFF00E5FF) else Color(0xFF38BDF8)
+                drawLine(
+                    color = tickColor,
+                    start = p1,
+                    end = p2,
+                    strokeWidth = tickPx,
+                    cap = StrokeCap.Round
+                )
+            }
+
+            // 3. Outer Neon Cyan Arc spinning fast (clockwise)
+            drawArc(
+                brush = Brush.sweepGradient(
+                    listOf(
+                        Color(0x0000E5FF),
+                        Color(0x5500E5FF),
+                        Color(0xFF00E5FF),
+                        Color(0xFF38BDF8)
+                    )
+                ),
+                startAngle = fastSpin,
+                sweepAngle = 270f,
+                useCenter = false,
+                topLeft = Offset(centerOffset.x - outerRadius, centerOffset.y - outerRadius),
+                size = androidx.compose.ui.geometry.Size(outerRadius * 2, outerRadius * 2),
+                style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
+            )
+
+            // 4. Inner Neon Violet Arc spinning fast in opposite direction (counter-clockwise)
+            drawArc(
+                brush = Brush.sweepGradient(
+                    listOf(
+                        Color(0x00818CF8),
+                        Color(0x55818CF8),
+                        Color(0xFF818CF8),
+                        Color(0xFF00E5FF)
+                    )
+                ),
+                startAngle = counterSpin,
+                sweepAngle = 220f,
+                useCenter = false,
+                topLeft = Offset(centerOffset.x - innerRadius, centerOffset.y - innerRadius),
+                size = androidx.compose.ui.geometry.Size(innerRadius * 2, innerRadius * 2),
+                style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
+            )
+        }
+
+        // Brand animated GIF in center
+        BrandLoader(size = brandSize, showCard = false)
+    }
+}
+
+@Composable
+private fun LoaderProgressPill(
+    progress: Int,
+    compact: Boolean = false,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0x2600E5FF))
+            .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
+            .padding(
+                horizontal = if (compact) 9.dp else 12.dp,
+                vertical = if (compact) 3.5.dp else 5.dp
+            )
+    ) {
+        val infiniteTransition = rememberInfiniteTransition(label = "loaderPulse")
+        val dotAlpha by infiniteTransition.animateFloat(
+            initialValue = 0.4f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(
+                animation = tween(400, easing = FastOutSlowInEasing),
+                repeatMode = RepeatMode.Reverse
+            ),
+            label = "loaderDotAlpha"
+        )
+        Box(
+            modifier = Modifier
+                .size(if (compact) 5.dp else 6.dp)
+                .clip(CircleShape)
+                .background(Accent.copy(alpha = dotAlpha))
+        )
+        Text(
+            text = "Loading $progress%",
+            color = Color(0xFF38BDF8),
+            fontSize = if (compact) 10.sp else 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            letterSpacing = 0.2.sp
+        )
     }
 }
