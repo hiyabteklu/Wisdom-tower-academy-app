@@ -180,6 +180,7 @@ private const val MIN_SPLASH_DISPLAY_MS = 2200L
 
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
+        "if(window.location.protocol==='file:')return;" +
         "document.documentElement.classList.add('wta-native-app');" +
         "if(document.body){document.body.classList.add('wta-native-app');}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
@@ -552,22 +553,13 @@ private fun isOnline(context: Context): Boolean {
     val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
     try {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            val network = cm.activeNetwork
-            if (network != null) {
-                val caps = cm.getNetworkCapabilities(network)
-                if (caps != null && (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
-                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) {
-                    return true
-                }
-            }
+            val network = cm.activeNetwork ?: return false
+            val caps = cm.getNetworkCapabilities(network) ?: return false
+            return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
         }
         @Suppress("DEPRECATION")
         val info = cm.activeNetworkInfo
-        if (info != null && info.isConnected) {
-            return true
-        }
+        return info != null && info.isConnected
     } catch (_: Exception) {}
     return false
 }
@@ -684,49 +676,76 @@ fun MainScreen(onReady: () -> Unit = {}) {
         isNavigating = true
         val timeout = Runnable { isNavigating = false }
         navTimeoutRunnable = timeout
-        mainHandler.postDelayed(timeout, 2500L)
+        mainHandler.postDelayed(timeout, 3500L)
     }
 
-    fun stopNavigationLoading() {
+    fun stopNavigationLoading(forceImmediate: Boolean = false) {
         navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navShowRunnable = null
-        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        navTimeoutRunnable = null
-        isNavigating = false
+        val elapsed = System.currentTimeMillis() - navigationStartTime
+        val minDisplayMs = 500L
+        if (!forceImmediate && elapsed < minDisplayMs && isNavigating) {
+            val remaining = (minDisplayMs - elapsed).coerceAtLeast(50L)
+            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            val delayedStop = Runnable {
+                isNavigating = false
+                navTimeoutRunnable = null
+            }
+            navTimeoutRunnable = delayedStop
+            mainHandler.postDelayed(delayedStop, remaining)
+        } else {
+            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+            navTimeoutRunnable = null
+            isNavigating = false
+        }
     }
 
     var lastOnlineUrl by remember { mutableStateOf(SITE) }
     var pendingClearHistory by remember { mutableStateOf(false) }
+
+    var pendingNavRunnable by remember { mutableStateOf<Runnable?>(null) }
 
     fun showOffline(wv: WebView, force: Boolean = false) {
         if (!force && isOnline(context)) {
             // Absolute safety check: Never show offline page during normal online browsing
             return
         }
-        isInitialLoading = false
-        val current = wv.url.orEmpty()
-        if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
-            lastOnlineUrl = current
+        val cur = wv.url.orEmpty()
+        // If already showing offline asset, DO NOT reload it in an infinite loop!
+        if (cur.contains("offline.html") || cur.startsWith("file:///android_asset/")) {
+            if (minSplashElapsed) {
+                isInitialLoading = false
+            }
+            stopNavigationLoading()
+            return
+        }
+
+        if (cur.isNotBlank() && !cur.startsWith("file://") && !cur.contains("offline.html")) {
+            lastOnlineUrl = cur
         }
         mainHandler.post {
             if (!force && isOnline(context)) return@post
             try {
                 wv.stopLoading()
             } catch (_: Exception) {}
-            if (wv.url == OFFLINE_ASSET) {
-                wv.reload()
-            } else {
-                wv.loadUrl(OFFLINE_ASSET)
-            }
+            wv.loadUrl(OFFLINE_ASSET)
         }
         mainHandler.postDelayed({
+            if (minSplashElapsed) {
+                isInitialLoading = false
+            }
             stopNavigationLoading()
-        }, 400L)
+        }, 550L)
     }
 
     fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
+        pendingNavRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingNavRunnable = null
+
         if (tabIndex != null) selectedIndex = tabIndex
-        lastTargetUrl = url
+        if (!url.startsWith("file://") && !url.contains("offline.html")) {
+            lastTargetUrl = url
+        }
         if (resetHistory) pendingClearHistory = true
 
         val targetTitle = when {
@@ -742,9 +761,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
         val wv = webView
         if (wv == null) {
-            mainHandler.postDelayed({
-                stopNavigationLoading()
-            }, 600L)
+            val r = Runnable { stopNavigationLoading() }
+            pendingNavRunnable = r
+            mainHandler.postDelayed(r, 600L)
             return
         }
 
@@ -756,16 +775,18 @@ fun MainScreen(onReady: () -> Unit = {}) {
             } catch (_: Exception) {}
             wv.loadUrl(url)
         } else {
-            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
             if (WebCacheVault.has(context, url)) {
+                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                 try {
                     wv.stopLoading()
                 } catch (_: Exception) {}
                 wv.loadUrl(url)
             } else {
-                mainHandler.postDelayed({
+                val r = Runnable {
                     showOffline(wv, force = true)
-                }, 550L)
+                }
+                pendingNavRunnable = r
+                mainHandler.postDelayed(r, 450L)
             }
         }
     }
@@ -797,21 +818,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
     // Immediate cold-start / process-death check for offline
     LaunchedEffect(Unit) {
         onReady()
+        delay(MIN_SPLASH_DISPLAY_MS)
+        minSplashElapsed = true
         if (!isOnline(context)) {
-            delay(MIN_SPLASH_DISPLAY_MS)
-            minSplashElapsed = true
             isInitialLoading = false
             if (!WebCacheVault.hasAnyPage(context)) {
                 webView?.let { showOffline(it, force = true) }
             }
         } else {
-            delay(MIN_SPLASH_DISPLAY_MS)
-            minSplashElapsed = true
             if (pageRendered) {
                 isInitialLoading = false
+            } else {
+                delay(800L)
+                isInitialLoading = false
             }
-            delay(1500L)
-            isInitialLoading = false
         }
     }
 
@@ -820,16 +840,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
         val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) {
-                mainHandler.post {
+                mainHandler.postDelayed({
                     webView?.let { wv ->
-                        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                        val curUrl = wv.url.orEmpty()
-                        if (curUrl.contains("offline.html") || curUrl.startsWith("file://")) {
-                            val target = lastTargetUrl.ifBlank { SITE }
-                            wv.loadUrl(target)
+                        if (isOnline(context)) {
+                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                            val curUrl = wv.url.orEmpty()
+                            if (curUrl.contains("offline.html") || curUrl.startsWith("file://")) {
+                                val target = lastTargetUrl.ifBlank { SITE }
+                                navigationStatusText = "Connecting…"
+                                startNavigationLoading()
+                                wv.loadUrl(target)
+                            }
                         }
                     }
-                }
+                }, 300L)
             }
             override fun onLost(network: android.net.Network) {
                 mainHandler.post {
@@ -1051,15 +1075,18 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     val wv = webView
-                                    val currentUrl = wv?.url ?: ""
+                                    val currentUrl = wv?.url.orEmpty()
                                     if (wv != null) {
                                         navigationStatusText = "Refreshing…"
                                         startNavigationLoading()
                                         webProgress = 15
-                                        if (isOnline(context)) {
-                                            if (currentUrl.isBlank() || currentUrl.startsWith("file://")) {
-                                                val target = lastTargetUrl.ifBlank { SITE }
-                                                wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                        val online = isOnline(context)
+                                        val isOfflineAsset = currentUrl.contains("offline.html") || currentUrl.startsWith("file://")
+                                        val target = if (isOfflineAsset) lastTargetUrl.ifBlank { SITE } else currentUrl.ifBlank { lastTargetUrl.ifBlank { SITE } }
+
+                                        if (online) {
+                                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                            if (isOfflineAsset) {
                                                 wv.loadUrl(target)
                                             } else {
                                                 wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) {
@@ -1069,15 +1096,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                 }
                                             }
                                         } else {
-                                            val target = lastTargetUrl.ifBlank { SITE }
                                             if (WebCacheVault.has(context, target)) {
                                                 wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                                                 wv.loadUrl(target)
                                             } else {
-                                                wv.reload()
-                                                mainHandler.postDelayed({
-                                                    stopNavigationLoading()
-                                                }, 700L)
+                                                showOffline(wv, force = true)
                                             }
                                         }
                                     }
@@ -1385,18 +1408,18 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             } catch (_: Exception) {}
                                             wv.loadUrl(target)
                                         } else {
-                                            mainHandler.postDelayed({
-                                                if (WebCacheVault.has(context, target)) {
-                                                    wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                                    try {
-                                                        wv.stopLoading()
-                                                    } catch (_: Exception) {}
-                                                    wv.loadUrl(target)
-                                                } else {
+                                            if (WebCacheVault.has(context, target)) {
+                                                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                                try {
+                                                    wv.stopLoading()
+                                                } catch (_: Exception) {}
+                                                wv.loadUrl(target)
+                                            } else {
+                                                mainHandler.postDelayed({
                                                     stopNavigationLoading()
                                                     wv.evaluateJavascript("if(typeof onRetryFailed==='function')onRetryFailed();", null)
-                                                }
-                                            }, 800L)
+                                                }, 800L)
+                                            }
                                         }
                                     }
                                 }
@@ -1420,7 +1443,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun showOfflinePage() {
                                     mainHandler.post {
-                                        webView?.let { showOffline(it, force = true) }
+                                        val wv = webView ?: return@post
+                                        val cur = wv.url.orEmpty()
+                                        if (cur.contains("offline.html") || cur.startsWith("file://")) return@post
+                                        showOffline(wv, force = true)
                                     }
                                 }
 
@@ -1501,17 +1527,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     }
                                     if (url != null && url.startsWith("file:///android_asset/")) {
-                                        isInitialLoading = false
+                                        if (minSplashElapsed) {
+                                            isInitialLoading = false
+                                        }
                                     }
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
-                                    if (url != null && (url.contains("/offline") || url.endsWith("/offline"))) {
+                                    val u = url.orEmpty()
+                                    if (!u.startsWith("file://") && (u.contains("wisdom-tower-academy.live/offline") || u.endsWith("/offline"))) {
                                         view?.let { showOffline(it, force = true) }
                                         return
                                     }
-                                    if (url != null && !url.startsWith("file://")) {
-                                        val newIdx = tabIndexForUrl(url, selectedIndex)
+                                    if (u.isNotBlank() && !u.startsWith("file://")) {
+                                        val newIdx = tabIndexForUrl(u, selectedIndex)
                                         val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
                                         if (!isNavigating || newIdx == targetIdx) {
                                             selectedIndex = newIdx
@@ -1522,28 +1551,31 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         isInitialLoading = false
                                     }
                                     stopNavigationLoading()
-                                    view?.evaluateJavascript(NATIVE_CHROME_JS, null)
-                                    view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
-                                    view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
-                                    view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
-                                    view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+                                    if (!u.startsWith("file://")) {
+                                        view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                        view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                        view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+                                        view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
+                                        view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+                                    }
                                 }
 
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     val wv = view ?: return
                                     val curUrl = url ?: wv.url
-                                    if (curUrl != null && (curUrl.contains("/offline") || curUrl.endsWith("/offline"))) {
+                                    val u = curUrl.orEmpty()
+                                    if (!u.startsWith("file://") && (u.contains("wisdom-tower-academy.live/offline") || u.endsWith("/offline"))) {
                                         showOffline(wv, force = true)
                                         return
                                     }
-                                    if (curUrl != null && !curUrl.startsWith("file://") && !curUrl.contains("offline.html")) {
-                                        val newIdx = tabIndexForUrl(curUrl, selectedIndex)
+                                    if (u.isNotBlank() && !u.startsWith("file://") && !u.contains("offline.html")) {
+                                        val newIdx = tabIndexForUrl(u, selectedIndex)
                                         val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
                                         if (!isNavigating || newIdx == targetIdx) {
                                             selectedIndex = newIdx
                                         }
-                                        lastOnlineUrl = curUrl
-                                        lastTargetUrl = curUrl
+                                        lastOnlineUrl = u
+                                        lastTargetUrl = u
 
                                         // Persist rendered HTML into WebCacheVault for 100% offline availability
                                         if (isOnline(ctx)) {
@@ -1552,7 +1584,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                     try {
                                                         val rawHtml = org.json.JSONTokener(htmlJson).nextValue() as? String ?: ""
                                                         if (rawHtml.length > 200 && (rawHtml.contains("<html") || rawHtml.contains("<body") || rawHtml.contains("<!DOCTYPE"))) {
-                                                            WebCacheVault.saveHtmlPage(ctx, curUrl, rawHtml)
+                                                            val saveUrl = curUrl ?: u
+                                                            if (saveUrl.isNotBlank()) {
+                                                                WebCacheVault.saveHtmlPage(ctx, saveUrl, rawHtml)
+                                                            }
                                                         }
                                                     } catch (_: Exception) {}
                                                 }
@@ -1564,19 +1599,21 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         isInitialLoading = false
                                     }
                                     stopNavigationLoading()
-                                    wv.evaluateJavascript(NATIVE_CHROME_JS, null)
-                                    wv.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
-                                    wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
-                                    wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
-                                    wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
-                                    mainHandler.postDelayed({
-                                        val cur = wv.url ?: ""
-                                        if (!cur.startsWith("file://")) {
-                                            wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
-                                            wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
-                                            wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
-                                        }
-                                    }, 800L)
+                                    if (!u.startsWith("file://")) {
+                                        wv.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                        wv.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                        wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+                                        wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
+                                        wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+                                        mainHandler.postDelayed({
+                                            val cur = wv.url ?: ""
+                                            if (!cur.startsWith("file://")) {
+                                                wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+                                                wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+                                                wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
+                                            }
+                                        }, 800L)
+                                    }
                                     if (pendingClearHistory) {
                                         pendingClearHistory = false
                                         wv.clearHistory()
@@ -1602,7 +1639,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (failedUrl.startsWith("file:///android_asset/")) return
 
                                     if (statusCode in listOf(404, 500, 502, 503, 504)) {
-                                        if (!isOnline(context) || !WebCacheVault.has(context, failedUrl)) {
+                                        if (!isOnline(context) && !WebCacheVault.has(context, failedUrl)) {
                                             try {
                                                 wv.stopLoading()
                                             } catch (_: Exception) {}
@@ -1620,7 +1657,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = request.url?.toString().orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
-                                    if (!isOnline(context) || !WebCacheVault.has(context, failedUrl)) {
+                                    if (!isOnline(context) && !WebCacheVault.has(context, failedUrl)) {
                                         try {
                                             wv.stopLoading()
                                         } catch (_: Exception) {}
@@ -1638,7 +1675,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = failingUrl.orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
-                                    if (!isOnline(context) || !WebCacheVault.has(context, failedUrl)) {
+                                    if (!isOnline(context) && !WebCacheVault.has(context, failedUrl)) {
                                         try {
                                             wv.stopLoading()
                                         } catch (_: Exception) {}
