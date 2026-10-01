@@ -155,41 +155,47 @@
       }
     }
 
+    function onRetryFailed() {
+      isChecking = false;
+      var btn = document.getElementById('retryBtn');
+      var spinner = document.getElementById('retrySpinner');
+      var icon = document.getElementById('retryIcon');
+      var label = document.getElementById('retryLabel');
+      if (btn) {
+        btn.disabled = false;
+        btn.classList.add('shake');
+        setTimeout(function() { btn.classList.remove('shake'); }, 380);
+      }
+      if (spinner) spinner.style.display = 'none';
+      if (icon) icon.style.display = 'inline-block';
+      if (label) label.textContent = 'Try again';
+    }
+
     function doRetry() {
       if (isChecking) return;
       isChecking = true;
       var btn = document.getElementById('retryBtn');
       var spinner = document.getElementById('retrySpinner');
+      var icon = document.getElementById('retryIcon');
       var label = document.getElementById('retryLabel');
 
       btn.disabled = true;
-      var icon = document.getElementById('retryIcon');
       if (icon) icon.style.display = 'none';
-      spinner.style.display = 'inline-block';
-      label.textContent = 'Checking…';
+      if (spinner) spinner.style.display = 'inline-block';
+      if (label) label.textContent = 'Connecting…';
 
       doReload();
 
       setTimeout(function() {
-        isChecking = false;
-        btn.disabled = false;
-        spinner.style.display = 'none';
-        if (icon) icon.style.display = 'inline-block';
-        label.textContent = 'Try again';
-        btn.classList.add('shake');
-        setTimeout(function() { btn.classList.remove('shake'); }, 380);
-      }, 700);
+        if (isChecking) {
+          onRetryFailed();
+        }
+      }, 1200);
     }
 
     window.addEventListener('online', function() {
       doReload();
     });
-
-    setInterval(function() {
-      if (navigator.onLine && !isChecking) {
-        doReload();
-      }
-    }, 1500);
   </script>
 </body>
 </html>

@@ -145,14 +145,36 @@ object WebCacheVault {
     }
 
     fun normalizeUrl(url: String): String {
-        val clean = url.trim()
-        val withoutHash = clean.substringBefore('#')
-        val res = if (withoutHash.startsWith("/")) {
-            "https://www.wisdom-tower-academy.live$withoutHash"
+        val clean = url.trim().substringBefore('#')
+        val withHost = if (clean.startsWith("/")) {
+            "https://www.wisdom-tower-academy.live$clean"
         } else {
-            withoutHash
+            clean
         }
-        return if (res.endsWith("/") && res.length > 8) res.removeSuffix("/") else res
+        return withHost.replace("https://wisdom-tower-academy.live", "https://www.wisdom-tower-academy.live")
+            .replace("http://wisdom-tower-academy.live", "https://www.wisdom-tower-academy.live")
+            .replace("http://www.wisdom-tower-academy.live", "https://www.wisdom-tower-academy.live")
+    }
+
+    fun candidateKeysFor(url: String): List<String> {
+        val norm = normalizeUrl(url)
+        val withoutQuery = norm.substringBefore('?')
+        val cleanWithoutSlash = withoutQuery.removeSuffix("/")
+        val withSlash = "$cleanWithoutSlash/"
+        val keys = mutableListOf<String>()
+        keys.add(keyFor(norm))
+        keys.add(keyFor(withoutQuery))
+        keys.add(keyFor(cleanWithoutSlash))
+        keys.add(keyFor(withSlash))
+
+        // If it refers to root / home
+        if (cleanWithoutSlash == "https://www.wisdom-tower-academy.live" || cleanWithoutSlash.isEmpty()) {
+            keys.add(keyFor("https://www.wisdom-tower-academy.live/"))
+            keys.add(keyFor("https://www.wisdom-tower-academy.live"))
+            keys.add(keyFor("/"))
+            keys.add(keyFor(""))
+        }
+        return keys.distinct()
     }
 
     fun baseRouteKey(url: String): String {
@@ -189,21 +211,14 @@ object WebCacheVault {
 
     fun has(ctx: Context, url: String): Boolean {
         if (!initialized) init(ctx)
-        val norm = normalizeUrl(url)
-        val k1 = keyFor(norm)
-        if (index.containsKey(k1)) {
-            val f = File(vaultDir(ctx), "$k1.body")
-            if (f.exists() && f.length() > 0) return true
-        }
-        val k1Slash = keyFor("$norm/")
-        if (index.containsKey(k1Slash)) {
-            val f = File(vaultDir(ctx), "$k1Slash.body")
-            if (f.exists() && f.length() > 0) return true
-        }
-        val k2 = baseRouteKey(norm)
-        if (index.containsKey(k2)) {
-            val f = File(vaultDir(ctx), "$k2.body")
-            if (f.exists() && f.length() > 0) return true
+        val dir = vaultDir(ctx)
+        for (k in candidateKeysFor(url)) {
+            if (index.containsKey(k)) {
+                val f = File(dir, "$k.body")
+                if (f.exists() && f.length() > 0L) return true
+            }
+            val f = File(dir, "$k.body")
+            if (f.exists() && f.length() > 0L) return true
         }
         return false
     }
@@ -233,62 +248,59 @@ object WebCacheVault {
     fun save(ctx: Context, url: String, mime: String, encoding: String?, bytes: ByteArray) {
         if (bytes.isEmpty()) return
         val norm = normalizeUrl(url)
-        val key = keyFor(norm)
         val dir = vaultDir(ctx)
-        val bodyFile = File(dir, "$key.body")
-        try {
-            FileOutputStream(bodyFile).use { it.write(bytes) }
-            val meta = EntryMeta(
-                url = norm,
-                mime = mime,
-                encoding = encoding,
-                size = bytes.size.toLong(),
-                timestamp = System.currentTimeMillis()
-            )
-            index[key] = meta
-
-            // If it's a page navigation route (HTML), also index under base route without query parameters
-            if (mime.contains("html") || norm.contains("wisdom-tower-academy.live")) {
-                val baseKey = baseRouteKey(norm)
-                if (baseKey != key) {
-                    val baseFile = File(dir, "$baseKey.body")
-                    if (!baseFile.exists() || baseFile.length() == 0L) {
-                        try {
-                            FileOutputStream(baseFile).use { it.write(bytes) }
-                            index[baseKey] = meta
-                        } catch (_: Exception) {}
-                    }
+        val meta = EntryMeta(
+            url = norm,
+            mime = mime,
+            encoding = encoding,
+            size = bytes.size.toLong(),
+            timestamp = System.currentTimeMillis()
+        )
+        val keys = candidateKeysFor(norm)
+        for (k in keys) {
+            try {
+                val bodyFile = File(dir, "$k.body")
+                if (!bodyFile.exists() || bodyFile.length() != bytes.size.toLong()) {
+                    FileOutputStream(bodyFile).use { it.write(bytes) }
                 }
-                // Also index trailing slash variant
-                val slashKey = keyFor("$norm/")
-                if (slashKey != key) {
-                    index[slashKey] = meta
-                }
-            }
-
-            io.execute { persistIndex(ctx) }
-        } catch (e: Exception) {
-            Log.e(TAG, "save failed for $url", e)
+                index[k] = meta
+            } catch (_: Exception) {}
         }
+        io.execute { persistIndex(ctx) }
     }
 
     fun getCachedResponse(ctx: Context, url: String): WebResourceResponse? {
         if (!initialized) init(ctx)
-        val norm = normalizeUrl(url)
-        var key = keyFor(norm)
-        var meta = index[key]
-        var bodyFile = File(vaultDir(ctx), "$key.body")
+        val dir = vaultDir(ctx)
+        var matchedKey: String? = null
+        var matchedMeta: EntryMeta? = null
+        var matchedFile: File? = null
 
-        if (meta == null || !bodyFile.exists() || bodyFile.length() == 0L) {
-            // Check base route key (ignoring query strings like ?_rsc=...)
-            key = baseRouteKey(norm)
-            meta = index[key]
-            bodyFile = File(vaultDir(ctx), "$key.body")
+        for (k in candidateKeysFor(url)) {
+            val f = File(dir, "$k.body")
+            if (f.exists() && f.length() > 0L) {
+                matchedKey = k
+                matchedMeta = index[k]
+                matchedFile = f
+                break
+            }
         }
 
-        if (meta == null || !bodyFile.exists() || bodyFile.length() == 0L) {
+        if (matchedFile == null) {
             return null
         }
+
+        val norm = normalizeUrl(url)
+        val mime = matchedMeta?.mime ?: when {
+            norm.endsWith(".css") || norm.contains(".css?") -> "text/css"
+            norm.endsWith(".js") || norm.contains(".js?") -> "application/javascript"
+            norm.endsWith(".png") -> "image/png"
+            norm.endsWith(".jpg") || norm.endsWith(".jpeg") -> "image/jpeg"
+            norm.endsWith(".webp") -> "image/webp"
+            norm.endsWith(".svg") -> "image/svg+xml"
+            else -> "text/html"
+        }
+        val encoding = matchedMeta?.encoding ?: if (mime.startsWith("text/") || mime.contains("javascript")) "utf-8" else null
 
         return try {
             val headers = HashMap<String, String>().apply {
@@ -296,17 +308,17 @@ object WebCacheVault {
                 put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
                 put("Access-Control-Allow-Headers", "*")
                 put("Cache-Control", "public, max-age=31536000, immutable")
-                put("Content-Type", meta.mime)
-                put("Content-Length", bodyFile.length().toString())
+                put("Content-Type", mime)
+                put("Content-Length", matchedFile.length().toString())
                 put("X-WTA-Cache", "VAULT-HIT")
             }
             WebResourceResponse(
-                meta.mime,
-                meta.encoding ?: "utf-8",
+                mime,
+                encoding,
                 200,
                 "OK",
                 headers,
-                FileInputStream(bodyFile)
+                FileInputStream(matchedFile)
             )
         } catch (e: Exception) {
             Log.e(TAG, "getCachedResponse error for $url", e)

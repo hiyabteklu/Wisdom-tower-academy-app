@@ -358,83 +358,16 @@ private const val BOOK_PAGE_HELPERS_JS =
 private const val DETECT_AND_RECOVER_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
-        "function checkBrokenPage(){" +
-            "try{" +
-                "if(navigator.onLine)return;" +
-                "var text=(document.body&&document.body.textContent)?document.body.textContent:'';" +
-                "var isNextError=text.indexOf('Application error')!==-1||" +
-                    "text.indexOf('client-side exception')!==-1||" +
-                    "text.indexOf('Something went wrong')!==-1||" +
-                    "text.indexOf('Temporary Display Issue')!==-1||" +
-                    "text.indexOf('Unhandled error boundary')!==-1||" +
-                    "text.indexOf('open this hub once online to cache it')!==-1||" +
-                    "(text.indexOf('Network error')!==-1&&text.indexOf('Try again')!==-1);" +
-                "if(isNextError){" +
-                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                        "window.AndroidOfflineVault.showOfflinePage();return;" +
-                    "}" +
-                "}" +
-                "var sheets=document.styleSheets;" +
-                "var hasRules=false;" +
-                "if(sheets&&sheets.length>0){" +
-                    "for(var i=0;i<sheets.length;i++){" +
-                        "try{if(sheets[i].cssRules&&sheets[i].cssRules.length>0){hasRules=true;break;}}catch(_){hasRules=true;break;}" +
-                    "}" +
-                "}" +
-                "if(!hasRules&&document.body&&document.body.children.length>0){" +
-                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                        "window.AndroidOfflineVault.showOfflinePage();return;" +
-                    "}" +
-                "}" +
-            "}catch(_){}" +
-        "}" +
         "function repairImage(img){" +
             "try{" +
                 "if(!img||img.__wta_repaired)return;" +
                 "var src=img.getAttribute('src')||'';" +
                 "if(!src||src.indexOf('data:')===0||src.indexOf('blob:')===0)return;" +
-                "if(navigator.onLine){" +
-                    "var retries=parseInt(img.getAttribute('data-wta-retries')||'0',10);" +
-                    "if(retries<2){" +
-                        "img.setAttribute('data-wta-retries',String(retries+1));" +
-                        "if(src.indexOf('/_next/image?url=')!==-1){" +
-                            "try{" +
-                                "var q=src.substring(src.indexOf('?')+1);" +
-                                "var params=new URLSearchParams(q);" +
-                                "var rawUrl=params.get('url');" +
-                                "if(rawUrl){img.src=decodeURIComponent(rawUrl);return;}" +
-                            "}catch(_){}" +
-                        "}" +
-                        "var sep=src.indexOf('?')!==-1?'&':'?';" +
-                        "img.src=src+sep+'_wta_r='+Date.now();" +
-                        "return;" +
-                    "}" +
-                "}" +
                 "img.__wta_repaired=true;" +
                 "img.classList.add('wta-img-broken');" +
                 "img.style.setProperty('visibility','hidden','important');" +
                 "img.style.setProperty('opacity','0','important');" +
                 "if(img.parentElement){img.parentElement.classList.add('wta-img-fallback');}" +
-            "}catch(_){}" +
-        "}" +
-        "function checkPageImages(){" +
-            "try{" +
-                "if(navigator.onLine)return;" +
-                "var imgs=document.querySelectorAll('img');" +
-                "if(!imgs||imgs.length===0)return;" +
-                "var brokenCount=0;var totalImgs=imgs.length;" +
-                "for(var j=0;j<totalImgs;j++){" +
-                    "var im=imgs[j];" +
-                    "if(im.naturalWidth===0&&im.complete){" +
-                        "brokenCount++;" +
-                        "repairImage(im);" +
-                    "}" +
-                "}" +
-                "if(brokenCount>=3||(totalImgs>=2&&brokenCount/totalImgs>=0.4)){" +
-                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                        "window.AndroidOfflineVault.showOfflinePage();" +
-                    "}" +
-                "}" +
             "}catch(_){}" +
         "}" +
         "if(!window.__wta_err_bound){" +
@@ -443,17 +376,8 @@ private const val DETECT_AND_RECOVER_JS =
                 "var t=e.target;" +
                 "if(t&&t.tagName==='IMG'){" +
                     "repairImage(t);" +
-                    "if(!navigator.onLine)checkPageImages();" +
-                "}else if(!navigator.onLine){" +
-                    "checkBrokenPage();" +
                 "}" +
             "},true);" +
-        "}" +
-        "if(!navigator.onLine){" +
-            "checkBrokenPage();" +
-            "checkPageImages();" +
-            "setTimeout(function(){if(!navigator.onLine){checkBrokenPage();checkPageImages();}},600);" +
-            "setTimeout(function(){if(!navigator.onLine){checkBrokenPage();checkPageImages();}},1800);" +
         "}" +
     "}catch(e){}})();"
 
@@ -573,10 +497,27 @@ private val overflowMenuLinks = listOf(
 )
 
 private fun isOnline(context: Context): Boolean {
-    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-    val network = cm.activeNetwork ?: return false
-    val caps = cm.getNetworkCapabilities(network) ?: return false
-    return caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+    try {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            val network = cm.activeNetwork
+            if (network != null) {
+                val caps = cm.getNetworkCapabilities(network)
+                if (caps != null && (caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET))) {
+                    return true
+                }
+            }
+        }
+        @Suppress("DEPRECATION")
+        val info = cm.activeNetworkInfo
+        if (info != null && info.isConnected) {
+            return true
+        }
+    } catch (_: Exception) {}
+    return false
 }
 
 /**
@@ -718,6 +659,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
             lastTargetUrl = current
         }
         mainHandler.post {
+            if (isOnline(context)) return@post
             try {
                 wv.stopLoading()
             } catch (_: Exception) {}
@@ -743,11 +685,23 @@ fun MainScreen(onReady: () -> Unit = {}) {
         webProgress = 20
 
         val online = isOnline(context)
-        wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
-        try {
-            wv.stopLoading()
-        } catch (_: Exception) {}
-        wv.loadUrl(url)
+        if (online) {
+            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+            try {
+                wv.stopLoading()
+            } catch (_: Exception) {}
+            wv.loadUrl(url)
+        } else {
+            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            if (WebCacheVault.has(context, url)) {
+                try {
+                    wv.stopLoading()
+                } catch (_: Exception) {}
+                wv.loadUrl(url)
+            } else {
+                showOffline(wv)
+            }
+        }
     }
 
     // MP3-player style Study Timer state
@@ -1347,15 +1301,23 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     mainHandler.post {
                                         webView?.let { wv ->
                                             val online = isOnline(context)
+                                            val target = lastTargetUrl.ifBlank { SITE }
                                             if (online) {
                                                 wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                                val target = lastTargetUrl.ifBlank { SITE }
                                                 try {
                                                     wv.stopLoading()
                                                 } catch (_: Exception) {}
                                                 wv.loadUrl(target)
                                             } else {
-                                                Toast.makeText(context, "Still offline. Please check connection.", Toast.LENGTH_SHORT).show()
+                                                if (WebCacheVault.has(context, target)) {
+                                                    wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                                    try {
+                                                        wv.stopLoading()
+                                                    } catch (_: Exception) {}
+                                                    wv.loadUrl(target)
+                                                } else {
+                                                    wv.evaluateJavascript("if(typeof onRetryFailed==='function')onRetryFailed();", null)
+                                                }
                                             }
                                         }
                                     }
@@ -1597,7 +1559,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ) {
                                     handler?.cancel()
                                     val wv = view ?: return
-                                    showOffline(wv)
+                                    if (!isOnline(context)) {
+                                        showOffline(wv)
+                                    }
                                 }
 
                                 override fun onRenderProcessGone(
@@ -1761,12 +1725,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     }
 
                                     // 2. WebCacheVault handling
-                                    if (WebCacheVault.has(ctx, u)) {
-                                        val cached = WebCacheVault.getCachedResponse(ctx, u)
-                                        if (cached != null) return cached
-                                    }
+                                    val online = isOnline(ctx)
 
-                                    if (!isOnline(ctx)) {
+                                    if (!online) {
                                         if (OfflineVault.isPdfUrl(u)) {
                                             val local = OfflineVault.localFileFor(ctx, u)
                                             if (local != null && local.exists() && local.length() > 0L) {
@@ -1776,6 +1737,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                 )
                                                 return WebResourceResponse("application/pdf", "binary", 200, "OK", headers, FileInputStream(local))
                                             }
+                                        }
+
+                                        // Return from WebCacheVault if cached offline
+                                        if (WebCacheVault.has(ctx, u)) {
+                                            val cached = WebCacheVault.getCachedResponse(ctx, u)
+                                            if (cached != null) return cached
                                         }
 
                                         // Fallback for non-cached images offline: return transparent 1x1 PNG to avoid broken document icons
@@ -1789,8 +1756,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
 
                                         // If main frame requested while offline and NOT in WebCacheVault:
-                                        // Return offline.html asset stream directly!
-                                        // This completely prevents Chromium from EVER showing chrome-error:// or net::ERR_INTERNET_DISCONNECTED!
+                                        // Return offline.html asset stream directly so Chromium never shows chrome error
                                         if (req.isForMainFrame) {
                                             try {
                                                 val stream = ctx.assets.open("offline.html")
@@ -1805,7 +1771,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         return null
                                     }
 
-                                    // Online: stream, cache, and safeguard images so broken icons never appear
+                                    // Online: serve cached subresources if available for maximum speed
+                                    if (isGet && !req.isForMainFrame && WebCacheVault.has(ctx, u)) {
+                                        val cached = WebCacheVault.getCachedResponse(ctx, u)
+                                        if (cached != null) return cached
+                                    }
+
+                                    // Online: precache assets in background
                                     if (isGet && WebCacheVault.isCacheable(u) && !WebCacheVault.has(ctx, u)) {
                                         val cleanLower = u.lowercase()
                                         val isImg = cleanLower.endsWith(".png") || cleanLower.endsWith(".jpg") ||
@@ -1817,8 +1789,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                                 val fetched = WebCacheVault.fetchAndCache(ctx, req)
                                                 if (fetched != null) return fetched
                                             } catch (_: Exception) {}
-                                            // If network drops or image fails, return 1x1 PNG fallback so broken icon never renders
-                                            return WebResourceResponse("image/png", null, 200, "OK", emptyMap(), ByteArrayInputStream(WebCacheVault.EMPTY_PNG))
                                         } else {
                                             WebCacheVault.cacheUrlAsync(ctx, u)
                                         }
@@ -1882,34 +1852,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     },
                     modifier = Modifier.fillMaxSize()
                 )
-
-                // Sleek high-tech neon cyan progress line at top of WebView: non-blocking, lightning fast!
-                AnimatedVisibility(
-                    visible = isNavigating && !isInitialLoading,
-                    enter = fadeIn(tween(80)),
-                    exit = fadeOut(tween(250)),
-                    modifier = Modifier
-                        .align(Alignment.TopCenter)
-                        .fillMaxWidth()
-                        .height(2.5.dp)
-                        .zIndex(100f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(
-                                Brush.horizontalGradient(
-                                    listOf(
-                                        Color(0x3300E5FF),
-                                        Color(0xFF00E5FF),
-                                        Color(0xFF38BDF8),
-                                        Color(0xFF00E5FF),
-                                        Color(0x3300E5FF)
-                                    )
-                                )
-                            )
-                    )
-                }
 
                 // Perfect Timing Splash / Loading Overlay: Eliminates blank screens on cold start
                 AnimatedVisibility(
