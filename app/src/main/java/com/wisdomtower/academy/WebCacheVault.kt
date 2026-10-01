@@ -93,29 +93,31 @@ object WebCacheVault {
     @Synchronized
     fun init(ctx: Context) {
         if (initialized) return
+        loadIndexDirect(ctx)
         initialized = true
-        io.execute {
-            try {
-                val f = File(vaultDir(ctx), INDEX_FILE)
-                if (f.exists()) {
-                    val raw = f.readText(Charsets.UTF_8)
-                    val json = JSONObject(raw)
-                    val keys = json.keys()
-                    while (keys.hasNext()) {
-                        val k = keys.next()
-                        val obj = json.getJSONObject(k)
-                        index[k] = EntryMeta(
-                            url = obj.optString("url", ""),
-                            mime = obj.optString("mime", "text/html"),
-                            encoding = obj.optString("encoding", "utf-8").takeIf { it.isNotBlank() },
-                            size = obj.optLong("size", 0L),
-                            timestamp = obj.optLong("ts", System.currentTimeMillis())
-                        )
-                    }
+    }
+
+    private fun loadIndexDirect(ctx: Context) {
+        try {
+            val f = File(vaultDir(ctx), INDEX_FILE)
+            if (f.exists()) {
+                val raw = f.readText(Charsets.UTF_8)
+                val json = JSONObject(raw)
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    val obj = json.getJSONObject(k)
+                    index[k] = EntryMeta(
+                        url = obj.optString("url", ""),
+                        mime = obj.optString("mime", "text/html"),
+                        encoding = obj.optString("encoding", "utf-8").takeIf { it.isNotBlank() },
+                        size = obj.optLong("size", 0L),
+                        timestamp = obj.optLong("ts", System.currentTimeMillis())
+                    )
                 }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed reading web index", e)
             }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed reading web index", e)
         }
     }
 
@@ -145,11 +147,12 @@ object WebCacheVault {
     fun normalizeUrl(url: String): String {
         val clean = url.trim()
         val withoutHash = clean.substringBefore('#')
-        return if (withoutHash.startsWith("/")) {
+        val res = if (withoutHash.startsWith("/")) {
             "https://www.wisdom-tower-academy.live$withoutHash"
         } else {
             withoutHash
         }
+        return if (res.endsWith("/") && res.length > 8) res.removeSuffix("/") else res
     }
 
     fun baseRouteKey(url: String): String {
@@ -192,6 +195,11 @@ object WebCacheVault {
             val f = File(vaultDir(ctx), "$k1.body")
             if (f.exists() && f.length() > 0) return true
         }
+        val k1Slash = keyFor("$norm/")
+        if (index.containsKey(k1Slash)) {
+            val f = File(vaultDir(ctx), "$k1Slash.body")
+            if (f.exists() && f.length() > 0) return true
+        }
         val k2 = baseRouteKey(norm)
         if (index.containsKey(k2)) {
             val f = File(vaultDir(ctx), "$k2.body")
@@ -202,7 +210,24 @@ object WebCacheVault {
 
     fun hasAnyPage(ctx: Context): Boolean {
         if (!initialized) init(ctx)
-        return index.values.any { it.mime.contains("html") && it.size > 0 }
+        if (index.values.any { (it.mime.contains("html") || it.url.contains("wisdom-tower-academy.live")) && it.size > 0 }) {
+            return true
+        }
+        val dir = vaultDir(ctx)
+        val bodyFiles = dir.listFiles { f -> f.extension == "body" && f.length() > 0 }
+        return !bodyFiles.isNullOrEmpty()
+    }
+
+    fun saveHtmlPage(ctx: Context, url: String, html: String) {
+        if (html.isBlank() || url.isBlank()) return
+        val norm = normalizeUrl(url)
+        val bytes = html.toByteArray(Charsets.UTF_8)
+        save(ctx, norm, "text/html", "utf-8", bytes)
+        io.execute {
+            try {
+                extractAndPrecacheAssets(ctx, html)
+            } catch (_: Exception) {}
+        }
     }
 
     fun save(ctx: Context, url: String, mime: String, encoding: String?, bytes: ByteArray) {
@@ -233,6 +258,11 @@ object WebCacheVault {
                             index[baseKey] = meta
                         } catch (_: Exception) {}
                     }
+                }
+                // Also index trailing slash variant
+                val slashKey = keyFor("$norm/")
+                if (slashKey != key) {
+                    index[slashKey] = meta
                 }
             }
 

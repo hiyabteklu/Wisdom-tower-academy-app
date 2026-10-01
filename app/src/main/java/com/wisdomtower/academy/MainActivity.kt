@@ -577,12 +577,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
     // Instant cold-start and process-death network validation
     val isInitiallyOnline = isOnline(context)
-    var isOfflineState by remember { mutableStateOf(!isInitiallyOnline) }
     var lastTargetUrl by remember { mutableStateOf(SITE) }
 
     // Loading states for zero blank screen and lively navigation feedback
-    var isInitialLoading by remember { mutableStateOf(isInitiallyOnline) }
-    var minSplashElapsed by remember { mutableStateOf(!isInitiallyOnline) }
+    var isInitialLoading by remember { mutableStateOf(true) }
+    var minSplashElapsed by remember { mutableStateOf(false) }
     var pageRendered by remember { mutableStateOf(false) }
     var webProgress by remember { mutableIntStateOf(0) }
     var isNavigating by remember { mutableStateOf(false) }
@@ -615,13 +614,12 @@ fun MainScreen(onReady: () -> Unit = {}) {
     fun showOffline(wv: WebView) {
         isInitialLoading = false
         stopNavigationLoading()
-        isOfflineState = true
+        val current = wv.url.orEmpty()
+        if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
+            lastOnlineUrl = current
+            lastTargetUrl = current
+        }
         mainHandler.post {
-            val current = wv.url.orEmpty()
-            if (current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
-                lastOnlineUrl = current
-                lastTargetUrl = current
-            }
             try {
                 wv.stopLoading()
             } catch (_: Exception) {}
@@ -686,11 +684,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
             // If nothing at all has ever been cached in the app:
             if (!WebCacheVault.hasAnyPage(context)) {
                 isInitialLoading = false
-                isOfflineState = true
                 webView?.let { showOffline(it) }
             } else {
                 // Content is cached in the app! Allow WebView to load it from cache
-                delay(400L)
+                delay(300L)
                 minSplashElapsed = true
                 isInitialLoading = false
             }
@@ -700,7 +697,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
             if (pageRendered) {
                 isInitialLoading = false
             }
-            delay(2000L)
+            delay(1500L)
             isInitialLoading = false
         }
     }
@@ -711,10 +708,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: android.net.Network) {
                 mainHandler.post {
-                    webView?.settings?.cacheMode = WebSettings.LOAD_DEFAULT
-                    if (isOfflineState) {
-                        isOfflineState = false
-                        webView?.let { wv ->
+                    webView?.let { wv ->
+                        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                        val curUrl = wv.url.orEmpty()
+                        if (curUrl.contains("offline.html") || curUrl.startsWith("file://")) {
                             val target = lastTargetUrl.ifBlank { SITE }
                             wv.loadUrl(target)
                         }
@@ -751,8 +748,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     val online = isOnline(context)
                     wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                     if (online) {
-                        if (isOfflineState) {
-                            isOfflineState = false
+                        val current = wv.url.orEmpty()
+                        if (current.contains("offline.html") || current.startsWith("file://")) {
                             wv.loadUrl(lastTargetUrl.ifBlank { SITE })
                         } else {
                             wv.evaluateJavascript("(function(){return window.location.pathname||'';})();") { rawPath ->
@@ -1253,12 +1250,14 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         webView?.let { wv ->
                                             val online = isOnline(context)
                                             if (online) {
-                                                isOfflineState = false
+                                                wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
                                                 val target = lastTargetUrl.ifBlank { SITE }
-                                                navigateTo(target, selectedIndex)
+                                                try {
+                                                    wv.stopLoading()
+                                                } catch (_: Exception) {}
+                                                wv.loadUrl(target)
                                             } else {
-                                                showOffline(wv)
-                                                Toast.makeText(context, "You're offline. Please connect to Wi-Fi or mobile data and try again.", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, "Still offline. Please check connection.", Toast.LENGTH_SHORT).show()
                                             }
                                         }
                                     }
@@ -1269,15 +1268,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (url.isNullOrBlank()) return
                                     mainHandler.post {
                                         webView?.let { wv ->
-                                            val online = isOnline(context)
                                             lastTargetUrl = url
-                                            if (online) {
-                                                isOfflineState = false
-                                                navigateTo(url, null)
-                                            } else {
-                                                showOffline(wv)
-                                                Toast.makeText(context, "You're offline. Please connect to Wi-Fi or mobile data and try again.", Toast.LENGTH_SHORT).show()
-                                            }
+                                            val online = isOnline(context)
+                                            wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                            try {
+                                                wv.stopLoading()
+                                            } catch (_: Exception) {}
+                                            wv.loadUrl(url)
                                         }
                                     }
                                 }
@@ -1345,6 +1342,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                             webViewClient = object : WebViewClient() {
                                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                     val wv = view ?: return
+                                    if (url != null && (url.startsWith("chrome-error://") || url.startsWith("about:neterror") || url.contains("chromewebdata"))) {
+                                        try {
+                                            wv.stopLoading()
+                                        } catch (_: Exception) {}
+                                        showOffline(wv)
+                                        return
+                                    }
                                     wv.settings.cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                                     if (url != null && !url.startsWith("file://")) {
                                         val newIdx = tabIndexForUrl(url, selectedIndex)
@@ -1382,9 +1386,22 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val curUrl = url ?: wv.url
                                     if (curUrl != null && !curUrl.startsWith("file://") && !curUrl.contains("offline.html")) {
                                         selectedIndex = tabIndexForUrl(curUrl, selectedIndex)
-                                        isOfflineState = false
                                         lastOnlineUrl = curUrl
                                         lastTargetUrl = curUrl
+
+                                        // Persist rendered HTML into WebCacheVault for 100% offline availability
+                                        if (isOnline(ctx)) {
+                                            wv.evaluateJavascript("(function(){return document.documentElement ? document.documentElement.outerHTML : '';})();") { htmlJson ->
+                                                if (!htmlJson.isNullOrBlank() && htmlJson != "\"\"" && htmlJson != "null") {
+                                                    try {
+                                                        val rawHtml = org.json.JSONTokener(htmlJson).nextValue() as? String ?: ""
+                                                        if (rawHtml.length > 200 && (rawHtml.contains("<html") || rawHtml.contains("<body") || rawHtml.contains("<!DOCTYPE"))) {
+                                                            WebCacheVault.saveHtmlPage(ctx, curUrl, rawHtml)
+                                                        }
+                                                    } catch (_: Exception) {}
+                                                }
+                                            }
+                                        }
                                     }
                                     pageRendered = true
                                     if (minSplashElapsed) {
@@ -1429,6 +1446,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (failedUrl.startsWith("file:///android_asset/")) return
 
                                     if (statusCode in listOf(404, 500, 502, 503, 504)) {
+                                        try {
+                                            wv.stopLoading()
+                                        } catch (_: Exception) {}
                                         showOffline(wv)
                                     }
                                 }
@@ -1442,6 +1462,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = request.url?.toString().orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
+                                    try {
+                                        wv.stopLoading()
+                                    } catch (_: Exception) {}
                                     showOffline(wv)
                                 }
 
@@ -1455,6 +1478,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = failingUrl.orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
+                                    try {
+                                        wv.stopLoading()
+                                    } catch (_: Exception) {}
                                     showOffline(wv)
                                 }
 
@@ -1656,8 +1682,26 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                             return WebResourceResponse("image/png", null, 200, "OK", emptyMap(), ByteArrayInputStream(WebCacheVault.EMPTY_PNG))
                                         }
 
-                                        // Allow Chromium's internal cache / ServiceWorker to serve the page!
+                                        // If main frame requested while offline and NOT in WebCacheVault:
+                                        // Return offline.html asset stream directly!
+                                        // This completely prevents Chromium from EVER showing chrome-error:// or net::ERR_INTERNET_DISCONNECTED!
+                                        if (req.isForMainFrame) {
+                                            try {
+                                                val stream = ctx.assets.open("offline.html")
+                                                val headers = mapOf(
+                                                    "Content-Type" to "text/html; charset=utf-8",
+                                                    "Cache-Control" to "no-cache, no-store, must-revalidate"
+                                                )
+                                                return WebResourceResponse("text/html", "utf-8", 200, "OK", headers, stream)
+                                            } catch (_: Exception) {}
+                                        }
+
                                         return null
+                                    }
+
+                                    // Online: asynchronously precache cacheable assets in background
+                                    if (isGet && WebCacheVault.isCacheable(u) && !WebCacheVault.has(ctx, u)) {
+                                        WebCacheVault.cacheUrlAsync(ctx, u)
                                     }
 
                                     return super.shouldInterceptRequest(view, request)
@@ -1669,7 +1713,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ): Boolean {
                                     val u = request?.url?.toString() ?: return false
                                     val wv = view ?: return false
-                                    if (u.startsWith("chrome-error://") || u.startsWith("about:neterror")) {
+                                    if (u.startsWith("chrome-error://") || u.startsWith("about:neterror") || u.contains("chromewebdata")) {
                                         showOffline(wv)
                                         return true
                                     }
@@ -1707,7 +1751,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 loadUrl(target)
                             } else {
                                 settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                if (WebCacheVault.hasAnyPage(ctx)) {
+                                if (WebCacheVault.has(ctx, target) || WebCacheVault.hasAnyPage(ctx)) {
                                     loadUrl(target)
                                 } else {
                                     showOffline(this)
@@ -1747,25 +1791,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     )
                 }
 
-                // Custom loading animation in transitions (learning to home.. To setting etc..)
-                AnimatedVisibility(
-                    visible = isNavigating && !isInitialLoading,
-                    enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.92f, animationSpec = tween(180)),
-                    exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.96f, animationSpec = tween(220)),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .zIndex(95f)
-                ) {
-                    CenteredBigCircularLoader(
-                        modifier = Modifier.background(Color(0x8A070E1A)),
-                        statusText = navigationStatusText,
-                        subText = "Switching section…",
-                        progress = webProgress,
-                        isSplash = false
-                    )
-                }
-
-                // Perfect Timing Splash / Loading Overlay: Eliminates blank screens
+                // Perfect Timing Splash / Loading Overlay: Eliminates blank screens on cold start
                 AnimatedVisibility(
                     visible = isInitialLoading,
                     enter = fadeIn(tween(150)),
@@ -1777,36 +1803,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                         subText = "Preparing your learning space…",
                         progress = webProgress,
                         isSplash = true
-                    )
-                }
-
-                // Native Compose Offline / Error Notice Overlay
-                AnimatedVisibility(
-                    visible = isOfflineState,
-                    enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.95f),
-                    exit = fadeOut(tween(180)),
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .zIndex(140f)
-                ) {
-                    NativeOfflineNotice(
-                        onRetry = {
-                            val online = isOnline(context)
-                            if (online) {
-                                isOfflineState = false
-                                webView?.let { wv ->
-                                    val target = lastTargetUrl.ifBlank { SITE }
-                                    wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                    wv.loadUrl(target)
-                                }
-                            } else {
-                                Toast.makeText(
-                                    context,
-                                    "You're offline. Please connect to Wi-Fi or mobile data and try again.",
-                                    Toast.LENGTH_SHORT
-                                ).show()
-                            }
-                        }
                     )
                 }
             }
@@ -2568,103 +2564,6 @@ private fun AliveBottomNav(
                             )
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Clean native Jetpack Compose Offline Notice Screen
- * Replaces emoji-heavy version with native Android vector icon (satellite / cloud-off)
- * and clear, actionable retry mechanism.
- */
-@Composable
-private fun NativeOfflineNotice(
-    onRetry: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(BarBg)
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier
-                .fillMaxWidth()
-                .widthIn(max = 380.dp)
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0xFF1E293B))
-                .border(BorderStroke(1.dp, Color(0x3300E5FF)), RoundedCornerShape(24.dp))
-                .padding(horizontal = 24.dp, vertical = 32.dp)
-        ) {
-            // Native satellite / cloud-off style vector icon (NO emojis)
-            Box(
-                modifier = Modifier
-                    .size(76.dp)
-                    .clip(CircleShape)
-                    .background(Color(0x1A00E5FF))
-                    .border(BorderStroke(1.5.dp, Color(0x4D00E5FF)), CircleShape),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.CloudOff,
-                    contentDescription = "Offline indicator",
-                    tint = Accent,
-                    modifier = Modifier.size(36.dp)
-                )
-            }
-
-            Spacer(modifier = Modifier.height(20.dp))
-
-            Text(
-                text = "You're offline",
-                color = Color.White,
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            Text(
-                text = "You're offline. Please connect to Wi-Fi or mobile data and try again.",
-                color = Muted,
-                fontSize = 14.sp,
-                lineHeight = 21.sp,
-                textAlign = TextAlign.Center
-            )
-
-            Spacer(modifier = Modifier.height(26.dp))
-
-            Button(
-                onClick = onRetry,
-                shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Accent,
-                    contentColor = BarBg
-                ),
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Row(
-                    horizontalArrangement = Arrangement.Center,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Refresh,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Try again",
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
                 }
             }
         }
