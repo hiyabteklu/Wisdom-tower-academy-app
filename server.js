@@ -250,7 +250,7 @@ const HTML_CONTENT = `<!DOCTYPE html>
       top: 0;
       left: 0;
       bottom: 0;
-      width: 280px;
+      width: 250px;
       height: 100%;
       background: #0F172A;
       border-right: 1px solid rgba(0, 229, 255, 0.25);
@@ -294,10 +294,15 @@ const HTML_CONTENT = `<!DOCTYPE html>
       font-weight: 700;
       color: #FFFFFF;
     }
-    .drawer-subtitle {
-      font-size: 0.7rem;
-      font-weight: 600;
-      color: #00E5FF;
+    .loader-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(4px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 45;
     }
     .drawer-close {
       width: 32px;
@@ -416,6 +421,11 @@ const HTML_CONTENT = `<!DOCTYPE html>
     <div class="webview-container">
       <iframe id="mainWebview" src="https://www.wisdom-tower-academy.live/" allow="autoplay; clipboard-write"></iframe>
       
+      <!-- Custom spinning GIF loader overlay for page loading/transitions -->
+      <div class="loader-overlay" id="loaderOverlay" style="display: none;">
+        <img src="/animation.gif" alt="Loading" style="width: 100px; height: 100px; object-fit: contain;">
+      </div>
+
       <div class="timer-widget" id="studyTimerWidget">
         <div class="timer-pulse"></div>
         <span id="timerText">Study Timer • 25:00</span>
@@ -433,7 +443,6 @@ const HTML_CONTENT = `<!DOCTYPE html>
             </div>
             <div>
               <div class="drawer-title">Wisdom Tower</div>
-              <div class="drawer-subtitle">Academy Navigation</div>
             </div>
           </div>
           <button class="drawer-close" id="drawerClose" aria-label="Close menu">
@@ -547,11 +556,19 @@ const HTML_CONTENT = `<!DOCTYPE html>
       });
     });
 
+    const loaderOverlay = document.getElementById('loaderOverlay');
+    wv.addEventListener('load', function() {
+      if (loaderOverlay) loaderOverlay.style.display = 'none';
+    });
+
     btnRefresh.addEventListener('click', function() {
+      if (loaderOverlay) loaderOverlay.style.display = 'flex';
       try { wv.contentWindow.location.reload(); } catch(_) { wv.src = wv.src; }
+      setTimeout(function() { if (loaderOverlay) loaderOverlay.style.display = 'none'; }, 2000);
     });
 
     btnNotif.addEventListener('click', function() {
+      if (loaderOverlay) loaderOverlay.style.display = 'flex';
       wv.src = 'https://www.wisdom-tower-academy.live/notifications';
     });
 
@@ -561,7 +578,9 @@ const HTML_CONTENT = `<!DOCTYPE html>
         item.classList.add('active');
         const url = item.getAttribute('data-url');
         if (url) {
+          if (loaderOverlay) loaderOverlay.style.display = 'flex';
           wv.src = url;
+          setTimeout(function() { if (loaderOverlay) loaderOverlay.style.display = 'none'; }, 2000);
         }
       });
     });
@@ -578,6 +597,15 @@ const server = http.createServer((req, res) => {
       pathname = urlObj.pathname;
     } catch {
       pathname = req.url.split('?')[0] || '/';
+    }
+
+    if (pathname === '/animation.gif') {
+      const gifPath = path.join(__dirname, 'animation.gif');
+      if (fs.existsSync(gifPath)) {
+        res.writeHead(200, { 'Content-Type': 'image/gif' });
+        fs.createReadStream(gifPath).pipe(res);
+        return;
+      }
     }
 
     if (pathname === '/download-apk' || pathname === '/app-debug.apk') {

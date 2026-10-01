@@ -242,8 +242,60 @@ private const val NATIVE_CHROME_JS =
             "}" +
             "document.addEventListener('copy',function(e){if(isAllowedCopy(e.target))return;e.preventDefault();if(e.clipboardData)e.clipboardData.setData('text/plain','');return false;},true);" +
             "document.addEventListener('cut',function(e){if(isAllowedCopy(e.target))return;e.preventDefault();return false;},true);" +
-            "window.addEventListener('error',function(e){if(e&&e.message&&(e.message.indexOf('fetch')!==-1||e.message.indexOf('Network')!==-1)){e.preventDefault();}});" +
-            "window.addEventListener('unhandledrejection',function(e){if(e&&e.reason&&(String(e.reason).indexOf('fetch')!==-1||String(e.reason).indexOf('Network')!==-1)){e.preventDefault();}});" +
+            "window.addEventListener('error',function(e){" +
+                "var m=(e&&e.message)?e.message:'';" +
+                "if(m.indexOf('Loading chunk')!==-1||m.indexOf('ChunkLoadError')!==-1){" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                        "window.AndroidOfflineVault.showOfflinePage();" +
+                    "}" +
+                "}" +
+            "});" +
+            "window.addEventListener('unhandledrejection',function(e){" +
+                "var r=e?(String(e.reason||'')):'';" +
+                "if(r.indexOf('Loading chunk')!==-1||r.indexOf('ChunkLoadError')!==-1){" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                        "window.AndroidOfflineVault.showOfflinePage();" +
+                    "}" +
+                "}" +
+            "});" +
+            "function checkRawErrors(){" +
+                "try{" +
+                    "var p=(window.location.pathname||'').toLowerCase();" +
+                    "var h=(window.location.href||'').toLowerCase();" +
+                    "if(p.indexOf('/offline')!==-1||h.indexOf('/offline')!==-1){" +
+                        "if(document.documentElement)document.documentElement.style.display='none';" +
+                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                            "window.AndroidOfflineVault.showOfflinePage();return;" +
+                        "}else{location.replace('file:///android_asset/offline.html');return;}" +
+                    "}" +
+                    "var text=(document.body&&document.body.innerText)?document.body.innerText:'';" +
+                    "if(!text)text=(document.body&&document.body.textContent)?document.body.textContent:'';" +
+                    "var isRawError=text.indexOf('Loading chunk')!==-1||" +
+                        "text.indexOf('ChunkLoadError')!==-1||" +
+                        "text.indexOf('TEMPORARY DISPLAY ISSUE')!==-1||" +
+                        "text.indexOf('Temporary Display Issue')!==-1||" +
+                        "text.indexOf('Something went wrong')!==-1||" +
+                        "text.indexOf('Application error')!==-1||" +
+                        "text.indexOf('client-side exception')!==-1||" +
+                        "text.indexOf('open a page you already visited')!==-1||" +
+                        "text.indexOf('Connect to the internet, or open a page')!==-1||" +
+                        "text.indexOf('Try home')!==-1||" +
+                        "text.indexOf('ERR_INTERNET_DISCONNECTED')!==-1||" +
+                        "text.indexOf('ERR_CONNECTION_REFUSED')!==-1||" +
+                        "text.indexOf('ERR_NAME_NOT_RESOLVED')!==-1;" +
+                    "if(isRawError){" +
+                        "if(document.documentElement)document.documentElement.style.display='none';" +
+                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                            "window.AndroidOfflineVault.showOfflinePage();" +
+                        "}else{location.replace('file:///android_asset/offline.html');}" +
+                    "}" +
+                "}catch(_){}" +
+            "}" +
+            "checkRawErrors();" +
+            "if(!window.__wta_err_obs&&window.MutationObserver){" +
+                "window.__wta_err_obs=new MutationObserver(checkRawErrors);" +
+                "window.__wta_err_obs.observe(document.documentElement||document.body,{childList:true,subtree:true,characterData:true});" +
+            "}" +
         "}" +
         "if(!window.__wta_route_monitor){" +
             "window.__wta_route_monitor=true;" +
@@ -646,9 +698,9 @@ fun MainScreen(onReady: () -> Unit = {}) {
     var lastOnlineUrl by remember { mutableStateOf(SITE) }
     var pendingClearHistory by remember { mutableStateOf(false) }
 
-    fun showOffline(wv: WebView) {
-        if (isOnline(context)) {
-            // Absolute safety check: Never show offline page if online
+    fun showOffline(wv: WebView, force: Boolean = false) {
+        if (!force && isOnline(context)) {
+            // Absolute safety check: Never show offline page during normal online browsing
             return
         }
         isInitialLoading = false
@@ -659,7 +711,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
             lastTargetUrl = current
         }
         mainHandler.post {
-            if (isOnline(context)) return@post
+            if (!force && isOnline(context)) return@post
             try {
                 wv.stopLoading()
             } catch (_: Exception) {}
@@ -699,7 +751,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                 } catch (_: Exception) {}
                 wv.loadUrl(url)
             } else {
-                showOffline(wv)
+                showOffline(wv, force = true)
             }
         }
     }
@@ -1342,9 +1394,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 @JavascriptInterface
                                 fun showOfflinePage() {
                                     mainHandler.post {
-                                        if (!isOnline(context)) {
-                                            webView?.let { showOffline(it) }
-                                        }
+                                        webView?.let { showOffline(it, force = true) }
                                     }
                                 }
 
@@ -1428,6 +1478,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 }
 
                                 override fun onPageCommitVisible(view: WebView?, url: String?) {
+                                    if (url != null && (url.contains("/offline") || url.endsWith("/offline"))) {
+                                        view?.let { showOffline(it, force = true) }
+                                        return
+                                    }
                                     if (url != null && !url.startsWith("file://")) {
                                         selectedIndex = tabIndexForUrl(url, selectedIndex)
                                     }
@@ -1446,6 +1500,10 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 override fun onPageFinished(view: WebView?, url: String?) {
                                     val wv = view ?: return
                                     val curUrl = url ?: wv.url
+                                    if (curUrl != null && (curUrl.contains("/offline") || curUrl.endsWith("/offline"))) {
+                                        showOffline(wv, force = true)
+                                        return
+                                    }
                                     if (curUrl != null && !curUrl.startsWith("file://") && !curUrl.contains("offline.html")) {
                                         selectedIndex = tabIndexForUrl(curUrl, selectedIndex)
                                         lastOnlineUrl = curUrl
@@ -1508,11 +1566,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     if (failedUrl.startsWith("file:///android_asset/")) return
 
                                     if (statusCode in listOf(404, 500, 502, 503, 504)) {
-                                        if (!isOnline(context)) {
+                                        if (!isOnline(context) || !WebCacheVault.has(context, failedUrl)) {
                                             try {
                                                 wv.stopLoading()
                                             } catch (_: Exception) {}
-                                            showOffline(wv)
+                                            showOffline(wv, force = true)
                                         }
                                     }
                                 }
@@ -1526,11 +1584,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = request.url?.toString().orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
-                                    if (!isOnline(context)) {
+                                    if (!isOnline(context) || !WebCacheVault.has(context, failedUrl)) {
                                         try {
                                             wv.stopLoading()
                                         } catch (_: Exception) {}
-                                        showOffline(wv)
+                                        showOffline(wv, force = true)
                                     }
                                 }
 
@@ -1544,11 +1602,11 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     val wv = view ?: return
                                     val failedUrl = failingUrl.orEmpty()
                                     if (failedUrl.startsWith("file:///android_asset/")) return
-                                    if (!isOnline(context)) {
+                                    if (!isOnline(context) || !WebCacheVault.has(context, failedUrl)) {
                                         try {
                                             wv.stopLoading()
                                         } catch (_: Exception) {}
-                                        showOffline(wv)
+                                        showOffline(wv, force = true)
                                     }
                                 }
 
@@ -1560,7 +1618,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                     handler?.cancel()
                                     val wv = view ?: return
                                     if (!isOnline(context)) {
-                                        showOffline(wv)
+                                        showOffline(wv, force = true)
                                     }
                                 }
 
@@ -1724,6 +1782,20 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
                                     }
 
+                                    val cleanLower = u.lowercase()
+
+                                    // Intercept any attempt to load /offline or site's offline fallback
+                                    if (cleanLower.endsWith("/offline") || cleanLower.contains("/offline")) {
+                                        try {
+                                            val stream = ctx.assets.open("offline.html")
+                                            val headers = mapOf(
+                                                "Content-Type" to "text/html; charset=utf-8",
+                                                "Cache-Control" to "no-cache, no-store, must-revalidate"
+                                            )
+                                            return WebResourceResponse("text/html", "utf-8", 200, "OK", headers, stream)
+                                        } catch (_: Exception) {}
+                                    }
+
                                     // 2. WebCacheVault handling
                                     val online = isOnline(ctx)
 
@@ -1746,7 +1818,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         }
 
                                         // Fallback for non-cached images offline: return transparent 1x1 PNG to avoid broken document icons
-                                        val cleanLower = u.lowercase()
                                         if (cleanLower.endsWith(".png") || cleanLower.endsWith(".jpg") ||
                                             cleanLower.endsWith(".jpeg") || cleanLower.endsWith(".webp") ||
                                             cleanLower.endsWith(".svg") || cleanLower.endsWith(".gif") ||
@@ -1779,7 +1850,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
 
                                     // Online: precache assets in background
                                     if (isGet && WebCacheVault.isCacheable(u) && !WebCacheVault.has(ctx, u)) {
-                                        val cleanLower = u.lowercase()
                                         val isImg = cleanLower.endsWith(".png") || cleanLower.endsWith(".jpg") ||
                                             cleanLower.endsWith(".jpeg") || cleanLower.endsWith(".webp") ||
                                             cleanLower.endsWith(".svg") || cleanLower.endsWith(".gif") ||
@@ -1803,8 +1873,8 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 ): Boolean {
                                     val u = request?.url?.toString() ?: return false
                                     val wv = view ?: return false
-                                    if (u.startsWith("chrome-error://") || u.startsWith("about:neterror") || u.contains("chromewebdata")) {
-                                        showOffline(wv)
+                                    if (u.startsWith("chrome-error://") || u.startsWith("about:neterror") || u.contains("chromewebdata") || u.contains("/offline")) {
+                                        showOffline(wv, force = true)
                                         return true
                                     }
                                     if (u.contains("/my-learning")) {
@@ -1844,7 +1914,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                 if (WebCacheVault.has(ctx, target) || WebCacheVault.hasAnyPage(ctx)) {
                                     loadUrl(target)
                                 } else {
-                                    showOffline(this)
+                                    showOffline(this, force = true)
                                 }
                             }
                             webView = this
@@ -1853,19 +1923,40 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Perfect Timing Splash / Loading Overlay: Eliminates blank screens on cold start
+                // Splash Overlay: Reusing the existing custom spinning GIF from splash
                 AnimatedVisibility(
                     visible = isInitialLoading,
                     enter = fadeIn(tween(150)),
-                    exit = fadeOut(tween(380, easing = FastOutSlowInEasing))
+                    exit = fadeOut(tween(280, easing = FastOutSlowInEasing))
                 ) {
-                    CenteredBigCircularLoader(
-                        modifier = Modifier.background(BarBg),
-                        statusText = "Wisdom Tower Academy",
-                        subText = "Preparing your learning space…",
-                        progress = webProgress,
-                        isSplash = true
-                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(BarBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        WisdomTowerGifLoader(
+                            size = 140.dp
+                        )
+                    }
+                }
+
+                // Page Transition / Navigation Loading Overlay: Reusing the exact same custom spinning GIF
+                AnimatedVisibility(
+                    visible = isNavigating && !isInitialLoading,
+                    enter = fadeIn(tween(120)),
+                    exit = fadeOut(tween(180, easing = FastOutSlowInEasing))
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0x66000000)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        WisdomTowerGifLoader(
+                            size = 90.dp
+                        )
+                    }
                 }
             }
         }
@@ -1896,7 +1987,7 @@ fun MainScreen(onReady: () -> Unit = {}) {
                     shadowElevation = 24.dp,
                     modifier = Modifier
                         .fillMaxHeight()
-                        .widthIn(min = 280.dp, max = 320.dp)
+                        .width(250.dp)
                         .windowInsetsPadding(WindowInsets.statusBars)
                         .windowInsetsPadding(WindowInsets.navigationBars)
                         .clickable(
@@ -1933,21 +2024,13 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
-                                Column {
-                                    Text(
-                                        text = "Wisdom Tower",
-                                        color = Color.White,
-                                        fontSize = 16.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 0.2.sp
-                                    )
-                                    Text(
-                                        text = "Academy Navigation",
-                                        color = Accent,
-                                        fontSize = 11.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                Text(
+                                    text = "Wisdom Tower",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.2.sp
+                                )
                             }
                             IconButton(
                                 onClick = {
@@ -2085,288 +2168,6 @@ fun MainScreen(onReady: () -> Unit = {}) {
     }
 }
 
-/**
- * Universal high-speed centered circular animated loader.
- * Futuristic cybernetic aesthetic:
- * 1. Fast dual opposite-direction spinning neon rings (cyan & violet/indigo).
- * 2. Radial outward thick gear ticks / cog teeth rotating fast between the two circles.
- * 3. Subtle frosted card background with ambient glow (compact for page loads/navigation, full-screen for splash).
- */
-@Composable
-private fun CenteredBigCircularLoader(
-    modifier: Modifier = Modifier,
-    statusText: String = "Wisdom Tower Academy",
-    subText: String = "Loading…",
-    progress: Int = 0,
-    isSplash: Boolean = false,
-) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        if (isSplash) {
-            // Full-screen splash layout
-            Box(
-                modifier = Modifier
-                    .size(240.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                Color(0x2E00E5FF),
-                                Color(0x0A00E5FF),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(24.dp)
-            ) {
-                FuturisticGearRings(
-                    size = 160.dp,
-                    brandSize = 100.dp,
-                    numTicks = 18,
-                    tickInnerRatio = 0.70f,
-                    tickOuterRatio = 0.88f,
-                    tickWidth = 4.dp
-                )
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Text(
-                    text = statusText,
-                    color = Color.White,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.3.sp
-                )
-
-                Spacer(modifier = Modifier.height(6.dp))
-
-                Text(
-                    text = subText,
-                    color = Muted,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal
-                )
-
-                if (progress in 1..99) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    LoaderProgressPill(progress = progress, compact = false)
-                }
-            }
-        } else {
-            // Elegant frosted transition card with custom animated loader, glowing neon border, and section title
-            Surface(
-                color = Color(0xF20B132B),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0x8000E5FF), Color(0x33818CF8)))),
-                shadowElevation = 16.dp,
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 20.dp)
-                ) {
-                    FuturisticGearRings(
-                        size = 88.dp,
-                        brandSize = 52.dp,
-                        numTicks = 14,
-                        tickInnerRatio = 0.68f,
-                        tickOuterRatio = 0.88f,
-                        tickWidth = 2.8.dp
-                    )
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Text(
-                        text = statusText,
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.2.sp
-                    )
-
-                    if (progress in 1..99) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LoaderProgressPill(progress = progress, compact = true)
-                    }
-                }
-            }
-        }
-    }
-}
-
-/**
- * High-speed dual orbital neon rings with outward thick gear ticks / teeth rotating between them.
- */
-@Composable
-private fun FuturisticGearRings(
-    size: Dp,
-    brandSize: Dp,
-    numTicks: Int,
-    tickInnerRatio: Float,
-    tickOuterRatio: Float,
-    tickWidth: Dp,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier.size(size),
-        contentAlignment = Alignment.Center
-    ) {
-        val transition = rememberInfiniteTransition(label = "futuristicGear")
-        val fastSpin by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(750, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "fastSpin"
-        )
-        val gearSpin by transition.animateFloat(
-            initialValue = 0f,
-            targetValue = 360f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(850, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "gearSpin"
-        )
-        val counterSpin by transition.animateFloat(
-            initialValue = 360f,
-            targetValue = 0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(950, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "counterSpin"
-        )
-
-        Canvas(modifier = Modifier.fillMaxSize()) {
-            val centerOffset = Offset(this.size.width / 2f, this.size.height / 2f)
-            val outerRadius = this.size.width / 2f - 3.dp.toPx()
-            val innerRadius = outerRadius * 0.62f
-            val rGearInner = outerRadius * tickInnerRatio
-            val rGearOuter = outerRadius * tickOuterRatio
-            val tickPx = tickWidth.toPx()
-
-            // 1. Futuristic Gear base track circle
-            drawCircle(
-                color = Color(0x3300E5FF),
-                radius = rGearInner,
-                center = centerOffset,
-                style = Stroke(width = 1.dp.toPx())
-            )
-
-            // 2. Outward thick gear teeth / ticks spinning fast
-            for (i in 0 until numTicks) {
-                val tickAngle = gearSpin + (i * 360f / numTicks)
-                val rad = Math.toRadians(tickAngle.toDouble())
-                val cos = Math.cos(rad).toFloat()
-                val sin = Math.sin(rad).toFloat()
-                val p1 = Offset(centerOffset.x + rGearInner * cos, centerOffset.y + rGearInner * sin)
-                val p2 = Offset(centerOffset.x + rGearOuter * cos, centerOffset.y + rGearOuter * sin)
-                val tickColor = if (i % 2 == 0) Color(0xFF00E5FF) else Color(0xFF38BDF8)
-                drawLine(
-                    color = tickColor,
-                    start = p1,
-                    end = p2,
-                    strokeWidth = tickPx,
-                    cap = StrokeCap.Round
-                )
-            }
-
-            // 3. Outer Neon Cyan Arc spinning fast (clockwise)
-            drawArc(
-                brush = Brush.sweepGradient(
-                    listOf(
-                        Color(0x0000E5FF),
-                        Color(0x5500E5FF),
-                        Color(0xFF00E5FF),
-                        Color(0xFF38BDF8)
-                    )
-                ),
-                startAngle = fastSpin,
-                sweepAngle = 270f,
-                useCenter = false,
-                topLeft = Offset(centerOffset.x - outerRadius, centerOffset.y - outerRadius),
-                size = androidx.compose.ui.geometry.Size(outerRadius * 2, outerRadius * 2),
-                style = Stroke(width = 2.8.dp.toPx(), cap = StrokeCap.Round)
-            )
-
-            // 4. Inner Neon Violet Arc spinning fast in opposite direction (counter-clockwise)
-            drawArc(
-                brush = Brush.sweepGradient(
-                    listOf(
-                        Color(0x00818CF8),
-                        Color(0x55818CF8),
-                        Color(0xFF818CF8),
-                        Color(0xFF00E5FF)
-                    )
-                ),
-                startAngle = counterSpin,
-                sweepAngle = 220f,
-                useCenter = false,
-                topLeft = Offset(centerOffset.x - innerRadius, centerOffset.y - innerRadius),
-                size = androidx.compose.ui.geometry.Size(innerRadius * 2, innerRadius * 2),
-                style = Stroke(width = 2.2.dp.toPx(), cap = StrokeCap.Round)
-            )
-        }
-
-        // Brand animated GIF in center
-        BrandLoader(size = brandSize, showCard = false)
-    }
-}
-
-@Composable
-private fun LoaderProgressPill(
-    progress: Int,
-    compact: Boolean = false,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0x2600E5FF))
-            .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
-            .padding(
-                horizontal = if (compact) 9.dp else 12.dp,
-                vertical = if (compact) 3.5.dp else 5.dp
-            )
-    ) {
-        val infiniteTransition = rememberInfiniteTransition(label = "loaderPulse")
-        val dotAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.4f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(400, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "loaderDotAlpha"
-        )
-        Box(
-            modifier = Modifier
-                .size(if (compact) 5.dp else 6.dp)
-                .clip(CircleShape)
-                .background(Accent.copy(alpha = dotAlpha))
-        )
-        Text(
-            text = "Loading $progress%",
-            color = Color(0xFF38BDF8),
-            fontSize = if (compact) 10.sp else 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.2.sp
-        )
-    }
-}
 
 /**
  * MP3-player style Study Timer Pill located in the upper right corner right below the refresh and notification icons.
