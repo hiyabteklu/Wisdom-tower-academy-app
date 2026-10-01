@@ -133,9 +133,12 @@
       </svg>
     </div>
     <h1 class="offline-title">You're offline</h1>
-    <p class="offline-desc">Please connect to Wi-Fi or mobile data and try again.</p>
+    <p class="offline-desc">You're offline. Please connect to Wi-Fi or mobile data and try again.</p>
     
     <button id="retryBtn" class="btn-retry" type="button" onclick="doRetry()">
+      <svg id="retryIcon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:2px;">
+        <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.19"/>
+      </svg>
       <span class="spinner" id="retrySpinner"></span>
       <span id="retryLabel">Try again</span>
     </button>
@@ -160,6 +163,8 @@
       var label = document.getElementById('retryLabel');
 
       btn.disabled = true;
+      var icon = document.getElementById('retryIcon');
+      if (icon) icon.style.display = 'none';
       spinner.style.display = 'inline-block';
       label.textContent = 'Checking…';
 
@@ -169,6 +174,7 @@
         isChecking = false;
         btn.disabled = false;
         spinner.style.display = 'none';
+        if (icon) icon.style.display = 'inline-block';
         label.textContent = 'Try again';
         btn.classList.add('shake');
         setTimeout(function() { btn.classList.remove('shake'); }, 380);

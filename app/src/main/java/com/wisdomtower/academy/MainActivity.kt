@@ -57,7 +57,9 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -186,7 +188,8 @@ private const val NATIVE_CHROME_JS =
         "'header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
         "[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
-        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]" +
+        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
+        "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
         "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
@@ -202,6 +205,30 @@ private const val NATIVE_CHROME_JS =
             "-webkit-user-select:auto!important;user-select:auto!important;-webkit-touch-callout:default!important;" +
             "pointer-events:auto!important;touch-action:manipulation!important;-webkit-tap-highlight-color:rgba(0,229,255,0.2)!important;}" +
             "input,textarea,[contenteditable=\"true\"],.note,.notes,[data-notes]{-webkit-user-select:text!important;user-select:text!important;}';" +
+        "}" +
+        "function cleanSettingsUI(){" +
+            "try{" +
+                "var curPath=(window.location.pathname||'').toLowerCase();" +
+                "if(curPath.indexOf('/settings')===-1)return;" +
+                "var nodes=document.querySelectorAll('h1,h2,h3,h4,p,span,button');" +
+                "for(var k=0;k<nodes.length;k++){" +
+                    "var el=nodes[k];" +
+                    "var t=(el.textContent||'').trim().toLowerCase();" +
+                    "var isGameSound=t==='game sound'||t==='game sound effects'||t==='game audio volume'||t.indexOf('game sound')!==-1||t.indexOf('educational games and study challenges')!==-1;" +
+                    "var isCloudSync=t==='offline data & cloud sync'||t.indexOf('offline data & cloud sync')!==-1||t.indexOf('total cached offline data')!==-1||t==='sync to cloud'||t.indexOf('sync to cloud')!==-1||t.indexOf('cloud synchronization')!==-1||t.indexOf('cached by the app')!==-1;" +
+                    "if(isGameSound||isCloudSync){" +
+                        "var card=el.closest?el.closest('.rounded-3xl, .rounded-2xl, section, article, div.border'):null;" +
+                        "if(card&&card!==document.body&&card!==document.documentElement){" +
+                            "card.style.setProperty('display','none','important');" +
+                        "}" +
+                    "}" +
+                "}" +
+            "}catch(_){}" +
+        "}" +
+        "cleanSettingsUI();" +
+        "if(!window.__wta_settings_cleaner){" +
+            "window.__wta_settings_cleaner=true;" +
+            "setInterval(cleanSettingsUI,400);" +
         "}" +
         "if(!window.__wta_copy_handler){" +
             "window.__wta_copy_handler=true;" +
@@ -221,6 +248,7 @@ private const val NATIVE_CHROME_JS =
         "if(!window.__wta_route_monitor){" +
             "window.__wta_route_monitor=true;" +
             "window.addEventListener('popstate',function(){" +
+                "cleanSettingsUI();" +
                 "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyLoadingFinished==='function'){" +
                     "window.AndroidOfflineVault.notifyLoadingFinished();" +
                 "}" +
@@ -333,8 +361,15 @@ private const val DETECT_AND_RECOVER_JS =
         "function checkBrokenPage(){" +
             "try{" +
                 "var text=(document.body&&document.body.textContent)?document.body.textContent:'';" +
-                "var isNextError=text.indexOf('Application error')!==-1||text.indexOf('client-side exception')!==-1;" +
-                "if(isNextError){" +
+                "var isNextError=text.indexOf('Application error')!==-1||" +
+                    "text.indexOf('client-side exception')!==-1||" +
+                    "text.indexOf('Something went wrong')!==-1||" +
+                    "text.indexOf('Temporary Display Issue')!==-1||" +
+                    "text.indexOf('Unhandled error boundary')!==-1||" +
+                    "text.indexOf('open this hub once online to cache it')!==-1||" +
+                    "(text.indexOf('Network error')!==-1&&text.indexOf('Try again')!==-1);" +
+                "var errorCard=document.querySelector('[class*=\"border-rose\"],[class*=\"bg-rose-500/10\"],[data-nextjs-dialog]');" +
+                "if(isNextError||errorCard){" +
                     "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
                         "window.AndroidOfflineVault.showOfflinePage();return;" +
                     "}" +
@@ -355,14 +390,70 @@ private const val DETECT_AND_RECOVER_JS =
                 "}" +
             "}catch(_){}" +
         "}" +
+        "function repairImage(img){" +
+            "try{" +
+                "if(!img||img.__wta_repaired)return;" +
+                "var src=img.getAttribute('src')||'';" +
+                "if(!src||src.indexOf('data:')===0||src.indexOf('blob:')===0)return;" +
+                "if(navigator.onLine){" +
+                    "var retries=parseInt(img.getAttribute('data-wta-retries')||'0',10);" +
+                    "if(retries<2){" +
+                        "img.setAttribute('data-wta-retries',String(retries+1));" +
+                        "if(src.indexOf('/_next/image?url=')!==-1){" +
+                            "try{" +
+                                "var q=src.substring(src.indexOf('?')+1);" +
+                                "var params=new URLSearchParams(q);" +
+                                "var rawUrl=params.get('url');" +
+                                "if(rawUrl){img.src=decodeURIComponent(rawUrl);return;}" +
+                            "}catch(_){}" +
+                        "}" +
+                        "var sep=src.indexOf('?')!==-1?'&':'?';" +
+                        "img.src=src+sep+'_wta_r='+Date.now();" +
+                        "return;" +
+                    "}" +
+                "}" +
+                "img.__wta_repaired=true;" +
+                "img.classList.add('wta-img-broken');" +
+                "img.style.setProperty('visibility','hidden','important');" +
+                "img.style.setProperty('opacity','0','important');" +
+                "if(img.parentElement){img.parentElement.classList.add('wta-img-fallback');}" +
+            "}catch(_){}" +
+        "}" +
+        "function checkPageImages(){" +
+            "try{" +
+                "var imgs=document.querySelectorAll('img');" +
+                "if(!imgs||imgs.length===0)return;" +
+                "var brokenCount=0;var totalImgs=imgs.length;" +
+                "for(var j=0;j<totalImgs;j++){" +
+                    "var im=imgs[j];" +
+                    "if(im.naturalWidth===0&&im.complete){" +
+                        "brokenCount++;" +
+                        "repairImage(im);" +
+                    "}" +
+                "}" +
+                "if(!navigator.onLine&&(brokenCount>=3||(totalImgs>=2&&brokenCount/totalImgs>=0.4))){" +
+                    "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                        "window.AndroidOfflineVault.showOfflinePage();" +
+                    "}" +
+                "}" +
+            "}catch(_){}" +
+        "}" +
         "if(!window.__wta_err_bound){" +
             "window.__wta_err_bound=true;" +
             "window.addEventListener('error',function(e){" +
-                "checkBrokenPage();" +
-            "});" +
+                "var t=e.target;" +
+                "if(t&&t.tagName==='IMG'){" +
+                    "repairImage(t);" +
+                    "checkPageImages();" +
+                "}else{" +
+                    "checkBrokenPage();" +
+                "}" +
+            "},true);" +
         "}" +
         "checkBrokenPage();" +
-        "setTimeout(checkBrokenPage,500);" +
+        "checkPageImages();" +
+        "setTimeout(function(){checkBrokenPage();checkPageImages();},600);" +
+        "setTimeout(function(){checkBrokenPage();checkPageImages();},1800);" +
     "}catch(e){}})();"
 
 private const val STUDY_TIMER_BRIDGE_JS =
@@ -468,6 +559,7 @@ private data class MenuLink(
     val label: String,
     val url: String,
     val icon: ImageVector,
+    val isDestructive: Boolean = false,
 )
 
 private val overflowMenuLinks = listOf(
@@ -476,6 +568,7 @@ private val overflowMenuLinks = listOf(
     MenuLink("FAQ", "https://www.wisdom-tower-academy.live/academy/faq", Icons.AutoMirrored.Outlined.HelpOutline),
     MenuLink("Privacy", "https://www.wisdom-tower-academy.live/privacy", Icons.Outlined.PrivacyTip),
     MenuLink("Terms", "https://www.wisdom-tower-academy.live/terms", Icons.Outlined.Policy),
+    MenuLink("Sign out", "https://www.wisdom-tower-academy.live/logout", Icons.AutoMirrored.Filled.Logout, isDestructive = true),
 )
 
 private fun isOnline(context: Context): Boolean {
@@ -1699,9 +1792,23 @@ fun MainScreen(onReady: () -> Unit = {}) {
                                         return null
                                     }
 
-                                    // Online: asynchronously precache cacheable assets in background
+                                    // Online: stream, cache, and safeguard images so broken icons never appear
                                     if (isGet && WebCacheVault.isCacheable(u) && !WebCacheVault.has(ctx, u)) {
-                                        WebCacheVault.cacheUrlAsync(ctx, u)
+                                        val cleanLower = u.lowercase()
+                                        val isImg = cleanLower.endsWith(".png") || cleanLower.endsWith(".jpg") ||
+                                            cleanLower.endsWith(".jpeg") || cleanLower.endsWith(".webp") ||
+                                            cleanLower.endsWith(".svg") || cleanLower.endsWith(".gif") ||
+                                            cleanLower.contains("/_next/image")
+                                        if (isImg) {
+                                            try {
+                                                val fetched = WebCacheVault.fetchAndCache(ctx, req)
+                                                if (fetched != null) return fetched
+                                            } catch (_: Exception) {}
+                                            // If network drops or image fails, return 1x1 PNG fallback so broken icon never renders
+                                            return WebResourceResponse("image/png", null, 200, "OK", emptyMap(), ByteArrayInputStream(WebCacheVault.EMPTY_PNG))
+                                        } else {
+                                            WebCacheVault.cacheUrlAsync(ctx, u)
+                                        }
                                     }
 
                                     return super.shouldInterceptRequest(view, request)
@@ -1808,173 +1915,204 @@ fun MainScreen(onReady: () -> Unit = {}) {
             }
         }
 
-        if (menuExpanded) {
-            Dialog(
-                onDismissRequest = { menuExpanded = false },
-                properties = DialogProperties(
-                    dismissOnBackPress = true,
-                    dismissOnClickOutside = true,
-                    usePlatformDefaultWidth = false
-                )
+        // Navigation Drawer: Sleek slide-in side panel (eliminates awkward floating dialog)
+        AnimatedVisibility(
+            visible = menuExpanded,
+            enter = fadeIn(tween(180)) + slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(220, easing = FastOutSlowInEasing)),
+            exit = fadeOut(tween(160)) + slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(180, easing = FastOutSlowInEasing)),
+            modifier = Modifier.zIndex(150f)
+        ) {
+            BackHandler(enabled = menuExpanded) { menuExpanded = false }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0x99000000))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { menuExpanded = false },
+                contentAlignment = Alignment.CenterStart
             ) {
-                Box(
+                Surface(
+                    color = BarBg,
+                    shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
+                    border = BorderStroke(1.dp, Color(0x3300E5FF)),
+                    shadowElevation = 24.dp,
                     modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color(0x88000000))
+                        .fillMaxHeight()
+                        .widthIn(min = 280.dp, max = 320.dp)
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) { menuExpanded = false },
-                    contentAlignment = Alignment.TopStart
+                        ) { /* prevent close on drawer body click */ }
                 ) {
-                    Surface(
-                        color = Color(0xF4080F1E),
-                        shape = RoundedCornerShape(22.dp),
-                        border = BorderStroke(1.dp, Color(0x3300E5FF)),
-                        shadowElevation = 20.dp,
+                    Column(
                         modifier = Modifier
-                            .padding(start = 14.dp, top = 54.dp, end = 14.dp)
-                            .widthIn(min = 260.dp, max = 300.dp)
-                            .windowInsetsPadding(WindowInsets.statusBars)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { /* prevent close on card click */ }
+                            .fillMaxSize()
+                            .padding(horizontal = 16.dp, vertical = 18.dp)
                     ) {
-                        Column(
-                            modifier = Modifier.padding(14.dp)
+                        // Branded Drawer Header
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            // Header
                             Row(
-                                modifier = Modifier.fillMaxWidth(),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(10.dp))
+                                        .background(Color(0x2600E5FF)),
+                                    contentAlignment = Alignment.Center
                                 ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .clip(RoundedCornerShape(8.dp))
-                                            .background(Color(0x2600E5FF)),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Filled.Menu,
-                                            contentDescription = null,
-                                            tint = Accent,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                                    Icon(
+                                        imageVector = Icons.Filled.Menu,
+                                        contentDescription = null,
+                                        tint = Accent,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Column {
                                     Text(
-                                        text = "Menu",
+                                        text = "Wisdom Tower",
                                         color = Color.White,
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
                                         letterSpacing = 0.2.sp
                                     )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        menuExpanded = false
-                                    },
-                                    modifier = Modifier.size(32.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = "Close",
-                                        tint = Muted,
-                                        modifier = Modifier.size(18.dp)
+                                    Text(
+                                        text = "Academy Navigation",
+                                        color = Accent,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Medium
                                     )
                                 }
                             }
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    menuExpanded = false
+                                },
+                                modifier = Modifier.size(34.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Close menu",
+                                    tint = Muted,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
 
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(Color(0x2200E5FF))
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Color(0x2200E5FF))
+                        )
+                        Spacer(modifier = Modifier.height(14.dp))
 
-                            // 5 clean links
+                        // Navigation links
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
                             overflowMenuLinks.forEach { link ->
                                 val linkInteraction = remember { MutableInteractionSource() }
                                 val linkPressed by linkInteraction.collectIsPressedAsState()
+                                val itemTint = if (link.isDestructive) Color(0xFFF87171) else Accent
+                                val itemTextColor = if (link.isDestructive) Color(0xFFFCA5A5) else Color.White
+
+                                if (link.isDestructive) {
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(1.dp)
+                                            .background(Color(0x18FFFFFF))
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                }
 
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
-                                        .background(if (linkPressed) Color(0x2600E5FF) else Color.Transparent)
+                                        .background(
+                                            if (linkPressed) {
+                                                if (link.isDestructive) Color(0x26EF4444) else Color(0x2600E5FF)
+                                            } else Color.Transparent
+                                        )
                                         .clickable(
                                             interactionSource = linkInteraction,
-                                            indication = ripple(color = Accent.copy(alpha = 0.2f))
+                                            indication = ripple(color = itemTint.copy(alpha = 0.2f))
                                         ) {
                                             menuExpanded = false
                                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                            navigateTo(link.url)
+                                            navigateTo(link.url, tabIndex = if (link.isDestructive) 3 else null)
                                         }
-                                        .padding(horizontal = 8.dp, vertical = 9.dp),
+                                        .padding(horizontal = 10.dp, vertical = 11.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(30.dp)
+                                                .size(32.dp)
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(Color(0x1A00E5FF)),
+                                                .background(itemTint.copy(alpha = 0.12f)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = link.icon,
                                                 contentDescription = null,
-                                                tint = Accent,
-                                                modifier = Modifier.size(16.dp)
+                                                tint = itemTint,
+                                                modifier = Modifier.size(18.dp)
                                             )
                                         }
                                         Text(
                                             text = link.label,
-                                            color = Color.White,
+                                            color = itemTextColor,
                                             fontSize = 14.sp,
-                                            fontWeight = FontWeight.Medium
+                                            fontWeight = if (link.isDestructive) FontWeight.Bold else FontWeight.Medium
                                         )
                                     }
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                                         contentDescription = null,
-                                        tint = Muted.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(12.dp)
+                                        tint = if (link.isDestructive) itemTint.copy(alpha = 0.6f) else Muted.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(13.dp)
                                     )
                                 }
                             }
-
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(Color(0x14FFFFFF))
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-
-                            Text(
-                                text = "Wisdom Tower Academy",
-                                color = Muted.copy(alpha = 0.6f),
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Normal,
-                                modifier = Modifier.fillMaxWidth(),
-                                textAlign = TextAlign.Center
-                            )
                         }
+
+                        // Footer
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(1.dp)
+                                .background(Color(0x14FFFFFF))
+                        )
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Text(
+                            text = "Wisdom Tower Academy • v1.0",
+                            color = Muted.copy(alpha = 0.6f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Normal,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }

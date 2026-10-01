@@ -231,45 +231,140 @@ const HTML_CONTENT = `<!DOCTYPE html>
       stroke-width: 2.2;
     }
 
-    /* Native Menu Card Dialog */
-    .menu-overlay {
+    /* Native Menu Drawer */
+    .drawer-backdrop {
       position: absolute;
-      top: 86px;
-      left: 12px;
-      width: 220px;
-      background: rgba(15, 23, 42, 0.96);
-      border: 1px solid rgba(0, 229, 255, 0.25);
-      border-radius: 16px;
-      padding: 8px 0;
-      box-shadow: 0 16px 36px rgba(0, 0, 0, 0.6);
-      backdrop-filter: blur(12px);
-      display: none;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      z-index: 59;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .drawer-backdrop.open {
+      opacity: 1;
+      pointer-events: auto;
+    }
+    .menu-drawer {
+      position: absolute;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 280px;
+      height: 100%;
+      background: #0F172A;
+      border-right: 1px solid rgba(0, 229, 255, 0.25);
+      box-shadow: 10px 0 30px rgba(0, 0, 0, 0.7);
+      display: flex;
       flex-direction: column;
       z-index: 60;
+      transform: translateX(-100%);
+      transition: transform 0.24s cubic-bezier(0.4, 0, 0.2, 1);
+      padding: 16px 14px;
+    }
+    .menu-drawer.open {
+      transform: translateX(0);
+    }
+    .drawer-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-bottom: 14px;
+      border-bottom: 1px solid rgba(0, 229, 255, 0.15);
+      margin-bottom: 12px;
+    }
+    .drawer-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .drawer-icon-box {
+      width: 34px;
+      height: 34px;
+      border-radius: 9px;
+      background: rgba(0, 229, 255, 0.12);
+      border: 1px solid rgba(0, 229, 255, 0.3);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #00E5FF;
+    }
+    .drawer-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      color: #FFFFFF;
+    }
+    .drawer-subtitle {
+      font-size: 0.7rem;
+      font-weight: 600;
+      color: #00E5FF;
+    }
+    .drawer-close {
+      width: 32px;
+      height: 32px;
+      background: transparent;
+      border: none;
+      color: #94A3B8;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+    }
+    .drawer-close:active {
+      background: rgba(255, 255, 255, 0.1);
+      color: #FFFFFF;
+    }
+    .drawer-links {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      overflow-y: auto;
     }
     .menu-item {
-      padding: 10px 16px;
-      font-size: 0.85rem;
+      padding: 10px 12px;
+      font-size: 0.88rem;
       font-weight: 600;
       color: #E2E8F0;
       text-decoration: none;
       display: flex;
       align-items: center;
-      gap: 10px;
+      gap: 12px;
+      border-radius: 12px;
+      transition: background 0.15s ease, color 0.15s ease;
+    }
+    .menu-item svg {
+      width: 18px;
+      height: 18px;
+      stroke-width: 2.2;
+      color: #00E5FF;
     }
     .menu-item:hover, .menu-item:active {
       background: rgba(0, 229, 255, 0.1);
       color: #00E5FF;
     }
-
-    .offline-banner {
-      display: none;
-      background: #EF4444;
-      color: white;
+    .menu-divider {
+      height: 1px;
+      background: rgba(255, 255, 255, 0.08);
+      margin: 8px 4px;
+    }
+    .menu-item.logout {
+      color: #F87171;
+    }
+    .menu-item.logout svg {
+      color: #F87171;
+    }
+    .menu-item.logout:hover, .menu-item.logout:active {
+      background: rgba(239, 68, 68, 0.12);
+      color: #FCA5A5;
+    }
+    .drawer-footer {
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.7rem;
+      color: #64748B;
       text-align: center;
-      padding: 4px;
-      font-size: 0.72rem;
-      font-weight: 700;
     }
   </style>
 </head>
@@ -317,8 +412,6 @@ const HTML_CONTENT = `<!DOCTYPE html>
       </div>
     </div>
 
-    <div class="offline-banner" id="offlineBanner">OFFLINE VAULT ACTIVE — ALL VISITED CONTENT SERVED OFFLINE</div>
-
     <!-- Web Content Area -->
     <div class="webview-container">
       <iframe id="mainWebview" src="https://www.wisdom-tower-academy.live/" allow="autoplay; clipboard-write"></iframe>
@@ -328,13 +421,59 @@ const HTML_CONTENT = `<!DOCTYPE html>
         <span id="timerText">Study Timer • 25:00</span>
       </div>
 
-      <!-- Hamburger Menu Modal -->
-      <div class="menu-overlay" id="menuOverlay">
-        <a href="https://www.wisdom-tower-academy.live/about" class="menu-item" target="mainWebview">ℹ️ About</a>
-        <a href="https://www.wisdom-tower-academy.live/contact" class="menu-item" target="mainWebview">✉️ Contact us</a>
-        <a href="https://www.wisdom-tower-academy.live/academy/faq" class="menu-item" target="mainWebview">❓ FAQ</a>
-        <a href="https://www.wisdom-tower-academy.live/privacy" class="menu-item" target="mainWebview">🔒 Privacy</a>
-        <a href="https://www.wisdom-tower-academy.live/terms" class="menu-item" target="mainWebview">📜 Terms</a>
+      <!-- Backdrop for Drawer -->
+      <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
+      <!-- Slide-in Navigation Drawer -->
+      <div class="menu-drawer" id="menuDrawer">
+        <div class="drawer-header">
+          <div class="drawer-title-group">
+            <div class="drawer-icon-box">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </div>
+            <div>
+              <div class="drawer-title">Wisdom Tower</div>
+              <div class="drawer-subtitle">Academy Navigation</div>
+            </div>
+          </div>
+          <button class="drawer-close" id="drawerClose" aria-label="Close menu">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+
+        <div class="drawer-links">
+          <a href="https://www.wisdom-tower-academy.live/about" class="menu-item" target="mainWebview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+            About
+          </a>
+          <a href="https://www.wisdom-tower-academy.live/contact" class="menu-item" target="mainWebview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
+            Contact us
+          </a>
+          <a href="https://www.wisdom-tower-academy.live/academy/faq" class="menu-item" target="mainWebview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            FAQ
+          </a>
+          <a href="https://www.wisdom-tower-academy.live/privacy" class="menu-item" target="mainWebview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            Privacy
+          </a>
+          <a href="https://www.wisdom-tower-academy.live/terms" class="menu-item" target="mainWebview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+            Terms
+          </a>
+
+          <div class="menu-divider"></div>
+
+          <a href="https://www.wisdom-tower-academy.live/logout" class="menu-item logout" target="mainWebview">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+            Sign out
+          </a>
+        </div>
+
+        <div class="drawer-footer">
+          Wisdom Tower Academy • v1.0
+        </div>
       </div>
     </div>
 
@@ -380,16 +519,32 @@ const HTML_CONTENT = `<!DOCTYPE html>
     const wv = document.getElementById('mainWebview');
     const navItems = document.querySelectorAll('.nav-item');
     const menuToggle = document.getElementById('menuToggle');
-    const menuOverlay = document.getElementById('menuOverlay');
+    const menuDrawer = document.getElementById('menuDrawer');
+    const drawerBackdrop = document.getElementById('drawerBackdrop');
+    const drawerClose = document.getElementById('drawerClose');
     const btnRefresh = document.getElementById('btnRefresh');
     const btnNotif = document.getElementById('btnNotif');
 
+    function openDrawer() {
+      menuDrawer.classList.add('open');
+      drawerBackdrop.classList.add('open');
+    }
+    function closeDrawer() {
+      menuDrawer.classList.remove('open');
+      drawerBackdrop.classList.remove('open');
+    }
+
     menuToggle.addEventListener('click', function(e) {
       e.stopPropagation();
-      menuOverlay.style.display = (menuOverlay.style.display === 'flex') ? 'none' : 'flex';
+      openDrawer();
     });
-    document.addEventListener('click', function() {
-      menuOverlay.style.display = 'none';
+    drawerClose.addEventListener('click', closeDrawer);
+    drawerBackdrop.addEventListener('click', closeDrawer);
+
+    document.querySelectorAll('.menu-drawer .menu-item').forEach(function(item) {
+      item.addEventListener('click', function() {
+        closeDrawer();
+      });
     });
 
     btnRefresh.addEventListener('click', function() {
