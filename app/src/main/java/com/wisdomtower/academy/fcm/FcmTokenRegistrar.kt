@@ -47,6 +47,7 @@ object FcmTokenRegistrar {
      * Checks and retrieves FCM token quietly in the background without blocking the UI.
      * Sends the token to the backend if needed.
      */
+    @Suppress("DEPRECATION")
     fun checkAndRegisterToken(context: Context) {
         val appContext = context.applicationContext
         CoroutineScope(Dispatchers.IO).launch {

@@ -17,6 +17,8 @@ import com.wisdomtower.academy.R
 
 class AcademyFirebaseMessagingService : FirebaseMessagingService() {
 
+    @Deprecated("Overrides deprecated member in FirebaseMessagingService")
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onNewToken(token: String) {
         super.onNewToken(token)
         Log.d(TAG, "Refreshed FCM token: $token")
