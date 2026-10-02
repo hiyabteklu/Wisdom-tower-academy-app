@@ -18,7 +18,7 @@ object FcmTokenRegistrar {
     private const val TAG = "FcmTokenRegistrar"
     private const val PREFS_NAME = "wta_fcm_prefs"
     private const val KEY_LAST_SENT_TOKEN = "last_sent_token"
-    private const val BACKEND_URL = "https://www.wisdom-tower-academy.live/api/fcm-token"
+    private const val BACKEND_URL = "https://www.wisdom-tower-academy.live/api/notifications/register-device"
 
     private val httpClient by lazy {
         OkHttpClient.Builder()
@@ -98,8 +98,7 @@ object FcmTokenRegistrar {
                     {
                         "token": "$safeToken",
                         "platform": "android",
-                        "device_model": "$safeModel",
-                        "os_version": "$safeRelease"
+                        "deviceName": "$safeModel"
                     }
                 """.trimIndent()
 
