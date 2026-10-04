@@ -347,7 +347,16 @@ export default function App() {
 
             {/* Android Navigation Gesture Pill */}
             <div className="h-3.5 bg-[#060B15] flex items-center justify-center z-50 pb-1">
-              <div className="w-32 h-1 bg-slate-600/80 rounded-full cursor-pointer hover:bg-slate-400 transition-colors" />
+              <button
+                onClick={() => {
+                  try {
+                    iframeRef.current?.contentWindow?.history.back();
+                  } catch (_) {}
+                }}
+                className="w-32 h-1 bg-slate-600/80 rounded-full cursor-pointer hover:bg-slate-400 transition-colors"
+                title="Device back navigation"
+                aria-label="Device back navigation"
+              />
             </div>
           </div>
         )}

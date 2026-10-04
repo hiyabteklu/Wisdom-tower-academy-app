@@ -6,35 +6,27 @@ package com.wisdomtower.academy
  */
 object StructuralNav {
 
-    /** One site layer up (not browser history). Returns "ok" | "root" | "fail". */
+    /**
+     * Fallback back mechanism when webView.canGoBack() is false.
+     * 1. Calls window.__wtaStructuralBack if present and returns true/ok -> "ok"
+     * 2. Else if history.length > 1 -> history.back() -> "ok"
+     * 3. Else -> "not_ok"
+     */
     const val STRUCTURAL_BACK_JS = """
 (function(){
   try {
     if (typeof window.__wtaStructuralBack === 'function') {
       var r = window.__wtaStructuralBack();
-      return r === true ? 'ok' : 'root';
+      if (r === true || r === 'ok') return 'ok';
     }
   } catch (e) {}
   try {
-    var path = location.pathname || '/';
-    if (path.length > 1 && path.endsWith('/')) path = path.slice(0, -1);
-    var parts = path.split('/').filter(Boolean);
-    if (parts.length === 0) return 'root';
-    parts.pop();
-    var parent = '/' + parts.join('/');
-    if (!parent || parent === path) return 'root';
-    var roots = {
-      '/academy': '/',
-      '/packages': '/',
-      '/learning': '/',
-      '/login': '/',
-      '/cart': '/packages',
-      '/checkout': '/cart'
-    };
-    if (roots[path]) parent = roots[path];
-    location.assign(parent);
-    return 'ok';
-  } catch (e) { return 'fail'; }
+    if (window.history && window.history.length > 1) {
+      window.history.back();
+      return 'ok';
+    }
+  } catch (e) {}
+  return 'not_ok';
 })();
 """
 

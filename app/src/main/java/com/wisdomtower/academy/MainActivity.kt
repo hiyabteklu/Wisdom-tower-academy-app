@@ -1015,15 +1015,29 @@ fun MainScreen(
 
         val wv = webView
         val currentUrl = wv?.url ?: ""
-        if (wv == null || currentUrl.isBlank() || currentUrl.startsWith("file://")) {
+        if (wv == null) {
             triggerDoubleTapExit()
-        } else {
+            return@BackHandler
+        }
+
+        // 1. If webView.canGoBack() -> webView.goBack(); return
+        if (wv.canGoBack()) {
+            wv.goBack()
+            return@BackHandler
+        }
+
+        // 2. Else run structural-back JS; if result is "ok" -> return
+        if (currentUrl.isNotBlank() && !currentUrl.startsWith("file://")) {
             wv.evaluateJavascript(StructuralNav.STRUCTURAL_BACK_JS) { rawResult ->
                 val res = rawResult?.trim('"')?.trim() ?: ""
                 if (res != "ok") {
+                    // 3. Else double-tap exit (unchanged)
                     triggerDoubleTapExit()
                 }
             }
+        } else {
+            // 3. Else double-tap exit (unchanged)
+            triggerDoubleTapExit()
         }
     }
 
