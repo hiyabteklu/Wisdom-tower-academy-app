@@ -193,6 +193,37 @@ private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 private const val SITE = "https://www.wisdom-tower-academy.live/"
 private const val MIN_SPLASH_DISPLAY_MS = 2200L
 
+private const val SOFT_NAV_JS =
+    "(function(targetUrl){try{" +
+        "if(!targetUrl||window.location.protocol==='file:')return 'fallback';" +
+        "var cur=window.location.href;" +
+        "if(cur===targetUrl||cur.replace(/\\/$/,'')===targetUrl.replace(/\\/$/,''))return 'noop';" +
+        "var path=targetUrl;" +
+        "try{var u=new URL(targetUrl,window.location.origin);path=u.pathname+u.search+u.hash;}catch(_){}" +
+        "if(typeof window.__wtaNavigate==='function'){" +
+            "try{var r=window.__wtaNavigate(path);if(r!==false)return 'ok';}catch(_){}" +
+        "}" +
+        "if(window.next&&window.next.router&&typeof window.next.router.push==='function'){" +
+            "try{window.next.router.push(path);return 'ok';}catch(_){}" +
+        "}" +
+        "try{" +
+            "var existing=document.querySelector('a[href=\"'+path+'\"],a[href=\"'+targetUrl+'\"]');" +
+            "if(existing){existing.click();return 'ok';}" +
+            "var a=document.createElement('a');" +
+            "a.href=path;a.style.display='none';" +
+            "document.body.appendChild(a);" +
+            "a.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));" +
+            "document.body.removeChild(a);" +
+            "return 'ok';" +
+        "}catch(_){}" +
+        "try{" +
+            "if(window.history&&typeof window.history.pushState==='function'){" +
+                "window.location.assign(path);return 'ok';" +
+            "}" +
+        "}catch(_){}" +
+        "return 'fallback';" +
+    "}catch(e){return 'fallback';}})"
+
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
@@ -806,44 +837,76 @@ fun MainScreen(
         pendingNavRunnable = null
 
         if (tabIndex != null) selectedIndex = tabIndex
-        if (!url.startsWith("file://") && !url.contains("offline.html")) {
-            lastTargetUrl = url
-        }
         if (resetHistory) pendingClearHistory = true
+
+        val wv = webView
+        val currentUrl = wv?.url.orEmpty().trim()
+        val targetUrl = url.trim()
+
+        // 1) Same-tab / same-section guard:
+        // If already on that tab or same section, do nothing — no reload, no progress flash!
+        if (tabIndex != null) {
+            val currentSection = tabIndexForUrl(currentUrl, -1)
+            val isExactSameUrl = currentUrl.removeSuffix("/") == targetUrl.removeSuffix("/")
+            if (currentSection == tabIndex) {
+                // If on exact URL or already on this section's root/view, do nothing
+                if (isExactSameUrl || selectedIndex == tabIndex) {
+                    return
+                }
+            }
+        } else if (currentUrl.isNotBlank() && currentUrl.removeSuffix("/") == targetUrl.removeSuffix("/")) {
+            return
+        }
+
+        if (!targetUrl.startsWith("file://") && !targetUrl.contains("offline.html")) {
+            lastTargetUrl = targetUrl
+        }
 
         val targetTitle = when {
             tabIndex != null && tabIndex in items.indices -> items[tabIndex].title
             else -> {
-                val idx = tabIndexForUrl(url, selectedIndex)
+                val idx = tabIndexForUrl(targetUrl, selectedIndex)
                 if (idx in items.indices) items[idx].title else "Wisdom Tower Academy"
             }
         }
         navigationStatusText = "Opening $targetTitle…"
-        startNavigationLoading()
-        webProgress = 20
 
-        val wv = webView
         if (wv == null) {
-            val r = Runnable { stopNavigationLoading() }
+            val r = Runnable { stopNavigationLoading(forceImmediate = true) }
             pendingNavRunnable = r
             mainHandler.postDelayed(r, 600L)
             return
         }
 
         val online = isOnline(context)
-        if (online) {
+        val isSiteLoaded = !currentUrl.startsWith("file://") && 
+                           !currentUrl.contains("offline.html") &&
+                           (currentUrl.contains("wisdom-tower-academy.live") || currentUrl.startsWith("https://"))
+
+        // 2) Prefer soft client-side navigation over full loadUrl when online on live site
+        if (online && isSiteLoaded && !resetHistory) {
+            webProgress = 35
+            val escapedUrl = targetUrl.replace("'", "\\'")
+            val script = "($SOFT_NAV_JS)('$escapedUrl');"
+            wv.evaluateJavascript(script) { result ->
+                val res = result?.trim('"')?.trim() ?: ""
+                if (res != "ok" && res != "noop") {
+                    // Fall back to loadUrl only if soft nav is unavailable or fails
+                    mainHandler.post {
+                        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                        wv.loadUrl(targetUrl)
+                    }
+                }
+            }
+        } else if (online) {
+            // Cold load or loading from offline page:
             wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-            try {
-                wv.stopLoading()
-            } catch (_: Exception) {}
-            wv.loadUrl(url)
+            wv.loadUrl(targetUrl)
         } else {
-            if (WebCacheVault.has(context, url)) {
+            // Offline: keep existing cache / vault behavior
+            if (WebCacheVault.has(context, targetUrl)) {
                 wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                try {
-                    wv.stopLoading()
-                } catch (_: Exception) {}
-                wv.loadUrl(url)
+                wv.loadUrl(targetUrl)
             } else {
                 val r = Runnable {
                     showOffline(wv, force = true)
@@ -2092,22 +2155,37 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Custom loading animation in transitions (learning to home.. To setting etc..)
+                // Sleek top hairline progress indicator during page transitions (no full-screen takeover / blink)
                 AnimatedVisibility(
-                    visible = isNavigating && !isInitialLoading,
-                    enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.92f, animationSpec = tween(180)),
-                    exit = fadeOut(tween(260)) + scaleOut(targetScale = 0.96f, animationSpec = tween(220)),
+                    visible = (isNavigating || (webProgress in 1..85)) && !isInitialLoading,
+                    enter = fadeIn(tween(100)),
+                    exit = fadeOut(tween(220)),
                     modifier = Modifier
-                        .fillMaxSize()
+                        .fillMaxWidth()
+                        .height(2.5.dp)
+                        .align(Alignment.TopCenter)
                         .zIndex(95f)
                 ) {
-                    CenteredBigCircularLoader(
-                        modifier = Modifier.background(Color(0x8A070E1A)),
-                        statusText = navigationStatusText,
-                        subText = "Switching section…",
-                        progress = webProgress,
-                        isSplash = false
-                    )
+                    val progressFraction = (webProgress / 100f).coerceIn(0.15f, 1f)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color(0x1A22E0FF))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxHeight()
+                                .fillMaxWidth(fraction = progressFraction)
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(
+                                            Accent,
+                                            AccentDark
+                                        )
+                                    )
+                                )
+                        )
+                    }
                 }
 
                 // Perfect Timing Splash / Loading Overlay: Eliminates blank screens
