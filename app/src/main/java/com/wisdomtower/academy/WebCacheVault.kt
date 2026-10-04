@@ -183,12 +183,43 @@ object WebCacheVault {
         return keyFor(withoutQuery)
     }
 
+    /**
+     * Identifies dynamic catalog, material list, package, and database queries.
+     *
+     * Why dynamic list APIs must not be vaulted:
+     * When material lists or package indexes change on the server, serving a stale or
+     * mismatched cached API JSON response offline can cause the web UI to conclude that
+     * there is "no published material", effectively hiding usable cached HTML pages and PDFs.
+     * Dynamic list APIs must always be fetched fresh online and never persisted to the vault.
+     */
+    fun isDynamicListOrDataApi(url: String): Boolean {
+        if (url.isBlank()) return false
+        val clean = url.lowercase().trim()
+
+        // Supabase REST endpoints (materials, packages, catalogs, user tables, etc.)
+        if (clean.contains("supabase.co/rest/v1")) return true
+
+        // Dynamic API endpoints (materials, packages, catalogs, published content)
+        if (clean.contains("/api/")) {
+            val isStaticAsset = clean.endsWith(".js") || clean.endsWith(".css") ||
+                clean.endsWith(".png") || clean.endsWith(".jpg") || clean.endsWith(".jpeg") ||
+                clean.endsWith(".webp") || clean.endsWith(".svg") || clean.endsWith(".woff2") ||
+                clean.endsWith(".woff")
+            if (!isStaticAsset) {
+                return true
+            }
+        }
+
+        return false
+    }
+
     fun isCacheable(url: String): Boolean {
         if (url.isBlank()) return false
         val clean = url.lowercase().trim()
         if (clean.startsWith("blob:") || clean.startsWith("data:") || clean.startsWith("file:")) return false
         if (clean.contains("/api/auth/signout") || clean.contains("logout")) return false
         if (OfflineVault.isPdfUrl(url)) return false // Handled specifically by OfflineVault
+        if (isDynamicListOrDataApi(url)) return false // Dynamic list / data APIs must never be persisted
 
         val uri = try { Uri.parse(clean) } catch (_: Exception) { null }
         val host = uri?.host ?: ""
@@ -204,9 +235,7 @@ object WebCacheVault {
         val isStaticAsset = clean.contains("/_next/static/") || clean.endsWith(".js") ||
             clean.endsWith(".css") || clean.endsWith(".woff2") || clean.endsWith(".woff")
 
-        val isDataApi = clean.contains("/api/") || clean.contains("supabase.co/rest/v1")
-
-        return isWtaHost || isImageOrMedia || isStaticAsset || isDataApi
+        return isWtaHost || isImageOrMedia || isStaticAsset
     }
 
     fun has(ctx: Context, url: String): Boolean {
@@ -247,6 +276,7 @@ object WebCacheVault {
 
     fun save(ctx: Context, url: String, mime: String, encoding: String?, bytes: ByteArray) {
         if (bytes.isEmpty()) return
+        if (isDynamicListOrDataApi(url)) return
         val norm = normalizeUrl(url)
         val dir = vaultDir(ctx)
         val meta = EntryMeta(
@@ -376,6 +406,11 @@ object WebCacheVault {
                     put("X-WTA-Cache", "NETWORK-STREAM")
                 }
 
+                if (isDynamicListOrDataApi(fullUrl)) {
+                    // Online: allow dynamic list response to flow directly to WebView without disk persistence
+                    return WebResourceResponse(mime, encoding, code, "OK", headers, conn.inputStream)
+                }
+
                 val key = keyFor(fullUrl)
                 val tempFile = File(vaultDir(ctx), "$key.tmp")
                 val finalFile = File(vaultDir(ctx), "$key.body")
@@ -423,6 +458,7 @@ object WebCacheVault {
      */
     fun cacheUrlAsync(ctx: Context, fullUrl: String) {
         if (fullUrl.isBlank()) return
+        if (isDynamicListOrDataApi(fullUrl)) return
         val norm = normalizeUrl(fullUrl)
         if (has(ctx, norm)) return
         io.execute {
