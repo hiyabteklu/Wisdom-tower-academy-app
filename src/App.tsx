@@ -50,6 +50,7 @@ export default function App() {
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(true);
   const [viewMode, setViewMode] = useState<'device' | 'architecture' | 'checklist'>('device');
   const [iframeKey, setIframeKey] = useState<number>(0);
+  const [isLoading, setIsLoading] = useState<boolean>(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   // Status bar live clock
@@ -81,9 +82,12 @@ export default function App() {
   };
 
   const handleNavClick = (tab: TabItem) => {
+    if (activeTab === tab.id) return;
     setActiveTab(tab.id);
+    setIsLoading(true);
     setCurrentUrl(tab.url);
     setIsMenuOpen(false);
+    setTimeout(() => setIsLoading(false), 450);
   };
 
   const handleNotificationClick = () => {
@@ -318,7 +322,24 @@ export default function App() {
                 title="Wisdom Tower Academy"
                 className="w-full h-full border-none bg-[#060B15]"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+                onLoad={() => setIsLoading(false)}
               />
+
+              {/* Centered Transparent Custom Loader (No text, no card, continuous spin) */}
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 transition-opacity duration-200">
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    {/* Outer Cyan Arc */}
+                    <div className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#22E0FF] border-r-[#22E0FF]/40 animate-spin" style={{ animationDuration: '0.75s' }} />
+                    {/* Inner Violet Arc */}
+                    <div className="absolute inset-2.5 rounded-full border-[2px] border-transparent border-b-[#818CF8] border-l-[#818CF8]/40 animate-spin" style={{ animationDuration: '0.95s', animationDirection: 'reverse' }} />
+                    {/* Center Brand WT Logo */}
+                    <div className="w-12 h-12 rounded-xl bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center shadow-lg shadow-[#22E0FF]/15">
+                      <span className="font-black text-[#22E0FF] text-sm tracking-wider">WT</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Native 5-Tab Bottom Navigation Bar (#060B15) with Shared Dark Capsule Track */}

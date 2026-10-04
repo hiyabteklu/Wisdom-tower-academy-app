@@ -191,7 +191,7 @@ private val DarkOnCyan = Color(0xFF070D17) // Dark text on solid cyan pills
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 // Direct 200 URL (eliminates 308 redirect round-trip delay)
 private const val SITE = "https://www.wisdom-tower-academy.live/"
-private const val MIN_SPLASH_DISPLAY_MS = 2200L
+private const val MIN_SPLASH_DISPLAY_MS = 1200L
 
 private const val SOFT_NAV_JS =
     "(function(targetUrl){try{" +
@@ -767,30 +767,29 @@ fun MainScreen(
         navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
         navigationStartTime = System.currentTimeMillis()
-        isNavigating = true
+        if (delayMs > 0L) {
+            val showRunnable = Runnable { isNavigating = true }
+            navShowRunnable = showRunnable
+            mainHandler.postDelayed(showRunnable, delayMs)
+        } else {
+            isNavigating = true
+        }
         val timeout = Runnable { isNavigating = false }
         navTimeoutRunnable = timeout
-        mainHandler.postDelayed(timeout, 3500L)
+        mainHandler.postDelayed(timeout, 4000L)
     }
 
     fun stopNavigationLoading(forceImmediate: Boolean = false) {
         navShowRunnable?.let { mainHandler.removeCallbacks(it) }
         navShowRunnable = null
-        val elapsed = System.currentTimeMillis() - navigationStartTime
-        val minDisplayMs = 500L
-        if (!forceImmediate && elapsed < minDisplayMs && isNavigating) {
-            val remaining = (minDisplayMs - elapsed).coerceAtLeast(50L)
-            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-            val delayedStop = Runnable {
-                isNavigating = false
-                navTimeoutRunnable = null
-            }
-            navTimeoutRunnable = delayedStop
-            mainHandler.postDelayed(delayedStop, remaining)
-        } else {
-            navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-            navTimeoutRunnable = null
+        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        navTimeoutRunnable = null
+        if (forceImmediate) {
             isNavigating = false
+        } else {
+            mainHandler.postDelayed({
+                isNavigating = false
+            }, 50L)
         }
     }
 
@@ -883,9 +882,11 @@ fun MainScreen(
                            !currentUrl.contains("offline.html") &&
                            (currentUrl.contains("wisdom-tower-academy.live") || currentUrl.startsWith("https://"))
 
+        // Show custom loader only if there is a noticeable loading gap (60ms debounce)
+        startNavigationLoading(delayMs = 60L)
+
         // 2) Prefer soft client-side navigation over full loadUrl when online on live site
         if (online && isSiteLoaded && !resetHistory) {
-            webProgress = 35
             val escapedUrl = targetUrl.replace("'", "\\'")
             val script = "($SOFT_NAV_JS)('$escapedUrl');"
             wv.evaluateJavascript(script) { result ->
@@ -896,6 +897,8 @@ fun MainScreen(
                         wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
                         wv.loadUrl(targetUrl)
                     }
+                } else if (res == "noop") {
+                    stopNavigationLoading(forceImmediate = true)
                 }
             }
         } else if (online) {
@@ -2155,52 +2158,30 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Sleek top hairline progress indicator during page transitions (no full-screen takeover / blink)
+                // Restored & Fixed Custom Animated Loader Overlay:
+                // - Transparent background only (solid BarBg only on initial cold splash)
+                // - NO text at all (no titles, no captions)
+                // - NO percent (no 20%, 80%, etc.)
+                // - NO card, NO panel, NO dim box
+                // - ONE continuous stable animation (same 110.dp scale, same center, zero size jumps)
+                val isLoaderVisible = isInitialLoading || isNavigating
                 AnimatedVisibility(
-                    visible = (isNavigating || (webProgress in 1..85)) && !isInitialLoading,
-                    enter = fadeIn(tween(100)),
-                    exit = fadeOut(tween(220)),
+                    visible = isLoaderVisible,
+                    enter = fadeIn(tween(140, easing = FastOutSlowInEasing)),
+                    exit = fadeOut(tween(200, easing = FastOutSlowInEasing)),
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(2.5.dp)
-                        .align(Alignment.TopCenter)
+                        .fillMaxSize()
                         .zIndex(95f)
                 ) {
-                    val progressFraction = (webProgress / 100f).coerceIn(0.15f, 1f)
+                    val loaderBg = if (isInitialLoading) BarBg else Color.Transparent
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(Color(0x1A22E0FF))
+                            .background(loaderBg),
+                        contentAlignment = Alignment.Center
                     ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxHeight()
-                                .fillMaxWidth(fraction = progressFraction)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(
-                                            Accent,
-                                            AccentDark
-                                        )
-                                    )
-                                )
-                        )
+                        CustomCenteredLoader()
                     }
-                }
-
-                // Perfect Timing Splash / Loading Overlay: Eliminates blank screens
-                AnimatedVisibility(
-                    visible = isInitialLoading,
-                    enter = fadeIn(tween(150)),
-                    exit = fadeOut(tween(380, easing = FastOutSlowInEasing))
-                ) {
-                    CenteredBigCircularLoader(
-                        modifier = Modifier.background(BarBg),
-                        statusText = "Wisdom Tower Academy",
-                        subText = "Preparing your learning space…",
-                        progress = webProgress,
-                        isSplash = true
-                    )
                 }
             }
         }
@@ -2709,104 +2690,32 @@ private fun AliveBottomNav(
  * 2. Radial outward thick gear ticks / cog teeth rotating fast between the two circles.
  * 3. Subtle frosted card background with ambient glow (compact for page loads/navigation, full-screen for splash).
  */
+/**
+ * Restored and Fixed Custom Animated Loader:
+ * - Brand animated logo in center (BrandLoader, showCard = false)
+ * - Opposite-direction high-speed neon rings (cyan & violet/indigo)
+ * - Radial outward thick gear ticks / cog teeth rotating continuously
+ * - Pure transparent background: NO card, NO panel, NO dim box
+ * - NO text at all (no "Loading…", no titles, no captions)
+ * - NO percent (no 20%, 80%, etc.)
+ * - Constant single scale (110.dp) and constant center (no size jumps, no glitches)
+ */
 @Composable
-private fun CenteredBigCircularLoader(
+private fun CustomCenteredLoader(
     modifier: Modifier = Modifier,
-    statusText: String = "Wisdom Tower Academy",
-    subText: String = "Loading…",
-    progress: Int = 0,
-    isSplash: Boolean = false,
 ) {
     Box(
-        modifier = modifier.fillMaxSize(),
+        modifier = modifier.size(110.dp),
         contentAlignment = Alignment.Center
     ) {
-        if (isSplash) {
-            // Full-screen splash layout
-            Box(
-                modifier = Modifier
-                    .size(240.dp)
-                    .clip(CircleShape)
-                    .background(
-                        Brush.radialGradient(
-                            listOf(
-                                Color(0x2E00E5FF),
-                                Color(0x0A00E5FF),
-                                Color.Transparent
-                            )
-                        )
-                    )
-            )
-            Column(
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center,
-                modifier = Modifier.padding(24.dp)
-            ) {
-                FuturisticGearRings(
-                    size = 160.dp,
-                    brandSize = 100.dp,
-                    numTicks = 18,
-                    tickInnerRatio = 0.70f,
-                    tickOuterRatio = 0.88f,
-                    tickWidth = 4.dp
-                )
-                Spacer(modifier = Modifier.height(20.dp))
-                Text(
-                    text = statusText,
-                    color = Color.White,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.3.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = subText,
-                    color = Muted,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Normal
-                )
-                if (progress in 1..99) {
-                    Spacer(modifier = Modifier.height(14.dp))
-                    LoaderProgressPill(progress = progress, compact = false)
-                }
-            }
-        } else {
-            // Elegant frosted transition card with custom animated loader, glowing neon border, and section title
-            Surface(
-                color = Color(0xF20B132B),
-                shape = RoundedCornerShape(24.dp),
-                border = BorderStroke(1.2.dp, Brush.linearGradient(listOf(Color(0x8000E5FF), Color(0x33818CF8)))),
-                shadowElevation = 16.dp,
-                modifier = Modifier.padding(24.dp)
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center,
-                    modifier = Modifier.padding(horizontal = 26.dp, vertical = 20.dp)
-                ) {
-                    FuturisticGearRings(
-                        size = 88.dp,
-                        brandSize = 52.dp,
-                        numTicks = 14,
-                        tickInnerRatio = 0.68f,
-                        tickOuterRatio = 0.88f,
-                        tickWidth = 2.8.dp
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    Text(
-                        text = statusText,
-                        color = Color.White,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 0.2.sp
-                    )
-                    if (progress in 1..99) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        LoaderProgressPill(progress = progress, compact = true)
-                    }
-                }
-            }
-        }
+        FuturisticGearRings(
+            size = 110.dp,
+            brandSize = 64.dp,
+            numTicks = 16,
+            tickInnerRatio = 0.68f,
+            tickOuterRatio = 0.88f,
+            tickWidth = 3.dp
+        )
     }
 }
 
@@ -2929,49 +2838,5 @@ private fun FuturisticGearRings(
 
         // Brand animated GIF in center
         BrandLoader(size = brandSize, showCard = false)
-    }
-}
-
-@Composable
-private fun LoaderProgressPill(
-    progress: Int,
-    compact: Boolean = false,
-    modifier: Modifier = Modifier,
-) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(if (compact) 6.dp else 8.dp),
-        modifier = modifier
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0x2600E5FF))
-            .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(12.dp))
-            .padding(
-                horizontal = if (compact) 9.dp else 12.dp,
-                vertical = if (compact) 3.5.dp else 5.dp
-            )
-    ) {
-        val infiniteTransition = rememberInfiniteTransition(label = "loaderPulse")
-        val dotAlpha by infiniteTransition.animateFloat(
-            initialValue = 0.4f,
-            targetValue = 1f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(400, easing = FastOutSlowInEasing),
-                repeatMode = RepeatMode.Reverse
-            ),
-            label = "loaderDotAlpha"
-        )
-        Box(
-            modifier = Modifier
-                .size(if (compact) 5.dp else 6.dp)
-                .clip(CircleShape)
-                .background(Accent.copy(alpha = dotAlpha))
-        )
-        Text(
-            text = "Loading $progress%",
-            color = Color(0xFF38BDF8),
-            fontSize = if (compact) 10.sp else 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            letterSpacing = 0.2.sp
-        )
     }
 }
