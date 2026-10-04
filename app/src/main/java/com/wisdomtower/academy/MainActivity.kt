@@ -78,6 +78,7 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -2435,6 +2436,15 @@ private fun StudyTimerPlayerPill(
  * Icons are strictly contained within their capsule bounds with non-bouncy micro-press damping.
  * Background blends 100% seamlessly into the mobile screen bottom edge with NO gap and NO color difference.
  */
+/**
+ * Segmented Pill Bottom Navigation matching the Account page toggle language:
+ * [ Academic Analytics & Progress ]  [ Inquiries & Support ]
+ * - Shared dark capsule track: rounded-full ends, dark surface, quiet 1px border.
+ * - Selected active tab: solid cyan/teal pill (stadium / 999.dp capsule),
+ *   crisp #22E0FF cyan border, deep rich teal background, cyan icon & bold label.
+ * - Unselected tabs: completely unboxed, quiet muted slate icon & label.
+ * - Selection animation: smooth physics-based spring slide across the shared track.
+ */
 @Composable
 private fun AliveBottomNav(
     items: List<BottomNavItem>,
@@ -2472,124 +2482,126 @@ private fun AliveBottomNav(
                     )
             )
 
-            Row(
+            // Shared Dark Capsule Track matching the Account page segmented pill toggle
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(58.dp)
-                    .padding(horizontal = 4.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceEvenly
+                    .padding(horizontal = 8.dp, vertical = 6.dp)
+                    .height(54.dp)
+                    .clip(RoundedCornerShape(999.dp))
+                    .background(Color(0xFF09111D))
+                    .border(
+                        BorderStroke(1.dp, Color(0x3322E0FF)),
+                        RoundedCornerShape(999.dp)
+                    )
             ) {
-                items.forEachIndexed { index, item ->
-                    val selected = selectedIndex == index
-                    val interactionSource = remember(index) { MutableInteractionSource() }
-                    val isPressed by interactionSource.collectIsPressedAsState()
-                    val isHovered by interactionSource.collectIsHoveredAsState()
+                val totalWidth = maxWidth
+                val itemCount = items.size.coerceAtLeast(1)
+                val tabWidth = totalWidth / itemCount
 
-                    // Smooth spring content scaling
-                    val contentScale by animateFloatAsState(
-                        targetValue = if (selected) 1.05f else if (isPressed) 0.94f else 1.0f,
-                        animationSpec = spring(
-                            dampingRatio = 0.72f,
-                            stiffness = Spring.StiffnessMedium
-                        ),
-                        label = "tabContentScale"
-                    )
+                // Smooth sliding active pill indicator across the shared track
+                val animatedLeftOffset by animateDpAsState(
+                    targetValue = tabWidth * selectedIndex,
+                    animationSpec = spring(
+                        dampingRatio = 0.8f,
+                        stiffness = Spring.StiffnessMedium
+                    ),
+                    label = "bottomNavSegmentSlide"
+                )
 
-                    // Smooth active pill crossfade
-                    val activePillAlpha by animateFloatAsState(
-                        targetValue = if (selected) 1f else 0f,
-                        animationSpec = tween(220, easing = FastOutSlowInEasing),
-                        label = "activePillAlpha"
-                    )
-
-                    val iconColor by animateColorAsState(
-                        targetValue = if (selected) Accent else if (isHovered) Color(0xFFF1F5F9) else Muted,
-                        animationSpec = tween(180),
-                        label = "tabIconColor"
-                    )
-
-                    val textColor by animateColorAsState(
-                        targetValue = if (selected) Accent else if (isHovered) Color(0xFFF1F5F9) else Muted,
-                        animationSpec = tween(180),
-                        label = "tabTextColor"
-                    )
-
-                    val capsuleShape = RoundedCornerShape(16.dp)
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(50.dp)
-                            .padding(horizontal = 2.dp)
-                            .clip(capsuleShape)
-                            .background(
-                                Color(0x1F22E0FF).copy(alpha = activePillAlpha * 0.18f)
-                            )
-                            .border(
-                                BorderStroke(
-                                    1.dp,
-                                    Color(0x4422E0FF).copy(alpha = activePillAlpha * 0.45f)
-                                ),
-                                capsuleShape
-                            )
-                            .clickable(
-                                interactionSource = interactionSource,
-                                indication = ripple(
-                                    bounded = true,
-                                    color = Accent.copy(alpha = 0.2f)
+                // The active capsule pill (identical to the Account active pill segment)
+                Box(
+                    modifier = Modifier
+                        .offset(x = animatedLeftOffset)
+                        .width(tabWidth)
+                        .fillMaxHeight()
+                        .padding(horizontal = 2.dp, vertical = 2.5.dp)
+                        .clip(RoundedCornerShape(999.dp))
+                        .background(
+                            Brush.verticalGradient(
+                                listOf(
+                                    Color(0xFF0F3D52),
+                                    Color(0xFF0A2B3A)
                                 )
-                            ) {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                onItemSelected(index, item)
-                            },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            verticalArrangement = Arrangement.Center,
+                            )
+                        )
+                        .border(
+                            BorderStroke(1.5.dp, Accent),
+                            RoundedCornerShape(999.dp)
+                        )
+                )
+
+                // 5 Tab items row layered on the track
+                Row(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items.forEachIndexed { index, item ->
+                        val selected = selectedIndex == index
+                        val interactionSource = remember(index) { MutableInteractionSource() }
+                        val isPressed by interactionSource.collectIsPressedAsState()
+
+                        // Micro-scale on press for tactile feel
+                        val contentScale by animateFloatAsState(
+                            targetValue = if (isPressed) 0.93f else (if (selected) 1.04f else 1.0f),
+                            animationSpec = spring(
+                                dampingRatio = 0.75f,
+                                stiffness = Spring.StiffnessMedium
+                            ),
+                            label = "tabItemScale"
+                        )
+
+                        val iconColor by animateColorAsState(
+                            targetValue = if (selected) Accent else Muted,
+                            animationSpec = tween(180),
+                            label = "tabIconColor"
+                        )
+
+                        val textColor by animateColorAsState(
+                            targetValue = if (selected) Accent else Muted,
+                            animationSpec = tween(180),
+                            label = "tabTextColor"
+                        )
+
+                        Box(
                             modifier = Modifier
-                                .fillMaxSize()
-                                .scale(contentScale)
-                                .padding(vertical = 3.dp)
+                                .weight(1f)
+                                .fillMaxHeight()
+                                .clip(RoundedCornerShape(999.dp))
+                                .clickable(
+                                    interactionSource = interactionSource,
+                                    indication = null
+                                ) {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    onItemSelected(index, item)
+                                },
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier.size(22.dp),
-                                contentAlignment = Alignment.Center
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.Center,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .scale(contentScale)
+                                    .padding(vertical = 2.dp)
                             ) {
-                                if (selected) {
-                                    // Soft cyan ambient glow behind active icon
-                                    Box(
-                                        modifier = Modifier
-                                            .size(22.dp)
-                                            .clip(CircleShape)
-                                            .background(
-                                                Brush.radialGradient(
-                                                    listOf(
-                                                        Color(0x3322E0FF),
-                                                        Color.Transparent
-                                                    )
-                                                )
-                                            )
-                                    )
-                                }
                                 Icon(
                                     imageVector = item.icon,
                                     contentDescription = item.title,
                                     tint = iconColor,
                                     modifier = Modifier.size(20.dp)
                                 )
+                                Spacer(modifier = Modifier.height(2.dp))
+                                Text(
+                                    text = item.title,
+                                    color = textColor,
+                                    fontSize = 10.sp,
+                                    fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    letterSpacing = (-0.1).sp
+                                )
                             }
-                            Spacer(modifier = Modifier.height(2.dp))
-                            Text(
-                                text = item.title,
-                                color = textColor,
-                                fontSize = 10.sp,
-                                fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                letterSpacing = (-0.1).sp
-                            )
                         }
                     }
                 }

@@ -321,26 +321,28 @@ export default function App() {
               />
             </div>
 
-            {/* Native 5-Tab Bottom Navigation Bar (#060B15) */}
-            <div className="h-16 bg-[#060B15] border-t border-[#22E0FF]/15 flex items-center justify-around px-2 z-50">
-              {TABS.map((tab) => {
-                const IconComponent = tab.icon;
-                const isActive = activeTab === tab.id;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => handleNavClick(tab)}
-                    className={`flex-1 flex flex-col items-center justify-center gap-1 h-12 rounded-2xl mx-0.5 transition-all duration-200 ${
-                      isActive
-                        ? 'text-[#22E0FF] bg-[#22E0FF]/15 border border-[#22E0FF]/35 font-bold shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200'
-                    }`}
-                  >
-                    <IconComponent className={`w-4.5 h-4.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-                    <span className="text-[10.5px] tracking-tight">{tab.label}</span>
-                  </button>
-                );
-              })}
+            {/* Native 5-Tab Bottom Navigation Bar (#060B15) with Shared Dark Capsule Track */}
+            <div className="h-18 bg-[#060B15] border-t border-[#22E0FF]/15 flex items-center justify-center px-2 py-1.5 z-50">
+              <div className="w-full h-13 bg-[#09111D] border border-[#22E0FF]/25 rounded-full p-1 flex items-center justify-between relative shadow-inner">
+                {TABS.map((tab) => {
+                  const IconComponent = tab.icon;
+                  const isActive = activeTab === tab.id;
+                  return (
+                    <button
+                      key={tab.id}
+                      onClick={() => handleNavClick(tab)}
+                      className={`flex-1 flex flex-col items-center justify-center gap-0.5 h-full rounded-full transition-all duration-200 z-10 ${
+                        isActive
+                          ? 'bg-gradient-to-b from-[#0F3D52] to-[#0A2B3A] border-[1.5px] border-[#22E0FF] text-[#22E0FF] font-bold shadow-md shadow-[#22E0FF]/20 scale-[1.02]'
+                          : 'text-slate-400 hover:text-slate-200 bg-transparent border-transparent'
+                      }`}
+                    >
+                      <IconComponent className={`w-4 h-4 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+                      <span className="text-[10px] tracking-tight">{tab.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* Android Navigation Gesture Pill */}
