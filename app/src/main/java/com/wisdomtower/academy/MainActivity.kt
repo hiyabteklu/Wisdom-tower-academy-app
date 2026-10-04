@@ -2152,7 +2152,7 @@ fun MainScreen(
                                                     }
                                                     WebCacheVault.io.execute {
                                                         try {
-                                                            WebCacheVault.putDirect(ctx, fullUrl, rawBytes, "text/html", "utf-8")
+                                                            WebCacheVault.save(ctx, fullUrl, "text/html", "utf-8", rawBytes)
                                                         } catch (_: Exception) {}
                                                     }
                                                     return WebResourceResponse(
