@@ -224,20 +224,48 @@ private const val SOFT_NAV_JS =
         "return 'fallback';" +
     "}catch(e){return 'fallback';}})"
 
+private const val CRITICAL_CHROME_STYLE =
+    "<style id=\"wta-critical-hide\">" +
+    "header,header.fixed.top-0,header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
+    "nav[aria-label=\"Main\"],nav.hidden.md\\:flex,.site-nav,.site-navigation,[data-site-nav]," +
+    "footer,footer[data-site-footer],.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
+    ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
+    "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
+    "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
+    "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
+    "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
+    "</style>"
+
+private const val EARLY_HIDE_CHROME_JS =
+    "(function(){try{" +
+        "if(window.location.protocol==='file:')return;" +
+        "document.documentElement.classList.add('wta-native-app');" +
+        "if(document.body){document.body.classList.add('wta-native-app');}" +
+        "var id='wta-app-chrome';var s=document.getElementById(id);" +
+        "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
+        "s.textContent='header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
+        "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"]," +
+        ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
+        "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
+        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],img.wta-img-broken,img:not([src]),img[src=\"\"]" +
+        "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}';" +
+    "}catch(e){}})"
+
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
         "document.documentElement.classList.add('wta-native-app');" +
         "if(document.body){document.body.classList.add('wta-native-app');}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
-        "if(!s){s=document.createElement('style');s.id=id;document.head?document.head.appendChild(s):document.documentElement.appendChild(s);}" +
+        "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
         "s.textContent=" +
-        "'header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
-        "nav[aria-label=\"Main\"],.hide-on-app,#nprogress,.nprogress,#nprogress .bar," +
-        "[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
+        "'header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
+        "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"]," +
+        ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
+        "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
         "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
         "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
-        "{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;opacity:0!important;}';" +
+        "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
         "var p=(window.location.pathname||'').toLowerCase();" +
@@ -273,9 +301,14 @@ private const val NATIVE_CHROME_JS =
             "}catch(_){}" +
         "}" +
         "cleanSettingsUI();" +
+        "if(!window.__wta_settings_mo&&window.MutationObserver){" +
+            "window.__wta_settings_mo=true;" +
+            "var mo=new MutationObserver(function(){cleanSettingsUI();});" +
+            "mo.observe(document.documentElement,{childList:true,subtree:true});" +
+        "}" +
         "if(!window.__wta_settings_cleaner){" +
             "window.__wta_settings_cleaner=true;" +
-            "setInterval(cleanSettingsUI,400);" +
+            "setInterval(cleanSettingsUI,300);" +
         "}" +
         "if(!window.__wta_copy_handler){" +
             "window.__wta_copy_handler=true;" +
@@ -885,6 +918,9 @@ fun MainScreen(
         // Show custom loader only if there is a noticeable loading gap (60ms debounce)
         startNavigationLoading(delayMs = 60L)
 
+        // Ensure hide-chrome CSS is applied early before client-side transition
+        wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+
         // 2) Prefer soft client-side navigation over full loadUrl when online on live site
         if (online && isSiteLoaded && !resetHistory) {
             val escapedUrl = targetUrl.replace("'", "\\'")
@@ -1081,28 +1117,17 @@ fun MainScreen(
 
         val wv = webView
         val currentUrl = wv?.url ?: ""
-        if (wv == null) {
+        if (wv == null || currentUrl.isBlank() || currentUrl.startsWith("file://")) {
             triggerDoubleTapExit()
             return@BackHandler
         }
 
-        // 1. If webView.canGoBack() -> webView.goBack(); return
-        if (wv.canGoBack()) {
-            wv.goBack()
-            return@BackHandler
-        }
-
-        // 2. Else run structural-back JS; if result is "ok" -> return
-        if (currentUrl.isNotBlank() && !currentUrl.startsWith("file://")) {
-            wv.evaluateJavascript(StructuralNav.STRUCTURAL_BACK_JS) { rawResult ->
-                val res = rawResult?.trim('"')?.trim() ?: ""
-                if (res != "ok") {
-                    // 3. Else double-tap exit (unchanged)
-                    triggerDoubleTapExit()
-                }
+        // Structural back JS only (__wtaStructuralBack). If "ok" -> done, else double-tap exit
+        wv.evaluateJavascript(StructuralNav.STRUCTURAL_BACK_JS) { rawResult ->
+            val res = rawResult?.trim('"')?.trim() ?: ""
+            if (res == "ok") {
+                return@evaluateJavascript
             }
-        } else {
-            // 3. Else double-tap exit (unchanged)
             triggerDoubleTapExit()
         }
     }
@@ -1677,6 +1702,9 @@ fun MainScreen(
                                     }
                                     wv.settings.cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                                     if (url != null && !url.startsWith("file://")) {
+                                        // Early hide-chrome CSS injection at onPageStarted (before first paint)
+                                        wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+
                                         val newIdx = tabIndexForUrl(url, selectedIndex)
                                         val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
                                         if (!isNavigating || newIdx == targetIdx) {
@@ -2081,6 +2109,63 @@ fun MainScreen(
                                     if (isGet && !req.isForMainFrame && WebCacheVault.has(ctx, u)) {
                                         val cached = WebCacheVault.getCachedResponse(ctx, u)
                                         if (cached != null) return cached
+                                    }
+
+                                    // Online main frame: inject critical hide-chrome CSS directly into <head> before first paint
+                                    if (isGet && req.isForMainFrame && (u.contains("wisdom-tower-academy.live") || u.contains("wisdomtower.tech"))) {
+                                        try {
+                                            val fullUrl = WebCacheVault.normalizeUrl(u)
+                                            val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
+                                                requestMethod = "GET"
+                                                connectTimeout = 7_000
+                                                readTimeout = 12_000
+                                                instanceFollowRedirects = true
+                                                setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
+                                                try {
+                                                    val cookies = CookieManager.getInstance().getCookie(fullUrl)
+                                                    if (!cookies.isNullOrBlank()) {
+                                                        setRequestProperty("Cookie", cookies)
+                                                    }
+                                                } catch (_: Exception) {}
+                                            }
+                                            val code = conn.responseCode
+                                            if (code in 200..299) {
+                                                val contentType = conn.contentType ?: "text/html; charset=utf-8"
+                                                if (contentType.contains("text/html", ignoreCase = true)) {
+                                                    val rawBytes = conn.inputStream.use { it.readBytes() }
+                                                    val rawHtml = String(rawBytes, Charsets.UTF_8)
+                                                    val injectedHtml = if (rawHtml.contains("<head", ignoreCase = true)) {
+                                                        rawHtml.replaceFirst(Regex("(?i)<head[^>]*>"), "$0$CRITICAL_CHROME_STYLE")
+                                                    } else if (rawHtml.contains("<html", ignoreCase = true)) {
+                                                        rawHtml.replaceFirst(Regex("(?i)<html[^>]*>"), "$0<head>$CRITICAL_CHROME_STYLE</head>")
+                                                    } else {
+                                                        "$CRITICAL_CHROME_STYLE$rawHtml"
+                                                    }
+                                                    val respHeaders = HashMap<String, String>().apply {
+                                                        put("Content-Type", "text/html; charset=utf-8")
+                                                        put("Cache-Control", "no-cache")
+                                                        conn.headerFields.forEach { (k, v) ->
+                                                            if (k != null && !k.equals("Content-Length", ignoreCase = true) && !k.equals("Content-Encoding", ignoreCase = true)) {
+                                                                put(k, v.joinToString(", "))
+                                                            }
+                                                        }
+                                                    }
+                                                    WebCacheVault.io.execute {
+                                                        try {
+                                                            WebCacheVault.putDirect(ctx, fullUrl, rawBytes, "text/html", "utf-8")
+                                                        } catch (_: Exception) {}
+                                                    }
+                                                    return WebResourceResponse(
+                                                        "text/html",
+                                                        "utf-8",
+                                                        code,
+                                                        "OK",
+                                                        respHeaders,
+                                                        ByteArrayInputStream(injectedHtml.toByteArray(Charsets.UTF_8))
+                                                    )
+                                                }
+                                            }
+                                        } catch (_: Exception) {}
                                     }
 
                                     // Online: precache assets in background

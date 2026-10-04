@@ -7,10 +7,10 @@ package com.wisdomtower.academy
 object StructuralNav {
 
     /**
-     * Fallback back mechanism when webView.canGoBack() is false.
-     * 1. Calls window.__wtaStructuralBack if present and returns true/ok -> "ok"
-     * 2. Else if history.length > 1 -> history.back() -> "ok"
-     * 3. Else -> "not_ok"
+     * Structural back JS bridge.
+     * Structural parent tree is defined on the website; app only invokes window.__wtaStructuralBack().
+     * If the website handles structural back -> "ok"
+     * Else -> "root" / "not_ok"
      */
     const val STRUCTURAL_BACK_JS = """
 (function(){
@@ -18,12 +18,7 @@ object StructuralNav {
     if (typeof window.__wtaStructuralBack === 'function') {
       var r = window.__wtaStructuralBack();
       if (r === true || r === 'ok') return 'ok';
-    }
-  } catch (e) {}
-  try {
-    if (window.history && window.history.length > 1) {
-      window.history.back();
-      return 'ok';
+      return 'root';
     }
   } catch (e) {}
   return 'not_ok';

@@ -299,6 +299,18 @@ object WebCacheVault {
         io.execute { persistIndex(ctx) }
     }
 
+    const val CRITICAL_CHROME_STYLE =
+        "<style id=\"wta-critical-hide\">" +
+        "header,header.fixed.top-0,header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
+        "nav[aria-label=\"Main\"],nav.hidden.md\\:flex,.site-nav,.site-navigation,[data-site-nav]," +
+        "footer,footer[data-site-footer],.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
+        ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
+        "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
+        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
+        "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
+        "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
+        "</style>"
+
     fun getCachedResponse(ctx: Context, url: String): WebResourceResponse? {
         if (!initialized) init(ctx)
         val dir = vaultDir(ctx)
@@ -339,8 +351,22 @@ object WebCacheVault {
                 put("Access-Control-Allow-Headers", "*")
                 put("Cache-Control", "public, max-age=31536000, immutable")
                 put("Content-Type", mime)
-                put("Content-Length", matchedFile.length().toString())
                 put("X-WTA-Cache", "VAULT-HIT")
+            }
+            val stream: InputStream = if (mime.startsWith("text/html")) {
+                val raw = matchedFile.readText(Charsets.UTF_8)
+                val injected = if (raw.contains("<head", ignoreCase = true)) {
+                    raw.replaceFirst(Regex("(?i)<head[^>]*>"), "$0$CRITICAL_CHROME_STYLE")
+                } else if (raw.contains("<html", ignoreCase = true)) {
+                    raw.replaceFirst(Regex("(?i)<html[^>]*>"), "$0<head>$CRITICAL_CHROME_STYLE</head>")
+                } else {
+                    "$CRITICAL_CHROME_STYLE$raw"
+                }
+                headers["Content-Type"] = "text/html; charset=utf-8"
+                ByteArrayInputStream(injected.toByteArray(Charsets.UTF_8))
+            } else {
+                headers["Content-Length"] = matchedFile.length().toString()
+                FileInputStream(matchedFile)
             }
             WebResourceResponse(
                 mime,
@@ -348,7 +374,7 @@ object WebCacheVault {
                 200,
                 "OK",
                 headers,
-                FileInputStream(matchedFile)
+                stream
             )
         } catch (e: Exception) {
             Log.e(TAG, "getCachedResponse error for $url", e)
