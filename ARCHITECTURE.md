@@ -92,6 +92,7 @@ Actions → **Build Debug APK** → open a green run → Artifacts → **Wisdom-
 | Branding "Wisdom Tower Academy" | Correct name |
 | Notification icon → `/notifications` only | Not Settings / Account |
 | Bottom nav unaffected by `/notifications` | Keep current tab |
+| Unified chrome palette | Status & top/bottom bars use deep navy `#060B15`, accent `#22E0FF`, card surface `#0C1424`, perfectly matching website surfaces and pill button language |
 
 ---
 

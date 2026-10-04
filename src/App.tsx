@@ -158,19 +158,19 @@ export default function App() {
       {/* Main Content Area */}
       <main className="w-full max-w-5xl flex-1 flex items-center justify-center">
         {viewMode === 'device' && (
-          <div className="relative w-full max-w-[420px] h-[830px] max-h-[calc(100vh-100px)] bg-[#0F172A] rounded-[42px] border-[4px] border-slate-800 shadow-[0_25px_70px_rgba(0,0,0,0.85),0_0_0_1px_rgba(0,229,255,0.2)] flex flex-col overflow-hidden">
+          <div className="relative w-full max-w-[420px] h-[830px] max-h-[calc(100vh-100px)] bg-[#060B15] rounded-[42px] border-[4px] border-slate-800 shadow-[0_25px_70px_rgba(0,0,0,0.85),0_0_0_1px_rgba(34,224,255,0.2)] flex flex-col overflow-hidden">
             {/* Top speaker grill & camera notch */}
             <div className="absolute top-2 left-1/2 -translate-x-1/2 w-28 h-4 bg-slate-900 rounded-full z-[60] flex items-center justify-center">
               <div className="w-12 h-1 bg-slate-700/60 rounded-full" />
               <div className="w-2.5 h-2.5 rounded-full bg-slate-800 border border-slate-700/40 ml-2" />
             </div>
 
-            {/* Android System Status Bar (solid navy background) */}
-            <div className="h-8 bg-[#0F172A] flex items-center justify-between px-6 text-[11px] font-semibold text-slate-300 pt-1.5 z-50 select-none">
+            {/* Android System Status Bar (solid deep navy background #060B15) */}
+            <div className="h-8 bg-[#060B15] flex items-center justify-between px-6 text-[11px] font-semibold text-slate-300 pt-1.5 z-50 select-none">
               <span>{currentTime}</span>
               <div className="flex items-center gap-2">
                 <Wifi className="w-3.5 h-3.5 text-slate-300" />
-                <span className="text-[10px] font-bold text-cyan-400">5G</span>
+                <span className="text-[10px] font-bold text-[#22E0FF]">5G</span>
                 <div className="flex items-center gap-0.5">
                   <span className="text-[10px]">98%</span>
                   <BatteryCharging className="w-3.5 h-3.5 text-emerald-400" />
@@ -178,11 +178,11 @@ export default function App() {
               </div>
             </div>
 
-            {/* Native Fixed Top Bar */}
-            <div className="h-14 bg-[#0F172A] border-b border-slate-800/80 flex items-center justify-between px-3 z-50">
+            {/* Native Fixed Top Bar (#060B15) */}
+            <div className="h-14 bg-[#060B15] border-b border-[#22E0FF]/15 flex items-center justify-between px-3 z-50">
               <button
                 onClick={() => setIsMenuOpen(!isMenuOpen)}
-                className="w-10 h-10 rounded-xl flex items-center justify-center text-cyan-400 hover:bg-cyan-500/10 active:scale-95 transition-all"
+                className="w-10 h-10 rounded-xl flex items-center justify-center text-[#22E0FF] hover:bg-[#22E0FF]/10 active:scale-95 transition-all"
                 title="Open menu"
                 aria-label="Open menu"
               >
@@ -190,31 +190,31 @@ export default function App() {
               </button>
 
               <div className="flex items-center gap-2">
-                <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_8px_#00E5FF]" />
+                <div className="w-2 h-2 rounded-full bg-[#22E0FF] shadow-[0_0_8px_#22E0FF]" />
                 <span className="font-bold text-white text-base tracking-tight">Wisdom Tower Academy</span>
               </div>
 
               <div className="flex items-center gap-1">
                 <button
                   onClick={handleReload}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-cyan-400 hover:bg-cyan-500/10 active:scale-95 transition-all"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-[#22E0FF] hover:bg-[#22E0FF]/10 active:scale-95 transition-all"
                   title="Reload web view"
                 >
                   <RotateCw className="w-4 h-4" />
                 </button>
                 <button
                   onClick={handleNotificationClick}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-cyan-400 hover:bg-cyan-500/10 active:scale-95 transition-all relative"
+                  className="w-9 h-9 rounded-xl flex items-center justify-center text-[#22E0FF] hover:bg-[#22E0FF]/10 active:scale-95 transition-all relative"
                   title="View notifications"
                 >
                   <Bell className="w-4 h-4" />
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-cyan-400 ring-2 ring-[#0F172A]" />
+                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#22E0FF] ring-2 ring-[#060B15]" />
                 </button>
               </div>
             </div>
 
             {/* Study Floating Timer Pill */}
-            <div className="absolute top-24 right-4 z-40 flex items-center gap-2 bg-[#0F172A]/90 backdrop-blur-md border border-cyan-500/40 rounded-full px-3 py-1 shadow-lg text-xs font-bold text-cyan-400">
+            <div className="absolute top-24 right-4 z-40 flex items-center gap-2 bg-[#0C1424]/90 backdrop-blur-md border border-[#22E0FF]/40 rounded-full px-3 py-1 shadow-lg text-xs font-bold text-[#22E0FF]">
               <button
                 onClick={() => setIsTimerRunning(!isTimerRunning)}
                 className="text-emerald-400 hover:text-emerald-300"
@@ -222,115 +222,107 @@ export default function App() {
               >
                 {isTimerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
               </button>
-              <Clock className="w-3 h-3 text-cyan-400" />
+              <Clock className="w-3 h-3 text-[#22E0FF]" />
               <span className="tabular-nums font-mono text-[11px]">{formatTimer(studySeconds)}</span>
             </div>
 
-            {/* Menu Drawer Overlay */}
+            {/* Compact Branded Card Menu Dialog */}
             {isMenuOpen && (
               <div
-                className="absolute inset-0 bg-black/60 backdrop-blur-sm z-50 flex"
+                className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-start p-4 pt-16"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <div
-                  className="w-72 h-full bg-[#0F172A] border-r border-slate-800 p-5 flex flex-col justify-between shadow-2xl"
+                  className="w-72 bg-[#0C1424] border border-[#22E0FF]/25 rounded-3xl p-5 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <div>
-                    <div className="flex items-center justify-between pb-4 border-b border-slate-800 mb-4">
-                      <div className="flex items-center gap-2.5">
-                        <div className="w-8 h-8 rounded-lg bg-gradient-to-tr from-cyan-500 to-blue-600 flex items-center justify-center font-bold text-white text-xs">
-                          WT
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-white">Wisdom Tower</p>
-                          <p className="text-[10px] text-cyan-400">Academy Mobile</p>
-                        </div>
+                  <div className="flex items-center justify-between pb-3 border-b border-[#22E0FF]/15">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center font-bold text-[#22E0FF] text-xs">
+                        WT
                       </div>
-                      <button
-                        onClick={() => setIsMenuOpen(false)}
-                        className="text-slate-400 hover:text-white p-1 rounded-lg"
-                      >
-                        <X className="w-5 h-5" />
-                      </button>
+                      <div>
+                        <p className="text-sm font-bold text-white">Wisdom Tower</p>
+                        <p className="text-[10.5px] text-[#22E0FF]">Academy Services</p>
+                      </div>
                     </div>
-
-                    <div className="space-y-1 text-sm">
-                      <button
-                        onClick={() => {
-                          setCurrentUrl('https://www.wisdom-tower-academy.live/about');
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/80 text-slate-300 hover:text-cyan-400 font-medium transition-all"
-                      >
-                        About Academy
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCurrentUrl('https://www.wisdom-tower-academy.live/contact');
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/80 text-slate-300 hover:text-cyan-400 font-medium transition-all"
-                      >
-                        Contact & Support
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCurrentUrl('https://www.wisdom-tower-academy.live/faq');
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/80 text-slate-300 hover:text-cyan-400 font-medium transition-all"
-                      >
-                        Frequently Asked Questions
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCurrentUrl('https://www.wisdom-tower-academy.live/privacy');
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/80 text-slate-300 hover:text-cyan-400 font-medium transition-all"
-                      >
-                        Privacy Policy
-                      </button>
-                      <button
-                        onClick={() => {
-                          setCurrentUrl('https://www.wisdom-tower-academy.live/terms');
-                          setIsMenuOpen(false);
-                        }}
-                        className="w-full text-left px-3 py-2.5 rounded-xl hover:bg-slate-800/80 text-slate-300 hover:text-cyan-400 font-medium transition-all"
-                      >
-                        Terms of Service
-                      </button>
-                    </div>
+                    <button
+                      onClick={() => setIsMenuOpen(false)}
+                      className="text-slate-400 hover:text-white p-1 rounded-lg"
+                    >
+                      <X className="w-5 h-5" />
+                    </button>
                   </div>
 
-                  <div className="p-3 bg-slate-900/80 border border-slate-800 rounded-xl text-xs space-y-1">
-                    <div className="flex items-center gap-1.5 text-cyan-400 font-semibold">
-                      <Lock className="w-3.5 h-3.5" />
-                      <span>FLAG_SECURE Active</span>
-                    </div>
-                    <p className="text-[11px] text-slate-400">
-                      Content copy and screen captures blocked on Android device.
-                    </p>
+                  <div className="space-y-1 text-sm">
+                    <button
+                      onClick={() => {
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/about');
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                    >
+                      About Academy
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/contact');
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                    >
+                      Contact & Support
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/faq');
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                    >
+                      Frequently Asked Questions
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/privacy');
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                    >
+                      Privacy Policy
+                    </button>
+                    <button
+                      onClick={() => {
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/terms');
+                        setIsMenuOpen(false);
+                      }}
+                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                    >
+                      Terms of Service
+                    </button>
+                  </div>
+
+                  <div className="pt-2 border-t border-[#22E0FF]/10 text-center">
+                    <p className="text-[10px] text-slate-500">Wisdom Tower Academy • 2026</p>
                   </div>
                 </div>
               </div>
             )}
 
             {/* Main WebView Window */}
-            <div className="flex-1 relative bg-[#090D16] overflow-hidden">
+            <div className="flex-1 relative bg-[#060B15] overflow-hidden">
               <iframe
                 key={iframeKey}
                 ref={iframeRef}
                 src={currentUrl}
                 title="Wisdom Tower Academy"
-                className="w-full h-full border-none bg-[#090D16]"
+                className="w-full h-full border-none bg-[#060B15]"
                 sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
               />
             </div>
 
-            {/* Native 5-Tab Bottom Navigation Bar */}
-            <div className="h-16 bg-[#0F172A] border-t border-cyan-500/20 flex items-center justify-around px-2 z-50">
+            {/* Native 5-Tab Bottom Navigation Bar (#060B15) */}
+            <div className="h-16 bg-[#060B15] border-t border-[#22E0FF]/15 flex items-center justify-around px-2 z-50">
               {TABS.map((tab) => {
                 const IconComponent = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -338,19 +330,21 @@ export default function App() {
                   <button
                     key={tab.id}
                     onClick={() => handleNavClick(tab)}
-                    className={`flex-1 flex flex-col items-center justify-center gap-1 h-full transition-all ${
-                      isActive ? 'text-cyan-400 font-bold scale-105' : 'text-slate-400 hover:text-slate-200'
+                    className={`flex-1 flex flex-col items-center justify-center gap-1 h-12 rounded-2xl mx-0.5 transition-all duration-200 ${
+                      isActive
+                        ? 'text-[#22E0FF] bg-[#22E0FF]/15 border border-[#22E0FF]/35 font-bold shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
                     }`}
                   >
-                    <IconComponent className={`w-5 h-5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
-                    <span className="text-[10px] tracking-tight">{tab.label}</span>
+                    <IconComponent className={`w-4.5 h-4.5 ${isActive ? 'stroke-[2.5]' : 'stroke-[1.8]'}`} />
+                    <span className="text-[10.5px] tracking-tight">{tab.label}</span>
                   </button>
                 );
               })}
             </div>
 
             {/* Android Navigation Gesture Pill */}
-            <div className="h-3.5 bg-[#0F172A] flex items-center justify-center z-50 pb-1">
+            <div className="h-3.5 bg-[#060B15] flex items-center justify-center z-50 pb-1">
               <div className="w-32 h-1 bg-slate-600/80 rounded-full cursor-pointer hover:bg-slate-400 transition-colors" />
             </div>
           </div>

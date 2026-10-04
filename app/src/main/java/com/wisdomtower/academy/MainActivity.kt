@@ -175,10 +175,17 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wisdomtower.academy.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
 
-private val BarBg = Color(0xFF0F172A)
-private val Accent = Color(0xFF00E5FF)
-private val SurfaceColor = Color(0xFF1E293B)
+// Unified native tokens mirroring the live website (wisdom.* palette)
+private val BarBg = Color(0xFF060B15) // Deep navy, exactly matching website page background
+private val Accent = Color(0xFF22E0FF) // Website source of truth cyan
+private val AccentDark = Color(0xFF00C4E6)
+private val CardSurface = Color(0xFF0C1424) // Glass-like card surface
+private val CardBorder = Color(0x3322E0FF) // Soft 1px cyan border
+private val CardBorderSubtle = Color(0x1F22E0FF) // Hairline quiet divider
+private val SurfaceColor = CardSurface
 private val Muted = Color(0xFF94A3B8)
+private val TextPrimary = Color(0xFFF8FAFC)
+private val DarkOnCyan = Color(0xFF070D17) // Dark text on solid cyan pills
 
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 // Direct 200 URL (eliminates 308 redirect round-trip delay)
@@ -508,7 +515,7 @@ class MainActivity : ComponentActivity() {
         // TODO: Re-enable FLAG_SECURE before final production release to prevent unauthorized screen captures
         // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
-        val navy = AndroidColor.parseColor("#0F172A")
+        val navy = AndroidColor.parseColor("#060B15")
         @Suppress("DEPRECATION")
         window.statusBarColor = navy
         @Suppress("DEPRECATION")
@@ -573,12 +580,11 @@ private data class MenuLink(
 )
 
 private val overflowMenuLinks = listOf(
-    MenuLink("About", "https://www.wisdom-tower-academy.live/about", Icons.Filled.Info),
-    MenuLink("Contact us", "https://www.wisdom-tower-academy.live/contact", Icons.Outlined.Email),
+    MenuLink("About Academy", "https://www.wisdom-tower-academy.live/about", Icons.Filled.Info),
+    MenuLink("Contact & Support", "https://www.wisdom-tower-academy.live/contact", Icons.Outlined.Email),
     MenuLink("FAQ", "https://www.wisdom-tower-academy.live/academy/faq", Icons.AutoMirrored.Outlined.HelpOutline),
-    MenuLink("Privacy", "https://www.wisdom-tower-academy.live/privacy", Icons.Outlined.PrivacyTip),
-    MenuLink("Terms", "https://www.wisdom-tower-academy.live/terms", Icons.Outlined.Policy),
-    MenuLink("Sign out", "https://www.wisdom-tower-academy.live/logout", Icons.AutoMirrored.Filled.Logout, isDestructive = true),
+    MenuLink("Privacy Policy", "https://www.wisdom-tower-academy.live/privacy", Icons.Outlined.PrivacyTip),
+    MenuLink("Terms of Service", "https://www.wisdom-tower-academy.live/terms", Icons.Outlined.Policy)
 )
 
 private fun isOnline(context: Context): Boolean {
@@ -1116,7 +1122,7 @@ fun MainScreen(
                                 modifier = Modifier
                                     .size(34.dp)
                                     .clip(RoundedCornerShape(8.dp))
-                                    .border(1.dp, Color(0x3300E5FF), RoundedCornerShape(8.dp))
+                                    .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
                             ) {
                                 BrandLogo(size = 34.dp)
                             }
@@ -1270,8 +1276,8 @@ fun MainScreen(
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(0.8.dp)
-                            .background(Color(0x1AFFFFFF))
+                            .height(1.dp)
+                            .background(CardBorderSubtle)
                     )
                 }
             },
@@ -1295,7 +1301,7 @@ fun MainScreen(
                 AndroidView(
                     factory = { ctx ->
                         WebView(ctx).apply {
-                            setBackgroundColor(AndroidColor.parseColor("#0F172A"))
+                            setBackgroundColor(AndroidColor.parseColor("#060B15"))
                             setLayerType(View.LAYER_TYPE_HARDWARE, null)
                             layoutParams = ViewGroup.LayoutParams(
                                 ViewGroup.LayoutParams.MATCH_PARENT,
@@ -2107,10 +2113,11 @@ fun MainScreen(
         }
 
         // Navigation Drawer: Sleek slide-in side panel (eliminates awkward floating dialog)
+        // Upgraded Branded Compact Card Menu matching website glass cards
         AnimatedVisibility(
             visible = menuExpanded,
-            enter = fadeIn(tween(180)) + slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(220, easing = FastOutSlowInEasing)),
-            exit = fadeOut(tween(160)) + slideOutHorizontally(targetOffsetX = { -it }, animationSpec = tween(180, easing = FastOutSlowInEasing)),
+            enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium)),
+            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.92f, animationSpec = tween(140)),
             modifier = Modifier.zIndex(150f)
         ) {
             BackHandler(enabled = menuExpanded) { menuExpanded = false }
@@ -2118,34 +2125,34 @@ fun MainScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0x99000000))
+                    .background(Color(0xB3000000))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
-                    ) { menuExpanded = false },
-                contentAlignment = Alignment.CenterStart
+                    ) { menuExpanded = false }
+                    .padding(horizontal = 14.dp, vertical = 20.dp)
+                    .windowInsetsPadding(WindowInsets.statusBars),
+                contentAlignment = Alignment.TopStart
             ) {
                 Surface(
-                    color = BarBg,
-                    shape = RoundedCornerShape(topEnd = 24.dp, bottomEnd = 24.dp),
-                    border = BorderStroke(1.dp, Color(0x3300E5FF)),
+                    color = CardSurface,
+                    shape = RoundedCornerShape(22.dp),
+                    border = BorderStroke(1.dp, CardBorder),
                     shadowElevation = 24.dp,
                     modifier = Modifier
-                        .fillMaxHeight()
-                        .width(250.dp)
-                        .windowInsetsPadding(WindowInsets.statusBars)
-                        .windowInsetsPadding(WindowInsets.navigationBars)
+                        .widthIn(max = 295.dp)
+                        .fillMaxWidth()
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) { /* prevent close on drawer body click */ }
+                        ) { /* prevent close on card body click */ }
                 ) {
                     Column(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 16.dp, vertical = 18.dp)
+                            .fillMaxWidth()
+                            .padding(18.dp)
                     ) {
-                        // Branded Drawer Header
+                        // Header
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
@@ -2157,141 +2164,135 @@ fun MainScreen(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(36.dp)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(Color(0x2600E5FF)),
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0x2622E0FF))
+                                        .border(1.dp, CardBorder, RoundedCornerShape(8.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Icon(
                                         imageVector = Icons.Filled.Menu,
                                         contentDescription = null,
                                         tint = Accent,
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
                                 }
-                                Text(
-                                    text = "Wisdom Tower",
-                                    color = Color.White,
-                                    fontSize = 16.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 0.2.sp
-                                )
+                                Column {
+                                    Text(
+                                        text = "Wisdom Tower",
+                                        color = Color.White,
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        letterSpacing = (-0.2).sp
+                                    )
+                                    Text(
+                                        text = "Academy Services",
+                                        color = Accent,
+                                        fontSize = 10.5.sp,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                }
                             }
                             IconButton(
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     menuExpanded = false
                                 },
-                                modifier = Modifier.size(34.dp)
+                                modifier = Modifier.size(32.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Close,
                                     contentDescription = "Close menu",
                                     tint = Muted,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(16.dp))
+                        Spacer(modifier = Modifier.height(14.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(1.dp)
-                                .background(Color(0x2200E5FF))
+                                .background(CardBorderSubtle)
                         )
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
 
                         // Navigation links
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.weight(1f)
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
                             overflowMenuLinks.forEach { link ->
                                 val linkInteraction = remember { MutableInteractionSource() }
                                 val linkPressed by linkInteraction.collectIsPressedAsState()
-                                val itemTint = if (link.isDestructive) Color(0xFFF87171) else Accent
-                                val itemTextColor = if (link.isDestructive) Color(0xFFFCA5A5) else Color.White
-
-                                if (link.isDestructive) {
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(1.dp)
-                                            .background(Color(0x18FFFFFF))
-                                    )
-                                    Spacer(modifier = Modifier.height(8.dp))
-                                }
 
                                 Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(12.dp))
                                         .background(
-                                            if (linkPressed) {
-                                                if (link.isDestructive) Color(0x26EF4444) else Color(0x2600E5FF)
-                                            } else Color.Transparent
+                                            if (linkPressed) Color(0x2622E0FF) else Color.Transparent
                                         )
                                         .clickable(
                                             interactionSource = linkInteraction,
-                                            indication = ripple(color = itemTint.copy(alpha = 0.2f))
+                                            indication = ripple(color = Accent.copy(alpha = 0.2f))
                                         ) {
                                             menuExpanded = false
                                             view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                            navigateTo(link.url, tabIndex = if (link.isDestructive) 3 else null)
+                                            navigateTo(link.url, tabIndex = null)
                                         }
-                                        .padding(horizontal = 10.dp, vertical = 11.dp),
+                                        .padding(horizontal = 10.dp, vertical = 9.5.dp),
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
                                     Row(
                                         verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
                                         Box(
                                             modifier = Modifier
-                                                .size(32.dp)
+                                                .size(28.dp)
                                                 .clip(RoundedCornerShape(8.dp))
-                                                .background(itemTint.copy(alpha = 0.12f)),
+                                                .background(Color(0x1F22E0FF)),
                                             contentAlignment = Alignment.Center
                                         ) {
                                             Icon(
                                                 imageVector = link.icon,
                                                 contentDescription = null,
-                                                tint = itemTint,
-                                                modifier = Modifier.size(18.dp)
+                                                tint = Accent,
+                                                modifier = Modifier.size(16.dp)
                                             )
                                         }
                                         Text(
                                             text = link.label,
-                                            color = itemTextColor,
-                                            fontSize = 14.sp,
-                                            fontWeight = if (link.isDestructive) FontWeight.Bold else FontWeight.Medium
+                                            color = Color(0xFFF1F5F9),
+                                            fontSize = 13.5.sp,
+                                            fontWeight = FontWeight.Medium
                                         )
                                     }
                                     Icon(
                                         imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
                                         contentDescription = null,
-                                        tint = if (link.isDestructive) itemTint.copy(alpha = 0.6f) else Muted.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(13.dp)
+                                        tint = Muted.copy(alpha = 0.4f),
+                                        modifier = Modifier.size(12.dp)
                                     )
                                 }
                             }
                         }
 
-                        // Footer
+                        Spacer(modifier = Modifier.height(12.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(1.dp)
-                                .background(Color(0x14FFFFFF))
+                                .background(CardBorderSubtle)
                         )
                         Spacer(modifier = Modifier.height(10.dp))
                         Text(
-                            text = "Wisdom Tower Academy • v1.0",
-                            color = Muted.copy(alpha = 0.6f),
-                            fontSize = 11.sp,
+                            text = "Wisdom Tower Academy • 2026",
+                            color = Muted.copy(alpha = 0.5f),
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
@@ -2353,10 +2354,10 @@ private fun StudyTimerPlayerPill(
     )
 
     Surface(
-        color = Color(0xF20B132B),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, Color(0x6600E5FF)),
-        shadowElevation = 6.dp,
+        color = CardSurface,
+        shape = RoundedCornerShape(999.dp),
+        border = BorderStroke(1.dp, CardBorder),
+        shadowElevation = 8.dp,
         modifier = modifier
     ) {
         Row(
@@ -2369,7 +2370,7 @@ private fun StudyTimerPlayerPill(
                 modifier = Modifier
                     .size(24.dp)
                     .clip(CircleShape)
-                    .background(if (isRunning) Color(0x3300E5FF) else Color(0x22FFFFFF))
+                    .background(if (isRunning) Color(0x2622E0FF) else Color(0x1FFFFFFF))
                     .clickable(
                         onClick = onTogglePlayPause,
                         role = androidx.compose.ui.semantics.Role.Button
@@ -2453,7 +2454,7 @@ private fun AliveBottomNav(
                 .background(BarBg)
                 .windowInsetsPadding(WindowInsets.navigationBars)
         ) {
-            // Elegant cyber glow top border line
+            // Subtle hairline gradient divider
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2462,9 +2463,9 @@ private fun AliveBottomNav(
                         Brush.horizontalGradient(
                             listOf(
                                 Color.Transparent,
-                                Color(0x3300E5FF),
-                                Color(0x6638BDF8),
-                                Color(0x3300E5FF),
+                                Color(0x2622E0FF),
+                                Color(0x4D22E0FF),
+                                Color(0x2622E0FF),
                                 Color.Transparent
                             )
                         )
@@ -2485,64 +2486,52 @@ private fun AliveBottomNav(
                     val isPressed by interactionSource.collectIsPressedAsState()
                     val isHovered by interactionSource.collectIsHoveredAsState()
 
-                    // Non-bouncy smooth micro-press: inward to 0.95f, zero overshoot on release so icon NEVER pops out!
+                    // Smooth spring content scaling
                     val contentScale by animateFloatAsState(
-                        targetValue = if (isPressed) 0.95f else 1.0f,
+                        targetValue = if (selected) 1.05f else if (isPressed) 0.94f else 1.0f,
                         animationSpec = spring(
-                            dampingRatio = Spring.DampingRatioNoBouncy,
+                            dampingRatio = 0.72f,
                             stiffness = Spring.StiffnessMedium
                         ),
                         label = "tabContentScale"
                     )
 
+                    // Smooth active pill crossfade
+                    val activePillAlpha by animateFloatAsState(
+                        targetValue = if (selected) 1f else 0f,
+                        animationSpec = tween(220, easing = FastOutSlowInEasing),
+                        label = "activePillAlpha"
+                    )
+
                     val iconColor by animateColorAsState(
-                        targetValue = if (selected) Accent else if (isHovered) Color.White else Muted,
-                        animationSpec = tween(160),
+                        targetValue = if (selected) Accent else if (isHovered) Color(0xFFF1F5F9) else Muted,
+                        animationSpec = tween(180),
                         label = "tabIconColor"
                     )
 
                     val textColor by animateColorAsState(
-                        targetValue = if (selected) Accent else if (isHovered) Color.White else Muted,
-                        animationSpec = tween(160),
+                        targetValue = if (selected) Accent else if (isHovered) Color(0xFFF1F5F9) else Muted,
+                        animationSpec = tween(180),
                         label = "tabTextColor"
                     )
 
-                    val capsuleShape = RoundedCornerShape(14.dp)
+                    val capsuleShape = RoundedCornerShape(16.dp)
 
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp)
-                            .padding(horizontal = 1.5.dp)
+                            .height(50.dp)
+                            .padding(horizontal = 2.dp)
                             .clip(capsuleShape)
-                            .then(
-                                if (selected) {
-                                    Modifier
-                                        .background(
-                                            Brush.verticalGradient(
-                                                listOf(
-                                                    Color(0x3300E5FF),
-                                                    Color(0x1400E5FF)
-                                                )
-                                            )
-                                        )
-                                        .border(
-                                            BorderStroke(
-                                                1.dp,
-                                                Brush.verticalGradient(
-                                                    listOf(
-                                                        Color(0x8000E5FF),
-                                                        Color(0x2400E5FF)
-                                                    )
-                                                )
-                                            ),
-                                            capsuleShape
-                                        )
-                                } else if (isHovered) {
-                                    Modifier.background(Color(0x12FFFFFF))
-                                } else {
-                                    Modifier
-                                }
+                            .background(
+                                Color(0x1F22E0FF).copy(alpha = activePillAlpha * 0.18f)
+                            )
+                            .border(
+                                BorderStroke(
+                                    1.dp,
+                                    Color(0x4422E0FF).copy(alpha = activePillAlpha * 0.45f)
+                                ),
+                                capsuleShape
                             )
                             .clickable(
                                 interactionSource = interactionSource,
@@ -2569,7 +2558,7 @@ private fun AliveBottomNav(
                                 contentAlignment = Alignment.Center
                             ) {
                                 if (selected) {
-                                    // Subtle cybernetic neon glow behind active icon
+                                    // Soft cyan ambient glow behind active icon
                                     Box(
                                         modifier = Modifier
                                             .size(22.dp)
@@ -2577,7 +2566,7 @@ private fun AliveBottomNav(
                                             .background(
                                                 Brush.radialGradient(
                                                     listOf(
-                                                        Color(0x4000E5FF),
+                                                        Color(0x3322E0FF),
                                                         Color.Transparent
                                                     )
                                                 )
@@ -2599,7 +2588,7 @@ private fun AliveBottomNav(
                                 fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
-                                letterSpacing = 0.sp
+                                letterSpacing = (-0.1).sp
                             )
                         }
                     }
