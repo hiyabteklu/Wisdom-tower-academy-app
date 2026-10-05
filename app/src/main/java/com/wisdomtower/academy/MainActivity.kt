@@ -217,21 +217,22 @@ private const val SOFT_NAV_JS =
             "return 'ok';" +
         "}catch(_){}" +
         "try{" +
-            "if(window.history&&typeof window.history.pushState==='function'){" +
-                "window.location.assign(path);return 'ok';" +
-            "}" +
+            "window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:path,url:targetUrl}}));" +
         "}catch(_){}" +
         "return 'fallback';" +
     "}catch(e){return 'fallback';}})"
 
 private const val CRITICAL_CHROME_STYLE =
     "<style id=\"wta-critical-hide\">" +
+    "html,body{background-color:#060B15!important;color-scheme:dark!important;}" +
     "header,header.fixed.top-0,header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
     "nav[aria-label=\"Main\"],nav.hidden.md\\:flex,.site-nav,.site-navigation,[data-site-nav]," +
     "footer,footer[data-site-footer],.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
     ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
     "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
     "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
+    "header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu]," +
+    "nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0," +
     "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
     "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
     "</style>"
@@ -243,11 +244,11 @@ private const val EARLY_HIDE_CHROME_JS =
         "if(document.body){document.body.classList.add('wta-native-app');}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
-        "s.textContent='header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
+        "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
         "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"]," +
         ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
         "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
-        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],img.wta-img-broken,img:not([src]),img[src=\"\"]" +
+        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,img.wta-img-broken,img:not([src]),img[src=\"\"]" +
         "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}';" +
     "}catch(e){}})"
 
@@ -817,9 +818,11 @@ fun MainScreen(
         if (forceImmediate) {
             isNavigating = false
         } else {
+            val elapsed = System.currentTimeMillis() - navigationStartTime
+            val remainingMin = (260L - elapsed).coerceAtLeast(80L)
             mainHandler.postDelayed({
                 isNavigating = false
-            }, 50L)
+            }, remainingMin)
         }
     }
 
@@ -913,7 +916,7 @@ fun MainScreen(
                            (currentUrl.contains("wisdom-tower-academy.live") || currentUrl.startsWith("https://"))
 
         // Show custom loader only if there is a noticeable loading gap (60ms debounce)
-        startNavigationLoading(delayMs = 60L)
+        startNavigationLoading(delayMs = 0L)
 
         // Ensure hide-chrome CSS is applied early before client-side transition
         wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
@@ -991,17 +994,17 @@ fun MainScreen(
         delay(MIN_SPLASH_DISPLAY_MS)
         minSplashElapsed = true
         if (!isOnline(context)) {
-            isInitialLoading = false
             if (!WebCacheVault.hasAnyPage(context)) {
                 webView?.let { showOffline(it, force = true) }
             }
+            delay(200L)
+            isInitialLoading = false
         } else {
-            if (pageRendered) {
-                isInitialLoading = false
-            } else {
-                delay(800L)
-                isInitialLoading = false
+            val startWait = System.currentTimeMillis()
+            while (!pageRendered && (System.currentTimeMillis() - startWait) < 10_000L) {
+                delay(120L)
             }
+            isInitialLoading = false
         }
     }
 
@@ -1114,18 +1117,50 @@ fun MainScreen(
 
         val wv = webView
         val currentUrl = wv?.url ?: ""
-        if (wv == null || currentUrl.isBlank() || currentUrl.startsWith("file://")) {
+        if (wv == null || currentUrl.isBlank() || currentUrl.startsWith("file://") || currentUrl.contains("offline.html")) {
+            if (selectedIndex != 0) {
+                navigateTo(StructuralNav.SITE_HOME, tabIndex = 0)
+                return@BackHandler
+            }
             triggerDoubleTapExit()
             return@BackHandler
         }
 
-        // Structural back JS only (__wtaStructuralBack). If "ok" -> done, else double-tap exit
+        // Structural back JS bridge. If "ok" -> handled by site; else app structural back
         wv.evaluateJavascript(StructuralNav.STRUCTURAL_BACK_JS) { rawResult ->
             val res = rawResult?.trim('"')?.trim() ?: ""
             if (res == "ok") {
                 return@evaluateJavascript
             }
-            triggerDoubleTapExit()
+            mainHandler.post {
+                val activeUrl = wv.url ?: currentUrl
+                val activeTab = tabIndexForUrl(activeUrl, selectedIndex)
+                val parentUrl = StructuralNav.getParentStructuralUrl(activeUrl)
+
+                if (parentUrl != null) {
+                    val list = wv.copyBackForwardList()
+                    val currIdx = list.currentIndex
+                    var steppedViaHistory = false
+                    if (currIdx > 0) {
+                        val prevUrl = list.getItemAtIndex(currIdx - 1).url.orEmpty()
+                        val currFirst = Uri.parse(activeUrl).path?.trim('/')?.substringBefore('/') ?: ""
+                        val prevFirst = Uri.parse(prevUrl).path?.trim('/')?.substringBefore('/') ?: ""
+                        if (currFirst.isNotBlank() && currFirst == prevFirst) {
+                            wv.goBack()
+                            steppedViaHistory = true
+                        }
+                    }
+                    if (!steppedViaHistory) {
+                        navigateTo(parentUrl, tabIndex = activeTab)
+                    }
+                } else {
+                    if (activeTab != 0 || selectedIndex != 0) {
+                        navigateTo(StructuralNav.SITE_HOME, tabIndex = 0)
+                    } else {
+                        triggerDoubleTapExit()
+                    }
+                }
+            }
         }
     }
 
@@ -1529,7 +1564,9 @@ fun MainScreen(
                                     if (!path.isNullOrBlank()) {
                                         mainHandler.post {
                                             selectedIndex = tabIndexForUrl(path, selectedIndex)
-                                            stopNavigationLoading()
+                                            mainHandler.postDelayed({
+                                                stopNavigationLoading()
+                                            }, 100L)
                                         }
                                         val lower = path.lowercase()
                                         if (lower.contains("login") || lower.contains("account") || lower.contains("dashboard") || lower.contains("learning")) {
@@ -1675,7 +1712,7 @@ fun MainScreen(
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     webProgress = newProgress
-                                    if (newProgress >= 70) {
+                                    if (newProgress >= 85) {
                                         stopNavigationLoading()
                                     }
                                     if (newProgress >= 60) {
@@ -2266,7 +2303,7 @@ fun MainScreen(
                         .fillMaxSize()
                         .zIndex(95f)
                 ) {
-                    val loaderBg = if (isInitialLoading) BarBg else Color.Transparent
+                    val loaderBg = BarBg
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
