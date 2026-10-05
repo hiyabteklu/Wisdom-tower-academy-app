@@ -343,27 +343,24 @@ private const val NATIVE_CHROME_JS =
                     "var p=(window.location.pathname||'').toLowerCase();" +
                     "var h=(window.location.href||'').toLowerCase();" +
                     "if(p.indexOf('/offline')!==-1||h.indexOf('/offline')!==-1){" +
-                        "if(document.documentElement)document.documentElement.style.display='none';" +
-                        "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
-                            "window.AndroidOfflineVault.showOfflinePage();return;" +
-                        "}else{location.replace('file:///android_asset/offline.html');return;}" +
+                        "if(navigator.onLine===false){" +
+                            "if(document.documentElement)document.documentElement.style.display='none';" +
+                            "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
+                                "window.AndroidOfflineVault.showOfflinePage();return;" +
+                            "}else{location.replace('file:///android_asset/offline.html');return;}" +
+                        "}" +
                     "}" +
                     "var text=(document.body&&document.body.innerText)?document.body.innerText:'';" +
                     "if(!text)text=(document.body&&document.body.textContent)?document.body.textContent:'';" +
-                    "var isRawError=text.indexOf('Loading chunk')!==-1||" +
+                    "var isFatalError=text.indexOf('Loading chunk')!==-1||" +
                         "text.indexOf('ChunkLoadError')!==-1||" +
                         "text.indexOf('TEMPORARY DISPLAY ISSUE')!==-1||" +
                         "text.indexOf('Temporary Display Issue')!==-1||" +
-                        "text.indexOf('Something went wrong')!==-1||" +
-                        "text.indexOf('Application error')!==-1||" +
-                        "text.indexOf('client-side exception')!==-1||" +
-                        "text.indexOf('open a page you already visited')!==-1||" +
-                        "text.indexOf('Connect to the internet, or open a page')!==-1||" +
-                        "text.indexOf('Try home')!==-1||" +
+                        "text.indexOf('Application error: a client-side exception')!==-1||" +
                         "text.indexOf('ERR_INTERNET_DISCONNECTED')!==-1||" +
                         "text.indexOf('ERR_CONNECTION_REFUSED')!==-1||" +
                         "text.indexOf('ERR_NAME_NOT_RESOLVED')!==-1;" +
-                    "if(isRawError){" +
+                    "if(isFatalError&&navigator.onLine===false){" +
                         "if(document.documentElement)document.documentElement.style.display='none';" +
                         "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.showOfflinePage==='function'){" +
                             "window.AndroidOfflineVault.showOfflinePage();" +
@@ -1457,6 +1454,13 @@ fun MainScreen(
                                     swSettings.blockNetworkLoads = false
                                 } catch (_: Exception) {}
                             }
+                            val prefs = ctx.getSharedPreferences("wta_web_cache_prefs", Context.MODE_PRIVATE)
+                            if (!prefs.getBoolean("wta_vault_v3_sanitized", false)) {
+                                try {
+                                    clearCache(false)
+                                    prefs.edit().putBoolean("wta_vault_v3_sanitized", true).apply()
+                                } catch (_: Exception) {}
+                            }
                             if (isOnline(ctx)) {
                                 WebCacheVault.precacheHubsAsync(ctx)
                             }
@@ -1633,7 +1637,8 @@ fun MainScreen(
                                         val wv = webView ?: return@post
                                         val cur = wv.url.orEmpty()
                                         if (cur.contains("offline.html") || cur.startsWith("file://")) return@post
-                                        showOffline(wv, force = true)
+                                        if (isOnline(context)) return@post
+                                        showOffline(wv, force = false)
                                     }
                                 }
 
@@ -1773,11 +1778,14 @@ fun MainScreen(
                                                 if (!htmlJson.isNullOrBlank() && htmlJson != "\"\"" && htmlJson != "null") {
                                                     try {
                                                         val rawHtml = org.json.JSONTokener(htmlJson).nextValue() as? String ?: ""
-                                                        if (rawHtml.length > 200 && (rawHtml.contains("<html") || rawHtml.contains("<body") || rawHtml.contains("<!DOCTYPE"))) {
-                                                            val saveUrl = curUrl ?: u
-                                                            if (saveUrl.isNotBlank()) {
-                                                                WebCacheVault.saveHtmlPage(ctx, saveUrl, rawHtml)
-                                                            }
+                                                        val saveUrl = curUrl ?: u
+                                                        if (rawHtml.length > 500 &&
+                                                            saveUrl.isNotBlank() &&
+                                                            !WebCacheVault.isDynamicListOrDataApi(saveUrl) &&
+                                                            !WebCacheVault.isDegradedOrEmptyHtml(rawHtml) &&
+                                                            (rawHtml.contains("<html") || rawHtml.contains("<body") || rawHtml.contains("<!DOCTYPE"))
+                                                        ) {
+                                                            WebCacheVault.saveHtmlPage(ctx, saveUrl, rawHtml)
                                                         }
                                                     } catch (_: Exception) {}
                                                 }
@@ -2105,8 +2113,8 @@ fun MainScreen(
                                         return null
                                     }
 
-                                    // Online: serve cached subresources if available for maximum speed
-                                    if (isGet && !req.isForMainFrame && WebCacheVault.has(ctx, u)) {
+                                    // Online: serve cached subresources if available for maximum speed (never for dynamic list/data APIs)
+                                    if (isGet && !req.isForMainFrame && !WebCacheVault.isDynamicListOrDataApi(u) && WebCacheVault.has(ctx, u)) {
                                         val cached = WebCacheVault.getCachedResponse(ctx, u)
                                         if (cached != null) return cached
                                     }
@@ -2117,8 +2125,8 @@ fun MainScreen(
                                             val fullUrl = WebCacheVault.normalizeUrl(u)
                                             val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
                                                 requestMethod = "GET"
-                                                connectTimeout = 7_000
-                                                readTimeout = 12_000
+                                                connectTimeout = 15_000
+                                                readTimeout = 25_000
                                                 instanceFollowRedirects = true
                                                 setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
                                                 try {

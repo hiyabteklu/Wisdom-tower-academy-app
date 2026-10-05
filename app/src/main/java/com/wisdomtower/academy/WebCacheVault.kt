@@ -30,7 +30,8 @@ import java.util.regex.Pattern
 object WebCacheVault {
     private const val TAG = "WebCacheVault"
     private const val DIR = "wta_web_vault"
-    private const val INDEX_FILE = "web_index_v2.json"
+    private const val INDEX_FILE = "web_index_v3.json"
+    private const val LEGACY_INDEX_FILE_V2 = "web_index_v2.json"
     private const val PREFS = "wta_web_cache_prefs"
 
     val io = Executors.newFixedThreadPool(2)
@@ -98,23 +99,93 @@ object WebCacheVault {
     }
 
     private fun loadIndexDirect(ctx: Context) {
+        val dir = vaultDir(ctx)
         try {
-            val f = File(vaultDir(ctx), INDEX_FILE)
-            if (f.exists()) {
-                val raw = f.readText(Charsets.UTF_8)
+            val v3File = File(dir, INDEX_FILE)
+            if (v3File.exists()) {
+                val raw = v3File.readText(Charsets.UTF_8)
                 val json = JSONObject(raw)
                 val keys = json.keys()
+                var dirty = false
                 while (keys.hasNext()) {
                     val k = keys.next()
                     val obj = json.getJSONObject(k)
+                    val url = obj.optString("url", "")
+                    // Purge any dynamic list/data API from index
+                    if (isDynamicListOrDataApi(url)) {
+                        dirty = true
+                        try { File(dir, "$k.body").delete() } catch (_: Exception) {}
+                        continue
+                    }
+                    val mime = obj.optString("mime", "text/html")
+                    // Check cached HTML bodies: purge if containing degraded/error states
+                    if (mime.contains("html")) {
+                        val bodyFile = File(dir, "$k.body")
+                        if (bodyFile.exists()) {
+                            val content = try { bodyFile.readText(Charsets.UTF_8) } catch (_: Exception) { "" }
+                            if (isDegradedOrEmptyHtml(content)) {
+                                dirty = true
+                                try { bodyFile.delete() } catch (_: Exception) {}
+                                continue
+                            }
+                        }
+                    }
                     index[k] = EntryMeta(
-                        url = obj.optString("url", ""),
-                        mime = obj.optString("mime", "text/html"),
+                        url = url,
+                        mime = mime,
                         encoding = obj.optString("encoding", "utf-8").takeIf { it.isNotBlank() },
                         size = obj.optLong("size", 0L),
                         timestamp = obj.optLong("ts", System.currentTimeMillis())
                     )
                 }
+                if (dirty) {
+                    persistIndex(ctx)
+                }
+                return
+            }
+
+            // One-time self-healing migration from legacy v2: sanitize poisoned entries
+            val v2File = File(dir, LEGACY_INDEX_FILE_V2)
+            if (v2File.exists()) {
+                Log.i(TAG, "Migrating web cache index from v2 to v3 with anti-poisoning sanitization")
+                val raw = v2File.readText(Charsets.UTF_8)
+                val json = JSONObject(raw)
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    val obj = json.getJSONObject(k)
+                    val url = obj.optString("url", "")
+                    val mime = obj.optString("mime", "text/html")
+
+                    // Strictly reject dynamic list/data APIs
+                    if (isDynamicListOrDataApi(url)) {
+                        try { File(dir, "$k.body").delete() } catch (_: Exception) {}
+                        continue
+                    }
+
+                    // Strictly inspect HTML for degraded empty shells or error messages
+                    if (mime.contains("html")) {
+                        val bodyFile = File(dir, "$k.body")
+                        if (bodyFile.exists()) {
+                            val content = try { bodyFile.readText(Charsets.UTF_8) } catch (_: Exception) { "" }
+                            if (isDegradedOrEmptyHtml(content)) {
+                                try { bodyFile.delete() } catch (_: Exception) {}
+                                continue
+                            }
+                        }
+                    }
+
+                    index[k] = EntryMeta(
+                        url = url,
+                        mime = mime,
+                        encoding = obj.optString("encoding", "utf-8").takeIf { it.isNotBlank() },
+                        size = obj.optLong("size", 0L),
+                        timestamp = obj.optLong("ts", System.currentTimeMillis())
+                    )
+                }
+                persistIndex(ctx)
+                try { v2File.delete() } catch (_: Exception) {}
+                Log.i(TAG, "Web index v3 migration complete with ${index.size} verified entries")
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed reading web index", e)
@@ -196,20 +267,51 @@ object WebCacheVault {
         if (url.isBlank()) return false
         val clean = url.lowercase().trim()
 
-        // Supabase REST endpoints (materials, packages, catalogs, user tables, etc.)
-        if (clean.contains("supabase.co/rest/v1")) return true
+        // Supabase endpoints (rest, graphql, functions, auth - excluding media storage)
+        if (clean.contains("supabase.co") && !clean.contains("supabase.co/storage")) return true
 
-        // Dynamic API endpoints (materials, packages, catalogs, published content)
+        // Next.js dynamic client page props and React Server Component payloads
+        if (clean.contains("/_next/data/") ||
+            clean.contains("_rsc=") || clean.contains("?_rsc") ||
+            clean.contains("&_rsc") || clean.contains("/_rsc") ||
+            clean.contains("/__next")
+        ) {
+            return true
+        }
+
+        // Dynamic API endpoints (materials, packages, catalogs, published content, stats)
         if (clean.contains("/api/")) {
             val isStaticAsset = clean.endsWith(".js") || clean.endsWith(".css") ||
                 clean.endsWith(".png") || clean.endsWith(".jpg") || clean.endsWith(".jpeg") ||
                 clean.endsWith(".webp") || clean.endsWith(".svg") || clean.endsWith(".woff2") ||
-                clean.endsWith(".woff")
+                clean.endsWith(".woff") || clean.endsWith(".ico")
             if (!isStaticAsset) {
                 return true
             }
         }
 
+        if (clean.contains("/graphql")) return true
+
+        return false
+    }
+
+    /**
+     * Detects error fallbacks, empty hub shells, or degraded states that must NEVER
+     * overwrite a rich offline cache or be frozen into the vault.
+     */
+    fun isDegradedOrEmptyHtml(html: String): Boolean {
+        if (html.isBlank() || html.length < 300) return true
+        val lower = html.lowercase()
+        // Website-owned string when hub list is offline or empty
+        if (lower.contains("open this hub once online to cache it")) return true
+        // Website-owned fallback states for empty or failed dynamic catalog
+        if (lower.contains("no published material")) return true
+        if (lower.contains("no materials found")) return true
+        // Next.js / client error strings
+        if (lower.contains("temporary display issue")) return true
+        if (lower.contains("application error: a client-side exception")) return true
+        if (lower.contains("chunkloaderror") || lower.contains("loading chunk")) return true
+        if (lower.contains("err_internet_disconnected") || lower.contains("err_name_not_resolved")) return true
         return false
     }
 
@@ -264,6 +366,11 @@ object WebCacheVault {
 
     fun saveHtmlPage(ctx: Context, url: String, html: String) {
         if (html.isBlank() || url.isBlank()) return
+        if (isDynamicListOrDataApi(url)) return
+        if (isDegradedOrEmptyHtml(html)) {
+            Log.d(TAG, "Refusing to vault degraded or empty HTML for $url")
+            return
+        }
         val norm = normalizeUrl(url)
         val bytes = html.toByteArray(Charsets.UTF_8)
         save(ctx, norm, "text/html", "utf-8", bytes)
@@ -278,6 +385,15 @@ object WebCacheVault {
         if (bytes.isEmpty()) return
         if (isDynamicListOrDataApi(url)) return
         val norm = normalizeUrl(url)
+
+        if (mime.startsWith("text/html")) {
+            val text = try { String(bytes, Charsets.UTF_8) } catch (_: Exception) { "" }
+            if (isDegradedOrEmptyHtml(text)) {
+                Log.d(TAG, "Refusing to save degraded/empty HTML bytes for $norm")
+                return
+            }
+        }
+
         val dir = vaultDir(ctx)
         val meta = EntryMeta(
             url = norm,
@@ -344,12 +460,19 @@ object WebCacheVault {
         }
         val encoding = matchedMeta?.encoding ?: if (mime.startsWith("text/") || mime.contains("javascript")) "utf-8" else null
 
+        val cacheControlHeader = when {
+            norm.contains("/_next/static/") -> "public, max-age=31536000, immutable"
+            mime.startsWith("text/html") -> "no-cache, must-revalidate"
+            mime.contains("json") -> "no-cache, must-revalidate"
+            else -> "public, max-age=86400"
+        }
+
         return try {
             val headers = HashMap<String, String>().apply {
                 put("Access-Control-Allow-Origin", "*")
                 put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
                 put("Access-Control-Allow-Headers", "*")
-                put("Cache-Control", "public, max-age=31536000, immutable")
+                put("Cache-Control", cacheControlHeader)
                 put("Content-Type", mime)
                 put("X-WTA-Cache", "VAULT-HIT")
             }
@@ -394,8 +517,8 @@ object WebCacheVault {
         return try {
             val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
                 requestMethod = method
-                connectTimeout = 8_000
-                readTimeout = 15_000
+                connectTimeout = 15_000
+                readTimeout = 25_000
                 instanceFollowRedirects = true
                 setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
                 try {
@@ -423,11 +546,18 @@ object WebCacheVault {
                     rawMime.substringAfter("charset=", "utf-8").substringBefore(';').trim()
                 } else "utf-8"
 
+                val cacheControlHeader = when {
+                    fullUrl.contains("/_next/static/") -> "public, max-age=31536000, immutable"
+                    mime.startsWith("text/html") -> "no-cache, must-revalidate"
+                    mime.contains("json") -> "no-cache, must-revalidate"
+                    else -> "public, max-age=86400"
+                }
+
                 val headers = HashMap<String, String>().apply {
                     put("Access-Control-Allow-Origin", "*")
                     put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
                     put("Access-Control-Allow-Headers", "*")
-                    put("Cache-Control", "public, max-age=31536000, immutable")
+                    put("Cache-Control", cacheControlHeader)
                     put("Content-Type", rawMime)
                     put("X-WTA-Cache", "NETWORK-STREAM")
                 }
@@ -446,6 +576,14 @@ object WebCacheVault {
                     tempFile = tempFile,
                     finalFile = finalFile
                 ) { length ->
+                    if (mime.contains("html")) {
+                        val content = try { finalFile.readText(Charsets.UTF_8) } catch (_: Exception) { "" }
+                        if (isDegradedOrEmptyHtml(content)) {
+                            Log.d(TAG, "Discarding degraded streamed HTML for $fullUrl")
+                            try { finalFile.delete() } catch (_: Exception) {}
+                            return@WebStreamingCacheInputStream
+                        }
+                    }
                     val meta = EntryMeta(
                         url = fullUrl,
                         mime = mime,
@@ -492,8 +630,8 @@ object WebCacheVault {
                 if (!initialized) init(ctx)
                 if (has(ctx, norm)) return@execute
                 val conn = (URL(norm).openConnection() as HttpURLConnection).apply {
-                    connectTimeout = 5_000
-                    readTimeout = 8_000
+                    connectTimeout = 10_000
+                    readTimeout = 15_000
                     setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
                 }
                 conn.connect()
@@ -527,8 +665,8 @@ object WebCacheVault {
                 for (hub in CORE_HUBS) {
                     try {
                         val conn = (URL(hub).openConnection() as HttpURLConnection).apply {
-                            connectTimeout = 6_000
-                            readTimeout = 10_000
+                            connectTimeout = 12_000
+                            readTimeout = 20_000
                             setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
                             try {
                                 val cookies = CookieManager.getInstance().getCookie(hub)
