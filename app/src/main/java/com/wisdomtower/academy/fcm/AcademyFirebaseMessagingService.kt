@@ -45,7 +45,9 @@ class AcademyFirebaseMessagingService : FirebaseMessagingService() {
             ?: data["message"]
             ?: "You have a new update from Wisdom Tower Academy"
 
-        showSystemNotification(title, body, targetUrl)
+        if (com.wisdomtower.academy.AcademyNotificationManager.isUpdatesEnabled(applicationContext)) {
+            showSystemNotification(title, body, targetUrl)
+        }
     }
 
     private fun showSystemNotification(title: String, body: String, targetUrl: String) {

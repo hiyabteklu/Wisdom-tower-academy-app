@@ -131,6 +131,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.shrinkHorizontally
 import androidx.compose.material3.ripple
 import androidx.compose.foundation.layout.PaddingValues
 import android.webkit.SslErrorHandler
@@ -260,13 +267,15 @@ private const val NATIVE_CHROME_JS =
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
         "s.textContent=" +
-        "'header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer," +
-        "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"]," +
-        ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
-        "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
-        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
-        "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
-        "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}';" +
+        "'html,body{background-color:#060B15!important;color-scheme:dark!important;}' +
+        'header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer,' +
+        'nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"],' +
+        '.hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only],' +
+        '#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader,' +
+        'nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],' +
+        'header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,' +
+        'img.wta-img-broken,img:not([src]),img[src=\"\"]' +
+        '{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
         "var p=(window.location.pathname||'').toLowerCase();" +
@@ -826,6 +835,9 @@ fun MainScreen(
         }
     }
 
+    var showNotificationSettingsDialog by remember { mutableStateOf(false) }
+    var showTimerControlDialog by remember { mutableStateOf(false) }
+    var previousTimerRunning by remember { mutableStateOf(false) }
     var lastOnlineUrl by remember { mutableStateOf(SITE) }
     var pendingClearHistory by remember { mutableStateOf(false) }
 
@@ -935,6 +947,10 @@ fun MainScreen(
                     }
                 } else if (res == "noop") {
                     stopNavigationLoading(forceImmediate = true)
+                } else {
+                    mainHandler.postDelayed({
+                        stopNavigationLoading()
+                    }, 550L)
                 }
             }
         } else if (online) {
@@ -964,6 +980,13 @@ fun MainScreen(
     var timerTitle by remember { mutableStateOf("Study Timer") }
     var isTimerDismissed by remember { mutableStateOf(false) }
 
+    LaunchedEffect(isTimerRunning) {
+        if (isTimerRunning && !previousTimerRunning) {
+            Toast.makeText(context, "Focus session started — we'll notify you when it wraps up.", Toast.LENGTH_SHORT).show()
+        }
+        previousTimerRunning = isTimerRunning
+    }
+
     LaunchedEffect(isTimerRunning, timerRemainingSeconds) {
         if (isTimerRunning && timerRemainingSeconds > 0) {
             delay(1000L)
@@ -971,6 +994,7 @@ fun MainScreen(
             if (timerRemainingSeconds == 0) {
                 isTimerRunning = false
                 isTimerPaused = false
+                AcademyNotificationManager.notifyStudyTimerCompleted(context)
             }
         }
     }
@@ -1001,7 +1025,7 @@ fun MainScreen(
             isInitialLoading = false
         } else {
             val startWait = System.currentTimeMillis()
-            while (!pageRendered && (System.currentTimeMillis() - startWait) < 10_000L) {
+            while (!pageRendered && (System.currentTimeMillis() - startWait) < 14_000L) {
                 delay(120L)
             }
             isInitialLoading = false
@@ -1276,10 +1300,53 @@ fun MainScreen(
                             )
                         }
 
-                        // Right: Pinned Refresh and Notification Actions
+                        // Right: Small top-right timer indicator + Refresh + Notification Actions
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
+                            // Small top-right indicator while study timer is running (zero floating countdown box)
+                            val isTimerActive = (isTimerRunning || (isTimerPaused && timerRemainingSeconds > 0)) && !isTimerDismissed
+                            AnimatedVisibility(
+                                visible = isTimerActive,
+                                enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.85f),
+                                exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.85f)
+                            ) {
+                                val mins = timerRemainingSeconds / 60
+                                val secs = timerRemainingSeconds % 60
+                                val formatted = String.format("%02d:%02d", mins, secs)
+
+                                Surface(
+                                    color = if (isTimerRunning) Color(0x2422E0FF) else Color(0x24F59E0B),
+                                    shape = RoundedCornerShape(999.dp),
+                                    border = BorderStroke(1.dp, if (isTimerRunning) Accent.copy(alpha = 0.6f) else Color(0x66F59E0B)),
+                                    modifier = Modifier
+                                        .padding(end = 4.dp)
+                                        .clickable {
+                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                            showTimerControlDialog = true
+                                        }
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                        modifier = Modifier.padding(horizontal = 7.dp, vertical = 4.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Timer,
+                                            contentDescription = "Study Timer",
+                                            tint = if (isTimerRunning) Accent else Color(0xFFF59E0B),
+                                            modifier = Modifier.size(13.dp)
+                                        )
+                                        Text(
+                                            text = formatted,
+                                            color = Color.White,
+                                            fontSize = 11.5.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+
                             IconButton(
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
@@ -1342,75 +1409,6 @@ fun MainScreen(
                         }
                     }
 
-                    // MP3-player style Study Timer Pill placed cleanly under refresh & notification bell
-                    AnimatedVisibility(
-                        visible = (isTimerRunning || (isTimerPaused && timerRemainingSeconds > 0)) && !isTimerDismissed,
-                        enter = expandVertically(tween(180)) + fadeIn(tween(160)),
-                        exit = shrinkVertically(tween(180)) + fadeOut(tween(160))
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(end = 12.dp, bottom = 6.dp),
-                            horizontalArrangement = Arrangement.End,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            StudyTimerPlayerPill(
-                                remainingSeconds = timerRemainingSeconds,
-                                isRunning = isTimerRunning,
-                                isPaused = isTimerPaused,
-                                onTogglePlayPause = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    if (isTimerRunning) {
-                                        // Pause
-                                        isTimerRunning = false
-                                        isTimerPaused = true
-                                        val js = "(function(){try{" +
-                                            "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'pause'}}));" +
-                                            "var raw=localStorage.getItem('wt_focus_timer_v1');" +
-                                            "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=$timerRemainingSeconds;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
-                                            "}catch(e){}})();"
-                                        webView?.evaluateJavascript(js, null)
-                                    } else {
-                                        // Resume
-                                        isTimerRunning = true
-                                        isTimerPaused = false
-                                        val js = "(function(){try{" +
-                                            "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'resume'}}));" +
-                                            "var raw=localStorage.getItem('wt_focus_timer_v1');" +
-                                            "if(raw){var s=JSON.parse(raw);s.running=true;s.endAt=Date.now()+($timerRemainingSeconds*1000);localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
-                                            "}catch(e){}})();"
-                                        webView?.evaluateJavascript(js, null)
-                                    }
-                                },
-                                onClose = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    isTimerRunning = false
-                                    isTimerPaused = false
-                                    timerRemainingSeconds = 0
-                                    isTimerDismissed = true
-                                    val js = "(function(){try{" +
-                                        "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'stop'}}));" +
-                                        "var raw=localStorage.getItem('wt_focus_timer_v1');" +
-                                        "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=s.totalSec||1500;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
-                                        "var btn=document.querySelector('[data-timer-stop],[data-study-timer-stop],button[aria-label*=\"stop\" i],button[aria-label*=\"reset\" i]');" +
-                                        "if(btn)btn.click();" +
-                                        "}catch(e){}})();"
-                                    webView?.evaluateJavascript(js, null)
-                                },
-                                onOpenWebTimer = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    val js = "(function(){try{" +
-                                        "var el=document.querySelector('#focus-timer,[data-focus-timer],.focus-timer,[id*=\"pomodoro\" i],[class*=\"pomodoro\" i],[id*=\"timer\" i]');" +
-                                        "if(el){el.scrollIntoView({behavior:'smooth',block:'center'});}" +
-                                        "}catch(e){}})();"
-                                    webView?.evaluateJavascript(js, null)
-                                }
-                            )
-                        }
-                    }
-
-                    // Hairline subtle divider
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1682,12 +1680,19 @@ fun MainScreen(
                                 @JavascriptInterface
                                 fun syncStudyTimer(isRunning: Boolean, secondsLeft: Int, totalSeconds: Int, title: String?) {
                                     mainHandler.post {
+                                        val wasRunning = isTimerRunning
                                         isTimerRunning = isRunning
                                         if (isRunning) {
+                                            if (!wasRunning) {
+                                                Toast.makeText(context, "Focus session started — we'll notify you when it wraps up.", Toast.LENGTH_SHORT).show()
+                                            }
                                             isTimerPaused = false
                                             timerRemainingSeconds = secondsLeft.coerceAtLeast(0)
                                             isTimerDismissed = false
                                         } else {
+                                            if (wasRunning && secondsLeft == 0 && totalSeconds > 0) {
+                                                AcademyNotificationManager.notifyStudyTimerCompleted(ctx)
+                                            }
                                             if (secondsLeft > 0 && !isTimerDismissed) {
                                                 isTimerPaused = true
                                                 timerRemainingSeconds = secondsLeft
@@ -1700,6 +1705,29 @@ fun MainScreen(
                                         if (!title.isNullOrBlank()) {
                                             timerTitle = title
                                         }
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun notifyPlannerTask(taskName: String?, dueTime: String?, studentName: String?) {
+                                    if (!taskName.isNullOrBlank()) {
+                                        mainHandler.post {
+                                            AcademyNotificationManager.notifyPlannerTaskDue(ctx, taskName, dueTime, studentName)
+                                        }
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun notifyDailyStudyGoal() {
+                                    mainHandler.post {
+                                        AcademyNotificationManager.notifyDailyGoalNudge(ctx)
+                                    }
+                                }
+
+                                @JavascriptInterface
+                                fun openNotificationSettings() {
+                                    mainHandler.post {
+                                        showNotificationSettingsDialog = true
                                     }
                                 }
 
@@ -2316,12 +2344,11 @@ fun MainScreen(
             }
         }
 
-        // Navigation Drawer: Sleek slide-in side panel (eliminates awkward floating dialog)
-        // Upgraded Branded Compact Card Menu matching website glass cards
+        // Native Slide-In Side Menu (solid, anchored to left screen edge, brand only at top)
         AnimatedVisibility(
             visible = menuExpanded,
-            enter = fadeIn(tween(180)) + scaleIn(initialScale = 0.92f, animationSpec = spring(dampingRatio = 0.8f, stiffness = Spring.StiffnessMedium)),
-            exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.92f, animationSpec = tween(140)),
+            enter = fadeIn(tween(160)),
+            exit = fadeOut(tween(140)),
             modifier = Modifier.zIndex(150f)
         ) {
             BackHandler(enabled = menuExpanded) { menuExpanded = false }
@@ -2329,36 +2356,40 @@ fun MainScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0xB3000000))
+                    .background(Color(0x99000000))
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
                     ) { menuExpanded = false }
-                    .padding(horizontal = 14.dp, vertical = 20.dp)
-                    .windowInsetsPadding(WindowInsets.statusBars),
-                contentAlignment = Alignment.TopStart
             ) {
-                Surface(
-                    color = CardSurface,
-                    shape = RoundedCornerShape(22.dp),
-                    border = BorderStroke(1.dp, CardBorder),
-                    shadowElevation = 24.dp,
+                // Docked directly to the left screen border
+                Box(
                     modifier = Modifier
-                        .widthIn(max = 295.dp)
-                        .fillMaxWidth()
+                        .fillMaxHeight()
+                        .width(270.dp)
+                        .background(Color(0xFF070D18))
+                        .border(
+                            BorderStroke(1.dp, CardBorder),
+                            RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
+                        )
+                        .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
+                        .windowInsetsPadding(WindowInsets.statusBars)
+                        .windowInsetsPadding(WindowInsets.navigationBars)
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
                             indication = null
-                        ) { /* prevent close on card body click */ }
+                        ) { /* prevent close when clicking drawer content */ }
                 ) {
                     Column(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp)
+                            .fillMaxSize()
+                            .padding(vertical = 12.dp)
                     ) {
-                        // Header
+                        // Top of menu: Brand ONLY (No subtitles, no extra tags)
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 4.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
@@ -2368,34 +2399,19 @@ fun MainScreen(
                             ) {
                                 Box(
                                     modifier = Modifier
-                                        .size(32.dp)
+                                        .size(30.dp)
                                         .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0x2622E0FF))
-                                        .border(1.dp, CardBorder, RoundedCornerShape(8.dp)),
-                                    contentAlignment = Alignment.Center
+                                        .border(1.dp, CardBorder, RoundedCornerShape(8.dp))
                                 ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Menu,
-                                        contentDescription = null,
-                                        tint = Accent,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    BrandLogo(size = 30.dp)
                                 }
-                                Column {
-                                    Text(
-                                        text = "Wisdom Tower",
-                                        color = Color.White,
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = (-0.2).sp
-                                    )
-                                    Text(
-                                        text = "Academy Services",
-                                        color = Accent,
-                                        fontSize = 10.5.sp,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
+                                Text(
+                                    text = "Wisdom Tower",
+                                    color = Color.White,
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = (-0.2).sp
+                                )
                             }
                             IconButton(
                                 onClick = {
@@ -2413,90 +2429,146 @@ fun MainScreen(
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(14.dp))
+                        Spacer(modifier = Modifier.height(10.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(1.dp)
                                 .background(CardBorderSubtle)
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(6.dp))
 
-                        // Navigation links
+                        // Compact, tight item rows with less wasted width & height
                         Column(
-                            verticalArrangement = Arrangement.spacedBy(3.dp),
-                            modifier = Modifier.fillMaxWidth()
+                            modifier = Modifier
+                                .weight(1f)
+                                .verticalScroll(rememberScrollState())
+                                .padding(horizontal = 10.dp),
+                            verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            overflowMenuLinks.forEach { link ->
-                                val linkInteraction = remember { MutableInteractionSource() }
-                                val linkPressed by linkInteraction.collectIsPressedAsState()
+                            // Section: NAVIGATION
+                            Text(
+                                text = "EXPLORE",
+                                color = Accent.copy(alpha = 0.8f),
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                            )
 
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(12.dp))
-                                        .background(
-                                            if (linkPressed) Color(0x2622E0FF) else Color.Transparent
-                                        )
-                                        .clickable(
-                                            interactionSource = linkInteraction,
-                                            indication = ripple(color = Accent.copy(alpha = 0.2f))
-                                        ) {
-                                            menuExpanded = false
-                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                            navigateTo(link.url, tabIndex = null)
-                                        }
-                                        .padding(horizontal = 10.dp, vertical = 9.5.dp),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                                    ) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(28.dp)
-                                                .clip(RoundedCornerShape(8.dp))
-                                                .background(Color(0x1F22E0FF)),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(
-                                                imageVector = link.icon,
-                                                contentDescription = null,
-                                                tint = Accent,
-                                                modifier = Modifier.size(16.dp)
-                                            )
-                                        }
-                                        Text(
-                                            text = link.label,
-                                            color = Color(0xFFF1F5F9),
-                                            fontSize = 13.5.sp,
-                                            fontWeight = FontWeight.Medium
-                                        )
-                                    }
-                                    Icon(
-                                        imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
-                                        contentDescription = null,
-                                        tint = Muted.copy(alpha = 0.4f),
-                                        modifier = Modifier.size(12.dp)
-                                    )
+                            DrawerCompactRow(
+                                icon = Icons.Filled.Home,
+                                label = "Home",
+                                onClick = {
+                                    menuExpanded = false
+                                    navigateTo(StructuralNav.SITE_HOME, tabIndex = 0)
                                 }
+                            )
+
+                            DrawerCompactRow(
+                                icon = Icons.AutoMirrored.Filled.MenuBook,
+                                label = "Learning Hub",
+                                onClick = {
+                                    menuExpanded = false
+                                    navigateTo(StructuralNav.SITE_LEARNING, tabIndex = 1)
+                                }
+                            )
+
+                            DrawerCompactRow(
+                                icon = Icons.AutoMirrored.Filled.ViewList,
+                                label = "Packages",
+                                onClick = {
+                                    menuExpanded = false
+                                    navigateTo(StructuralNav.SITE_PACKAGES, tabIndex = 2)
+                                }
+                            )
+
+                            DrawerCompactRow(
+                                icon = Icons.Filled.Person,
+                                label = "My Account",
+                                onClick = {
+                                    menuExpanded = false
+                                    navigateTo(StructuralNav.SITE_ACCOUNT, tabIndex = 3)
+                                }
+                            )
+
+                            DrawerCompactRow(
+                                icon = Icons.Filled.Settings,
+                                label = "Settings",
+                                onClick = {
+                                    menuExpanded = false
+                                    navigateTo(StructuralNav.SITE_SETTINGS, tabIndex = 4)
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(CardBorderSubtle)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = "NOTIFICATIONS & PREFERENCES",
+                                color = Accent.copy(alpha = 0.8f),
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                            )
+
+                            DrawerCompactRow(
+                                icon = Icons.Filled.Notifications,
+                                label = "Notification Settings",
+                                onClick = {
+                                    menuExpanded = false
+                                    showNotificationSettingsDialog = true
+                                }
+                            )
+
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(1.dp)
+                                    .background(CardBorderSubtle)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Text(
+                                text = "SUPPORT & ABOUT",
+                                color = Accent.copy(alpha = 0.8f),
+                                fontSize = 9.5.sp,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp)
+                            )
+
+                            overflowMenuLinks.forEach { link ->
+                                DrawerCompactRow(
+                                    icon = link.icon,
+                                    label = link.label,
+                                    onClick = {
+                                        menuExpanded = false
+                                        navigateTo(link.url, tabIndex = null)
+                                    }
+                                )
                             }
                         }
 
-                        Spacer(modifier = Modifier.height(12.dp))
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(1.dp)
                                 .background(CardBorderSubtle)
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
+                        Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Wisdom Tower Academy • 2026",
-                            color = Muted.copy(alpha = 0.5f),
-                            fontSize = 10.5.sp,
+                            text = "Wisdom Tower Academy • Native Shell",
+                            color = Muted.copy(alpha = 0.45f),
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier.fillMaxWidth(),
                             textAlign = TextAlign.Center
@@ -2506,6 +2578,58 @@ fun MainScreen(
             }
         }
 
+        if (showNotificationSettingsDialog) {
+            NotificationSettingsDialog(
+                onDismiss = { showNotificationSettingsDialog = false }
+            )
+        }
+
+        if (showTimerControlDialog) {
+            TimerControlDialog(
+                remainingSeconds = timerRemainingSeconds,
+                isRunning = isTimerRunning,
+                isPaused = isTimerPaused,
+                onTogglePlayPause = {
+                    if (isTimerRunning) {
+                        isTimerRunning = false
+                        isTimerPaused = true
+                        val js = "(function(){try{" +
+                            "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'pause'}}));" +
+                            "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                            "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=$timerRemainingSeconds;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
+                            "}catch(e){}})();"
+                        webView?.evaluateJavascript(js, null)
+                    } else {
+                        isTimerRunning = true
+                        isTimerPaused = false
+                        val js = "(function(){try{" +
+                            "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'resume'}}));" +
+                            "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                            "if(raw){var s=JSON.parse(raw);s.running=true;s.endAt=Date.now()+($timerRemainingSeconds*1000);localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
+                            "}catch(e){}})();"
+                        webView?.evaluateJavascript(js, null)
+                    }
+                },
+                onStop = {
+                    isTimerRunning = false
+                    isTimerPaused = false
+                    timerRemainingSeconds = 0
+                    isTimerDismissed = true
+                    showTimerControlDialog = false
+                    val js = "(function(){try{" +
+                        "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'stop'}}));" +
+                        "var raw=localStorage.getItem('wt_focus_timer_v1');" +
+                        "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=s.totalSec||1500;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
+                        "}catch(e){}})();"
+                    webView?.evaluateJavascript(js, null)
+                },
+                onOpenLearning = {
+                    showTimerControlDialog = false
+                    navigateTo("https://www.wisdom-tower-academy.live/learning", tabIndex = 1)
+                },
+                onDismiss = { showTimerControlDialog = false }
+            )
+        }
         if (showExitDialog) {
             ExitGuiltDialog(
                 onStay = { showExitDialog = false },
@@ -2518,16 +2642,6 @@ fun MainScreen(
     }
 }
 
-
-/**
- * MP3-player style Study Timer Pill located in the upper right corner right below the refresh and notification icons.
- * Features:
- * - Play / Pause toggle button to pause and resume the study countdown like an MP3 player
- * - Clickable countdown time (mm:ss) to view on the website
- * - Close (X) button to easily stop and dismiss
- * - Pulsing status indicator dot (cyan when running, amber when paused)
- */
-@Composable
 private fun StudyTimerPlayerPill(
     remainingSeconds: Int,
     isRunning: Boolean,
@@ -2968,5 +3082,354 @@ private fun FuturisticGearRings(
 
         // Brand animated GIF in center
         BrandLoader(size = brandSize, showCard = false)
+    }
+}
+
+
+@Composable
+private fun DrawerCompactRow(
+    icon: ImageVector,
+    label: String,
+    onClick: () -> Unit
+) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val view = LocalView.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isPressed) Color(0x2222E0FF) else Color.Transparent)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = ripple(color = Accent.copy(alpha = 0.2f))
+            ) {
+                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                onClick()
+            }
+            .padding(horizontal = 8.dp, vertical = 7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(9.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(26.dp)
+                    .clip(RoundedCornerShape(6.dp))
+                    .background(Color(0x1F22E0FF)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = icon,
+                    contentDescription = null,
+                    tint = Accent,
+                    modifier = Modifier.size(15.dp)
+                )
+            }
+            Text(
+                text = label,
+                color = Color(0xFFF1F5F9),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.ArrowForwardIos,
+            contentDescription = null,
+            tint = Muted.copy(alpha = 0.35f),
+            modifier = Modifier.size(11.dp)
+        )
+    }
+}
+
+@Composable
+private fun NotificationSettingsDialog(
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    var timerEnabled by remember { mutableStateOf(AcademyNotificationManager.isTimerEnabled(context)) }
+    var plannerEnabled by remember { mutableStateOf(AcademyNotificationManager.isPlannerEnabled(context)) }
+    var goalsEnabled by remember { mutableStateOf(AcademyNotificationManager.isGoalsEnabled(context)) }
+    var updatesEnabled by remember { mutableStateOf(AcademyNotificationManager.isUpdatesEnabled(context)) }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            color = CardSurface,
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, CardBorder),
+            shadowElevation = 24.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(12.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(18.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(30.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color(0x2622E0FF)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.Notifications,
+                                contentDescription = null,
+                                tint = Accent,
+                                modifier = Modifier.size(17.dp)
+                            )
+                        }
+                        Text(
+                            text = "Notification Settings",
+                            color = Color.White,
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Muted, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(CardBorderSubtle))
+                Spacer(modifier = Modifier.height(12.dp))
+
+                NotificationToggleItem(
+                    title = "Study Timer Rewards",
+                    description = "Warm completion alerts with rewarding messages when sessions end",
+                    checked = timerEnabled,
+                    onCheckedChange = {
+                        timerEnabled = it
+                        AcademyNotificationManager.setSetting(context, AcademyNotificationManager.KEY_TIMER_ENABLED, it)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                NotificationToggleItem(
+                    title = "Planner & Deadlines",
+                    description = "Personalized due-time reminders for scheduled study tasks",
+                    checked = plannerEnabled,
+                    onCheckedChange = {
+                        plannerEnabled = it
+                        AcademyNotificationManager.setSetting(context, AcademyNotificationManager.KEY_PLANNER_ENABLED, it)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                NotificationToggleItem(
+                    title = "Daily Goal Nudges",
+                    description = "Caring, encouraging check-ins when under your daily study target",
+                    checked = goalsEnabled,
+                    onCheckedChange = {
+                        goalsEnabled = it
+                        AcademyNotificationManager.setSetting(context, AcademyNotificationManager.KEY_GOALS_ENABLED, it)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                NotificationToggleItem(
+                    title = "Academy Announcements",
+                    description = "New materials, exam schedules, and curriculum updates",
+                    checked = updatesEnabled,
+                    onCheckedChange = {
+                        updatesEnabled = it
+                        AcademyNotificationManager.setSetting(context, AcademyNotificationManager.KEY_UPDATES_ENABLED, it)
+                    }
+                )
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.fillMaxWidth().height(40.dp)
+                ) {
+                    Text(
+                        text = "Save Preferences",
+                        color = Color(0xFF04101A),
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 13.5.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NotificationToggleItem(
+    title: String,
+    description: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f).padding(end = 10.dp)) {
+            Text(
+                text = title,
+                color = Color.White,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                text = description,
+                color = Muted,
+                fontSize = 10.5.sp,
+                lineHeight = 14.sp
+            )
+        }
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange,
+            colors = SwitchDefaults.colors(
+                checkedThumbColor = Color(0xFF04101A),
+                checkedTrackColor = Accent,
+                uncheckedThumbColor = Muted,
+                uncheckedTrackColor = Color(0x33FFFFFF)
+            )
+        )
+    }
+}
+
+@Composable
+private fun TimerControlDialog(
+    remainingSeconds: Int,
+    isRunning: Boolean,
+    isPaused: Boolean,
+    onTogglePlayPause: () -> Unit,
+    onStop: () -> Unit,
+    onOpenLearning: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val mins = remainingSeconds / 60
+    val secs = remainingSeconds % 60
+    val formatted = String.format("%02d:%02d", mins, secs)
+
+    Dialog(onDismissRequest = onDismiss) {
+        Surface(
+            color = CardSurface,
+            shape = RoundedCornerShape(20.dp),
+            border = BorderStroke(1.dp, CardBorder),
+            shadowElevation = 24.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text(
+                        text = "Focus Session",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
+                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Muted, modifier = Modifier.size(18.dp))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                Text(
+                    text = formatted,
+                    color = Accent,
+                    fontSize = 36.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+
+                Text(
+                    text = if (isRunning) "Focus mode active — we'll notify you on completion" else "Session paused",
+                    color = Muted,
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 18.dp)
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Button(
+                        onClick = onTogglePlayPause,
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) Color(0x3322E0FF) else Accent),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).height(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = null,
+                            tint = if (isRunning) Accent else Color(0xFF04101A),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = if (isRunning) "Pause" else "Resume",
+                            color = if (isRunning) Accent else Color(0xFF04101A),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+
+                    Button(
+                        onClick = onStop,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x26EF4444)),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.weight(1f).height(40.dp)
+                    ) {
+                        Text(
+                            text = "Stop",
+                            color = Color(0xFFEF4444),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                TextButton(onClick = onOpenLearning) {
+                    Text(
+                        text = "Open in Study Hub",
+                        color = Accent,
+                        fontSize = 12.5.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
     }
 }

@@ -45,6 +45,13 @@ export default function App() {
   const [currentUrl, setCurrentUrl] = useState<string>('https://www.wisdom-tower-academy.live/');
   const [isMenuOpen, setIsMenuOpen] = useState<boolean>(false);
   const [showExitDialog, setShowExitDialog] = useState<boolean>(false);
+  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState<boolean>(false);
+  const [isTimerModalOpen, setIsTimerModalOpen] = useState<boolean>(false);
+  const [timerToast, setTimerToast] = useState<string | null>(null);
+  const [prefTimer, setPrefTimer] = useState<boolean>(true);
+  const [prefPlanner, setPrefPlanner] = useState<boolean>(true);
+  const [prefGoals, setPrefGoals] = useState<boolean>(true);
+  const [prefUpdates, setPrefUpdates] = useState<boolean>(true);
   const [currentTime, setCurrentTime] = useState<string>('09:41');
   const [studySeconds, setStudySeconds] = useState<number>(1420);
   const [isTimerRunning, setIsTimerRunning] = useState<boolean>(true);
@@ -198,116 +205,309 @@ export default function App() {
                 <span className="font-bold text-white text-base tracking-tight">Wisdom Tower Academy</span>
               </div>
 
-              <div className="flex items-center gap-1">
+              <div className="flex items-center gap-1.5">
+                {/* Small Top-Right Study Timer Indicator (inside top bar, zero floating countdown box) */}
+                <button
+                  onClick={() => setIsTimerModalOpen(true)}
+                  className="flex items-center gap-1.5 bg-[#22E0FF]/10 border border-[#22E0FF]/35 rounded-full px-2.5 py-1 text-xs font-bold text-[#22E0FF] hover:bg-[#22E0FF]/20 active:scale-95 transition-all"
+                  title="Focus Timer session"
+                >
+                  <Clock className="w-3 h-3 text-[#22E0FF]" />
+                  <span className="tabular-nums font-mono text-[11px]">{formatTimer(studySeconds)}</span>
+                </button>
+
                 <button
                   onClick={handleReload}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-slate-400 hover:text-[#22E0FF] hover:bg-[#22E0FF]/10 active:scale-95 transition-all"
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-slate-400 hover:text-[#22E0FF] hover:bg-[#22E0FF]/10 active:scale-95 transition-all"
                   title="Reload web view"
                 >
-                  <RotateCw className="w-4 h-4" />
+                  <RotateCw className="w-3.5 h-3.5" />
                 </button>
                 <button
                   onClick={handleNotificationClick}
-                  className="w-9 h-9 rounded-xl flex items-center justify-center text-[#22E0FF] hover:bg-[#22E0FF]/10 active:scale-95 transition-all relative"
+                  className="w-8 h-8 rounded-xl flex items-center justify-center text-[#22E0FF] hover:bg-[#22E0FF]/10 active:scale-95 transition-all relative"
                   title="View notifications"
                 >
-                  <Bell className="w-4 h-4" />
-                  <span className="absolute top-2 right-2 w-2 h-2 rounded-full bg-[#22E0FF] ring-2 ring-[#060B15]" />
+                  <Bell className="w-3.5 h-3.5" />
+                  <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full bg-[#22E0FF]" />
                 </button>
               </div>
             </div>
 
-            {/* Study Floating Timer Pill */}
-            <div className="absolute top-24 right-4 z-40 flex items-center gap-2 bg-[#0C1424]/90 backdrop-blur-md border border-[#22E0FF]/40 rounded-full px-3 py-1 shadow-lg text-xs font-bold text-[#22E0FF]">
-              <button
-                onClick={() => setIsTimerRunning(!isTimerRunning)}
-                className="text-emerald-400 hover:text-emerald-300"
-                title={isTimerRunning ? 'Pause timer' : 'Resume timer'}
-              >
-                {isTimerRunning ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
-              </button>
-              <Clock className="w-3 h-3 text-[#22E0FF]" />
-              <span className="tabular-nums font-mono text-[11px]">{formatTimer(studySeconds)}</span>
-            </div>
+            {/* In-app warm timer toast on start */}
+            {timerToast && (
+              <div className="absolute top-16 left-4 right-4 z-50 bg-[#0F172A] border border-[#22E0FF]/40 rounded-xl p-2.5 shadow-xl text-xs text-center text-slate-200 animate-in fade-in slide-in-from-top-2">
+                {timerToast}
+              </div>
+            )}
 
-            {/* Compact Branded Card Menu Dialog */}
+            {/* Solid Native Slide-in Side Drawer (anchored to left screen edge, Brand only at top) */}
             {isMenuOpen && (
               <div
-                className="absolute inset-0 bg-black/70 backdrop-blur-sm z-50 flex items-start justify-start p-4 pt-16"
+                className="absolute inset-0 bg-black/75 z-50 flex items-stretch justify-start animate-in fade-in duration-150"
                 onClick={() => setIsMenuOpen(false)}
               >
                 <div
-                  className="w-72 bg-[#0C1424] border border-[#22E0FF]/25 rounded-3xl p-5 shadow-2xl flex flex-col gap-4 animate-in fade-in zoom-in-95 duration-150"
+                  className="w-64 h-full bg-[#070D18] border-r border-[#22E0FF]/20 rounded-r-2xl p-4 shadow-2xl flex flex-col gap-3 animate-in slide-in-from-left duration-200"
                   onClick={(e) => e.stopPropagation()}
                 >
+                  {/* Top of menu: Brand ONLY */}
                   <div className="flex items-center justify-between pb-3 border-b border-[#22E0FF]/15">
                     <div className="flex items-center gap-2.5">
-                      <div className="w-8 h-8 rounded-lg bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center font-bold text-[#22E0FF] text-xs">
+                      <div className="w-7 h-7 rounded-lg bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center font-bold text-[#22E0FF] text-xs">
                         WT
                       </div>
-                      <div>
-                        <p className="text-sm font-bold text-white">Wisdom Tower</p>
-                        <p className="text-[10.5px] text-[#22E0FF]">Academy Services</p>
-                      </div>
+                      <p className="text-sm font-bold text-white tracking-tight">Wisdom Tower</p>
                     </div>
                     <button
                       onClick={() => setIsMenuOpen(false)}
                       className="text-slate-400 hover:text-white p-1 rounded-lg"
                     >
-                      <X className="w-5 h-5" />
+                      <X className="w-4 h-4" />
                     </button>
                   </div>
 
-                  <div className="space-y-1 text-sm">
+                  <div className="flex-1 overflow-y-auto space-y-1 text-xs">
+                    <p className="text-[10px] font-bold text-[#22E0FF]/70 uppercase tracking-wider px-2 py-1">Explore</p>
                     <button
                       onClick={() => {
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/about');
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/');
+                        setActiveTab('home');
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
-                      About Academy
+                      <Home className="w-3.5 h-3.5 text-[#22E0FF]" />
+                      <span>Home</span>
                     </button>
                     <button
                       onClick={() => {
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/contact');
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/learning');
+                        setActiveTab('learning');
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
-                      Contact & Support
+                      <BookOpen className="w-3.5 h-3.5 text-[#22E0FF]" />
+                      <span>Learning Hub</span>
                     </button>
                     <button
                       onClick={() => {
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/faq');
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/packages');
+                        setActiveTab('packages');
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
-                      Frequently Asked Questions
+                      <Package className="w-3.5 h-3.5 text-[#22E0FF]" />
+                      <span>Study Packages</span>
                     </button>
                     <button
                       onClick={() => {
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/privacy');
+                        setCurrentUrl('https://www.wisdom-tower-academy.live/account');
+                        setActiveTab('account');
                         setIsMenuOpen(false);
                       }}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
+                      className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
-                      Privacy Policy
+                      <User className="w-3.5 h-3.5 text-[#22E0FF]" />
+                      <span>My Account</span>
                     </button>
-                    <button
-                      onClick={() => {
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/terms');
-                        setIsMenuOpen(false);
-                      }}
-                      className="w-full text-left px-3 py-2 rounded-xl hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all text-xs"
-                    >
-                      Terms of Service
-                    </button>
+
+                    <div className="pt-2 pb-1 border-t border-slate-800">
+                      <p className="text-[10px] font-bold text-[#22E0FF]/70 uppercase tracking-wider px-2 py-1">Preferences</p>
+                      <button
+                        onClick={() => {
+                          setIsMenuOpen(false);
+                          setIsNotificationSettingsOpen(true);
+                        }}
+                        className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
+                      >
+                        <Bell className="w-3.5 h-3.5 text-[#22E0FF]" />
+                        <span>Notification Settings</span>
+                      </button>
+                    </div>
+
+                    <div className="pt-2 pb-1 border-t border-slate-800">
+                      <p className="text-[10px] font-bold text-[#22E0FF]/70 uppercase tracking-wider px-2 py-1">Support & About</p>
+                      <button
+                        onClick={() => {
+                          setCurrentUrl('https://www.wisdom-tower-academy.live/about');
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-300 hover:text-white"
+                      >
+                        About Academy
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentUrl('https://www.wisdom-tower-academy.live/contact');
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-300 hover:text-white"
+                      >
+                        Contact & Support
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentUrl('https://www.wisdom-tower-academy.live/faq');
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-300 hover:text-white"
+                      >
+                        Frequently Asked Questions
+                      </button>
+                      <button
+                        onClick={() => {
+                          setCurrentUrl('https://www.wisdom-tower-academy.live/privacy');
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full text-left px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-300 hover:text-white"
+                      >
+                        Privacy Policy
+                      </button>
+                    </div>
                   </div>
 
                   <div className="pt-2 border-t border-[#22E0FF]/10 text-center">
-                    <p className="text-[10px] text-slate-500">Wisdom Tower Academy • 2026</p>
+                    <p className="text-[9.5px] text-slate-500">Wisdom Tower Academy • Native Shell</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Notification Settings Dialog */}
+            {isNotificationSettingsOpen && (
+              <div
+                className="absolute inset-0 bg-black/75 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+                onClick={() => setIsNotificationSettingsOpen(false)}
+              >
+                <div
+                  className="w-80 bg-[#0C1424] border border-[#22E0FF]/30 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 text-xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-center justify-between pb-2 border-b border-[#22E0FF]/20">
+                    <div className="flex items-center gap-2">
+                      <Bell className="w-4 h-4 text-[#22E0FF]" />
+                      <p className="text-sm font-bold text-white">Notification Preferences</p>
+                    </div>
+                    <button onClick={() => setIsNotificationSettingsOpen(false)} className="text-slate-400 hover:text-white">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-2.5">
+                    <label className="flex items-start justify-between gap-2 cursor-pointer">
+                      <div>
+                        <p className="font-semibold text-white">Study Timer Rewards</p>
+                        <p className="text-[10px] text-slate-400">Warm completion alerts with rewarding messages</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={prefTimer}
+                        onChange={(e) => setPrefTimer(e.target.checked)}
+                        className="accent-[#22E0FF] mt-0.5"
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between gap-2 cursor-pointer">
+                      <div>
+                        <p className="font-semibold text-white">Planner & Deadlines</p>
+                        <p className="text-[10px] text-slate-400">Personalized due-time reminders for scheduled tasks</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={prefPlanner}
+                        onChange={(e) => setPrefPlanner(e.target.checked)}
+                        className="accent-[#22E0FF] mt-0.5"
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between gap-2 cursor-pointer">
+                      <div>
+                        <p className="font-semibold text-white">Daily Goal Nudges</p>
+                        <p className="text-[10px] text-slate-400">Caring check-ins when under daily study target</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={prefGoals}
+                        onChange={(e) => setPrefGoals(e.target.checked)}
+                        className="accent-[#22E0FF] mt-0.5"
+                      />
+                    </label>
+
+                    <label className="flex items-start justify-between gap-2 cursor-pointer">
+                      <div>
+                        <p className="font-semibold text-white">Academy Announcements</p>
+                        <p className="text-[10px] text-slate-400">New materials, exam schedules, and curriculum updates</p>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={prefUpdates}
+                        onChange={(e) => setPrefUpdates(e.target.checked)}
+                        className="accent-[#22E0FF] mt-0.5"
+                      />
+                    </label>
+                  </div>
+
+                  <button
+                    onClick={() => setIsNotificationSettingsOpen(false)}
+                    className="w-full mt-2 py-1.5 rounded-lg bg-[#22E0FF] text-slate-950 font-bold hover:bg-[#22E0FF]/90 transition-all text-xs"
+                  >
+                    Save Preferences
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* Timer Control Modal */}
+            {isTimerModalOpen && (
+              <div
+                className="absolute inset-0 bg-black/75 z-50 flex items-center justify-center p-4 animate-in fade-in duration-150"
+                onClick={() => setIsTimerModalOpen(false)}
+              >
+                <div
+                  className="w-72 bg-[#0C1424] border border-[#22E0FF]/30 rounded-2xl p-4 shadow-2xl flex flex-col items-center gap-3 text-xs"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="w-full flex items-center justify-between pb-2 border-b border-[#22E0FF]/20">
+                    <p className="text-sm font-bold text-white">Study Focus Session</p>
+                    <button onClick={() => setIsTimerModalOpen(false)} className="text-slate-400 hover:text-white">
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  <p className="text-3xl font-bold font-mono text-[#22E0FF] tracking-wider my-1">
+                    {formatTimer(studySeconds)}
+                  </p>
+                  <p className="text-[11px] text-slate-400 text-center">
+                    {isTimerRunning ? 'Focus session active — we’ll notify you when it wraps up' : 'Session paused'}
+                  </p>
+
+                  <div className="w-full flex gap-2 mt-1">
+                    <button
+                      onClick={() => {
+                        const next = !isTimerRunning;
+                        setIsTimerRunning(next);
+                        if (next) {
+                          setTimerToast("Focus session started — we'll notify you when it wraps up.");
+                          setTimeout(() => setTimerToast(null), 3000);
+                        }
+                      }}
+                      className="flex-1 py-1.5 rounded-lg bg-[#22E0FF] text-slate-950 font-bold hover:bg-[#22E0FF]/90 transition-all"
+                    >
+                      {isTimerRunning ? 'Pause' : 'Resume'}
+                    </button>
+                    <button
+                      onClick={() => {
+                        setIsTimerRunning(false);
+                        setStudySeconds(0);
+                        setIsTimerModalOpen(false);
+                      }}
+                      className="flex-1 py-1.5 rounded-lg bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold hover:bg-rose-500/30 transition-all"
+                    >
+                      Reset
+                    </button>
                   </div>
                 </div>
               </div>
