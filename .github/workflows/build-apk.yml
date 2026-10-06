@@ -85,7 +85,7 @@ jobs:
         run: |
           if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ] && [ -n "${{ secrets.STORE_PASSWORD }}" ]; then
             echo "Using production upload keystore from KEYSTORE_BASE64 secret"
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > my-upload-key.jks
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | tr -d '\r\n' | base64 -d > my-upload-key.jks
             echo "KEYSTORE_PATH=$PWD/my-upload-key.jks" >> $GITHUB_ENV
             echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
             echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD || secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
@@ -122,6 +122,7 @@ jobs:
         id: build
         env:
           CI: "true"
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
           KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
           STORE_PASSWORD: ${{ env.STORE_PASSWORD }}
           KEY_PASSWORD: ${{ env.KEY_PASSWORD }}

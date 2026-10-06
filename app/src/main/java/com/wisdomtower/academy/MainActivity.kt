@@ -2642,6 +2642,7 @@ fun MainScreen(
     }
 }
 
+@Composable
 private fun StudyTimerPlayerPill(
     remainingSeconds: Int,
     isRunning: Boolean,
