@@ -267,14 +267,14 @@ private const val NATIVE_CHROME_JS =
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
         "s.textContent=" +
-        "'html,body{background-color:#060B15!important;color-scheme:dark!important;}' +
-        'header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer,' +
-        'nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"],' +
-        '.hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only],' +
-        '#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader,' +
-        'nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],' +
-        'header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,' +
-        'img.wta-img-broken,img:not([src]),img[src=\"\"]' +
+        "        "'html,body{background-color:#060B15!important;color-scheme:dark!important;}' +" +
+        "'header,header.fixed.top-0,header[data-site-header],footer,[data-site-footer],.site-header,.site-footer,' +" +
+        "'nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"],' +" +
+        "'.hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only],' +" +
+        "'#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader,' +" +
+        "'nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],' +" +
+        "'header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,' +" +
+        "'img.wta-img-broken,img:not([src]),img[src=\"\"]' +" +
         '{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
