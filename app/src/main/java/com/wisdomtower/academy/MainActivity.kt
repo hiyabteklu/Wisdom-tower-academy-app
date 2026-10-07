@@ -900,28 +900,22 @@ fun MainScreen(
         pendingNavRunnable?.let { mainHandler.removeCallbacks(it) }
         pendingNavRunnable = null
 
-        if (tabIndex != null) selectedIndex = tabIndex
-        if (resetHistory) pendingClearHistory = true
-
-        val wv = webView
-        val currentUrl = wv?.url.orEmpty().trim()
         val targetUrl = url.trim()
+        val wv = webView
 
-        // 1) Same-tab / same-section guard:
-        val isExactSameUrl = currentUrl.removeSuffix("/") == targetUrl.removeSuffix("/")
-        if (isExactSameUrl) {
-            return
-        }
         if (tabIndex != null) {
-            val rootUrl = StructuralNav.getSectionRootForTab(tabIndex).removeSuffix("/")
-            val isTargetRoot = targetUrl.removeSuffix("/") == rootUrl
-            if (isTargetRoot && selectedIndex == tabIndex && currentUrl.startsWith(rootUrl)) {
-                return
-            }
+            selectedIndex = tabIndex
+        } else {
+            selectedIndex = tabIndexForUrl(targetUrl, selectedIndex)
         }
+        if (resetHistory) pendingClearHistory = true
 
         if (!targetUrl.startsWith("file://") && !targetUrl.contains("offline.html")) {
             lastTargetUrl = targetUrl
+        }
+
+        if (!targetUrl.contains("tool=")) {
+            studyPageReturnUrl = ""
         }
 
         val targetTitle = when {
@@ -941,75 +935,26 @@ fun MainScreen(
         }
 
         val online = isOnline(context)
-        val isSiteLoaded = !currentUrl.startsWith("file://") && 
-                           !currentUrl.contains("offline.html") &&
-                           (currentUrl.contains("wisdom-tower-academy.live") || currentUrl.startsWith("https://"))
-
-        // Show custom loader only if there is a noticeable loading gap (60ms debounce)
         startNavigationLoading(delayMs = 0L)
-
-        // Ensure hide-chrome CSS is applied early before client-side transition
         wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
 
-        // 2) Tools URLs with ?tool= query: Load the FULL url into WebView, ensuring the query
-        // is preserved, pushing WebView history (for device back), and dispatching the bridge event.
+        // For tool URLs: remember previous study return URL if not already on a tool
         if (targetUrl.contains("tool=")) {
+            val currentUrl = wv.url.orEmpty().trim()
             if (!currentUrl.contains("tool=") && currentUrl.isNotBlank() && !currentUrl.startsWith("file://") && !currentUrl.contains("offline.html")) {
                 studyPageReturnUrl = currentUrl
             }
-            val path = try {
-                val u = Uri.parse(targetUrl)
-                (u.path ?: "") + if (!u.query.isNullOrBlank()) "?${u.query}" else ""
-            } catch (_: Exception) {
-                targetUrl.substringAfter("wisdom-tower-academy.live").ifBlank { targetUrl }
-            }
-            val escapedUrl = targetUrl.replace("'", "\\'")
-            val escapedPath = path.replace("'", "\\'")
-            val bridgeJs = "(function(){try{" +
-                "window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:'$escapedPath',url:'$escapedUrl'}}));" +
-                "if(typeof window.__wtaNavigate==='function'){window.__wtaNavigate('$escapedPath');}" +
-                "}catch(e){}})();"
-            wv.evaluateJavascript(bridgeJs, null)
-            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-            wv.loadUrl(targetUrl)
-            return
         }
 
-        // 3) Prefer soft client-side navigation over full loadUrl when online on live site
-        if (online && isSiteLoaded && !resetHistory) {
-            val escapedUrl = targetUrl.replace("'", "\\'")
-            val script = "($SOFT_NAV_JS)('$escapedUrl');"
-            wv.evaluateJavascript(script) { result ->
-                val res = result?.trim('"')?.trim() ?: ""
-                if (res != "ok" && res != "noop") {
-                    // Fall back to loadUrl only if soft nav is unavailable or fails
-                    mainHandler.post {
-                        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                        wv.loadUrl(targetUrl)
-                    }
-                } else if (res == "noop") {
-                    stopNavigationLoading(forceImmediate = true)
-                } else {
-                    mainHandler.postDelayed({
-                        stopNavigationLoading()
-                    }, 550L)
-                }
-            }
-        } else if (online) {
-            // Cold load or loading from offline page:
+        if (online) {
             wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
             wv.loadUrl(targetUrl)
         } else {
-            // Offline: keep existing cache / vault behavior
             if (WebCacheVault.has(context, targetUrl)) {
                 wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
                 wv.loadUrl(targetUrl)
             } else {
-                val r = Runnable {
-                    showOffline(wv, force = true)
-                }
-                pendingNavRunnable = r
-                mainHandler.postDelayed(r, 450L)
+                showOffline(wv, force = true)
             }
         }
     }
@@ -1385,42 +1330,6 @@ fun MainScreen(
                         Row(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            // Back / Done button when viewing a website tool: returns to previous study page cleanly
-                            AnimatedVisibility(
-                                visible = lastTargetUrl.contains("tool="),
-                                enter = fadeIn(tween(140)) + scaleIn(initialScale = 0.85f),
-                                exit = fadeOut(tween(140)) + scaleOut(targetScale = 0.85f)
-                            ) {
-                                Surface(
-                                    color = Accent.copy(alpha = 0.16f),
-                                    shape = RoundedCornerShape(999.dp),
-                                    border = BorderStroke(1.dp, Accent.copy(alpha = 0.45f)),
-                                    modifier = Modifier
-                                        .padding(end = 4.dp)
-                                        .clickable {
-                                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                            val wv = webView
-                                            if (wv != null && wv.canGoBack()) {
-                                                wv.goBack()
-                                            } else if (studyPageReturnUrl.isNotBlank()) {
-                                                val returnUrl = studyPageReturnUrl
-                                                studyPageReturnUrl = ""
-                                                navigateTo(returnUrl, tabIndex = tabIndexForUrl(returnUrl, 1))
-                                            } else {
-                                                navigateTo(StructuralNav.SITE_LEARNING, tabIndex = 1)
-                                            }
-                                        }
-                                ) {
-                                    Text(
-                                        text = "Done",
-                                        color = Accent,
-                                        fontSize = 11.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
-                                    )
-                                }
-                            }
-
                             // Small top-right indicator while study timer is running (zero floating countdown box)
                             val isTimerActive = (isTimerRunning || (isTimerPaused && timerRemainingSeconds > 0)) && !isTimerDismissed
                             AnimatedVisibility(
@@ -2299,63 +2208,6 @@ fun MainScreen(
                                     if (isGet && !req.isForMainFrame && !WebCacheVault.isDynamicListOrDataApi(u) && WebCacheVault.has(ctx, u)) {
                                         val cached = WebCacheVault.getCachedResponse(ctx, u)
                                         if (cached != null) return cached
-                                    }
-
-                                    // Online main frame: inject critical hide-chrome CSS directly into <head> before first paint
-                                    if (isGet && req.isForMainFrame && (u.contains("wisdom-tower-academy.live") || u.contains("wisdomtower.tech"))) {
-                                        try {
-                                            val fullUrl = WebCacheVault.normalizeUrl(u)
-                                            val conn = (URL(fullUrl).openConnection() as HttpURLConnection).apply {
-                                                requestMethod = "GET"
-                                                connectTimeout = 15_000
-                                                readTimeout = 25_000
-                                                instanceFollowRedirects = true
-                                                setRequestProperty("User-Agent", "WisdomTowerApp/1.0 (Linux; Android)")
-                                                try {
-                                                    val cookies = CookieManager.getInstance().getCookie(fullUrl)
-                                                    if (!cookies.isNullOrBlank()) {
-                                                        setRequestProperty("Cookie", cookies)
-                                                    }
-                                                } catch (_: Exception) {}
-                                            }
-                                            val code = conn.responseCode
-                                            if (code in 200..299) {
-                                                val contentType = conn.contentType ?: "text/html; charset=utf-8"
-                                                if (contentType.contains("text/html", ignoreCase = true)) {
-                                                    val rawBytes = conn.inputStream.use { it.readBytes() }
-                                                    val rawHtml = String(rawBytes, Charsets.UTF_8)
-                                                    val injectedHtml = if (rawHtml.contains("<head", ignoreCase = true)) {
-                                                        rawHtml.replaceFirst(Regex("(?i)<head[^>]*>"), "$0$CRITICAL_CHROME_STYLE")
-                                                    } else if (rawHtml.contains("<html", ignoreCase = true)) {
-                                                        rawHtml.replaceFirst(Regex("(?i)<html[^>]*>"), "$0<head>$CRITICAL_CHROME_STYLE</head>")
-                                                    } else {
-                                                        "$CRITICAL_CHROME_STYLE$rawHtml"
-                                                    }
-                                                    val respHeaders = HashMap<String, String>().apply {
-                                                        put("Content-Type", "text/html; charset=utf-8")
-                                                        put("Cache-Control", "no-cache")
-                                                        conn.headerFields.forEach { (k, v) ->
-                                                            if (k != null && !k.equals("Content-Length", ignoreCase = true) && !k.equals("Content-Encoding", ignoreCase = true)) {
-                                                                put(k, v.joinToString(", "))
-                                                            }
-                                                        }
-                                                    }
-                                                    WebCacheVault.io.execute {
-                                                        try {
-                                                            WebCacheVault.save(ctx, fullUrl, "text/html", "utf-8", rawBytes)
-                                                        } catch (_: Exception) {}
-                                                    }
-                                                    return WebResourceResponse(
-                                                        "text/html",
-                                                        "utf-8",
-                                                        code,
-                                                        "OK",
-                                                        respHeaders,
-                                                        ByteArrayInputStream(injectedHtml.toByteArray(Charsets.UTF_8))
-                                                    )
-                                                }
-                                            }
-                                        } catch (_: Exception) {}
                                     }
 
                                     // Online: precache assets in background

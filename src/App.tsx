@@ -120,13 +120,13 @@ export default function App() {
   };
 
   const handleNavClick = (tab: TabItem) => {
-    if (activeTab === tab.id && currentUrl === tab.url) return;
     if (currentUrl !== tab.url) {
       setHistoryStack((prev) => [...prev, currentUrl]);
     }
     setActiveTab(tab.id);
     setIsLoading(true);
     setCurrentUrl(tab.url);
+    setIframeKey((prev) => prev + 1);
     setIsMenuOpen(false);
     setTimeout(() => setIsLoading(false), 450);
   };
@@ -138,6 +138,7 @@ export default function App() {
       setHistoryStack((prev) => [...prev, currentUrl]);
     }
     setCurrentUrl(notifUrl);
+    setIframeKey((prev) => prev + 1);
   };
 
   const handleReload = () => {
@@ -146,30 +147,32 @@ export default function App() {
 
   const handleToolClick = (toolName: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner') => {
     const fullUrl = `https://www.wisdom-tower-academy.live/learning?tool=${toolName}`;
-    // Option A: Drawer Tools navigates the main WebView to the full ?tool= URL with history
-    if (currentUrl !== fullUrl && !currentUrl.includes(`tool=${toolName}`)) {
+    if (currentUrl !== fullUrl) {
       setHistoryStack((prev) => [...prev, currentUrl]);
     }
     setIsMenuOpen(false);
     setActiveTab('learning');
     setCurrentUrl(fullUrl);
+    setIframeKey((prev) => prev + 1);
   };
 
-  const handleBackOrDone = () => {
+  const handleDeviceBack = () => {
     if (historyStack.length > 0) {
       const prev = historyStack[historyStack.length - 1];
       setHistoryStack((s) => s.slice(0, -1));
       setCurrentUrl(prev);
+      setIframeKey((prev) => prev + 1);
       if (prev.includes('/learning')) setActiveTab('learning');
-      else if (prev.includes('/courses')) setActiveTab('courses');
-      else if (prev.includes('/study')) setActiveTab('study');
-      else if (prev.includes('/profile')) setActiveTab('profile');
+      else if (prev.includes('/packages')) setActiveTab('packages');
+      else if (prev.includes('/account')) setActiveTab('account');
+      else if (prev.includes('/settings')) setActiveTab('settings');
       else setActiveTab('home');
       return;
     }
     if (currentUrl.includes('tool=')) {
       setCurrentUrl('https://www.wisdom-tower-academy.live/learning');
       setActiveTab('learning');
+      setIframeKey((prev) => prev + 1);
       return;
     }
     try {
@@ -277,17 +280,6 @@ export default function App() {
               </div>
 
               <div className="flex items-center gap-1.5">
-                {/* Back / Done button returning to previous study page */}
-                {currentUrl.includes('tool=') && (
-                  <button
-                    onClick={handleBackOrDone}
-                    className="px-2.5 py-1 rounded-full bg-[#22E0FF]/15 hover:bg-[#22E0FF]/25 border border-[#22E0FF]/40 text-[#22E0FF] text-[11px] font-bold transition-all active:scale-95 flex items-center gap-1 shadow-sm"
-                    title="Done with tool — return to previous study page"
-                  >
-                    <span>Done</span>
-                  </button>
-                )}
-
                 {/* Small Top-Right Study Timer Indicator (inside top bar, zero floating countdown box) */}
                 <button
                   onClick={() => setIsTimerModalOpen(true)}
@@ -651,7 +643,7 @@ export default function App() {
             {/* Android Navigation Gesture Pill */}
             <div className="h-3.5 bg-[#060B15] flex items-center justify-center z-50 pb-1">
               <button
-                onClick={handleBackOrDone}
+                onClick={handleDeviceBack}
                 className="w-32 h-1 bg-slate-600/80 rounded-full cursor-pointer hover:bg-slate-400 transition-colors"
                 title="Device back navigation"
                 aria-label="Device back navigation"
