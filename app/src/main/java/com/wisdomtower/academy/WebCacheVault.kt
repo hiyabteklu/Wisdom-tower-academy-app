@@ -419,12 +419,14 @@ object WebCacheVault {
         "<style id=\"wta-critical-hide\">" +
         "header,header.fixed.top-0,header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
         "nav[aria-label=\"Main\"],nav.hidden.md\\:flex,.site-nav,.site-navigation,[data-site-nav]," +
-        "footer,footer[data-site-footer],.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
+        "body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
         ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
         "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
         "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
         "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
         "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
+        "footer:has(input),footer:has(form),#wt-ai-tutor-input,[role=\"dialog\"] footer" +
+        "{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}" +
         "</style>"
 
     fun getCachedResponse(ctx: Context, url: String): WebResourceResponse? {
