@@ -136,6 +136,25 @@ export default function App() {
     setIframeKey((prev) => prev + 1);
   };
 
+  const handleToolClick = (toolName: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner') => {
+    const fullUrl = `https://www.wisdom-tower-academy.live/learning?tool=${toolName}`;
+    const fullPath = `/learning?tool=${toolName}`;
+    setIsMenuOpen(false);
+    setActiveTab('learning');
+    setCurrentUrl(fullUrl);
+    setIsLoading(true);
+    if (iframeRef.current) {
+      try {
+        iframeRef.current.contentWindow?.postMessage({
+          type: 'wta-navigate',
+          detail: { path: fullPath, url: fullUrl }
+        }, '*');
+      } catch (_) {}
+      iframeRef.current.src = fullUrl;
+    }
+    setTimeout(() => setIsLoading(false), 450);
+  };
+
   return (
     <div className="min-h-screen bg-[#060911] text-slate-100 flex flex-col items-center justify-between p-2 sm:p-4 select-none font-sans">
       {/* Top Header / Environment Ribbon */}
@@ -300,55 +319,35 @@ export default function App() {
                   <div className="flex-1 overflow-y-auto space-y-1 text-xs">
                     <p className="text-[10px] font-bold text-[#22E0FF]/70 uppercase tracking-wider px-2 py-1">Tools</p>
                     <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/learning?tool=tutor');
-                        setActiveTab('learning');
-                      }}
+                      onClick={() => handleToolClick('tutor')}
                       className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
                       <Sparkles className="w-3.5 h-3.5 text-[#22E0FF]" />
                       <span>AI Tutor</span>
                     </button>
                     <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/learning?tool=calculator');
-                        setActiveTab('learning');
-                      }}
+                      onClick={() => handleToolClick('calculator')}
                       className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
                       <Calculator className="w-3.5 h-3.5 text-[#22E0FF]" />
                       <span>Calculator</span>
                     </button>
                     <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/learning?tool=notes');
-                        setActiveTab('learning');
-                      }}
+                      onClick={() => handleToolClick('notes')}
                       className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
                       <FileText className="w-3.5 h-3.5 text-[#22E0FF]" />
                       <span>Notebook</span>
                     </button>
                     <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/learning?tool=timer');
-                        setActiveTab('learning');
-                      }}
+                      onClick={() => handleToolClick('timer')}
                       className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
                       <Clock className="w-3.5 h-3.5 text-[#22E0FF]" />
                       <span>Timer</span>
                     </button>
                     <button
-                      onClick={() => {
-                        setIsMenuOpen(false);
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/learning?tool=planner');
-                        setActiveTab('learning');
-                      }}
+                      onClick={() => handleToolClick('planner')}
                       className="w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg hover:bg-[#22E0FF]/10 text-slate-200 hover:text-[#22E0FF] font-medium transition-all"
                     >
                       <Calendar className="w-3.5 h-3.5 text-[#22E0FF]" />
@@ -549,8 +548,7 @@ export default function App() {
                     <button
                       onClick={() => {
                         setIsTimerModalOpen(false);
-                        setCurrentUrl('https://www.wisdom-tower-academy.live/learning?tool=timer');
-                        setActiveTab('learning');
+                        handleToolClick('timer');
                       }}
                       className="w-full text-center text-[#22E0FF] text-[11px] font-medium hover:underline pt-1"
                     >

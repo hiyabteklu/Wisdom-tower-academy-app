@@ -221,11 +221,14 @@ private const val SOFT_NAV_JS =
     "(function(targetUrl){try{" +
         "if(!targetUrl||window.location.protocol==='file:')return 'fallback';" +
         "var cur=window.location.href;" +
-        "if(cur===targetUrl||cur.replace(/\\/$/,'')===targetUrl.replace(/\\/$/,''))return 'noop';" +
+        "if(cur===targetUrl)return 'noop';" +
         "var path=targetUrl;" +
         "try{var u=new URL(targetUrl,window.location.origin);path=u.pathname+u.search+u.hash;}catch(_){}" +
+        "try{" +
+            "window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:path,url:targetUrl}}));" +
+        "}catch(_){}" +
         "if(typeof window.__wtaNavigate==='function'){" +
-            "try{var r=window.__wtaNavigate(path);if(r!==false)return 'ok';}catch(_){}" +
+            "try{var r=window.__wtaNavigate(path);if(r===true||r==='ok')return 'ok';}catch(_){}" +
         "}" +
         "if(window.next&&window.next.router&&typeof window.next.router.push==='function'){" +
             "try{window.next.router.push(path);return 'ok';}catch(_){}" +
@@ -233,15 +236,6 @@ private const val SOFT_NAV_JS =
         "try{" +
             "var existing=document.querySelector('a[href=\"'+path+'\"],a[href=\"'+targetUrl+'\"]');" +
             "if(existing){existing.click();return 'ok';}" +
-            "var a=document.createElement('a');" +
-            "a.href=path;a.style.display='none';" +
-            "document.body.appendChild(a);" +
-            "a.dispatchEvent(new MouseEvent('click',{bubbles:true,cancelable:true,view:window}));" +
-            "document.body.removeChild(a);" +
-            "return 'ok';" +
-        "}catch(_){}" +
-        "try{" +
-            "window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:path,url:targetUrl}}));" +
         "}catch(_){}" +
         "return 'fallback';" +
     "}catch(e){return 'fallback';}})"
@@ -947,7 +941,28 @@ fun MainScreen(
         // Ensure hide-chrome CSS is applied early before client-side transition
         wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
 
-        // 2) Prefer soft client-side navigation over full loadUrl when online on live site
+        // 2) Tools URLs with ?tool= query: Load the FULL url into WebView, ensuring the query
+        // is preserved, pushing WebView history (for device back), and dispatching the bridge event.
+        if (targetUrl.contains("tool=")) {
+            val path = try {
+                val u = Uri.parse(targetUrl)
+                (u.path ?: "") + if (!u.query.isNullOrBlank()) "?${u.query}" else ""
+            } catch (_: Exception) {
+                targetUrl.substringAfter("wisdom-tower-academy.live").ifBlank { targetUrl }
+            }
+            val escapedUrl = targetUrl.replace("'", "\\'")
+            val escapedPath = path.replace("'", "\\'")
+            val bridgeJs = "(function(){try{" +
+                "window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:'$escapedPath',url:'$escapedUrl'}}));" +
+                "if(typeof window.__wtaNavigate==='function'){window.__wtaNavigate('$escapedPath');}" +
+                "}catch(e){}})();"
+            wv.evaluateJavascript(bridgeJs, null)
+            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+            wv.loadUrl(targetUrl)
+            return
+        }
+
+        // 3) Prefer soft client-side navigation over full loadUrl when online on live site
         if (online && isSiteLoaded && !resetHistory) {
             val escapedUrl = targetUrl.replace("'", "\\'")
             val script = "($SOFT_NAV_JS)('$escapedUrl');"
