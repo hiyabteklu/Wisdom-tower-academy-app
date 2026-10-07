@@ -76,6 +76,11 @@ export default function App() {
   const [viewMode, setViewMode] = useState<'device' | 'architecture' | 'checklist'>('device');
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [activeToolOverlay, setActiveToolOverlay] = useState<{
+    name: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner';
+    url: string;
+    title: string;
+  } | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   const stopStudyTimerWithEndFlow = () => {
@@ -137,22 +142,20 @@ export default function App() {
   };
 
   const handleToolClick = (toolName: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner') => {
+    const titleMap: Record<'tutor' | 'calculator' | 'notes' | 'timer' | 'planner', string> = {
+      tutor: 'AI Tutor',
+      calculator: 'Calculator',
+      notes: 'Notebook',
+      timer: 'Timer',
+      planner: 'Planner',
+    };
     const fullUrl = `https://www.wisdom-tower-academy.live/learning?tool=${toolName}`;
-    const fullPath = `/learning?tool=${toolName}`;
     setIsMenuOpen(false);
-    setActiveTab('learning');
-    setCurrentUrl(fullUrl);
-    setIsLoading(true);
-    if (iframeRef.current) {
-      try {
-        iframeRef.current.contentWindow?.postMessage({
-          type: 'wta-navigate',
-          detail: { path: fullPath, url: fullUrl }
-        }, '*');
-      } catch (_) {}
-      iframeRef.current.src = fullUrl;
-    }
-    setTimeout(() => setIsLoading(false), 450);
+    setActiveToolOverlay({
+      name: toolName,
+      url: fullUrl,
+      title: titleMap[toolName],
+    });
   };
 
   return (
@@ -570,6 +573,54 @@ export default function App() {
                 onLoad={() => setIsLoading(false)}
               />
 
+              {/* Tool Overlay Window (Non-destructive overlay preserving active study context) */}
+              {activeToolOverlay && (
+                <div className="absolute inset-0 z-40 bg-[#060B15] flex flex-col animate-in fade-in duration-150">
+                  <div className="h-11 bg-[#09111D] border-b border-[#22E0FF]/20 px-3 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-md bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center text-[#22E0FF]">
+                        {activeToolOverlay.name === 'tutor' && <Sparkles className="w-3.5 h-3.5" />}
+                        {activeToolOverlay.name === 'calculator' && <Calculator className="w-3.5 h-3.5" />}
+                        {activeToolOverlay.name === 'notes' && <FileText className="w-3.5 h-3.5" />}
+                        {activeToolOverlay.name === 'timer' && <Clock className="w-3.5 h-3.5" />}
+                        {activeToolOverlay.name === 'planner' && <Calendar className="w-3.5 h-3.5" />}
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-white leading-tight">{activeToolOverlay.title}</p>
+                        <p className="text-[9px] text-[#22E0FF]/80 leading-none">Learning Tool • Study Intact</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          const url = activeToolOverlay.url;
+                          setActiveToolOverlay(null);
+                          setActiveTab('learning');
+                          setCurrentUrl(url);
+                        }}
+                        className="text-slate-400 hover:text-white text-[11px] px-2 py-0.5 rounded"
+                      >
+                        Fullscreen
+                      </button>
+                      <button
+                        onClick={() => setActiveToolOverlay(null)}
+                        className="px-2.5 py-1 rounded-full bg-[#22E0FF]/15 hover:bg-[#22E0FF]/25 text-[#22E0FF] text-[11px] font-bold transition-all"
+                      >
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex-1 relative">
+                    <iframe
+                      src={activeToolOverlay.url}
+                      className="w-full h-full border-none bg-[#060B15]"
+                      title={activeToolOverlay.title}
+                      sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+                    />
+                  </div>
+                </div>
+              )}
+
               {/* Centered Transparent Custom Loader (No text, no card, continuous spin) */}
               {isLoading && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 transition-opacity duration-200">
@@ -615,6 +666,10 @@ export default function App() {
             <div className="h-3.5 bg-[#060B15] flex items-center justify-center z-50 pb-1">
               <button
                 onClick={() => {
+                  if (activeToolOverlay) {
+                    setActiveToolOverlay(null);
+                    return;
+                  }
                   try {
                     iframeRef.current?.contentWindow?.history.back();
                   } catch (_) {}

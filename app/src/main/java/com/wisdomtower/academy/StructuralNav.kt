@@ -16,12 +16,18 @@ object StructuralNav {
 
     /**
      * Structural back JS bridge.
-     * Structural parent tree is defined on the website; app invokes window.__wtaStructuralBack().
-     * If the website handles structural back -> "ok"
+     * Structural parent tree is defined on the website; app invokes window.__wtaInPageBack() or window.__wtaStructuralBack().
+     * If the website handles structural or in-page back -> "ok"
      * Else -> "root" / "not_ok"
      */
     const val STRUCTURAL_BACK_JS = """
 (function(){
+  try {
+    if (typeof window.__wtaInPageBack === 'function') {
+      var r = window.__wtaInPageBack();
+      if (r === true || r === 'ok') return 'ok';
+    }
+  } catch (e) {}
   try {
     if (typeof window.__wtaStructuralBack === 'function') {
       var r = window.__wtaStructuralBack();
@@ -61,6 +67,11 @@ object StructuralNav {
             val uri = Uri.parse(url)
             val path = uri.path?.trimEnd('/') ?: ""
             if (path.isEmpty() || path == "/") return null
+
+            // If the URL has tool query, the parent is the base path without the tool query
+            if (!uri.query.isNullOrBlank() && uri.query!!.contains("tool=")) {
+                return uri.buildUpon().clearQuery().query(null).fragment(null).build().toString()
+            }
 
             val segments = path.split('/').filter { it.isNotBlank() }
             if (segments.size > 1) {

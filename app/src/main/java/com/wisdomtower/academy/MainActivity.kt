@@ -654,6 +654,12 @@ sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: St
     object Settings : BottomNavItem("Settings", Icons.Filled.Settings, "https://www.wisdom-tower-academy.live/settings")
 }
 
+data class ToolOverlayState(
+    val url: String,
+    val title: String,
+    val toolName: String
+)
+
 private data class MenuLink(
     val label: String,
     val url: String,
@@ -847,6 +853,8 @@ fun MainScreen(
 
     var showNotificationSettingsDialog by remember { mutableStateOf(false) }
     var showTimerControlDialog by remember { mutableStateOf(false) }
+    var activeToolOverlay by remember { mutableStateOf<ToolOverlayState?>(null) }
+    var studyPageReturnUrl by remember { mutableStateOf("") }
     var previousTimerRunning by remember { mutableStateOf(false) }
     var lastOnlineUrl by remember { mutableStateOf(SITE) }
     var pendingClearHistory by remember { mutableStateOf(false) }
@@ -944,6 +952,9 @@ fun MainScreen(
         // 2) Tools URLs with ?tool= query: Load the FULL url into WebView, ensuring the query
         // is preserved, pushing WebView history (for device back), and dispatching the bridge event.
         if (targetUrl.contains("tool=")) {
+            if (!currentUrl.contains("tool=") && currentUrl.isNotBlank() && !currentUrl.startsWith("file://") && !currentUrl.contains("offline.html")) {
+                studyPageReturnUrl = currentUrl
+            }
             val path = try {
                 val u = Uri.parse(targetUrl)
                 (u.path ?: "") + if (!u.query.isNullOrBlank()) "?${u.query}" else ""
@@ -999,6 +1010,48 @@ fun MainScreen(
                 mainHandler.postDelayed(r, 450L)
             }
         }
+    }
+
+    /**
+     * Reliable tools entry without destroying study context.
+     * When student is on a deep study page (e.g. question bank, quiz, chapter),
+     * this opens the REAL website learning tool (?tool=...) in an overlay sheet,
+     * leaving the underlying study page WebView completely intact and mounted in-memory.
+     * When finished or on Back, dismissing the overlay immediately restores the exact study page.
+     */
+    fun openLearningTool(toolName: String, title: String) {
+        menuExpanded = false
+        val fullUrl = "https://www.wisdom-tower-academy.live/learning?tool=$toolName"
+        val fullPath = "/learning?tool=$toolName"
+        val wv = webView
+        val current = wv?.url.orEmpty().trim()
+        if (!current.contains("tool=") && current.isNotBlank() && !current.startsWith("file://") && !current.contains("offline.html")) {
+            studyPageReturnUrl = current
+        }
+
+        // If currently at clean /learning root, activate in-page so no reload is needed
+        val isCleanLearningRoot = current.removeSuffix("/").endsWith("/learning")
+        if (isCleanLearningRoot && wv != null) {
+            val inPageJs = "(function(){try{" +
+                "if(window.history&&window.history.pushState){" +
+                "  window.history.pushState(null,'','$fullPath');" +
+                "  window.dispatchEvent(new PopStateEvent('popstate'));" +
+                "}" +
+                "window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:'$fullPath',url:'$fullUrl'}}));" +
+                "return 'ok';" +
+                "}catch(e){return 'err';}})();"
+            wv.evaluateJavascript(inPageJs) { res ->
+                val ok = res?.trim('"') == "ok"
+                if (!ok) {
+                    activeToolOverlay = ToolOverlayState(url = fullUrl, title = title, toolName = toolName)
+                }
+            }
+            return
+        }
+
+        // For deep learning URLs (e.g. question bank, quiz, exam chapter) or other tabs:
+        // Present the real website tool inside the app's tool overlay sheet!
+        activeToolOverlay = ToolOverlayState(url = fullUrl, title = title, toolName = toolName)
     }
 
     // MP3-player style Study Timer state
@@ -1172,6 +1225,10 @@ fun MainScreen(
 
     val activity = context as? ComponentActivity
     BackHandler {
+        if (activeToolOverlay != null) {
+            activeToolOverlay = null
+            return@BackHandler
+        }
         if (showTimerControlDialog) {
             showTimerControlDialog = false
             return@BackHandler
@@ -1215,6 +1272,7 @@ fun MainScreen(
             mainHandler.post {
                 val activeUrl = wv.url ?: currentUrl
                 val activeTab = tabIndexForUrl(activeUrl, selectedIndex)
+                val isToolUrl = activeUrl.contains("tool=")
 
                 // 1) Prefer normal WebView history so device Back returns to the previous page
                 // (e.g. question bank -> tool -> Back -> question bank). Do not clear the whole stack to Home.
@@ -1229,12 +1287,23 @@ fun MainScreen(
                     }
                 }
 
-                // 2) If no previous history step, use structural parent hierarchy
+                // 2) If on a tool URL without web history, restore the remembered study return URL
+                if (isToolUrl && studyPageReturnUrl.isNotBlank() && studyPageReturnUrl != activeUrl) {
+                    val returnUrl = studyPageReturnUrl
+                    studyPageReturnUrl = ""
+                    navigateTo(returnUrl, tabIndex = tabIndexForUrl(returnUrl, 1))
+                    return@post
+                }
+
+                // 3) If no previous history step, use structural parent hierarchy
                 val parentUrl = StructuralNav.getParentStructuralUrl(activeUrl)
                 if (parentUrl != null) {
                     navigateTo(parentUrl, tabIndex = activeTab)
                 } else {
-                    if (activeTab != 0 || selectedIndex != 0) {
+                    if (isToolUrl) {
+                        // Never clear stack to Home from a tool page; fall back to learning hub
+                        navigateTo(StructuralNav.SITE_LEARNING, tabIndex = 1)
+                    } else if (activeTab != 0 || selectedIndex != 0) {
                         navigateTo(StructuralNav.SITE_HOME, tabIndex = 0)
                     } else {
                         triggerDoubleTapExit()
@@ -2516,8 +2585,7 @@ fun MainScreen(
                                 icon = Icons.Filled.AutoAwesome,
                                 label = "AI Tutor",
                                 onClick = {
-                                    menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=tutor", tabIndex = 1)
+                                    openLearningTool("tutor", "AI Tutor")
                                 }
                             )
 
@@ -2525,8 +2593,7 @@ fun MainScreen(
                                 icon = Icons.Filled.Calculate,
                                 label = "Calculator",
                                 onClick = {
-                                    menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=calculator", tabIndex = 1)
+                                    openLearningTool("calculator", "Calculator")
                                 }
                             )
 
@@ -2534,8 +2601,7 @@ fun MainScreen(
                                 icon = Icons.Filled.EditNote,
                                 label = "Notebook",
                                 onClick = {
-                                    menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=notes", tabIndex = 1)
+                                    openLearningTool("notes", "Notebook")
                                 }
                             )
 
@@ -2543,8 +2609,7 @@ fun MainScreen(
                                 icon = Icons.Filled.Timer,
                                 label = "Timer",
                                 onClick = {
-                                    menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=timer", tabIndex = 1)
+                                    openLearningTool("timer", "Timer")
                                 }
                             )
 
@@ -2552,8 +2617,7 @@ fun MainScreen(
                                 icon = Icons.Filled.CalendarMonth,
                                 label = "Planner",
                                 onClick = {
-                                    menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=planner", tabIndex = 1)
+                                    openLearningTool("planner", "Planner")
                                 }
                             )
 
@@ -2669,7 +2733,7 @@ fun MainScreen(
                 onStop = stopStudyTimerWithEndFlow,
                 onOpenLearning = {
                     showTimerControlDialog = false
-                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=timer", tabIndex = 1)
+                    openLearningTool("timer", "Timer")
                 },
                 onDismiss = { showTimerControlDialog = false }
             )
@@ -2681,6 +2745,17 @@ fun MainScreen(
                 onExit = {
                     showExitDialog = false
                     activity?.finish()
+                }
+            )
+        }
+
+        activeToolOverlay?.let { state ->
+            WebsiteToolOverlaySheet(
+                state = state,
+                onDismiss = { activeToolOverlay = null },
+                onOpenFullscreen = { url ->
+                    activeToolOverlay = null
+                    navigateTo(url, tabIndex = 1)
                 }
             )
         }
@@ -3368,6 +3443,176 @@ private fun TimerControlDialog(
                         color = Accent,
                         fontSize = 12.5.sp,
                         fontWeight = FontWeight.Medium
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Overlay sheet hosting the website's real learning tool (?tool=...).
+ * The underlying study page WebView remains mounted in the background,
+ * guaranteeing zero loss of active quiz answers, test timers, or reading position.
+ */
+@Composable
+private fun WebsiteToolOverlaySheet(
+    state: ToolOverlayState,
+    onDismiss: () -> Unit,
+    onOpenFullscreen: (String) -> Unit
+) {
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(
+            usePlatformDefaultWidth = false,
+            decorFitsSystemWindows = false
+        )
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color.Black.copy(alpha = 0.65f))
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF060B15))
+                    .windowInsetsPadding(WindowInsets.statusBars)
+                    .windowInsetsPadding(WindowInsets.navigationBars)
+            ) {
+                // Top Action Bar
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(54.dp)
+                        .background(Color(0xFF09111D))
+                        .padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(34.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Accent.copy(alpha = 0.15f))
+                                .border(1.dp, Accent.copy(alpha = 0.35f), RoundedCornerShape(8.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val icon = when (state.toolName) {
+                                "tutor" -> Icons.Filled.AutoAwesome
+                                "calculator" -> Icons.Filled.Calculate
+                                "notes" -> Icons.Filled.EditNote
+                                "timer" -> Icons.Filled.Timer
+                                else -> Icons.Filled.CalendarMonth
+                            }
+                            Icon(
+                                imageVector = icon,
+                                contentDescription = null,
+                                tint = Accent,
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                        Column {
+                            Text(
+                                text = state.title,
+                                color = Color.White,
+                                fontSize = 13.5.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Text(
+                                text = "Learning Tool • Study Intact",
+                                color = Accent.copy(alpha = 0.85f),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    }
+
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        TextButton(
+                            onClick = { onOpenFullscreen(state.url) },
+                            contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "Fullscreen",
+                                color = Muted,
+                                fontSize = 11.5.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                        Button(
+                            onClick = onDismiss,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Accent.copy(alpha = 0.2f),
+                                contentColor = Accent
+                            ),
+                            shape = RoundedCornerShape(999.dp),
+                            contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp),
+                            modifier = Modifier.height(32.dp)
+                        ) {
+                            Text(
+                                text = "Done",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                // Hairline divider
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(CardBorderSubtle)
+                )
+
+                // Tool WebView loading website learning tool URL
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                ) {
+                    AndroidView(
+                        modifier = Modifier.fillMaxSize(),
+                        factory = { ctx ->
+                            WebView(ctx).apply {
+                                layoutParams = ViewGroup.LayoutParams(
+                                    ViewGroup.LayoutParams.MATCH_PARENT,
+                                    ViewGroup.LayoutParams.MATCH_PARENT
+                                )
+                                setBackgroundColor(android.graphics.Color.parseColor("#060B15"))
+                                settings.apply {
+                                    javaScriptEnabled = true
+                                    domStorageEnabled = true
+                                    databaseEnabled = true
+                                    cacheMode = WebSettings.LOAD_DEFAULT
+                                    useWideViewPort = true
+                                    loadWithOverviewMode = true
+                                    displayZoomControls = false
+                                    builtInZoomControls = false
+                                    userAgentString = userAgentString.replace("; wv", "") + " WTA_NativeApp/1.0"
+                                }
+                                val cookieManager = CookieManager.getInstance()
+                                cookieManager.setAcceptCookie(true)
+                                cookieManager.setAcceptThirdPartyCookies(this, true)
+                                webViewClient = object : WebViewClient() {
+                                    override fun onPageFinished(view: WebView?, url: String?) {
+                                        super.onPageFinished(view, url)
+                                        view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+                                        view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                    }
+                                }
+                                loadUrl(state.url)
+                            }
+                        }
                     )
                 }
             }
