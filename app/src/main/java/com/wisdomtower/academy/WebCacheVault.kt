@@ -430,6 +430,30 @@ object WebCacheVault {
         "</style>"
 
     fun getCachedResponse(ctx: Context, url: String): WebResourceResponse? {
+        val cleanUrl = url.lowercase()
+        if (cleanUrl.contains("animation.gif")) {
+            return try {
+                val stream = ctx.assets.open("brand/animation.gif")
+                val headers = mapOf(
+                    "Access-Control-Allow-Origin" to "*",
+                    "Content-Type" to "image/gif",
+                    "Cache-Control" to "public, max-age=31536000, immutable"
+                )
+                WebResourceResponse("image/gif", null, 200, "OK", headers, stream)
+            } catch (_: Exception) { null }
+        }
+        if (cleanUrl.contains("brand/logo.png") || cleanUrl.endsWith("/logo.png")) {
+            return try {
+                val stream = ctx.assets.open("brand/logo.png")
+                val headers = mapOf(
+                    "Access-Control-Allow-Origin" to "*",
+                    "Content-Type" to "image/png",
+                    "Cache-Control" to "public, max-age=31536000, immutable"
+                )
+                WebResourceResponse("image/png", null, 200, "OK", headers, stream)
+            } catch (_: Exception) { null }
+        }
+
         if (!initialized) init(ctx)
         val dir = vaultDir(ctx)
         var matchedKey: String? = null

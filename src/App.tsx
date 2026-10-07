@@ -77,7 +77,22 @@ export default function App() {
   const [iframeKey, setIframeKey] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [historyStack, setHistoryStack] = useState<string[]>([]);
+  const [studyReturnUrl, setStudyReturnUrl] = useState<string>('https://www.wisdom-tower-academy.live/');
+  const [tutorQuery, setTutorQuery] = useState<string>('');
+  const [isTutorThinking, setIsTutorThinking] = useState<boolean>(false);
+  const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
+  const [useAppTutorChrome, setUseAppTutorChrome] = useState<boolean>(true);
+  const [tutorMessages, setTutorMessages] = useState<Array<{ id: string; role: 'assistant' | 'user'; content: string; timestamp: string }>>([
+    {
+      id: 'welcome',
+      role: 'assistant',
+      content: "👋 Welcome! I am your Wisdom Tower AI Tutor.\n\nAsk me any concept, formula, homework problem, or practice question from your high school, freshman, or engineering tracks. How can I help your studies today?",
+      timestamp: "Just now"
+    }
+  ]);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
+  const tutorInputRef = useRef<HTMLInputElement>(null);
 
   const stopStudyTimerWithEndFlow = () => {
     const wasActive = isTimerRunning || studySeconds > 0;
@@ -147,6 +162,9 @@ export default function App() {
 
   const handleToolClick = (toolName: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner') => {
     const fullUrl = `https://www.wisdom-tower-academy.live/learning?tool=${toolName}`;
+    if (!currentUrl.includes('tool=')) {
+      setStudyReturnUrl(currentUrl);
+    }
     if (currentUrl !== fullUrl) {
       setHistoryStack((prev) => [...prev, currentUrl]);
     }
@@ -156,7 +174,22 @@ export default function App() {
     setIframeKey((prev) => prev + 1);
   };
 
+  const handleReturnToStudyPage = () => {
+    const returnUrl = studyReturnUrl || 'https://www.wisdom-tower-academy.live/learning';
+    setCurrentUrl(returnUrl);
+    if (returnUrl.includes('/learning')) setActiveTab('learning');
+    else if (returnUrl.includes('/packages')) setActiveTab('packages');
+    else if (returnUrl.includes('/account')) setActiveTab('account');
+    else if (returnUrl.includes('/settings')) setActiveTab('settings');
+    else setActiveTab('home');
+    setIframeKey((prev) => prev + 1);
+  };
+
   const handleDeviceBack = () => {
+    if (currentUrl.includes('tool=')) {
+      handleReturnToStudyPage();
+      return;
+    }
     if (historyStack.length > 0) {
       const prev = historyStack[historyStack.length - 1];
       setHistoryStack((s) => s.slice(0, -1));
@@ -169,15 +202,57 @@ export default function App() {
       else setActiveTab('home');
       return;
     }
-    if (currentUrl.includes('tool=')) {
-      setCurrentUrl('https://www.wisdom-tower-academy.live/learning');
-      setActiveTab('learning');
-      setIframeKey((prev) => prev + 1);
-      return;
-    }
     try {
       iframeRef.current?.contentWindow?.history.back();
     } catch (_) {}
+  };
+
+  const handleSendTutorMessage = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    const query = tutorQuery.trim();
+    if (!query || isTutorThinking) return;
+
+    const userMsg = {
+      id: 'u-' + Date.now(),
+      role: 'user' as const,
+      content: query,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    };
+
+    setTutorMessages((prev) => [...prev, userMsg]);
+    setTutorQuery('');
+    setIsTutorThinking(true);
+
+    setTimeout(() => {
+      chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, 50);
+
+    setTimeout(() => {
+      let botReply = `Here is a structured explanation for **"${query}"**:\n\n1. **Core Concept**: In the Wisdom Tower Academy curriculum, this relates to foundational principles and problem-solving techniques.\n2. **Key Formula / Rule**: Review the associated definitions and examine boundary conditions carefully.\n3. **Practical Application**: Work through a model question step-by-step to test your understanding before the module exam.\n\nWould you like a sample practice question on this topic?`;
+
+      const qLower = query.toLowerCase();
+      if (qLower.includes('biology') || qLower.includes('cell') || qLower.includes('mitosis')) {
+        botReply = `**Cell Division & Mitosis (Grade 12 Biology)**\n\n- **Interphase**: G1, S phase (DNA replication), and G2.\n- **Prophase**: Chromatin condenses into chromosomes, nuclear envelope breaks down.\n- **Metaphase**: Chromosomes align along the metaphase plate.\n- **Anaphase**: Sister chromatids are pulled apart toward opposite poles.\n- **Telophase & Cytokinesis**: Nuclear envelopes reform and cytoplasm divides into two identical daughter cells.`;
+      } else if (qLower.includes('calculus') || qLower.includes('derivative') || qLower.includes('integral')) {
+        botReply = `**Calculus & Differentiation (Freshman Mathematics)**\n\n- **Power Rule**: d/dx [x^n] = n·x^(n-1)\n- **Product Rule**: (uv)' = u'v + uv'\n- **Chain Rule**: d/dx [f(g(x))] = f'(g(x)) · g'(x)\n- **Fundamental Theorem of Calculus**: ∫ from a to b of f(x) dx = F(b) - F(a).`;
+      } else if (qLower.includes('physics') || qLower.includes('newton') || qLower.includes('force')) {
+        botReply = `**Newton's Laws of Motion (Physics Track)**\n\n1. **First Law (Inertia)**: An object remains at rest or in uniform straight motion unless acted upon by an external net force.\n2. **Second Law**: F_net = m · a (Net force equals mass times acceleration).\n3. **Third Law**: For every action, there is an equal and opposite reaction (F_AB = -F_BA).`;
+      }
+
+      setTutorMessages((prev) => [
+        ...prev,
+        {
+          id: 'b-' + Date.now(),
+          role: 'assistant',
+          content: botReply,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        }
+      ]);
+      setIsTutorThinking(false);
+      setTimeout(() => {
+        chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+      }, 50);
+    }, 1400);
   };
 
   return (
@@ -587,32 +662,254 @@ export default function App() {
               </div>
             )}
 
-            {/* Main WebView Window */}
-            <div className="flex-1 relative bg-[#060B15] overflow-hidden">
-              <iframe
-                key={iframeKey}
-                ref={iframeRef}
-                src={currentUrl}
-                title="Wisdom Tower Academy"
-                className="w-full h-full border-none bg-[#060B15]"
-                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
-                onLoad={() => setIsLoading(false)}
-              />
-
-              {/* Centered Transparent Custom Loader (No text, no card, continuous spin) */}
-              {isLoading && (
-                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 transition-opacity duration-200">
-                  <div className="relative w-24 h-24 flex items-center justify-center">
-                    {/* Outer Cyan Arc */}
-                    <div className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#22E0FF] border-r-[#22E0FF]/40 animate-spin" style={{ animationDuration: '0.75s' }} />
-                    {/* Inner Violet Arc */}
-                    <div className="absolute inset-2.5 rounded-full border-[2px] border-transparent border-b-[#818CF8] border-l-[#818CF8]/40 animate-spin" style={{ animationDuration: '0.95s', animationDirection: 'reverse' }} />
-                    {/* Center Brand WT Logo */}
-                    <div className="w-12 h-12 rounded-xl bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center shadow-lg shadow-[#22E0FF]/15">
-                      <span className="font-black text-[#22E0FF] text-sm tracking-wider">WT</span>
+            {/* Main Content Area */}
+            <div className="flex-1 relative bg-[#060B15] overflow-hidden flex flex-col">
+              {currentUrl.includes('tool=tutor') && useAppTutorChrome ? (
+                /* App-Controlled AI Tutor Chrome */
+                <div className="flex-1 flex flex-col h-full bg-[#060B15] text-slate-100 overflow-hidden relative">
+                  {/* Tutor App Header */}
+                  <div className="shrink-0 h-12 bg-[#09111D] border-b border-[#22E0FF]/15 px-3 flex items-center justify-between z-20">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleReturnToStudyPage}
+                        className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Return to prior study page"
+                      >
+                        <ArrowLeft className="w-4 h-4 text-[#22E0FF]" />
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <img
+                          src="/animation.gif"
+                          alt="AI Tutor"
+                          className="w-5 h-5 rounded object-contain pointer-events-none select-none"
+                        />
+                        <div>
+                          <h2 className="text-xs font-bold text-white leading-tight">Wisdom Tower AI Tutor</h2>
+                          <p className="text-[9.5px] text-[#22E0FF] leading-none flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+                            App Chrome Active
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => setUseAppTutorChrome(false)}
+                        className="text-[10px] text-slate-400 hover:text-[#22E0FF] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 cursor-pointer"
+                        title="Switch to raw website view"
+                      >
+                        Web View
+                      </button>
+                      <button
+                        onClick={handleReturnToStudyPage}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
+                        title="Close tutor"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
+
+                  {/* Messages Scroll Area */}
+                  <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                    {tutorMessages.map((msg) => {
+                      const isBot = msg.role === 'assistant';
+                      return (
+                        <div
+                          key={msg.id}
+                          className={`flex items-start gap-2.5 max-w-full ${isBot ? '' : 'justify-end'}`}
+                        >
+                          {isBot && (
+                            /* AI avatar: existing logo GIF (blinking cyan dot / splash logo gif) played as-is with NO extra spin */
+                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 flex items-center justify-center shrink-0 mt-0.5 overflow-hidden shadow-sm">
+                              <img
+                                src="/animation.gif"
+                                alt="Wisdom Tower AI Tutor"
+                                className="w-full h-full object-contain pointer-events-none select-none"
+                              />
+                            </div>
+                          )}
+                          <div
+                            className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed max-w-[85%] shadow-md whitespace-pre-line ${
+                              isBot
+                                ? 'bg-[#0C1628]/95 border border-cyan-400/20 text-slate-100'
+                                : 'bg-gradient-to-r from-cyan-600/40 to-blue-600/40 border border-cyan-400/35 text-white ml-auto'
+                            }`}
+                          >
+                            {msg.content}
+                            <div className="mt-1 text-[9px] text-slate-400 text-right">
+                              {msg.timestamp}
+                            </div>
+                          </div>
+                          {!isBot && (
+                            <div className="w-7 h-7 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0 mt-0.5">
+                              <User className="w-3.5 h-3.5 text-slate-300" />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+
+                    {/* Thinking State */}
+                    {isTutorThinking && (
+                      <div className="flex items-start gap-2.5 animate-in fade-in duration-150">
+                        {/* Bot Avatar: logo GIF played as-is, NO extra spin */}
+                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 flex items-center justify-center shrink-0 mt-0.5 overflow-hidden shadow-sm">
+                          <img
+                            src="/animation.gif"
+                            alt="Wisdom Tower AI Tutor"
+                            className="w-full h-full object-contain pointer-events-none select-none"
+                          />
+                        </div>
+                        {/* Thinking row with small version of existing custom loading animation */}
+                        <div className="rounded-2xl px-3.5 py-2.5 bg-[#0C1628]/95 border border-cyan-400/25 text-slate-100 shadow-lg flex items-center gap-3">
+                          {/* Compact chat-row sized brand loader (28px) */}
+                          <div className="relative w-7 h-7 flex items-center justify-center shrink-0">
+                            {/* Outer Cyan Arc spinning fast clockwise */}
+                            <div
+                              className="absolute inset-0 rounded-full border-[2px] border-transparent border-t-[#22E0FF] border-r-[#22E0FF]/40 animate-spin"
+                              style={{ animationDuration: '0.75s' }}
+                            />
+                            {/* Radial Outward Gear Ticks SVG */}
+                            <svg
+                              className="absolute inset-0.5 w-6 h-6 animate-spin"
+                              style={{ animationDuration: '0.85s' }}
+                              viewBox="0 0 32 32"
+                            >
+                              <line x1="16" y1="2" x2="16" y2="5" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
+                              <line x1="16" y1="27" x2="16" y2="30" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
+                              <line x1="2" y1="16" x2="5" y2="16" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
+                              <line x1="27" y1="16" x2="30" y2="16" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
+                              <line x1="6.1" y1="6.1" x2="8.2" y2="8.2" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
+                              <line x1="23.8" y1="23.8" x2="25.9" y2="25.9" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
+                              <line x1="6.1" y1="25.9" x2="8.2" y2="23.8" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
+                              <line x1="23.8" y1="8.2" x2="25.9" y2="6.1" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
+                            </svg>
+                            {/* Inner Violet Arc spinning reverse counter-clockwise */}
+                            <div
+                              className="absolute inset-1 rounded-full border-[1.8px] border-transparent border-b-[#818CF8] border-l-[#818CF8]/40 animate-spin"
+                              style={{ animationDuration: '0.95s', animationDirection: 'reverse' }}
+                            />
+                            {/* Center brand animated logo */}
+                            <img
+                              src="/animation.gif"
+                              alt=""
+                              className="w-3.5 h-3.5 rounded object-contain relative z-10 pointer-events-none select-none"
+                            />
+                          </div>
+                          <div className="flex items-center gap-1.5 min-w-0">
+                            <span className="text-xs font-semibold text-cyan-200 tracking-wide">Thinking</span>
+                            <span className="flex items-center gap-0.5 mt-0.5">
+                              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-bounce [animation-delay:-0.3s]" />
+                              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-bounce [animation-delay:-0.15s]" />
+                              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-bounce" />
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    <div ref={chatBottomRef} />
+                  </div>
+
+                  {/* Quick suggestion pills */}
+                  <div className="px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 border-t border-white/5 bg-[#060B15]">
+                    {[
+                      'Biology: Cell Mitosis steps',
+                      'Freshman Calc: Chain rule',
+                      'Physics: Newton laws'
+                    ].map((sug) => (
+                      <button
+                        key={sug}
+                        onClick={() => {
+                          setTutorQuery(sug);
+                          tutorInputRef.current?.focus();
+                        }}
+                        className="text-[10px] whitespace-nowrap px-2.5 py-1 rounded-full bg-[#0C1628] border border-[#22E0FF]/20 text-slate-300 hover:text-[#22E0FF] hover:border-[#22E0FF]/50 transition-all cursor-pointer"
+                      >
+                        {sug}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Pinned Bottom Input */}
+                  <footer className="shrink-0 p-2 sm:p-2.5 border-t border-white/10 bg-[#070D1D] z-30 sticky bottom-0">
+                    <form
+                      onSubmit={handleSendTutorMessage}
+                      className="flex items-center gap-2 max-w-4xl mx-auto w-full"
+                    >
+                      <input
+                        ref={tutorInputRef}
+                        type="text"
+                        id="wt-ai-tutor-input"
+                        name="query"
+                        value={tutorQuery}
+                        onChange={(e) => setTutorQuery(e.target.value)}
+                        onFocus={() => setIsInputFocused(true)}
+                        onBlur={() => setIsInputFocused(false)}
+                        placeholder="Ask a question, formula, or problem…"
+                        disabled={isTutorThinking}
+                        autoComplete="off"
+                        autoCorrect="on"
+                        enterKeyHint="send"
+                        className="flex-1 bg-[#060B17] border border-white/15 focus:border-[#22E0FF] rounded-2xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none transition-colors"
+                      />
+                      <button
+                        type="submit"
+                        disabled={!tutorQuery.trim() || isTutorThinking}
+                        className="p-2 sm:p-2.5 rounded-2xl bg-[#22E0FF] text-slate-950 hover:bg-cyan-300 disabled:opacity-40 font-bold transition-all active:scale-95 cursor-pointer shadow-md shadow-[#22E0FF]/25 shrink-0 flex items-center justify-center"
+                        aria-label="Send question"
+                      >
+                        <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                      </button>
+                    </form>
+                  </footer>
                 </div>
+              ) : (
+                /* Main WebView Window */
+                <>
+                  <iframe
+                    key={iframeKey}
+                    ref={iframeRef}
+                    src={currentUrl}
+                    title="Wisdom Tower Academy"
+                    className="w-full h-full border-none bg-[#060B15]"
+                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+                    onLoad={() => setIsLoading(false)}
+                  />
+
+                  {currentUrl.includes('tool=tutor') && !useAppTutorChrome && (
+                    <div className="absolute top-2 right-2 z-30">
+                      <button
+                        onClick={() => setUseAppTutorChrome(true)}
+                        className="text-[10px] text-cyan-300 bg-[#0C1628]/90 border border-cyan-400/40 px-2 py-1 rounded-full shadow-lg cursor-pointer"
+                      >
+                        Switch to App Chrome
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Centered Transparent Custom Loader (No text, no card, continuous spin) */}
+                  {isLoading && (
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 transition-opacity duration-200">
+                      <div className="relative w-24 h-24 flex items-center justify-center">
+                        {/* Outer Cyan Arc */}
+                        <div
+                          className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#22E0FF] border-r-[#22E0FF]/40 animate-spin"
+                          style={{ animationDuration: '0.75s' }}
+                        />
+                        {/* Inner Violet Arc */}
+                        <div
+                          className="absolute inset-2.5 rounded-full border-[2px] border-transparent border-b-[#818CF8] border-l-[#818CF8]/40 animate-spin"
+                          style={{ animationDuration: '0.95s', animationDirection: 'reverse' }}
+                        />
+                        {/* Center Brand WT Logo */}
+                        <div className="w-12 h-12 rounded-xl bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center shadow-lg shadow-[#22E0FF]/15">
+                          <span className="font-black text-[#22E0FF] text-sm tracking-wider">WT</span>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
 

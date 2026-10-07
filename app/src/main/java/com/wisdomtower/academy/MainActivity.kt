@@ -83,6 +83,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.ime
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -95,6 +97,7 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.windowInsetsPadding
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -413,6 +416,137 @@ private const val NATIVE_CHROME_JS =
             "});" +
         "}" +
         "}catch(e){}})();"
+
+private const val AI_TUTOR_CHROME_JS =
+    "(function(){try{" +
+        "if(window.location.protocol==='file:')return;" +
+        "var styleId='wta-ai-tutor-style';" +
+        "var st=document.getElementById(styleId);" +
+        "if(!st){" +
+            "st=document.createElement('style');" +
+            "st.id=styleId;" +
+            "st.textContent=" +
+                "'@keyframes wtaSpinFast{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}' +" +
+                "'@keyframes wtaSpinGear{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}' +" +
+                "'@keyframes wtaSpinReverse{0%{transform:rotate(360deg);}100%{transform:rotate(0deg);}}' +" +
+                "'div:has(#wt-ai-tutor-input){bottom:0!important;}' +" +
+                "'footer:has(#wt-ai-tutor-input){display:block!important;visibility:visible!important;position:sticky!important;bottom:0!important;z-index:50!important;background-color:#070d1d!important;border-top:1px solid rgba(255,255,255,0.12)!important;padding-bottom:max(0.5rem,env(safe-area-inset-bottom,0px))!important;}' +" +
+                "'#wt-ai-tutor-input{font-size:16px!important;color:#FFFFFF!important;caret-color:#00E5FF!important;background-color:#060B17!important;visibility:visible!important;opacity:1!important;}' +" +
+                "'.wta-tutor-avatar,img.wta-tutor-avatar-img{animation:none!important;transform:none!important;}';" +
+            "(document.head||document.documentElement).appendChild(st);" +
+        "}" +
+        "function syncAiTutorChrome(){" +
+            "try{" +
+                "var p=(window.location.pathname||'').toLowerCase();" +
+                "var q=(window.location.search||'').toLowerCase();" +
+                "var isTutor=p.indexOf('/learning')!==-1&&q.indexOf('tool=tutor')!==-1;" +
+                "var hasTutorInput=document.getElementById('wt-ai-tutor-input')!==null;" +
+                "if(!isTutor&&!hasTutorInput)return;" +
+                "var botBoxes=document.querySelectorAll('div.w-8.h-8.rounded-xl, [data-bot-avatar]');" +
+                "for(var i=0;i<botBoxes.length;i++){" +
+                    "var box=botBoxes[i];" +
+                    "if(box.getAttribute('data-wta-avatar')==='ready')continue;" +
+                    "var svg=box.querySelector('svg');" +
+                    "if(svg){" +
+                        "var cls=box.className||'';" +
+                        "var isBot=cls.indexOf('cyan')!==-1||cls.indexOf('indigo')!==-1||cls.indexOf('shadow')!==-1;" +
+                        "var parentRow=box.closest('.flex');" +
+                        "if(isBot||(parentRow&&(parentRow.textContent||'').indexOf('Thinking')!==-1)){" +
+                            "box.setAttribute('data-wta-avatar','ready');" +
+                            "box.style.padding='0';" +
+                            "box.style.overflow='hidden';" +
+                            "box.style.display='flex';" +
+                            "box.style.alignItems='center';" +
+                            "box.style.justifyContent='center';" +
+                            "box.style.animation='none';" +
+                            "box.style.transform='none';" +
+                            "svg.style.display='none';" +
+                            "if(!box.querySelector('img.wta-tutor-avatar-img')){" +
+                                "var img=document.createElement('img');" +
+                                "img.src='/animation.gif';" +
+                                "img.alt='Wisdom Tower AI Tutor';" +
+                                "img.className='wta-tutor-avatar-img';" +
+                                "img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:12px;pointer-events:none;animation:none!important;transform:none!important;';" +
+                                "box.appendChild(img);" +
+                            "}" +
+                        "}" +
+                    "}" +
+                "}" +
+                "var spans=document.querySelectorAll('span,div');" +
+                "for(var j=0;j<spans.length;j++){" +
+                    "var spNode=spans[j];" +
+                    "if((spNode.textContent||'').trim()==='Thinking'&&spNode.parentElement){" +
+                        "var row=spNode.closest('.flex');" +
+                        "if(row){" +
+                            "var spinners=row.querySelectorAll('.animate-spin,div.w-4.h-4');" +
+                            "for(var k=0;k<spinners.length;k++){" +
+                                "var sEl=spinners[k];" +
+                                "var sParent=sEl.parentElement;" +
+                                "if(sParent&&sParent.getAttribute('data-wta-loader')!=='done'){" +
+                                    "sParent.setAttribute('data-wta-loader','done');" +
+                                    "sEl.style.display='none';" +
+                                    "var extra=sParent.querySelectorAll('.animate-pulse,.absolute');" +
+                                    "for(var e=0;e<extra.length;e++){extra[e].style.display='none';}" +
+                                    "var loader=document.createElement('div');" +
+                                    "loader.className='wta-compact-brand-loader';" +
+                                    "loader.style.cssText='position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0;';" +
+                                    "loader.innerHTML=" +
+                                        "'<div style=\"position:absolute;inset:0;border-radius:50%;border:2px solid transparent;border-top-color:#00E5FF;border-right-color:rgba(0,229,255,0.4);animation:wtaSpinFast 0.75s linear infinite;\"></div>' +" +
+                                        "'<svg viewBox=\"0 0 32 32\" style=\"position:absolute;inset:2px;width:24px;height:24px;animation:wtaSpinGear 0.85s linear infinite;\">' +" +
+                                            "'<line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"5\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                            "'<line x1=\"16\" y1=\"27\" x2=\"16\" y2=\"30\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                            "'<line x1=\"2\" y1=\"16\" x2=\"5\" y2=\"16\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                            "'<line x1=\"27\" y1=\"16\" x2=\"30\" y2=\"16\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                            "'<line x1=\"6.1\" y1=\"6.1\" x2=\"8.2\" y2=\"8.2\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                            "'<line x1=\"23.8\" y1=\"23.8\" x2=\"25.9\" y2=\"25.9\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                            "'<line x1=\"6.1\" y1=\"25.9\" x2=\"8.2\" y2=\"23.8\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                            "'<line x1=\"23.8\" y1=\"8.2\" x2=\"25.9\" y2=\"6.1\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
+                                        "'</svg>' +" +
+                                        "'<div style=\"position:absolute;inset:4px;border-radius:50%;border:1.8px solid transparent;border-bottom-color:#818CF8;border-left-color:rgba(129,140,248,0.4);animation:wtaSpinReverse 0.95s linear infinite;\"></div>' +" +
+                                        "'<img src=\"/animation.gif\" alt=\"\" style=\"width:14px;height:14px;object-fit:contain;border-radius:3px;position:relative;z-index:2;pointer-events:none;transform:none!important;animation:none!important;\" />';" +
+                                    "sParent.appendChild(loader);" +
+                                "}" +
+                            "}" +
+                        "}" +
+                    "}" +
+                "}" +
+                "var inputEl=document.getElementById('wt-ai-tutor-input');" +
+                "if(inputEl&&!inputEl.__wta_kb_bound){" +
+                    "inputEl.__wta_kb_bound=true;" +
+                    "function keepVisible(){" +
+                        "requestAnimationFrame(function(){" +
+                            "try{inputEl.scrollIntoView({block:'nearest',behavior:'smooth'});}catch(_){}" +
+                        "});" +
+                    "}" +
+                    "inputEl.addEventListener('focus',function(){keepVisible();setTimeout(keepVisible,150);setTimeout(keepVisible,350);});" +
+                    "inputEl.addEventListener('input',keepVisible);" +
+                    "if(window.visualViewport){window.visualViewport.addEventListener('resize',keepVisible);}" +
+                "}" +
+                "var closeBtns=document.querySelectorAll('button[aria-label*=\"close\" i],button:has(svg.lucide-x)');" +
+                "for(var c=0;c<closeBtns.length;c++){" +
+                    "var cb=closeBtns[c];" +
+                    "if(!cb.__wta_close_bound){" +
+                        "cb.__wta_close_bound=true;" +
+                        "cb.addEventListener('click',function(e){" +
+                            "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.returnToStudyPage==='function'){" +
+                                "e.preventDefault();e.stopPropagation();" +
+                                "window.AndroidOfflineVault.returnToStudyPage();" +
+                            "}" +
+                        "},true);" +
+                    "}" +
+                "}" +
+            "}catch(_){}" +
+        "}" +
+        "syncAiTutorChrome();" +
+        "if(!window.__wta_tutor_mo&&window.MutationObserver){" +
+            "window.__wta_tutor_mo=true;" +
+            "var tmo=new MutationObserver(syncAiTutorChrome);" +
+            "tmo.observe(document.documentElement||document.body,{childList:true,subtree:true});" +
+        "}" +
+        "if(!window.__wta_tutor_timer){" +
+            "window.__wta_tutor_timer=setInterval(syncAiTutorChrome,400);" +
+        "}" +
+    "}catch(e){}})();"
 
 private const val PRECACHE_AND_UNBLOCK_JS =
     "(function(){try{" +
@@ -1257,6 +1391,9 @@ fun MainScreen(
         return
     }
 
+    val density = LocalDensity.current
+    val isKeyboardVisible = WindowInsets.ime.getBottom(density) > 0
+
     Box(
         modifier = Modifier
             .fillMaxSize()
@@ -1444,20 +1581,23 @@ fun MainScreen(
                 }
             },
             bottomBar = {
-                AliveBottomNav(
-                    items = items,
-                    selectedIndex = selectedIndex,
-                    onItemSelected = { index, item ->
-                        selectedIndex = index
-                        navigateTo(item.url, index)
-                    }
-                )
+                if (!isKeyboardVisible) {
+                    AliveBottomNav(
+                        items = items,
+                        selectedIndex = selectedIndex,
+                        onItemSelected = { index, item ->
+                            selectedIndex = index
+                            navigateTo(item.url, index)
+                        }
+                    )
+                }
             }
         ) { padding ->
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
+                    .imePadding()
             ) {
                 // Main Web View
                 AndroidView(
@@ -1761,6 +1901,19 @@ fun MainScreen(
                                 fun isStudyTimerActive(): Boolean {
                                     return (isTimerRunning || (isTimerPaused && timerRemainingSeconds > 0)) && !isTimerDismissed
                                 }
+
+                                @JavascriptInterface
+                                fun returnToStudyPage() {
+                                    mainHandler.post {
+                                        if (studyPageReturnUrl.isNotBlank()) {
+                                            val returnUrl = studyPageReturnUrl
+                                            studyPageReturnUrl = ""
+                                            navigateTo(returnUrl, tabIndex = tabIndexForUrl(returnUrl, 1))
+                                        } else {
+                                            navigateTo(StructuralNav.SITE_LEARNING, tabIndex = 1)
+                                        }
+                                    }
+                                }
                             }, "AndroidOfflineVault")
 
                             webChromeClient = object : WebChromeClient() {
@@ -1839,6 +1992,7 @@ fun MainScreen(
                                     stopNavigationLoading()
                                     if (!u.startsWith("file://")) {
                                         view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                        view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                         view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                         view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                         view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
@@ -1890,6 +2044,7 @@ fun MainScreen(
                                     stopNavigationLoading()
                                     if (!u.startsWith("file://")) {
                                         wv.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                        wv.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                         wv.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
                                         wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                         wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
@@ -1897,6 +2052,7 @@ fun MainScreen(
                                         mainHandler.postDelayed({
                                             val cur = wv.url ?: ""
                                             if (!cur.startsWith("file://")) {
+                                                wv.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                                 wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                                 wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
                                                 wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
@@ -2155,6 +2311,31 @@ fun MainScreen(
                                                 "Cache-Control" to "no-cache, no-store, must-revalidate"
                                             )
                                             return WebResourceResponse("text/html", "utf-8", 200, "OK", headers, stream)
+                                        } catch (_: Exception) {}
+                                    }
+
+                                    // Local brand asset interception (instant 0ms, works 100% offline and online)
+                                    if (cleanLower.endsWith("/animation.gif") || cleanLower.contains("animation.gif") || cleanLower.contains("/brand/animation.gif")) {
+                                        try {
+                                            val stream = ctx.assets.open("brand/animation.gif")
+                                            val headers = mapOf(
+                                                "Content-Type" to "image/gif",
+                                                "Cache-Control" to "public, max-age=31536000, immutable",
+                                                "Access-Control-Allow-Origin" to "*"
+                                            )
+                                            return WebResourceResponse("image/gif", null, 200, "OK", headers, stream)
+                                        } catch (_: Exception) {}
+                                    }
+
+                                    if (cleanLower.endsWith("/logo.png") || cleanLower.contains("logo.png") || cleanLower.contains("/brand/logo.png")) {
+                                        try {
+                                            val stream = ctx.assets.open("brand/logo.png")
+                                            val headers = mapOf(
+                                                "Content-Type" to "image/png",
+                                                "Cache-Control" to "public, max-age=31536000, immutable",
+                                                "Access-Control-Allow-Origin" to "*"
+                                            )
+                                            return WebResourceResponse("image/png", null, 200, "OK", headers, stream)
                                         } catch (_: Exception) {}
                                     }
 
