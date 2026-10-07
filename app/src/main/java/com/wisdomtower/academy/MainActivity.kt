@@ -212,15 +212,6 @@ private val Muted = Color(0xFF94A3B8)
 private val TextPrimary = Color(0xFFF8FAFC)
 private val DarkOnCyan = Color(0xFF070D17) // Dark text on solid cyan pills
 
-private enum class ActiveToolOverlay {
-    NONE,
-    AI_TUTOR,
-    CALCULATOR,
-    NOTEBOOK,
-    TIMER,
-    PLANNER
-}
-
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 // Direct 200 URL (eliminates 308 redirect round-trip delay)
 private const val SITE = "https://www.wisdom-tower-academy.live/"
@@ -812,7 +803,6 @@ fun MainScreen(
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
-    var activeToolOverlay by remember { mutableStateOf(ActiveToolOverlay.NONE) }
 
     // Instant cold-start and process-death network validation
     val isInitiallyOnline = isOnline(context)
@@ -914,18 +904,16 @@ fun MainScreen(
         val targetUrl = url.trim()
 
         // 1) Same-tab / same-section guard:
-        // If already on that tab or same section, do nothing — no reload, no progress flash!
-        if (tabIndex != null) {
-            val currentSection = tabIndexForUrl(currentUrl, -1)
-            val isExactSameUrl = currentUrl.removeSuffix("/") == targetUrl.removeSuffix("/")
-            if (currentSection == tabIndex) {
-                // If on exact URL or already on this section's root/view, do nothing
-                if (isExactSameUrl || selectedIndex == tabIndex) {
-                    return
-                }
-            }
-        } else if (currentUrl.isNotBlank() && currentUrl.removeSuffix("/") == targetUrl.removeSuffix("/")) {
+        val isExactSameUrl = currentUrl.removeSuffix("/") == targetUrl.removeSuffix("/")
+        if (isExactSameUrl) {
             return
+        }
+        if (tabIndex != null) {
+            val rootUrl = StructuralNav.getSectionRootForTab(tabIndex).removeSuffix("/")
+            val isTargetRoot = targetUrl.removeSuffix("/") == rootUrl
+            if (isTargetRoot && selectedIndex == tabIndex && currentUrl.startsWith(rootUrl)) {
+                return
+            }
         }
 
         if (!targetUrl.startsWith("file://") && !targetUrl.contains("offline.html")) {
@@ -1038,9 +1026,6 @@ fun MainScreen(
         timerRemainingSeconds = 0
         isTimerDismissed = true
         showTimerControlDialog = false
-        if (activeToolOverlay == ActiveToolOverlay.TIMER) {
-            activeToolOverlay = ActiveToolOverlay.NONE
-        }
 
         val js = "(function(){try{" +
             "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'stop'}}));" +
@@ -1172,10 +1157,6 @@ fun MainScreen(
 
     val activity = context as? ComponentActivity
     BackHandler {
-        if (activeToolOverlay != ActiveToolOverlay.NONE) {
-            activeToolOverlay = ActiveToolOverlay.NONE
-            return@BackHandler
-        }
         if (showTimerControlDialog) {
             showTimerControlDialog = false
             return@BackHandler
@@ -1219,24 +1200,24 @@ fun MainScreen(
             mainHandler.post {
                 val activeUrl = wv.url ?: currentUrl
                 val activeTab = tabIndexForUrl(activeUrl, selectedIndex)
-                val parentUrl = StructuralNav.getParentStructuralUrl(activeUrl)
 
+                // 1) Prefer normal WebView history so device Back returns to the previous page
+                // (e.g. question bank -> tool -> Back -> question bank). Do not clear the whole stack to Home.
+                val list = wv.copyBackForwardList()
+                val currIdx = list.currentIndex
+                if (currIdx > 0 && wv.canGoBack()) {
+                    val prevItem = list.getItemAtIndex(currIdx - 1)
+                    val prevUrl = prevItem.url.orEmpty()
+                    if (prevUrl.isNotBlank() && !prevUrl.startsWith("file://") && !prevUrl.contains("offline.html")) {
+                        wv.goBack()
+                        return@post
+                    }
+                }
+
+                // 2) If no previous history step, use structural parent hierarchy
+                val parentUrl = StructuralNav.getParentStructuralUrl(activeUrl)
                 if (parentUrl != null) {
-                    val list = wv.copyBackForwardList()
-                    val currIdx = list.currentIndex
-                    var steppedViaHistory = false
-                    if (currIdx > 0) {
-                        val prevUrl = list.getItemAtIndex(currIdx - 1).url.orEmpty()
-                        val currFirst = Uri.parse(activeUrl).path?.trim('/')?.substringBefore('/') ?: ""
-                        val prevFirst = Uri.parse(prevUrl).path?.trim('/')?.substringBefore('/') ?: ""
-                        if (currFirst.isNotBlank() && currFirst == prevFirst) {
-                            wv.goBack()
-                            steppedViaHistory = true
-                        }
-                    }
-                    if (!steppedViaHistory) {
-                        navigateTo(parentUrl, tabIndex = activeTab)
-                    }
+                    navigateTo(parentUrl, tabIndex = activeTab)
                 } else {
                     if (activeTab != 0 || selectedIndex != 0) {
                         navigateTo(StructuralNav.SITE_HOME, tabIndex = 0)
@@ -2506,7 +2487,7 @@ fun MainScreen(
                                 .padding(horizontal = 10.dp),
                             verticalArrangement = Arrangement.spacedBy(2.dp)
                         ) {
-                            // Section: TOOLS (Quick Study Tools overlay — does not reset study session)
+                            // Section: TOOLS (Navigates WebView to website Learning tools)
                             Text(
                                 text = "TOOLS",
                                 color = Accent.copy(alpha = 0.8f),
@@ -2521,7 +2502,7 @@ fun MainScreen(
                                 label = "AI Tutor",
                                 onClick = {
                                     menuExpanded = false
-                                    activeToolOverlay = ActiveToolOverlay.AI_TUTOR
+                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=tutor", tabIndex = 1)
                                 }
                             )
 
@@ -2530,7 +2511,7 @@ fun MainScreen(
                                 label = "Calculator",
                                 onClick = {
                                     menuExpanded = false
-                                    activeToolOverlay = ActiveToolOverlay.CALCULATOR
+                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=calculator", tabIndex = 1)
                                 }
                             )
 
@@ -2539,7 +2520,7 @@ fun MainScreen(
                                 label = "Notebook",
                                 onClick = {
                                     menuExpanded = false
-                                    activeToolOverlay = ActiveToolOverlay.NOTEBOOK
+                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=notes", tabIndex = 1)
                                 }
                             )
 
@@ -2548,7 +2529,7 @@ fun MainScreen(
                                 label = "Timer",
                                 onClick = {
                                     menuExpanded = false
-                                    activeToolOverlay = ActiveToolOverlay.TIMER
+                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=timer", tabIndex = 1)
                                 }
                             )
 
@@ -2557,7 +2538,7 @@ fun MainScreen(
                                 label = "Planner",
                                 onClick = {
                                     menuExpanded = false
-                                    activeToolOverlay = ActiveToolOverlay.PLANNER
+                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=planner", tabIndex = 1)
                                 }
                             )
 
@@ -2673,82 +2654,12 @@ fun MainScreen(
                 onStop = stopStudyTimerWithEndFlow,
                 onOpenLearning = {
                     showTimerControlDialog = false
-                    navigateTo("https://www.wisdom-tower-academy.live/learning", tabIndex = 1)
+                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=timer", tabIndex = 1)
                 },
                 onDismiss = { showTimerControlDialog = false }
             )
         }
 
-        when (activeToolOverlay) {
-            ActiveToolOverlay.AI_TUTOR -> {
-                AiTutorDialog(
-                    onDismiss = { activeToolOverlay = ActiveToolOverlay.NONE }
-                )
-            }
-            ActiveToolOverlay.CALCULATOR -> {
-                CalculatorDialog(
-                    onDismiss = { activeToolOverlay = ActiveToolOverlay.NONE }
-                )
-            }
-            ActiveToolOverlay.NOTEBOOK -> {
-                NotebookDialog(
-                    onDismiss = { activeToolOverlay = ActiveToolOverlay.NONE }
-                )
-            }
-            ActiveToolOverlay.TIMER -> {
-                DedicatedTimerCardDialog(
-                    remainingSeconds = timerRemainingSeconds,
-                    isRunning = isTimerRunning,
-                    isPaused = isTimerPaused,
-                    onStartPreset = { seconds ->
-                        timerRemainingSeconds = seconds
-                        isTimerRunning = true
-                        isTimerPaused = false
-                        isTimerDismissed = false
-                        val js = "(function(){try{" +
-                            "var s={running:true,endAt:Date.now()+(${seconds}*1000),totalSec:${seconds},title:'Study Timer'};" +
-                            "localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));" +
-                            "window.dispatchEvent(new CustomEvent('wt-focus-timer'));" +
-                            "}catch(e){}})();"
-                        webView?.evaluateJavascript(js, null)
-                        Toast.makeText(context, "Focus session started (${seconds / 60}m) — we'll notify you on completion.", Toast.LENGTH_SHORT).show()
-                    },
-                    onTogglePlayPause = {
-                        if (isTimerRunning) {
-                            isTimerRunning = false
-                            isTimerPaused = true
-                            val js = "(function(){try{" +
-                                "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'pause'}}));" +
-                                "var raw=localStorage.getItem('wt_focus_timer_v1');" +
-                                "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=$timerRemainingSeconds;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
-                                "}catch(e){}})();"
-                            webView?.evaluateJavascript(js, null)
-                        } else {
-                            if (timerRemainingSeconds <= 0) {
-                                timerRemainingSeconds = 1500
-                            }
-                            isTimerRunning = true
-                            isTimerPaused = false
-                            isTimerDismissed = false
-                            val js = "(function(){try{" +
-                                "window.dispatchEvent(new CustomEvent('wta-study-timer-control',{detail:{action:'resume'}}));" +
-                                "var raw=localStorage.getItem('wt_focus_timer_v1');" +
-                                "if(raw){var s=JSON.parse(raw);s.running=true;s.endAt=Date.now()+($timerRemainingSeconds*1000);localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
-                                "}catch(e){}})();"
-                            webView?.evaluateJavascript(js, null)
-                        }
-                    },
-                    onStop = stopStudyTimerWithEndFlow,
-                    onDismiss = { activeToolOverlay = ActiveToolOverlay.NONE }
-                )
-            }
-            ActiveToolOverlay.PLANNER -> {
-                StudyPlannerDialog(
-                    onDismiss = { activeToolOverlay = ActiveToolOverlay.NONE }
-                )
-            }
-            ActiveToolOverlay.NONE -> {}
-        }
         if (showExitDialog) {
             ExitGuiltDialog(
                 onStay = { showExitDialog = false },
@@ -2761,1029 +2672,6 @@ fun MainScreen(
     }
 }
 
-private data class TutorMessage(val isUser: Boolean, val text: String)
-
-@Composable
-private fun AiTutorDialog(
-    onDismiss: () -> Unit
-) {
-    var queryText by remember { mutableStateOf("") }
-    var chatHistory by remember {
-        mutableStateOf(
-            listOf(
-                TutorMessage(
-                    isUser = false,
-                    text = "Welcome to the AI Study Tutor! I can clarify complex concepts, break down physics & chemistry formulas, provide calculus steps, or share exam tips while you study."
-                )
-            )
-        )
-    }
-
-    val suggestions = listOf(
-        "Newton's Laws & Mechanics",
-        "Calculus Integration Steps",
-        "Chemical Kinetics & Rates",
-        "Exam Problem Strategy"
-    )
-
-    fun handleSend(prompt: String) {
-        val q = prompt.trim()
-        if (q.isBlank()) return
-        val answer = when {
-            q.contains("newton", ignoreCase = true) || q.contains("mechanics", ignoreCase = true) ->
-                "Newton's Laws Breakdown:\n1. Law of Inertia: An object at rest stays at rest, and an object in uniform motion remains so unless an external net force acts (ΣF = 0).\n2. Law of Acceleration: Net force equals mass times acceleration: F_net = m·a.\n3. Action-Reaction: Forces always exist in paired opposites: F_AB = -F_BA with equal magnitude and opposite direction."
-            q.contains("calculus", ignoreCase = true) || q.contains("integration", ignoreCase = true) || q.contains("derivative", ignoreCase = true) ->
-                "Integration by Parts Rule:\nFormula: ∫ u dv = u·v - ∫ v du\nStrategy (LIATE rule to choose u):\n• L: Logarithmic (ln x)\n• I: Inverse trigonometric (arctan x)\n• A: Algebraic (x², 3x)\n• T: Trigonometric (sin x, cos x)\n• E: Exponential (eˣ)\nRemember + C for indefinite integrals!"
-            q.contains("chemistry", ignoreCase = true) || q.contains("kinetic", ignoreCase = true) || q.contains("equilibrium", ignoreCase = true) ->
-                "Chemical Kinetics & Equilibrium:\n• Rate Law: Rate = k[A]^m [B]^n (m & n determined experimentally).\n• Arrhenius Equation: k = A·e^(-Ea / RT).\n• Le Chatelier's Principle: When a dynamic equilibrium is disturbed, the system shifts to counteract the imposed change."
-            q.contains("exam", ignoreCase = true) || q.contains("strategy", ignoreCase = true) || q.contains("tip", ignoreCase = true) ->
-                "Academy Exam Tactics:\n1. First Pass: Complete high-confidence questions first to bank guaranteed marks.\n2. Dimensional Analysis: Check units on final answers.\n3. Show Working: Always state the core formula before substituting values."
-            else ->
-                "Key Concept Note on \"$q\":\nIdentify given parameters and target variables. State the governing formula, isolate the target algebraically, and calculate with standard SI units."
-        }
-        chatHistory = chatHistory + TutorMessage(isUser = true, text = q) + TutorMessage(isUser = false, text = answer)
-        queryText = ""
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            color = CardSurface,
-            shape = RoundedCornerShape(20.dp),
-            border = BorderStroke(1.dp, CardBorder),
-            shadowElevation = 24.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f)
-                .padding(vertical = 16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x2622E0FF)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.AutoAwesome,
-                                contentDescription = null,
-                                tint = Accent,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "AI Tutor",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Instant Study Guidance",
-                                color = Muted,
-                                fontSize = 10.5.sp
-                            )
-                        }
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Muted, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(CardBorderSubtle))
-                Spacer(modifier = Modifier.height(8.dp))
-
-                Text(
-                    text = "QUICK TOPICS",
-                    color = Accent.copy(alpha = 0.8f),
-                    fontSize = 9.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 0.8.sp
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .horizontalScroll(rememberScrollState()),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    suggestions.forEach { topic ->
-                        Surface(
-                            color = Color(0x1A22E0FF),
-                            shape = RoundedCornerShape(999.dp),
-                            border = BorderStroke(1.dp, Color(0x3322E0FF)),
-                            modifier = Modifier.clickable { handleSend(topic) }
-                        ) {
-                            Text(
-                                text = topic,
-                                color = Accent,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp)
-                            )
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(chatHistory) { msg ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
-                        ) {
-                            Surface(
-                                color = if (msg.isUser) Color(0x3322E0FF) else Color(0xFF131C2E),
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, if (msg.isUser) Color(0x5522E0FF) else CardBorderSubtle),
-                                modifier = Modifier.widthIn(max = 280.dp)
-                            ) {
-                                Text(
-                                    text = msg.text,
-                                    color = Color.White,
-                                    fontSize = 12.sp,
-                                    lineHeight = 16.sp,
-                                    modifier = Modifier.padding(10.dp)
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedTextField(
-                        value = queryText,
-                        onValueChange = { queryText = it },
-                        placeholder = { Text("Ask any formula, concept or question...", fontSize = 11.5.sp, color = Muted) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Accent,
-                            unfocusedBorderColor = CardBorder,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            cursorColor = Accent
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    Button(
-                        onClick = { handleSend(queryText) },
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.height(48.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send",
-                            tint = Color(0xFF04101A),
-                            modifier = Modifier.size(16.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private class ExpressionEvaluator(private val str: String) {
-    private var pos = -1
-    private var ch = -1
-
-    private fun nextChar() {
-        pos++
-        ch = if (pos < str.length) str[pos].code else -1
-    }
-
-    private fun eat(charToEat: Int): Boolean {
-        while (ch == ' '.code) nextChar()
-        if (ch == charToEat) {
-            nextChar()
-            return true
-        }
-        return false
-    }
-
-    fun parse(): Double {
-        nextChar()
-        val x = parseExpression()
-        return if (pos < str.length) Double.NaN else x
-    }
-
-    private fun parseExpression(): Double {
-        var x = parseTerm()
-        while (true) {
-            if (eat('+'.code)) x += parseTerm()
-            else if (eat('-'.code)) x -= parseTerm()
-            else return x
-        }
-    }
-
-    private fun parseTerm(): Double {
-        var x = parseFactor()
-        while (true) {
-            if (eat('*'.code)) x *= parseFactor()
-            else if (eat('/'.code)) {
-                val d = parseFactor()
-                if (d == 0.0) return Double.NaN
-                x /= d
-            }
-            else if (eat('%'.code)) x %= parseFactor()
-            else return x
-        }
-    }
-
-    private fun parseFactor(): Double {
-        if (eat('+'.code)) return parseFactor()
-        if (eat('-'.code)) return -parseFactor()
-
-        var x: Double
-        val startPos = pos
-        if (eat('('.code)) {
-            x = parseExpression()
-            eat(')'.code)
-        } else if ((ch in '0'.code..'9'.code) || ch == '.'.code) {
-            while ((ch in '0'.code..'9'.code) || ch == '.'.code) nextChar()
-            x = str.substring(startPos, pos).toDoubleOrNull() ?: return Double.NaN
-        } else {
-            return Double.NaN
-        }
-
-        if (eat('^'.code)) x = Math.pow(x, parseFactor())
-        return x
-    }
-}
-
-private fun evaluateMathExpression(expr: String): String {
-    return try {
-        var clean = expr.replace("×", "*").replace("÷", "/").replace("π", "3.14159265").trim()
-        if (clean.isEmpty()) return "0"
-        val res = ExpressionEvaluator(clean).parse()
-        if (res.isNaN() || res.isInfinite()) "Error"
-        else if (res == res.toLong().toDouble()) res.toLong().toString()
-        else String.format(java.util.Locale.US, "%.4f", res).trimEnd('0').trimEnd('.')
-    } catch (_: Exception) {
-        "Error"
-    }
-}
-
-@Composable
-private fun CalcBtn(
-    label: String,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier,
-    isAccent: Boolean = false,
-    isDanger: Boolean = false,
-) {
-    Surface(
-        color = when {
-            isAccent -> Accent
-            isDanger -> Color(0x33EF4444)
-            else -> Color(0x1F22E0FF)
-        },
-        shape = RoundedCornerShape(10.dp),
-        border = BorderStroke(1.dp, if (isAccent) Accent else CardBorderSubtle),
-        modifier = modifier
-            .height(44.dp)
-            .clickable(onClick = onClick)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = label,
-                color = when {
-                    isAccent -> Color(0xFF04101A)
-                    isDanger -> Color(0xFFFF6B6B)
-                    else -> Color.White
-                },
-                fontSize = 15.sp,
-                fontWeight = FontWeight.Bold
-            )
-        }
-    }
-}
-
-@Composable
-private fun CalculatorDialog(
-    onDismiss: () -> Unit
-) {
-    var displayExpr by remember { mutableStateOf("") }
-    var resultText by remember { mutableStateOf("0") }
-    val view = LocalView.current
-
-    fun onKey(key: String) {
-        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-        when (key) {
-            "C" -> {
-                displayExpr = ""
-                resultText = "0"
-            }
-            "DEL" -> {
-                if (displayExpr.isNotEmpty()) {
-                    displayExpr = displayExpr.dropLast(1)
-                    resultText = if (displayExpr.isNotEmpty()) evaluateMathExpression(displayExpr) else "0"
-                }
-            }
-            "=" -> {
-                if (displayExpr.isNotEmpty()) {
-                    val evaluated = evaluateMathExpression(displayExpr)
-                    resultText = evaluated
-                    if (evaluated != "Error") {
-                        displayExpr = evaluated
-                    }
-                }
-            }
-            else -> {
-                displayExpr += key
-                val evaluated = evaluateMathExpression(displayExpr)
-                if (evaluated != "Error") {
-                    resultText = evaluated
-                }
-            }
-        }
-    }
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            color = CardSurface,
-            shape = RoundedCornerShape(20.dp),
-            border = BorderStroke(1.dp, CardBorder),
-            shadowElevation = 24.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(12.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x2622E0FF)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Calculate,
-                                contentDescription = null,
-                                tint = Accent,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Text(
-                            text = "Calculator",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Muted, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Surface(
-                    color = Color(0xFF070D18),
-                    shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, CardBorderSubtle),
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 12.dp, vertical = 10.dp),
-                        horizontalAlignment = Alignment.End
-                    ) {
-                        Text(
-                            text = if (displayExpr.isEmpty()) "0" else displayExpr,
-                            color = Muted,
-                            fontSize = 14.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = resultText,
-                            color = Accent,
-                            fontSize = 26.sp,
-                            fontWeight = FontWeight.Bold,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                val rows = listOf(
-                    listOf("C", "(", ")", "/"),
-                    listOf("7", "8", "9", "*"),
-                    listOf("4", "5", "6", "-"),
-                    listOf("1", "2", "3", "+"),
-                    listOf("0", ".", "DEL", "=")
-                )
-
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    rows.forEach { rowKeys ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            rowKeys.forEach { k ->
-                                CalcBtn(
-                                    label = k,
-                                    onClick = { onKey(k) },
-                                    modifier = Modifier.weight(1f),
-                                    isAccent = k == "=",
-                                    isDanger = k == "C"
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun NotebookDialog(
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("wta_notebook_prefs", Context.MODE_PRIVATE) }
-    var noteText by remember { mutableStateOf(prefs.getString("scratchpad_notes", "") ?: "") }
-    val view = LocalView.current
-
-    LaunchedEffect(noteText) {
-        prefs.edit().putString("scratchpad_notes", noteText).apply()
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            color = CardSurface,
-            shape = RoundedCornerShape(20.dp),
-            border = BorderStroke(1.dp, CardBorder),
-            shadowElevation = 24.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f)
-                .padding(vertical = 16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x2622E0FF)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.EditNote,
-                                contentDescription = null,
-                                tint = Accent,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "Notebook",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Auto-saved study scratchpad",
-                                color = Muted,
-                                fontSize = 10.5.sp
-                            )
-                        }
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Muted, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Surface(
-                        color = Color(0x1A22E0FF),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, CardBorderSubtle),
-                        modifier = Modifier.clickable {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            noteText = if (noteText.isEmpty()) "• " else "$noteText\n• "
-                        }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, tint = Accent, modifier = Modifier.size(13.dp))
-                            Text("+ Bullet", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                        }
-                    }
-
-                    Surface(
-                        color = Color(0x1A22E0FF),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, CardBorderSubtle),
-                        modifier = Modifier.clickable {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            clipboard.setPrimaryClip(ClipData.newPlainText("Wisdom Tower Notes", noteText))
-                            Toast.makeText(context, "Notes copied to clipboard", Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Filled.ContentCopy, contentDescription = null, tint = Accent, modifier = Modifier.size(13.dp))
-                            Text("Copy", color = Accent, fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.weight(1f))
-
-                    Surface(
-                        color = Color(0x26EF4444),
-                        shape = RoundedCornerShape(8.dp),
-                        border = BorderStroke(1.dp, Color(0x40EF4444)),
-                        modifier = Modifier.clickable {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                            noteText = ""
-                            Toast.makeText(context, "Scratchpad cleared", Toast.LENGTH_SHORT).show()
-                        }
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 5.dp),
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Filled.Delete, contentDescription = null, tint = Color(0xFFFF6B6B), modifier = Modifier.size(13.dp))
-                            Text("Clear", color = Color(0xFFFF6B6B), fontSize = 11.sp, fontWeight = FontWeight.Medium)
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                OutlinedTextField(
-                    value = noteText,
-                    onValueChange = { noteText = it },
-                    placeholder = { Text("Write formulas, notes, solution steps, or reminders here...", fontSize = 12.sp, color = Muted) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f),
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedBorderColor = Accent,
-                        unfocusedBorderColor = CardBorder,
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = Accent
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun DedicatedTimerCardDialog(
-    remainingSeconds: Int,
-    isRunning: Boolean,
-    isPaused: Boolean,
-    onStartPreset: (Int) -> Unit,
-    onTogglePlayPause: () -> Unit,
-    onStop: () -> Unit,
-    onDismiss: () -> Unit,
-) {
-    val mins = remainingSeconds / 60
-    val secs = remainingSeconds % 60
-    val formatted = String.format("%02d:%02d", mins, secs)
-
-    Dialog(onDismissRequest = onDismiss) {
-        Surface(
-            color = CardSurface,
-            shape = RoundedCornerShape(20.dp),
-            border = BorderStroke(1.dp, CardBorder),
-            shadowElevation = 24.dp,
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(20.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(30.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x2622E0FF)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.Timer,
-                                contentDescription = null,
-                                tint = Accent,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Text(
-                            text = "Timer",
-                            color = Color.White,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Muted, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Text(
-                    text = formatted,
-                    color = Accent,
-                    fontSize = 38.sp,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
-                )
-
-                Text(
-                    text = when {
-                        isRunning -> "Focus mode active — we'll notify you on completion"
-                        isPaused && remainingSeconds > 0 -> "Session paused"
-                        else -> "Choose a session block or start focus"
-                    },
-                    color = Muted,
-                    fontSize = 12.sp,
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(top = 4.dp, bottom = 14.dp)
-                )
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    listOf(15 to "15m", 25 to "25m", 45 to "45m", 60 to "60m").forEach { (min, label) ->
-                        Surface(
-                            color = Color(0x1F22E0FF),
-                            shape = RoundedCornerShape(8.dp),
-                            border = BorderStroke(1.dp, CardBorderSubtle),
-                            modifier = Modifier
-                                .weight(1f)
-                                .height(32.dp)
-                                .clickable { onStartPreset(min * 60) }
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Text(
-                                    text = label,
-                                    color = Accent,
-                                    fontSize = 11.5.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Button(
-                        onClick = onTogglePlayPause,
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) Color(0x3322E0FF) else Accent),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f).height(42.dp)
-                    ) {
-                        Icon(
-                            imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = null,
-                            tint = if (isRunning) Accent else Color(0xFF04101A),
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (isRunning) "Pause" else "Resume",
-                            color = if (isRunning) Accent else Color(0xFF04101A),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-
-                    Button(
-                        onClick = onStop,
-                        colors = ButtonDefaults.buttonColors(containerColor = Color(0x26EF4444)),
-                        shape = RoundedCornerShape(12.dp),
-                        modifier = Modifier.weight(1f).height(42.dp)
-                    ) {
-                        Text(
-                            text = "Stop",
-                            color = Color(0xFFEF4444),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-private data class PlannerTask(val id: Long, val text: String, val isDone: Boolean)
-
-@Composable
-private fun StudyPlannerDialog(
-    onDismiss: () -> Unit
-) {
-    val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("wta_planner_prefs", Context.MODE_PRIVATE) }
-    var newTaskText by remember { mutableStateOf("") }
-
-    var taskList by remember {
-        val raw = prefs.getString("tasks_list", null)
-        val initial = if (raw.isNullOrBlank()) {
-            listOf(
-                PlannerTask(1L, "Review Physics Question Bank (Mechanics)", false),
-                PlannerTask(2L, "Calculus: Complete 10 Integration Problems", false),
-                PlannerTask(3L, "Chemistry: Review Reaction Kinetics formulas", false),
-                PlannerTask(4L, "Complete 25m Focused Study Session", true)
-            )
-        } else {
-            raw.lines().filter { it.isNotBlank() }.mapIndexed { idx, line ->
-                val parts = line.split("|||")
-                if (parts.size >= 2) {
-                    PlannerTask(idx.toLong(), parts[0], parts[1].toBoolean())
-                } else {
-                    PlannerTask(idx.toLong(), line, false)
-                }
-            }
-        }
-        mutableStateOf(initial)
-    }
-
-    fun saveTasks(tasks: List<PlannerTask>) {
-        val encoded = tasks.joinToString("\n") { "${it.text}|||${it.isDone}" }
-        prefs.edit().putString("tasks_list", encoded).apply()
-    }
-
-    fun toggleTask(id: Long) {
-        taskList = taskList.map { if (it.id == id) it.copy(isDone = !it.isDone) else it }
-        saveTasks(taskList)
-    }
-
-    fun deleteTask(id: Long) {
-        taskList = taskList.filter { it.id != id }
-        saveTasks(taskList)
-    }
-
-    fun addTask() {
-        val t = newTaskText.trim()
-        if (t.isNotBlank()) {
-            val updated = taskList + PlannerTask(System.currentTimeMillis(), t, false)
-            taskList = updated
-            saveTasks(updated)
-            newTaskText = ""
-        }
-    }
-
-    Dialog(
-        onDismissRequest = onDismiss,
-        properties = DialogProperties(usePlatformDefaultWidth = false)
-    ) {
-        Surface(
-            color = CardSurface,
-            shape = RoundedCornerShape(20.dp),
-            border = BorderStroke(1.dp, CardBorder),
-            shadowElevation = 24.dp,
-            modifier = Modifier
-                .fillMaxWidth(0.94f)
-                .fillMaxHeight(0.85f)
-                .padding(vertical = 16.dp)
-        ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(32.dp)
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x2622E0FF)),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.CalendarMonth,
-                                contentDescription = null,
-                                tint = Accent,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        Column {
-                            Text(
-                                text = "Planner",
-                                color = Color.White,
-                                fontSize = 15.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Study Tasks & Goals",
-                                color = Muted,
-                                fontSize = 10.5.sp
-                            )
-                        }
-                    }
-                    IconButton(onClick = onDismiss, modifier = Modifier.size(28.dp)) {
-                        Icon(imageVector = Icons.Filled.Close, contentDescription = "Close", tint = Muted, modifier = Modifier.size(18.dp))
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-                Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(CardBorderSubtle))
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    OutlinedTextField(
-                        value = newTaskText,
-                        onValueChange = { newTaskText = it },
-                        placeholder = { Text("Add new study goal or task...", fontSize = 11.5.sp, color = Muted) },
-                        modifier = Modifier.weight(1f),
-                        singleLine = true,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = Accent,
-                            unfocusedBorderColor = CardBorder,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
-                            cursorColor = Accent
-                        ),
-                        shape = RoundedCornerShape(10.dp)
-                    )
-                    Button(
-                        onClick = { addTask() },
-                        colors = ButtonDefaults.buttonColors(containerColor = Accent),
-                        shape = RoundedCornerShape(10.dp),
-                        modifier = Modifier.height(48.dp)
-                    ) {
-                        Text("Add", color = Color(0xFF04101A), fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                LazyColumn(
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    items(taskList, key = { it.id }) { task ->
-                        Surface(
-                            color = Color(0xFF131C2E),
-                            shape = RoundedCornerShape(10.dp),
-                            border = BorderStroke(1.dp, if (task.isDone) CardBorderSubtle else Color(0x3322E0FF)),
-                            modifier = Modifier.fillMaxWidth()
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clickable { toggleTask(task.id) }
-                                    .padding(horizontal = 10.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = task.isDone,
-                                    onCheckedChange = { toggleTask(task.id) },
-                                    colors = CheckboxDefaults.colors(
-                                        checkedColor = Accent,
-                                        uncheckedColor = Muted,
-                                        checkmarkColor = Color(0xFF04101A)
-                                    ),
-                                    modifier = Modifier.size(24.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = task.text,
-                                    color = if (task.isDone) Muted else Color.White,
-                                    fontSize = 12.5.sp,
-                                    textDecoration = if (task.isDone) TextDecoration.LineThrough else null,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                IconButton(
-                                    onClick = { deleteTask(task.id) },
-                                    modifier = Modifier.size(26.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Delete,
-                                        contentDescription = "Delete task",
-                                        tint = Muted.copy(alpha = 0.7f),
-                                        modifier = Modifier.size(15.dp)
-                                    )
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
 
 /**
  * Advanced, high-tech bottom navigation bar.
