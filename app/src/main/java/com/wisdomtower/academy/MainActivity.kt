@@ -2323,8 +2323,6 @@ fun MainScreen(
                                         }
                                     }
 
-                                    val cleanLower = u.lowercase()
-
                                     // Intercept any attempt to load /offline or site's offline fallback
                                     if (cleanLower.endsWith("/offline") || cleanLower.contains("/offline")) {
                                         try {
