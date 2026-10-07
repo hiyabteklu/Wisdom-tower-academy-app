@@ -720,8 +720,8 @@ export default function App() {
                           className={`flex items-start gap-2.5 max-w-full ${isBot ? '' : 'justify-end'}`}
                         >
                           {isBot && (
-                            /* AI avatar: existing logo GIF (blinking cyan dot / splash logo gif) played as-is with NO extra spin */
-                            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 flex items-center justify-center shrink-0 mt-0.5 overflow-hidden shadow-sm">
+                            /* AI avatar: existing logo GIF (blinking cyan dot / splash logo gif) played as-is with NO extra spin, NO solid blue box */
+                            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
                               <img
                                 src="/animation.gif"
                                 alt="Wisdom Tower AI Tutor"
@@ -753,58 +753,24 @@ export default function App() {
                     {/* Thinking State */}
                     {isTutorThinking && (
                       <div className="flex items-start gap-2.5 animate-in fade-in duration-150">
-                        {/* Bot Avatar: logo GIF played as-is, NO extra spin */}
-                        <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-500/20 to-indigo-500/20 border border-cyan-400/30 flex items-center justify-center shrink-0 mt-0.5 overflow-hidden shadow-sm">
+                        {/* Bot Avatar: logo GIF played as-is, NO extra spin, NO solid blue box */}
+                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
                           <img
                             src="/animation.gif"
                             alt="Wisdom Tower AI Tutor"
                             className="w-full h-full object-contain pointer-events-none select-none"
                           />
                         </div>
-                        {/* Thinking row with small version of existing custom loading animation */}
-                        <div className="rounded-2xl px-3.5 py-2.5 bg-[#0C1628]/95 border border-cyan-400/25 text-slate-100 shadow-lg flex items-center gap-3">
-                          {/* Compact chat-row sized brand loader (28px) */}
-                          <div className="relative w-7 h-7 flex items-center justify-center shrink-0">
-                            {/* Outer Cyan Arc spinning fast clockwise */}
-                            <div
-                              className="absolute inset-0 rounded-full border-[2px] border-transparent border-t-[#22E0FF] border-r-[#22E0FF]/40 animate-spin"
-                              style={{ animationDuration: '0.75s' }}
-                            />
-                            {/* Radial Outward Gear Ticks SVG */}
-                            <svg
-                              className="absolute inset-0.5 w-6 h-6 animate-spin"
-                              style={{ animationDuration: '0.85s' }}
-                              viewBox="0 0 32 32"
-                            >
-                              <line x1="16" y1="2" x2="16" y2="5" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
-                              <line x1="16" y1="27" x2="16" y2="30" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
-                              <line x1="2" y1="16" x2="5" y2="16" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
-                              <line x1="27" y1="16" x2="30" y2="16" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
-                              <line x1="6.1" y1="6.1" x2="8.2" y2="8.2" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
-                              <line x1="23.8" y1="23.8" x2="25.9" y2="25.9" stroke="#22E0FF" strokeWidth="1.8" strokeLinecap="round" />
-                              <line x1="6.1" y1="25.9" x2="8.2" y2="23.8" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
-                              <line x1="23.8" y1="8.2" x2="25.9" y2="6.1" stroke="#38BDF8" strokeWidth="1.8" strokeLinecap="round" />
-                            </svg>
-                            {/* Inner Violet Arc spinning reverse counter-clockwise */}
-                            <div
-                              className="absolute inset-1 rounded-full border-[1.8px] border-transparent border-b-[#818CF8] border-l-[#818CF8]/40 animate-spin"
-                              style={{ animationDuration: '0.95s', animationDirection: 'reverse' }}
-                            />
-                            {/* Center brand animated logo */}
-                            <img
-                              src="/animation.gif"
-                              alt=""
-                              className="w-3.5 h-3.5 rounded object-contain relative z-10 pointer-events-none select-none"
-                            />
-                          </div>
-                          <div className="flex items-center gap-1.5 min-w-0">
-                            <span className="text-xs font-semibold text-cyan-200 tracking-wide">Thinking</span>
-                            <span className="flex items-center gap-0.5 mt-0.5">
-                              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-bounce [animation-delay:-0.3s]" />
-                              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-bounce [animation-delay:-0.15s]" />
-                              <span className="w-1 h-1 rounded-full bg-cyan-400 animate-bounce" />
-                            </span>
-                          </div>
+                        {/* Thinking row with small version of existing brand loading asset (animation.gif), ONE indicator only */}
+                        <div className="rounded-2xl px-3.5 py-2.5 bg-[#0C1628]/95 border border-cyan-400/25 text-slate-100 shadow-lg flex items-center gap-2.5">
+                          {/* Small brand loader: existing brand animation.gif asset scaled down for chat row */}
+                          <img
+                            src="/animation.gif"
+                            alt="Thinking…"
+                            className="w-6 h-6 object-contain pointer-events-none select-none shrink-0"
+                          />
+                          {/* ONE thinking indicator only: static label, NO duplicate animated dots */}
+                          <span className="text-xs font-semibold text-cyan-200 tracking-wide">Thinking…</span>
                         </div>
                       </div>
                     )}

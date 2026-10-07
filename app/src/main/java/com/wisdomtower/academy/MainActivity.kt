@@ -426,13 +426,12 @@ private const val AI_TUTOR_CHROME_JS =
             "st=document.createElement('style');" +
             "st.id=styleId;" +
             "st.textContent=" +
-                "'@keyframes wtaSpinFast{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}' +" +
-                "'@keyframes wtaSpinGear{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}' +" +
-                "'@keyframes wtaSpinReverse{0%{transform:rotate(360deg);}100%{transform:rotate(0deg);}}' +" +
                 "'div:has(#wt-ai-tutor-input){bottom:0!important;}' +" +
                 "'footer:has(#wt-ai-tutor-input){display:block!important;visibility:visible!important;position:sticky!important;bottom:0!important;z-index:50!important;background-color:#070d1d!important;border-top:1px solid rgba(255,255,255,0.12)!important;padding-bottom:max(0.5rem,env(safe-area-inset-bottom,0px))!important;}' +" +
                 "'#wt-ai-tutor-input{font-size:16px!important;color:#FFFFFF!important;caret-color:#00E5FF!important;background-color:#060B17!important;visibility:visible!important;opacity:1!important;}' +" +
-                "'.wta-tutor-avatar,img.wta-tutor-avatar-img{animation:none!important;transform:none!important;}';" +
+                "'.wta-tutor-avatar,img.wta-tutor-avatar-img{animation:none!important;transform:none!important;display:block!important;}' +" +
+                "'div.w-8.h-8.rounded-xl:has(img.wta-tutor-avatar-img){background:transparent!important;border-color:rgba(34,224,255,0.25)!important;}' +" +
+                "'.animate-bounce,span:has(> .animate-bounce),div:has(> .animate-bounce){display:none!important;}';" +
             "(document.head||document.documentElement).appendChild(st);" +
         "}" +
         "function syncAiTutorChrome(){" +
@@ -445,39 +444,43 @@ private const val AI_TUTOR_CHROME_JS =
                 "var botBoxes=document.querySelectorAll('div.w-8.h-8.rounded-xl, [data-bot-avatar]');" +
                 "for(var i=0;i<botBoxes.length;i++){" +
                     "var box=botBoxes[i];" +
-                    "if(box.getAttribute('data-wta-avatar')==='ready')continue;" +
-                    "var svg=box.querySelector('svg');" +
-                    "if(svg){" +
-                        "var cls=box.className||'';" +
-                        "var isBot=cls.indexOf('cyan')!==-1||cls.indexOf('indigo')!==-1||cls.indexOf('shadow')!==-1;" +
-                        "var parentRow=box.closest('.flex');" +
-                        "if(isBot||(parentRow&&(parentRow.textContent||'').indexOf('Thinking')!==-1)){" +
-                            "box.setAttribute('data-wta-avatar','ready');" +
-                            "box.style.padding='0';" +
-                            "box.style.overflow='hidden';" +
-                            "box.style.display='flex';" +
-                            "box.style.alignItems='center';" +
-                            "box.style.justifyContent='center';" +
-                            "box.style.animation='none';" +
-                            "box.style.transform='none';" +
-                            "svg.style.display='none';" +
-                            "if(!box.querySelector('img.wta-tutor-avatar-img')){" +
-                                "var img=document.createElement('img');" +
-                                "img.src='/animation.gif';" +
-                                "img.alt='Wisdom Tower AI Tutor';" +
-                                "img.className='wta-tutor-avatar-img';" +
-                                "img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:12px;pointer-events:none;animation:none!important;transform:none!important;';" +
-                                "box.appendChild(img);" +
-                            "}" +
+                    "var cls=box.className||'';" +
+                    "var isBot=cls.indexOf('cyan')!==-1||cls.indexOf('indigo')!==-1||cls.indexOf('shadow')!==-1;" +
+                    "var parentRow=box.closest('.flex');" +
+                    "if(isBot||(parentRow&&(parentRow.textContent||'').indexOf('Thinking')!==-1)){" +
+                        "box.setAttribute('data-wta-avatar','ready');" +
+                        "box.style.background='transparent';" +
+                        "box.style.padding='0';" +
+                        "box.style.overflow='hidden';" +
+                        "box.style.display='flex';" +
+                        "box.style.alignItems='center';" +
+                        "box.style.justifyContent='center';" +
+                        "box.style.animation='none';" +
+                        "box.style.transform='none';" +
+                        "var svg=box.querySelector('svg');" +
+                        "if(svg)svg.style.display='none';" +
+                        "if(!box.querySelector('img.wta-tutor-avatar-img')){" +
+                            "var img=document.createElement('img');" +
+                            "img.src='/animation.gif';" +
+                            "img.alt='Wisdom Tower AI Tutor';" +
+                            "img.className='wta-tutor-avatar-img';" +
+                            "img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:12px;pointer-events:none;animation:none!important;transform:none!important;display:block;';" +
+                            "box.appendChild(img);" +
                         "}" +
                     "}" +
                 "}" +
                 "var spans=document.querySelectorAll('span,div');" +
                 "for(var j=0;j<spans.length;j++){" +
                     "var spNode=spans[j];" +
-                    "if((spNode.textContent||'').trim()==='Thinking'&&spNode.parentElement){" +
+                    "if((spNode.textContent||'').trim().indexOf('Thinking')===0&&spNode.parentElement){" +
                         "var row=spNode.closest('.flex');" +
                         "if(row){" +
+                            "var bounceDots=row.querySelectorAll('.animate-bounce,[class*=\"animate-bounce\"]');" +
+                            "for(var b=0;b<bounceDots.length;b++){" +
+                                "var bdParent=bounceDots[b].parentElement;" +
+                                "if(bdParent&&bdParent!==row)bdParent.style.display='none';" +
+                                "bounceDots[b].style.display='none';" +
+                            "}" +
                             "var spinners=row.querySelectorAll('.animate-spin,div.w-4.h-4');" +
                             "for(var k=0;k<spinners.length;k++){" +
                                 "var sEl=spinners[k];" +
@@ -487,23 +490,11 @@ private const val AI_TUTOR_CHROME_JS =
                                     "sEl.style.display='none';" +
                                     "var extra=sParent.querySelectorAll('.animate-pulse,.absolute');" +
                                     "for(var e=0;e<extra.length;e++){extra[e].style.display='none';}" +
-                                    "var loader=document.createElement('div');" +
+                                    "var loader=document.createElement('img');" +
+                                    "loader.src='/animation.gif';" +
+                                    "loader.alt='Thinking';" +
                                     "loader.className='wta-compact-brand-loader';" +
-                                    "loader.style.cssText='position:relative;width:28px;height:28px;display:flex;align-items:center;justify-content:center;flex-shrink:0;';" +
-                                    "loader.innerHTML=" +
-                                        "'<div style=\"position:absolute;inset:0;border-radius:50%;border:2px solid transparent;border-top-color:#00E5FF;border-right-color:rgba(0,229,255,0.4);animation:wtaSpinFast 0.75s linear infinite;\"></div>' +" +
-                                        "'<svg viewBox=\"0 0 32 32\" style=\"position:absolute;inset:2px;width:24px;height:24px;animation:wtaSpinGear 0.85s linear infinite;\">' +" +
-                                            "'<line x1=\"16\" y1=\"2\" x2=\"16\" y2=\"5\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                            "'<line x1=\"16\" y1=\"27\" x2=\"16\" y2=\"30\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                            "'<line x1=\"2\" y1=\"16\" x2=\"5\" y2=\"16\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                            "'<line x1=\"27\" y1=\"16\" x2=\"30\" y2=\"16\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                            "'<line x1=\"6.1\" y1=\"6.1\" x2=\"8.2\" y2=\"8.2\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                            "'<line x1=\"23.8\" y1=\"23.8\" x2=\"25.9\" y2=\"25.9\" stroke=\"#00E5FF\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                            "'<line x1=\"6.1\" y1=\"25.9\" x2=\"8.2\" y2=\"23.8\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                            "'<line x1=\"23.8\" y1=\"8.2\" x2=\"25.9\" y2=\"6.1\" stroke=\"#38BDF8\" stroke-width=\"1.8\" stroke-linecap=\"round\"/>' +" +
-                                        "'</svg>' +" +
-                                        "'<div style=\"position:absolute;inset:4px;border-radius:50%;border:1.8px solid transparent;border-bottom-color:#818CF8;border-left-color:rgba(129,140,248,0.4);animation:wtaSpinReverse 0.95s linear infinite;\"></div>' +" +
-                                        "'<img src=\"/animation.gif\" alt=\"\" style=\"width:14px;height:14px;object-fit:contain;border-radius:3px;position:relative;z-index:2;pointer-events:none;transform:none!important;animation:none!important;\" />';" +
+                                    "loader.style.cssText='width:24px;height:24px;object-fit:contain;pointer-events:none;display:inline-block;flex-shrink:0;';" +
                                     "sParent.appendChild(loader);" +
                                 "}" +
                             "}" +
@@ -2165,6 +2156,38 @@ fun MainScreen(
                                     val method = req.method?.uppercase() ?: "GET"
                                     val isGet = method == "GET"
                                     val isHead = method == "HEAD"
+
+                                    val cleanLower = u.lowercase()
+                                    if (isGet && (cleanLower.contains("animation.gif") || cleanLower.contains("brand/animation.gif"))) {
+                                        try {
+                                            val stream = ctx.assets.open("brand/animation.gif")
+                                            val headers = mapOf(
+                                                "Access-Control-Allow-Origin" to "*",
+                                                "Cache-Control" to "public, max-age=31536000"
+                                            )
+                                            return WebResourceResponse("image/gif", null, 200, "OK", headers, stream)
+                                        } catch (_: Exception) {
+                                            val bytes = BrandBytes.gif(ctx)
+                                            if (bytes.isNotEmpty()) {
+                                                return WebResourceResponse("image/gif", null, 200, "OK", mapOf("Access-Control-Allow-Origin" to "*"), java.io.ByteArrayInputStream(bytes))
+                                            }
+                                        }
+                                    }
+                                    if (isGet && (cleanLower.contains("logo.png") || cleanLower.contains("brand/logo.png"))) {
+                                        try {
+                                            val stream = ctx.assets.open("brand/logo.png")
+                                            val headers = mapOf(
+                                                "Access-Control-Allow-Origin" to "*",
+                                                "Cache-Control" to "public, max-age=31536000"
+                                            )
+                                            return WebResourceResponse("image/png", null, 200, "OK", headers, stream)
+                                        } catch (_: Exception) {
+                                            val bytes = BrandBytes.logo(ctx)
+                                            if (bytes.isNotEmpty()) {
+                                                return WebResourceResponse("image/png", null, 200, "OK", mapOf("Access-Control-Allow-Origin" to "*"), java.io.ByteArrayInputStream(bytes))
+                                            }
+                                        }
+                                    }
 
                                     if ((isGet || isHead) && (u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u))) {
                                         val rangeHeader = req.requestHeaders?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
