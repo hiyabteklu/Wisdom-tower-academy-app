@@ -55,6 +55,7 @@ There is **no separate backend** for the app. The app is a secure, offline-capab
 9. **FLAG_SECURE** on
 10. **Back button** uses WebView history first
 11. **Offline cache** — Static pages, assets, and PDFs remain vaulted; dynamic list APIs are not persisted
+12. **Study Tool Overlay Layer** — Opening AI Tutor, Calculator, Notebook, Timer, or Planner never navigates the main WebView away. The underlying study page (notes, books, question bank, scroll position) remains fully loaded and alive. The tool runs in an independent overlay layer on top; tapping "Done", Close, or device Back dismisses the overlay and immediately reveals the exact study note intact.
 
 ---
 

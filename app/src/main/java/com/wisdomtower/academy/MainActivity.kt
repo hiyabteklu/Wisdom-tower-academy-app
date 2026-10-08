@@ -986,6 +986,22 @@ fun MainScreen(
     var lastOnlineUrl by remember { mutableStateOf(SITE) }
     var pendingClearHistory by remember { mutableStateOf(false) }
 
+    var activeToolOverlayUrl by remember { mutableStateOf<String?>(null) }
+    var activeToolOverlayTitle by remember { mutableStateOf("Study Tool") }
+    var activeToolOverlayLoading by remember { mutableStateOf(false) }
+    var toolOverlayWebView by remember { mutableStateOf<WebView?>(null) }
+
+    val openToolOverlay: (String, String) -> Unit = { url, title ->
+        menuExpanded = false
+        activeToolOverlayTitle = title
+        activeToolOverlayUrl = url
+    }
+
+    val closeToolOverlay: () -> Unit = {
+        activeToolOverlayUrl = null
+        toolOverlayWebView?.stopLoading()
+    }
+
     var pendingNavRunnable by remember { mutableStateOf<Runnable?>(null) }
 
     fun showOffline(wv: WebView, force: Boolean = false) {
@@ -1026,6 +1042,18 @@ fun MainScreen(
         pendingNavRunnable = null
 
         val targetUrl = url.trim()
+        if (targetUrl.contains("/learning") && targetUrl.contains("tool=")) {
+            val toolTitle = when {
+                targetUrl.contains("tool=tutor") -> "AI Tutor"
+                targetUrl.contains("tool=calc") -> "Scientific Calculator"
+                targetUrl.contains("tool=note") -> "Study Notebook"
+                targetUrl.contains("tool=time") -> "Study Timer"
+                targetUrl.contains("tool=plan") -> "Study Planner"
+                else -> "Study Tool"
+            }
+            openToolOverlay(targetUrl, toolTitle)
+            return
+        }
         val wv = webView
 
         if (tabIndex != null) {
@@ -1261,6 +1289,19 @@ fun MainScreen(
         }
         if (menuExpanded) {
             menuExpanded = false
+            return@BackHandler
+        }
+        if (activeToolOverlayUrl != null) {
+            val twv = toolOverlayWebView
+            if (twv != null && twv.canGoBack()) {
+                val list = twv.copyBackForwardList()
+                val currIdx = list.currentIndex
+                if (currIdx > 0) {
+                    twv.goBack()
+                    return@BackHandler
+                }
+            }
+            closeToolOverlay()
             return@BackHandler
         }
         if (showOnboarding) return@BackHandler
@@ -1896,6 +1937,10 @@ fun MainScreen(
                                 @JavascriptInterface
                                 fun returnToStudyPage() {
                                     mainHandler.post {
+                                        if (activeToolOverlayUrl != null) {
+                                            closeToolOverlay()
+                                            return@post
+                                        }
                                         if (studyPageReturnUrl.isNotBlank()) {
                                             val returnUrl = studyPageReturnUrl
                                             studyPageReturnUrl = ""
@@ -2445,6 +2490,18 @@ fun MainScreen(
                                         navigateTo("https://www.wisdom-tower-academy.live/learning", 1)
                                         return true
                                     }
+                                    if (u.contains("/learning") && u.contains("tool=")) {
+                                        val toolTitle = when {
+                                            u.contains("tool=tutor") -> "AI Tutor"
+                                            u.contains("tool=calc") -> "Scientific Calculator"
+                                            u.contains("tool=note") -> "Study Notebook"
+                                            u.contains("tool=time") -> "Study Timer"
+                                            u.contains("tool=plan") -> "Study Planner"
+                                            else -> "Study Tool"
+                                        }
+                                        openToolOverlay(u, toolTitle)
+                                        return true
+                                    }
                                     if (OfflineVault.isPdfUrl(u) || u.endsWith(".pdf", ignoreCase = true) || u.contains("/pdf")) {
                                         view?.let { openOrDownloadPdf(it, ctx, u) }
                                         return true
@@ -2510,6 +2567,258 @@ fun MainScreen(
                         contentAlignment = Alignment.Center
                     ) {
                         CustomCenteredLoader()
+                    }
+                }
+            }
+        }
+
+        // Study Tool Overlay Layer (Independent second WebView preserving underlying study page)
+        AnimatedVisibility(
+            visible = activeToolOverlayUrl != null,
+            enter = slideInVertically(initialOffsetY = { it }, animationSpec = tween(220, easing = FastOutSlowInEasing)) + fadeIn(tween(200)),
+            exit = slideOutVertically(targetOffsetY = { it }, animationSpec = tween(180, easing = FastOutSlowInEasing)) + fadeOut(tween(160)),
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(130f)
+        ) {
+            BackHandler(enabled = activeToolOverlayUrl != null) {
+                val twv = toolOverlayWebView
+                if (twv != null && twv.canGoBack()) {
+                    val list = twv.copyBackForwardList()
+                    val currIdx = list.currentIndex
+                    if (currIdx > 0) {
+                        twv.goBack()
+                        return@BackHandler
+                    }
+                }
+                closeToolOverlay()
+            }
+
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color(0xFF060B15))
+                    .imePadding()
+            ) {
+                // Header Bar with Back / Dismiss / Title / Done button
+                Surface(
+                    color = BarBg,
+                    tonalElevation = 4.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    closeToolOverlay()
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Close tool overlay",
+                                    tint = Accent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Column {
+                                Text(
+                                    text = activeToolOverlayTitle,
+                                    color = Color.White,
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    maxLines = 1
+                                )
+                                Text(
+                                    text = "Study note preserved underneath",
+                                    color = Accent.copy(alpha = 0.75f),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Normal
+                                )
+                            }
+                        }
+
+                        // Explicit "Done" Button
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Accent.copy(alpha = 0.15f))
+                                .border(BorderStroke(1.dp, Accent.copy(alpha = 0.55f)), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    closeToolOverlay()
+                                }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Done",
+                                color = Accent,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(CardBorderSubtle)
+                )
+
+                // Tool Overlay WebView
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .background(Color(0xFF060B15))
+                ) {
+                    activeToolOverlayUrl?.let { toolUrl ->
+                        AndroidView(
+                            factory = { ctx ->
+                                WebView(ctx).apply {
+                                    setBackgroundColor(AndroidColor.parseColor("#060B15"))
+                                    setLayerType(View.LAYER_TYPE_HARDWARE, null)
+                                    layoutParams = ViewGroup.LayoutParams(
+                                        ViewGroup.LayoutParams.MATCH_PARENT,
+                                        ViewGroup.LayoutParams.MATCH_PARENT
+                                    )
+                                    settings.apply {
+                                        javaScriptEnabled = true
+                                        domStorageEnabled = true
+                                        databaseEnabled = true
+                                        setSupportZoom(true)
+                                        builtInZoomControls = true
+                                        displayZoomControls = false
+                                        useWideViewPort = true
+                                        loadWithOverviewMode = true
+                                        mediaPlaybackRequiresUserGesture = false
+                                        cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                    }
+                                    addJavascriptInterface(
+                                        object {
+                                            @JavascriptInterface
+                                            fun returnToStudyPage() {
+                                                mainHandler.post { closeToolOverlay() }
+                                            }
+                                        },
+                                        "AndroidOfflineVault"
+                                    )
+                                    webChromeClient = object : WebChromeClient() {
+                                        override fun onProgressChanged(view: WebView?, newProgress: Int) {
+                                            if (newProgress >= 80) {
+                                                activeToolOverlayLoading = false
+                                            }
+                                        }
+                                    }
+                                    webViewClient = object : WebViewClient() {
+                                        override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
+                                            activeToolOverlayLoading = true
+                                            view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+                                        }
+
+                                        override fun onPageFinished(view: WebView?, url: String?) {
+                                            activeToolOverlayLoading = false
+                                            view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                            view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
+                                            view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                        }
+
+                                        override fun shouldInterceptRequest(
+                                            view: WebView?,
+                                            request: WebResourceRequest?
+                                        ): WebResourceResponse? {
+                                            val req = request ?: return null
+                                            val u = req.url?.toString() ?: return null
+                                            val isGet = (req.method?.uppercase() ?: "GET") == "GET"
+                                            val cleanLower = u.lowercase()
+                                            if (isGet && (cleanLower.contains("animation.gif") || cleanLower.contains("brand/animation.gif"))) {
+                                                try {
+                                                    val stream = ctx.assets.open("brand/animation.gif")
+                                                    val headers = mapOf(
+                                                        "Access-Control-Allow-Origin" to "*",
+                                                        "Cache-Control" to "public, max-age=31536000"
+                                                    )
+                                                    return WebResourceResponse("image/gif", null, 200, "OK", headers, stream)
+                                                } catch (_: Exception) {
+                                                    val bytes = BrandBytes.gif(ctx)
+                                                    if (bytes.isNotEmpty()) {
+                                                        return WebResourceResponse("image/gif", null, 200, "OK", mapOf("Access-Control-Allow-Origin" to "*"), ByteArrayInputStream(bytes))
+                                                    }
+                                                }
+                                            }
+                                            if (isGet && (cleanLower.contains("logo.png") || cleanLower.contains("brand/logo.png"))) {
+                                                try {
+                                                    val stream = ctx.assets.open("brand/logo.png")
+                                                    val headers = mapOf(
+                                                        "Access-Control-Allow-Origin" to "*",
+                                                        "Cache-Control" to "public, max-age=31536000"
+                                                    )
+                                                    return WebResourceResponse("image/png", null, 200, "OK", headers, stream)
+                                                } catch (_: Exception) {
+                                                    val bytes = BrandBytes.logo(ctx)
+                                                    if (bytes.isNotEmpty()) {
+                                                        return WebResourceResponse("image/png", null, 200, "OK", mapOf("Access-Control-Allow-Origin" to "*"), ByteArrayInputStream(bytes))
+                                                    }
+                                                }
+                                            }
+                                            return super.shouldInterceptRequest(view, request)
+                                        }
+
+                                        override fun shouldOverrideUrlLoading(
+                                            view: WebView?,
+                                            request: WebResourceRequest?
+                                        ): Boolean {
+                                            val u = request?.url?.toString() ?: return false
+                                            val host = request.url?.host?.lowercase() ?: ""
+                                            val isInternal = host.contains("wisdom-tower-academy.live") || host.contains("wisdomtower.tech")
+                                            if (!isInternal && !u.startsWith("file://")) {
+                                                try {
+                                                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)))
+                                                } catch (_: Exception) {}
+                                                return true
+                                            }
+                                            return false
+                                        }
+                                    }
+                                    loadUrl(toolUrl)
+                                    toolOverlayWebView = this
+                                }
+                            },
+                            update = { wv ->
+                                val cur = wv.url.orEmpty()
+                                if (cur != toolUrl && !cur.startsWith("file://")) {
+                                    activeToolOverlayLoading = true
+                                    wv.loadUrl(toolUrl)
+                                }
+                            },
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
+
+                    if (activeToolOverlayLoading) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .background(BarBg.copy(alpha = 0.7f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CustomCenteredLoader()
+                        }
                     }
                 }
             }
@@ -2632,7 +2941,7 @@ fun MainScreen(
                                 label = "AI Tutor",
                                 onClick = {
                                     menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=tutor", tabIndex = 1)
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=tutor", "AI Tutor")
                                 }
                             )
 
@@ -2641,7 +2950,7 @@ fun MainScreen(
                                 label = "Calculator",
                                 onClick = {
                                     menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=calculator", tabIndex = 1)
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=calculator", "Scientific Calculator")
                                 }
                             )
 
@@ -2650,7 +2959,7 @@ fun MainScreen(
                                 label = "Notebook",
                                 onClick = {
                                     menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=notes", tabIndex = 1)
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=notes", "Study Notebook")
                                 }
                             )
 
@@ -2659,7 +2968,7 @@ fun MainScreen(
                                 label = "Timer",
                                 onClick = {
                                     menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=timer", tabIndex = 1)
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=timer", "Study Timer")
                                 }
                             )
 
@@ -2668,7 +2977,7 @@ fun MainScreen(
                                 label = "Planner",
                                 onClick = {
                                     menuExpanded = false
-                                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=planner", tabIndex = 1)
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=planner", "Study Planner")
                                 }
                             )
 
@@ -2784,7 +3093,7 @@ fun MainScreen(
                 onStop = stopStudyTimerWithEndFlow,
                 onOpenLearning = {
                     showTimerControlDialog = false
-                    navigateTo("https://www.wisdom-tower-academy.live/learning?tool=timer", tabIndex = 1)
+                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=timer", "Study Timer")
                 },
                 onDismiss = { showTimerControlDialog = false }
             )

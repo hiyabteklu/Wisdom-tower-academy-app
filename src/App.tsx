@@ -78,6 +78,11 @@ export default function App() {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [historyStack, setHistoryStack] = useState<string[]>([]);
   const [studyReturnUrl, setStudyReturnUrl] = useState<string>('https://www.wisdom-tower-academy.live/');
+  const [activeToolOverlay, setActiveToolOverlay] = useState<{
+    tool: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner';
+    url: string;
+    title: string;
+  } | null>(null);
   const [tutorQuery, setTutorQuery] = useState<string>('');
   const [isTutorThinking, setIsTutorThinking] = useState<boolean>(false);
   const [isInputFocused, setIsInputFocused] = useState<boolean>(false);
@@ -162,19 +167,31 @@ export default function App() {
 
   const handleToolClick = (toolName: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner') => {
     const fullUrl = `https://www.wisdom-tower-academy.live/learning?tool=${toolName}`;
-    if (!currentUrl.includes('tool=')) {
-      setStudyReturnUrl(currentUrl);
-    }
-    if (currentUrl !== fullUrl) {
-      setHistoryStack((prev) => [...prev, currentUrl]);
-    }
+    const titles: Record<string, string> = {
+      tutor: 'AI Tutor',
+      calculator: 'Calculator',
+      notes: 'Notebook',
+      timer: 'Timer',
+      planner: 'Planner'
+    };
     setIsMenuOpen(false);
-    setActiveTab('learning');
-    setCurrentUrl(fullUrl);
-    setIframeKey((prev) => prev + 1);
+    // Opening a tool must NOT replace the current study URL in the main WebView
+    setActiveToolOverlay({
+      tool: toolName,
+      url: fullUrl,
+      title: titles[toolName] || 'Study Tool'
+    });
+  };
+
+  const handleCloseToolOverlay = () => {
+    setActiveToolOverlay(null);
   };
 
   const handleReturnToStudyPage = () => {
+    if (activeToolOverlay) {
+      handleCloseToolOverlay();
+      return;
+    }
     const returnUrl = studyReturnUrl || 'https://www.wisdom-tower-academy.live/learning';
     setCurrentUrl(returnUrl);
     if (returnUrl.includes('/learning')) setActiveTab('learning');
@@ -186,6 +203,10 @@ export default function App() {
   };
 
   const handleDeviceBack = () => {
+    if (activeToolOverlay) {
+      handleCloseToolOverlay();
+      return;
+    }
     if (currentUrl.includes('tool=')) {
       handleReturnToStudyPage();
       return;
@@ -314,6 +335,35 @@ export default function App() {
           </button>
         </div>
       </header>
+
+      {/* Quick Test Ribbon for Preserved Study Page Flow */}
+      {viewMode === 'device' && (
+        <div className="w-full max-w-5xl flex flex-wrap items-center justify-between gap-2 px-3 py-1.5 mb-2 bg-[#09111E]/90 border border-[#22E0FF]/20 rounded-xl text-xs">
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] font-bold text-[#22E0FF] uppercase tracking-wider">Test Study Preservation:</span>
+            <span className="text-[11px] text-slate-300 font-mono truncate max-w-[280px]">
+              {currentUrl}
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <button
+              onClick={() => {
+                const noteUrl = 'https://www.wisdom-tower-academy.live/learning?subject=math&topic=calculus&note=derivatives-rule-4';
+                setCurrentUrl(noteUrl);
+                setActiveTab('learning');
+                setIframeKey((k) => k + 1);
+              }}
+              className="text-[10px] px-2.5 py-1 rounded-md bg-[#22E0FF]/15 border border-[#22E0FF]/40 text-[#22E0FF] font-medium hover:bg-[#22E0FF]/25 transition-all cursor-pointer"
+            >
+              1. Open Deep Note
+            </button>
+            <span className="text-slate-500 text-[10px]">→</span>
+            <span className="text-slate-400 text-[10px]">2. Drawer → AI Tutor</span>
+            <span className="text-slate-500 text-[10px]">→</span>
+            <span className="text-slate-400 text-[10px]">3. Tap "Done" (still inside note)</span>
+          </div>
+        </div>
+      )}
 
       {/* Main Content Area */}
       <main className="w-full max-w-5xl flex-1 flex items-center justify-center">
@@ -664,218 +714,240 @@ export default function App() {
 
             {/* Main Content Area */}
             <div className="flex-1 relative bg-[#060B15] overflow-hidden flex flex-col">
-              {currentUrl.includes('tool=tutor') && useAppTutorChrome ? (
-                /* App-Controlled AI Tutor Chrome */
-                <div className="flex-1 flex flex-col h-full bg-[#060B15] text-slate-100 overflow-hidden relative">
-                  {/* Tutor App Header */}
-                  <div className="shrink-0 h-12 bg-[#09111D] border-b border-[#22E0FF]/15 px-3 flex items-center justify-between z-20">
+              {/* Underlying Main WebView (Stays 100% loaded & untouched when tools open) */}
+              <iframe
+                key={iframeKey}
+                ref={iframeRef}
+                src={currentUrl}
+                title="Wisdom Tower Academy"
+                className="w-full h-full border-none bg-[#060B15]"
+                sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
+                onLoad={() => setIsLoading(false)}
+              />
+
+              {/* Centered Transparent Custom Loader (No text, no card, continuous spin) */}
+              {isLoading && (
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 transition-opacity duration-200">
+                  <div className="relative w-24 h-24 flex items-center justify-center">
+                    {/* Outer Cyan Arc */}
+                    <div
+                      className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#22E0FF] border-r-[#22E0FF]/40 animate-spin"
+                      style={{ animationDuration: '0.75s' }}
+                    />
+                    {/* Inner Violet Arc */}
+                    <div
+                      className="absolute inset-2.5 rounded-full border-[2px] border-transparent border-b-[#818CF8] border-l-[#818CF8]/40 animate-spin"
+                      style={{ animationDuration: '0.95s', animationDirection: 'reverse' }}
+                    />
+                    {/* Center Brand WT Logo */}
+                    <div className="w-12 h-12 rounded-xl bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center shadow-lg shadow-[#22E0FF]/15">
+                      <span className="font-black text-[#22E0FF] text-sm tracking-wider">WT</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Tool Overlay Layer (Independent second layer preserving underlying study page) */}
+              {activeToolOverlay && (
+                <div className="absolute inset-0 z-40 bg-[#060B15] flex flex-col animate-in slide-in-from-bottom-8 duration-200">
+                  {/* Tool Overlay Top Bar */}
+                  <div className="shrink-0 h-12 bg-[#09111D] border-b border-[#22E0FF]/20 px-3 flex items-center justify-between z-20">
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={handleReturnToStudyPage}
+                        onClick={handleCloseToolOverlay}
                         className="p-1.5 rounded-lg text-slate-300 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        title="Return to prior study page"
+                        title="Close tool and return to study page"
                       >
                         <ArrowLeft className="w-4 h-4 text-[#22E0FF]" />
                       </button>
                       <div className="flex items-center gap-2">
-                        <img
-                          src="/animation.gif"
-                          alt="AI Tutor"
-                          className="w-5 h-5 rounded object-contain pointer-events-none select-none"
-                        />
+                        {activeToolOverlay.tool === 'tutor' ? (
+                          <img
+                            src="/animation.gif"
+                            alt="AI Tutor"
+                            className="w-5 h-5 rounded object-contain pointer-events-none select-none"
+                          />
+                        ) : activeToolOverlay.tool === 'calculator' ? (
+                          <Calculator className="w-4 h-4 text-[#22E0FF]" />
+                        ) : activeToolOverlay.tool === 'notes' ? (
+                          <FileText className="w-4 h-4 text-[#22E0FF]" />
+                        ) : activeToolOverlay.tool === 'timer' ? (
+                          <Clock className="w-4 h-4 text-[#22E0FF]" />
+                        ) : (
+                          <Calendar className="w-4 h-4 text-[#22E0FF]" />
+                        )}
                         <div>
-                          <h2 className="text-xs font-bold text-white leading-tight">Wisdom Tower AI Tutor</h2>
-                          <p className="text-[9.5px] text-[#22E0FF] leading-none flex items-center gap-1">
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
-                            App Chrome Active
+                          <h2 className="text-xs font-bold text-white leading-tight">
+                            {activeToolOverlay.title}
+                          </h2>
+                          <p className="text-[9px] text-[#22E0FF]/80 leading-none">
+                            Study page preserved underneath
                           </p>
                         </div>
                       </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
+
+                    <div className="flex items-center gap-2">
+                      {activeToolOverlay.tool === 'tutor' && (
+                        <button
+                          onClick={() => setUseAppTutorChrome(!useAppTutorChrome)}
+                          className="text-[10px] text-slate-300 hover:text-[#22E0FF] px-2 py-0.5 rounded bg-white/5 border border-white/10 cursor-pointer"
+                        >
+                          {useAppTutorChrome ? 'Web View' : 'App Chrome'}
+                        </button>
+                      )}
                       <button
-                        onClick={() => setUseAppTutorChrome(false)}
-                        className="text-[10px] text-slate-400 hover:text-[#22E0FF] px-1.5 py-0.5 rounded bg-white/5 border border-white/10 cursor-pointer"
-                        title="Switch to raw website view"
+                        onClick={handleCloseToolOverlay}
+                        className="px-2.5 py-1 bg-[#22E0FF]/15 hover:bg-[#22E0FF]/25 border border-[#22E0FF]/40 rounded-lg text-xs font-bold text-[#22E0FF] transition-all cursor-pointer"
                       >
-                        Web View
+                        Done
                       </button>
                       <button
-                        onClick={handleReturnToStudyPage}
+                        onClick={handleCloseToolOverlay}
                         className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        title="Close tutor"
+                        title="Close tool"
                       >
                         <X className="w-4 h-4" />
                       </button>
                     </div>
                   </div>
 
-                  {/* Messages Scroll Area */}
-                  <div className="flex-1 overflow-y-auto p-3 space-y-3">
-                    {tutorMessages.map((msg) => {
-                      const isBot = msg.role === 'assistant';
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex items-start gap-2.5 max-w-full ${isBot ? '' : 'justify-end'}`}
-                        >
-                          {isBot && (
-                            /* AI avatar: existing logo GIF (blinking cyan dot / splash logo gif) played as-is with NO extra spin, NO solid blue box */
-                            <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
-                              <img
-                                src="/animation.gif"
-                                alt="Wisdom Tower AI Tutor"
-                                className="w-full h-full object-contain pointer-events-none select-none"
-                              />
+                  {/* Tool Body */}
+                  <div className="flex-1 relative overflow-hidden flex flex-col">
+                    {activeToolOverlay.tool === 'tutor' && useAppTutorChrome ? (
+                      /* App-Controlled AI Tutor Chrome */
+                      <div className="flex-1 flex flex-col h-full bg-[#060B15] text-slate-100 overflow-hidden relative">
+                        {/* Messages Scroll Area */}
+                        <div className="flex-1 overflow-y-auto p-3 space-y-3">
+                          {tutorMessages.map((msg) => {
+                            const isBot = msg.role === 'assistant';
+                            return (
+                              <div
+                                key={msg.id}
+                                className={`flex items-start gap-2.5 max-w-full ${isBot ? '' : 'justify-end'}`}
+                              >
+                                {isBot && (
+                                  /* AI avatar: existing logo GIF (blinking cyan dot / splash logo gif) played as-is with NO extra spin, NO solid blue box */
+                                  <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
+                                    <img
+                                      src="/animation.gif"
+                                      alt="Wisdom Tower AI Tutor"
+                                      className="w-full h-full object-contain pointer-events-none select-none"
+                                    />
+                                  </div>
+                                )}
+                                <div
+                                  className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed max-w-[85%] shadow-md whitespace-pre-line ${
+                                    isBot
+                                      ? 'bg-[#0C1628]/95 border border-cyan-400/20 text-slate-100'
+                                      : 'bg-gradient-to-r from-cyan-600/40 to-blue-600/40 border border-cyan-400/35 text-white ml-auto'
+                                  }`}
+                                >
+                                  {msg.content}
+                                  <div className="mt-1 text-[9px] text-slate-400 text-right">
+                                    {msg.timestamp}
+                                  </div>
+                                </div>
+                                {!isBot && (
+                                  <div className="w-7 h-7 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0 mt-0.5">
+                                    <User className="w-3.5 h-3.5 text-slate-300" />
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+
+                          {/* Thinking State */}
+                          {isTutorThinking && (
+                            <div className="flex items-start gap-2.5 animate-in fade-in duration-150">
+                              {/* Bot Avatar: logo GIF played as-is, NO extra spin, NO solid blue box */}
+                              <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
+                                <img
+                                  src="/animation.gif"
+                                  alt="Wisdom Tower AI Tutor"
+                                  className="w-full h-full object-contain pointer-events-none select-none"
+                                />
+                              </div>
+                              {/* Thinking row with small version of existing brand loading asset (animation.gif), ONE indicator only */}
+                              <div className="rounded-2xl px-3.5 py-2.5 bg-[#0C1628]/95 border border-cyan-400/25 text-slate-100 shadow-lg flex items-center gap-2.5">
+                                {/* Small brand loader: existing brand animation.gif asset scaled down for chat row */}
+                                <img
+                                  src="/animation.gif"
+                                  alt="Thinking…"
+                                  className="w-6 h-6 object-contain pointer-events-none select-none shrink-0"
+                                />
+                                {/* ONE thinking indicator only: static label, NO duplicate animated dots */}
+                                <span className="text-xs font-semibold text-cyan-200 tracking-wide">Thinking…</span>
+                              </div>
                             </div>
                           )}
-                          <div
-                            className={`rounded-2xl px-3.5 py-2.5 text-xs sm:text-[13px] leading-relaxed max-w-[85%] shadow-md whitespace-pre-line ${
-                              isBot
-                                ? 'bg-[#0C1628]/95 border border-cyan-400/20 text-slate-100'
-                                : 'bg-gradient-to-r from-cyan-600/40 to-blue-600/40 border border-cyan-400/35 text-white ml-auto'
-                            }`}
+                          <div ref={chatBottomRef} />
+                        </div>
+
+                        {/* Quick suggestion pills */}
+                        <div className="px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 border-t border-white/5 bg-[#060B15]">
+                          {[
+                            'Biology: Cell Mitosis steps',
+                            'Freshman Calc: Chain rule',
+                            'Physics: Newton laws'
+                          ].map((sug) => (
+                            <button
+                              key={sug}
+                              onClick={() => {
+                                setTutorQuery(sug);
+                                tutorInputRef.current?.focus();
+                              }}
+                              className="text-[10px] whitespace-nowrap px-2.5 py-1 rounded-full bg-[#0C1628] border border-[#22E0FF]/20 text-slate-300 hover:text-[#22E0FF] hover:border-[#22E0FF]/50 transition-all cursor-pointer"
+                            >
+                              {sug}
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Pinned Bottom Input */}
+                        <footer className="shrink-0 p-2 sm:p-2.5 border-t border-white/10 bg-[#070D1D] z-30 sticky bottom-0">
+                          <form
+                            onSubmit={handleSendTutorMessage}
+                            className="flex items-center gap-2 max-w-4xl mx-auto w-full"
                           >
-                            {msg.content}
-                            <div className="mt-1 text-[9px] text-slate-400 text-right">
-                              {msg.timestamp}
-                            </div>
-                          </div>
-                          {!isBot && (
-                            <div className="w-7 h-7 rounded-xl bg-white/10 border border-white/20 flex items-center justify-center text-white shrink-0 mt-0.5">
-                              <User className="w-3.5 h-3.5 text-slate-300" />
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-
-                    {/* Thinking State */}
-                    {isTutorThinking && (
-                      <div className="flex items-start gap-2.5 animate-in fade-in duration-150">
-                        {/* Bot Avatar: logo GIF played as-is, NO extra spin, NO solid blue box */}
-                        <div className="w-8 h-8 rounded-xl flex items-center justify-center shrink-0 mt-0.5 overflow-hidden">
-                          <img
-                            src="/animation.gif"
-                            alt="Wisdom Tower AI Tutor"
-                            className="w-full h-full object-contain pointer-events-none select-none"
-                          />
-                        </div>
-                        {/* Thinking row with small version of existing brand loading asset (animation.gif), ONE indicator only */}
-                        <div className="rounded-2xl px-3.5 py-2.5 bg-[#0C1628]/95 border border-cyan-400/25 text-slate-100 shadow-lg flex items-center gap-2.5">
-                          {/* Small brand loader: existing brand animation.gif asset scaled down for chat row */}
-                          <img
-                            src="/animation.gif"
-                            alt="Thinking…"
-                            className="w-6 h-6 object-contain pointer-events-none select-none shrink-0"
-                          />
-                          {/* ONE thinking indicator only: static label, NO duplicate animated dots */}
-                          <span className="text-xs font-semibold text-cyan-200 tracking-wide">Thinking…</span>
-                        </div>
+                            <input
+                              ref={tutorInputRef}
+                              type="text"
+                              id="wt-ai-tutor-input"
+                              name="query"
+                              value={tutorQuery}
+                              onChange={(e) => setTutorQuery(e.target.value)}
+                              onFocus={() => setIsInputFocused(true)}
+                              onBlur={() => setIsInputFocused(false)}
+                              placeholder="Ask a question, formula, or problem…"
+                              disabled={isTutorThinking}
+                              autoComplete="off"
+                              autoCorrect="on"
+                              enterKeyHint="send"
+                              className="flex-1 bg-[#060B17] border border-white/15 focus:border-[#22E0FF] rounded-2xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none transition-colors"
+                            />
+                            <button
+                              type="submit"
+                              disabled={!tutorQuery.trim() || isTutorThinking}
+                              className="p-2 sm:p-2.5 rounded-2xl bg-[#22E0FF] text-slate-950 hover:bg-cyan-300 disabled:opacity-40 font-bold transition-all active:scale-95 cursor-pointer shadow-md shadow-[#22E0FF]/25 shrink-0 flex items-center justify-center"
+                              aria-label="Send question"
+                            >
+                              <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
+                            </button>
+                          </form>
+                        </footer>
                       </div>
-                    )}
-                    <div ref={chatBottomRef} />
-                  </div>
-
-                  {/* Quick suggestion pills */}
-                  <div className="px-3 py-1.5 flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0 border-t border-white/5 bg-[#060B15]">
-                    {[
-                      'Biology: Cell Mitosis steps',
-                      'Freshman Calc: Chain rule',
-                      'Physics: Newton laws'
-                    ].map((sug) => (
-                      <button
-                        key={sug}
-                        onClick={() => {
-                          setTutorQuery(sug);
-                          tutorInputRef.current?.focus();
-                        }}
-                        className="text-[10px] whitespace-nowrap px-2.5 py-1 rounded-full bg-[#0C1628] border border-[#22E0FF]/20 text-slate-300 hover:text-[#22E0FF] hover:border-[#22E0FF]/50 transition-all cursor-pointer"
-                      >
-                        {sug}
-                      </button>
-                    ))}
-                  </div>
-
-                  {/* Pinned Bottom Input */}
-                  <footer className="shrink-0 p-2 sm:p-2.5 border-t border-white/10 bg-[#070D1D] z-30 sticky bottom-0">
-                    <form
-                      onSubmit={handleSendTutorMessage}
-                      className="flex items-center gap-2 max-w-4xl mx-auto w-full"
-                    >
-                      <input
-                        ref={tutorInputRef}
-                        type="text"
-                        id="wt-ai-tutor-input"
-                        name="query"
-                        value={tutorQuery}
-                        onChange={(e) => setTutorQuery(e.target.value)}
-                        onFocus={() => setIsInputFocused(true)}
-                        onBlur={() => setIsInputFocused(false)}
-                        placeholder="Ask a question, formula, or problem…"
-                        disabled={isTutorThinking}
-                        autoComplete="off"
-                        autoCorrect="on"
-                        enterKeyHint="send"
-                        className="flex-1 bg-[#060B17] border border-white/15 focus:border-[#22E0FF] rounded-2xl px-3.5 py-2 sm:py-2.5 text-xs sm:text-sm text-white placeholder-slate-400 focus:outline-none transition-colors"
+                    ) : (
+                      /* Secondary WebView for site tool */
+                      <iframe
+                        src={activeToolOverlay.url}
+                        title={activeToolOverlay.title}
+                        className="w-full h-full border-none bg-[#060B15]"
+                        sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
                       />
-                      <button
-                        type="submit"
-                        disabled={!tutorQuery.trim() || isTutorThinking}
-                        className="p-2 sm:p-2.5 rounded-2xl bg-[#22E0FF] text-slate-950 hover:bg-cyan-300 disabled:opacity-40 font-bold transition-all active:scale-95 cursor-pointer shadow-md shadow-[#22E0FF]/25 shrink-0 flex items-center justify-center"
-                        aria-label="Send question"
-                      >
-                        <Send className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-                      </button>
-                    </form>
-                  </footer>
+                    )}
+                  </div>
                 </div>
-              ) : (
-                /* Main WebView Window */
-                <>
-                  <iframe
-                    key={iframeKey}
-                    ref={iframeRef}
-                    src={currentUrl}
-                    title="Wisdom Tower Academy"
-                    className="w-full h-full border-none bg-[#060B15]"
-                    sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"
-                    onLoad={() => setIsLoading(false)}
-                  />
-
-                  {currentUrl.includes('tool=tutor') && !useAppTutorChrome && (
-                    <div className="absolute top-2 right-2 z-30">
-                      <button
-                        onClick={() => setUseAppTutorChrome(true)}
-                        className="text-[10px] text-cyan-300 bg-[#0C1628]/90 border border-cyan-400/40 px-2 py-1 rounded-full shadow-lg cursor-pointer"
-                      >
-                        Switch to App Chrome
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Centered Transparent Custom Loader (No text, no card, continuous spin) */}
-                  {isLoading && (
-                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-30 transition-opacity duration-200">
-                      <div className="relative w-24 h-24 flex items-center justify-center">
-                        {/* Outer Cyan Arc */}
-                        <div
-                          className="absolute inset-0 rounded-full border-[2.5px] border-transparent border-t-[#22E0FF] border-r-[#22E0FF]/40 animate-spin"
-                          style={{ animationDuration: '0.75s' }}
-                        />
-                        {/* Inner Violet Arc */}
-                        <div
-                          className="absolute inset-2.5 rounded-full border-[2px] border-transparent border-b-[#818CF8] border-l-[#818CF8]/40 animate-spin"
-                          style={{ animationDuration: '0.95s', animationDirection: 'reverse' }}
-                        />
-                        {/* Center Brand WT Logo */}
-                        <div className="w-12 h-12 rounded-xl bg-[#22E0FF]/15 border border-[#22E0FF]/30 flex items-center justify-center shadow-lg shadow-[#22E0FF]/15">
-                          <span className="font-black text-[#22E0FF] text-sm tracking-wider">WT</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </>
               )}
             </div>
 
