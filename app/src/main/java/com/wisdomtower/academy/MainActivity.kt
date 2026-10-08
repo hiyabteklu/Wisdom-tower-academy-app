@@ -2914,7 +2914,7 @@ fun MainScreen(
                             },
                             update = { wv ->
                                 if (lastLoadedOverlayUrl != toolUrl) {
-                                    val online = isOnline(ctx)
+                                    val online = isOnline(wv.context)
                                     wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                                     if (online) {
                                         activeToolOverlayLoading = true
