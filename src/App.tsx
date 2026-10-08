@@ -741,16 +741,9 @@ export default function App() {
                     <div className="flex items-center gap-2">
                       <button
                         onClick={handleCloseToolOverlay}
-                        className="px-2.5 py-1 bg-[#22E0FF]/15 hover:bg-[#22E0FF]/25 border border-[#22E0FF]/40 rounded-lg text-xs font-bold text-[#22E0FF] transition-all cursor-pointer"
+                        className="px-2.5 py-1 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/40 rounded-lg text-xs font-bold text-rose-400 transition-all cursor-pointer"
                       >
-                        Done
-                      </button>
-                      <button
-                        onClick={handleCloseToolOverlay}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors cursor-pointer"
-                        title="Close tool"
-                      >
-                        <X className="w-4 h-4" />
+                        Close
                       </button>
                     </div>
                   </div>

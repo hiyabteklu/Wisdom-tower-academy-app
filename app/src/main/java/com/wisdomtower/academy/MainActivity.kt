@@ -439,13 +439,12 @@ private const val AI_TUTOR_CHROME_JS =
             "(document.head||document.documentElement).appendChild(st);" +
         "}" +
         "st.textContent=" +
-            "'header:not([data-ai-tutor-header]),header.fixed.top-0:not([data-ai-tutor-header]),header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]) button[aria-label*=\"menu\" i]{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;pointer-events:none!important;opacity:0!important;}' +" +
+            "'[data-ai-tutor-header],header[data-ai-tutor-header],.ai-tutor-header,[data-tool-header],header:not([data-ai-tutor-header]),header.fixed.top-0,header[data-site-header],.site-header,[data-site-header],[role=\"banner\"],header button[aria-label*=\"menu\" i]{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;pointer-events:none!important;opacity:0!important;}' +" +
             "'body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"],.site-footer,footer:not([data-ai-tutor-root] footer){display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;pointer-events:none!important;opacity:0!important;}' +" +
             "'template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div,.wta-route-loader,[data-wta-spinner],[data-nextjs-loading]{display:none!important;visibility:hidden!important;height:0!important;}' +" +
-            "'body.wta-tool-overlay header:not([data-ai-tutor-header]),html.wta-tool-overlay header:not([data-ai-tutor-header]){display:none!important;}' +" +
+            "'body.wta-tool-overlay header,html.wta-tool-overlay header,body.wta-tool-overlay [data-ai-tutor-header],html.wta-tool-overlay [data-ai-tutor-header]{display:none!important;visibility:hidden!important;height:0!important;overflow:hidden!important;}' +" +
             "'body.wta-tool-overlay footer:not([data-ai-tutor-root] footer),html.wta-tool-overlay footer:not([data-ai-tutor-root] footer){display:none!important;}' +" +
             "'div[data-ai-tutor-root]{display:flex!important;visibility:visible!important;}' +" +
-            "'header[data-ai-tutor-header]{display:flex!important;visibility:visible!important;}' +" +
             "'[data-ai-tutor-root] footer{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}' +" +
             "'#wt-ai-tutor-input{font-size:16px!important;color:#FFFFFF!important;caret-color:#00E5FF!important;background-color:#060B17!important;visibility:visible!important;opacity:1!important;}';" +
         "function syncAiTutorChrome(){" +
@@ -2546,7 +2545,7 @@ fun MainScreen(
                         .fillMaxSize()
                         .zIndex(95f)
                 ) {
-                    val loaderBg = BarBg
+                    val loaderBg = if (isInitialLoading) BarBg else Color.Transparent
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
@@ -2629,12 +2628,12 @@ fun MainScreen(
                             )
                         }
 
-                        // Explicit "Done" Button
+                        // Explicit Red "Close" Button
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Accent.copy(alpha = 0.15f))
-                                .border(BorderStroke(1.dp, Accent.copy(alpha = 0.55f)), RoundedCornerShape(8.dp))
+                                .background(Color(0x26EF4444))
+                                .border(BorderStroke(1.dp, Color(0x66EF4444)), RoundedCornerShape(8.dp))
                                 .clickable {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     closeToolOverlay()
@@ -2643,8 +2642,8 @@ fun MainScreen(
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "Done",
-                                color = Accent,
+                                text = "Close",
+                                color = Color(0xFFF87171),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -2693,7 +2692,49 @@ fun MainScreen(
                                         CookieManager.getInstance().setAcceptCookie(true)
                                         CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
                                     } catch (_: Exception) {}
+                                    var overlayShowingOffline = false
+
+                                    fun loadToolTarget(wv: WebView, urlToLoad: String) {
+                                        val online = isOnline(ctx)
+                                        wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                        if (online) {
+                                            overlayShowingOffline = false
+                                            activeToolOverlayLoading = true
+                                            lastLoadedOverlayUrl = urlToLoad
+                                            wv.loadUrl(urlToLoad)
+                                        } else {
+                                            try {
+                                                wv.stopLoading()
+                                            } catch (_: Exception) {}
+                                            overlayShowingOffline = true
+                                            activeToolOverlayLoading = false
+                                            wv.loadUrl(OFFLINE_ASSET)
+                                        }
+                                    }
+
                                     val overlayBridge = object {
+                                        @JavascriptInterface
+                                        fun reloadLastOnlinePage() {
+                                            mainHandler.post {
+                                                val wv = toolOverlayWebView ?: return@post
+                                                val online = isOnline(ctx)
+                                                if (online) {
+                                                    overlayShowingOffline = false
+                                                    activeToolOverlayLoading = true
+                                                    val urlToLoad = activeToolOverlayUrl ?: toolUrl
+                                                    wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                                    try {
+                                                        wv.stopLoading()
+                                                    } catch (_: Exception) {}
+                                                    lastLoadedOverlayUrl = urlToLoad
+                                                    wv.loadUrl(urlToLoad)
+                                                } else {
+                                                    mainHandler.postDelayed({
+                                                        wv.evaluateJavascript("if(typeof onRetryFailed==='function')onRetryFailed();", null)
+                                                    }, 700L)
+                                                }
+                                            }
+                                        }
                                         @JavascriptInterface
                                         fun returnToStudyPage() {
                                             mainHandler.post { closeToolOverlay() }
@@ -2725,7 +2766,9 @@ fun MainScreen(
                                     addJavascriptInterface(overlayBridge, "WisdomTower")
                                     webChromeClient = object : WebChromeClient() {
                                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                            if (newProgress >= 70) {
+                                            val currentUrl = view?.url.orEmpty()
+                                            val isOfflinePage = currentUrl.contains("offline.html") || currentUrl.startsWith("file://")
+                                            if (newProgress >= 70 && !isOfflinePage) {
                                                 view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
                                                 view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                             }
@@ -2736,19 +2779,71 @@ fun MainScreen(
                                     }
                                     webViewClient = object : WebViewClient() {
                                         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                            activeToolOverlayLoading = true
-                                            view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
-                                            view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
-                                            view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
+                                            val cur = url.orEmpty()
+                                            val isOfflinePage = cur.contains("offline.html") || cur.startsWith("file://")
+                                            if (!isOfflinePage) {
+                                                overlayShowingOffline = false
+                                                activeToolOverlayLoading = true
+                                                view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
+                                                view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+                                                view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
+                                            } else {
+                                                overlayShowingOffline = true
+                                                activeToolOverlayLoading = false
+                                            }
                                         }
 
                                         override fun onPageFinished(view: WebView?, url: String?) {
+                                            val cur = url.orEmpty()
+                                            val isOfflinePage = cur.contains("offline.html") || cur.startsWith("file://")
                                             activeToolOverlayLoading = false
-                                            view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
-                                            view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
-                                            view?.evaluateJavascript(NATIVE_CHROME_JS, null)
-                                            view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
-                                            view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                            if (!isOfflinePage) {
+                                                overlayShowingOffline = false
+                                                view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
+                                                view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+                                                view?.evaluateJavascript(NATIVE_CHROME_JS, null)
+                                                view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
+                                                view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+                                            }
+                                        }
+
+                                        override fun onReceivedError(
+                                            view: WebView?,
+                                            request: WebResourceRequest?,
+                                            error: WebResourceError?
+                                        ) {
+                                            if (request?.isForMainFrame != true) return
+                                            val wv = view ?: return
+                                            val failedUrl = request.url?.toString().orEmpty()
+                                            if (failedUrl.startsWith("file:///android_asset/")) return
+                                            mainHandler.post {
+                                                try {
+                                                    wv.stopLoading()
+                                                } catch (_: Exception) {}
+                                                overlayShowingOffline = true
+                                                activeToolOverlayLoading = false
+                                                wv.loadUrl(OFFLINE_ASSET)
+                                            }
+                                        }
+
+                                        @Deprecated("Deprecated in Java")
+                                        override fun onReceivedError(
+                                            view: WebView?,
+                                            errorCode: Int,
+                                            description: String?,
+                                            failingUrl: String?
+                                        ) {
+                                            val wv = view ?: return
+                                            val failedUrl = failingUrl.orEmpty()
+                                            if (failedUrl.startsWith("file:///android_asset/")) return
+                                            mainHandler.post {
+                                                try {
+                                                    wv.stopLoading()
+                                                } catch (_: Exception) {}
+                                                overlayShowingOffline = true
+                                                activeToolOverlayLoading = false
+                                                wv.loadUrl(OFFLINE_ASSET)
+                                            }
                                         }
 
                                         override fun shouldInterceptRequest(
@@ -2813,17 +2908,25 @@ fun MainScreen(
                                             return false
                                         }
                                     }
-                                    lastLoadedOverlayUrl = toolUrl
-                                    activeToolOverlayLoading = true
-                                    loadUrl(toolUrl)
                                     toolOverlayWebView = this
+                                    loadToolTarget(this, toolUrl)
                                 }
                             },
                             update = { wv ->
                                 if (lastLoadedOverlayUrl != toolUrl) {
-                                    lastLoadedOverlayUrl = toolUrl
-                                    activeToolOverlayLoading = true
-                                    wv.loadUrl(toolUrl)
+                                    val online = isOnline(ctx)
+                                    wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                    if (online) {
+                                        activeToolOverlayLoading = true
+                                        lastLoadedOverlayUrl = toolUrl
+                                        wv.loadUrl(toolUrl)
+                                    } else {
+                                        try {
+                                            wv.stopLoading()
+                                        } catch (_: Exception) {}
+                                        activeToolOverlayLoading = false
+                                        wv.loadUrl(OFFLINE_ASSET)
+                                    }
                                 }
                             },
                             modifier = Modifier.fillMaxSize()
