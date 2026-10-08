@@ -246,13 +246,13 @@ private const val SOFT_NAV_JS =
 private const val CRITICAL_CHROME_STYLE =
     "<style id=\"wta-critical-hide\">" +
     "html,body{background-color:#060B15!important;color-scheme:dark!important;}" +
-    "header,header.fixed.top-0,header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
+    "header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
     "nav[aria-label=\"Main\"],nav.hidden.md\\:flex,.site-nav,.site-navigation,[data-site-nav]," +
     "body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
     ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
     "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
     "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
-    "header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu]," +
+    "header:not([data-ai-tutor-header]) button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu]," +
     "nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0," +
     "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
     "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
@@ -268,12 +268,12 @@ private const val EARLY_HIDE_CHROME_JS =
         "if(document.body){document.body.classList.add('wta-native-app');}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
-        "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}header,header.fixed.top-0,header[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer," +
+        "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer," +
         "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"]," +
         ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
         "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
-        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,img.wta-img-broken,img:not([src]),img[src=\"\"]," +
-        "template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div,body.wta-tool-overlay header,body.wta-tool-overlay footer,html.wta-tool-overlay header,html.wta-tool-overlay footer" +
+        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],header:not([data-ai-tutor-header]) button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,img.wta-img-broken,img:not([src]),img[src=\"\"]," +
+        "template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div,body.wta-tool-overlay header:not([data-ai-tutor-header]),body.wta-tool-overlay footer,html.wta-tool-overlay header:not([data-ai-tutor-header]),html.wta-tool-overlay footer" +
         "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
         "div:has(#wt-ai-tutor-input){bottom:0!important;}" +
         "footer:has(input),footer:has(form),footer:has(#wt-ai-tutor-input),#wt-ai-tutor-input,[role=\"dialog\"] footer" +
@@ -288,12 +288,12 @@ private const val NATIVE_CHROME_JS =
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
         "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}' +" +
-        "'header,header.fixed.top-0,header[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer,' +" +
+        "'header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer,' +" +
         "'nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"],' +" +
         "'.hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only],' +" +
         "'#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader,' +" +
         "'nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],' +" +
-        "'header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,' +" +
+        "'header:not([data-ai-tutor-header]) button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,' +" +
         "'img.wta-img-broken,img:not([src]),img[src=\"\"]' +" +
         "'{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}' +" +
         "'div:has(#wt-ai-tutor-input){bottom:0!important;}' +" +
@@ -436,9 +436,9 @@ private const val AI_TUTOR_CHROME_JS =
             "st=document.createElement('style');" +
             "st.id=styleId;" +
             "st.textContent=" +
-                "'header,header.fixed.top-0,header[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;}' +" +
+                "'header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;}' +" +
                 "'template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div{display:none!important;}' +" +
-                "'body.wta-tool-overlay header,body.wta-tool-overlay footer,html.wta-tool-overlay header,html.wta-tool-overlay footer{display:none!important;}' +" +
+                "'body.wta-tool-overlay header:not([data-ai-tutor-header]),body.wta-tool-overlay footer,html.wta-tool-overlay header:not([data-ai-tutor-header]),html.wta-tool-overlay footer{display:none!important;}' +" +
                 "'div:has(#wt-ai-tutor-input){bottom:0!important;}' +" +
                 "'footer:has(#wt-ai-tutor-input){display:block!important;visibility:visible!important;position:sticky!important;bottom:0!important;z-index:50!important;background-color:#070d1d!important;border-top:1px solid rgba(255,255,255,0.12)!important;padding-bottom:max(0.5rem,env(safe-area-inset-bottom,0px))!important;}' +" +
                 "'#wt-ai-tutor-input{font-size:16px!important;color:#FFFFFF!important;caret-color:#00E5FF!important;background-color:#060B17!important;visibility:visible!important;opacity:1!important;}' +" +
@@ -2606,6 +2606,7 @@ fun MainScreen(
                 .fillMaxSize()
                 .zIndex(130f)
         ) {
+            val useWebAiTutorHeader = activeToolOverlayTitle.equals("AI Tutor", ignoreCase = true)
             BackHandler(enabled = activeToolOverlayUrl != null) {
                 val twv = toolOverlayWebView
                 if (twv != null && twv.canGoBack()) {
@@ -2625,40 +2626,40 @@ fun MainScreen(
                     .background(Color(0xFF060B15))
                     .imePadding()
             ) {
-                // Header Bar with Back / Dismiss / Title / Done button
-                Surface(
-                    color = BarBg,
-                    tonalElevation = 4.dp,
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .windowInsetsPadding(WindowInsets.statusBars)
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
+                if (!useWebAiTutorHeader) {
+                    // Header Bar with Back / Dismiss / Title / Done button
+                    Surface(
+                        color = BarBg,
+                        tonalElevation = 4.dp,
+                        modifier = Modifier.fillMaxWidth()
                     ) {
                         Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .windowInsetsPadding(WindowInsets.statusBars)
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.weight(1f)
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            IconButton(
-                                onClick = {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    closeToolOverlay()
-                                },
-                                modifier = Modifier.size(36.dp)
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                modifier = Modifier.weight(1f)
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.Close,
-                                    contentDescription = "Close tool overlay",
-                                    tint = Accent,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                            Column {
+                                IconButton(
+                                    onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        closeToolOverlay()
+                                    },
+                                    modifier = Modifier.size(36.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Close,
+                                        contentDescription = "Close tool overlay",
+                                        tint = Accent,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
                                 Text(
                                     text = activeToolOverlayTitle,
                                     color = Color.White,
@@ -2666,44 +2667,38 @@ fun MainScreen(
                                     fontWeight = FontWeight.Bold,
                                     maxLines = 1
                                 )
+                            }
+
+                            // Explicit "Done" Button
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Accent.copy(alpha = 0.15f))
+                                    .border(BorderStroke(1.dp, Accent.copy(alpha = 0.55f)), RoundedCornerShape(8.dp))
+                                    .clickable {
+                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                        closeToolOverlay()
+                                    }
+                                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Text(
-                                    text = "Study note preserved underneath",
-                                    color = Accent.copy(alpha = 0.75f),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Normal
+                                    text = "Done",
+                                    color = Accent,
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
                             }
                         }
-
-                        // Explicit "Done" Button
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Accent.copy(alpha = 0.15f))
-                                .border(BorderStroke(1.dp, Accent.copy(alpha = 0.55f)), RoundedCornerShape(8.dp))
-                                .clickable {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    closeToolOverlay()
-                                }
-                                .padding(horizontal = 14.dp, vertical = 6.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Done",
-                                color = Accent,
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
                     }
-                }
 
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(CardBorderSubtle)
-                )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(CardBorderSubtle)
+                    )
+                }
 
                 // Tool Overlay WebView
                 Box(
