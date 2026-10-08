@@ -119,6 +119,19 @@ export default function App() {
     return () => clearInterval(timer);
   }, [isTimerRunning]);
 
+  // Listen for tool overlay close requests from iframe
+  useEffect(() => {
+    const handleMsg = (e: MessageEvent) => {
+      try {
+        if (e.data && (e.data.type === 'wta-close-tool' || e.data === 'wta-close-tool')) {
+          setActiveToolOverlay(null);
+        }
+      } catch (_) {}
+    };
+    window.addEventListener('message', handleMsg);
+    return () => window.removeEventListener('message', handleMsg);
+  }, []);
+
   const formatTimer = (totalSec: number) => {
     const m = Math.floor(totalSec / 60);
     const s = totalSec % 60;
@@ -152,7 +165,7 @@ export default function App() {
   };
 
   const handleToolClick = (toolName: 'tutor' | 'calculator' | 'notes' | 'timer' | 'planner') => {
-    const fullUrl = `https://www.wisdom-tower-academy.live/learning?tool=${toolName}&overlay=1`;
+    const fullUrl = `https://www.wisdom-tower-academy.live/learning?tool=${toolName}&overlay=1&app=1`;
     const titles: Record<string, string> = {
       tutor: 'AI Tutor',
       calculator: 'Scientific Calculator',

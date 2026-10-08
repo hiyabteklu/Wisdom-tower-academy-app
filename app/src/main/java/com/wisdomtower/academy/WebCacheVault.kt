@@ -417,15 +417,19 @@ object WebCacheVault {
 
     const val CRITICAL_CHROME_STYLE =
         "<style id=\"wta-critical-hide\">" +
-        "header,header.fixed.top-0,header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
+        "html,body{background-color:#060B15!important;color-scheme:dark!important;}" +
+        "header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],.site-header,[data-site-header],[role=\"banner\"]:not([data-ai-tutor-header])," +
         "nav[aria-label=\"Main\"],nav.hidden.md\\:flex,.site-nav,.site-navigation,[data-site-nav]," +
-        "body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
+        "body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"],footer:not([data-ai-tutor-root] footer)," +
         ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
         "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
         "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
+        "header:not([data-ai-tutor-header]) button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu]," +
+        "nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0," +
         "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
         "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
-        "footer:has(input),footer:has(form),#wt-ai-tutor-input,[role=\"dialog\"] footer" +
+        "div:has(#wt-ai-tutor-input){bottom:0!important;}" +
+        "[data-ai-tutor-root] footer,#wt-ai-tutor-input,[role=\"dialog\"] footer" +
         "{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}" +
         "</style>"
 

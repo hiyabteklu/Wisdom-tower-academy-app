@@ -246,9 +246,9 @@ private const val SOFT_NAV_JS =
 private const val CRITICAL_CHROME_STYLE =
     "<style id=\"wta-critical-hide\">" +
     "html,body{background-color:#060B15!important;color-scheme:dark!important;}" +
-    "header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],.site-header,[data-site-header],[role=\"banner\"]," +
+    "header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],.site-header,[data-site-header],[role=\"banner\"]:not([data-ai-tutor-header])," +
     "nav[aria-label=\"Main\"],nav.hidden.md\\:flex,.site-nav,.site-navigation,[data-site-nav]," +
-    "body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"]," +
+    "body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"],footer:not([data-ai-tutor-root] footer)," +
     ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
     "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
     "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast]," +
@@ -257,7 +257,7 @@ private const val CRITICAL_CHROME_STYLE =
     "img.wta-img-broken,img:not([src]),img[src=\"\"]" +
     "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
     "div:has(#wt-ai-tutor-input){bottom:0!important;}" +
-    "footer:has(input),footer:has(form),footer:has(#wt-ai-tutor-input),#wt-ai-tutor-input,[role=\"dialog\"] footer" +
+    "[data-ai-tutor-root] footer,#wt-ai-tutor-input,[role=\"dialog\"] footer" +
     "{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}" +
     "</style>"
 
@@ -268,15 +268,15 @@ private const val EARLY_HIDE_CHROME_JS =
         "if(document.body){document.body.classList.add('wta-native-app');}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
-        "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer," +
-        "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"]," +
+        "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer,footer:not([data-ai-tutor-root] footer)," +
+        "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"]:not([data-ai-tutor-header]),[role=\"contentinfo\"]," +
         ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
         "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
         "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],header:not([data-ai-tutor-header]) button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,img.wta-img-broken,img:not([src]),img[src=\"\"]," +
-        "template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div,body.wta-tool-overlay header:not([data-ai-tutor-header]),body.wta-tool-overlay footer,html.wta-tool-overlay header:not([data-ai-tutor-header]),html.wta-tool-overlay footer" +
+        "template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div,body.wta-tool-overlay header:not([data-ai-tutor-header]),body.wta-tool-overlay footer:not([data-ai-tutor-root] footer),html.wta-tool-overlay header:not([data-ai-tutor-header]),html.wta-tool-overlay footer:not([data-ai-tutor-root] footer)" +
         "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
         "div:has(#wt-ai-tutor-input){bottom:0!important;}" +
-        "footer:has(input),footer:has(form),footer:has(#wt-ai-tutor-input),#wt-ai-tutor-input,[role=\"dialog\"] footer" +
+        "[data-ai-tutor-root] footer,#wt-ai-tutor-input,[role=\"dialog\"] footer" +
         "{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}';" +
     "}catch(e){}})"
 
@@ -288,8 +288,8 @@ private const val NATIVE_CHROME_JS =
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
         "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}' +" +
-        "'header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer,' +" +
-        "'nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"],' +" +
+        "'header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer,footer:not([data-ai-tutor-root] footer),' +" +
+        "'nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"]:not([data-ai-tutor-header]),[role=\"contentinfo\"],' +" +
         "'.hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only],' +" +
         "'#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader,' +" +
         "'nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],' +" +
@@ -297,7 +297,7 @@ private const val NATIVE_CHROME_JS =
         "'img.wta-img-broken,img:not([src]),img[src=\"\"]' +" +
         "'{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}' +" +
         "'div:has(#wt-ai-tutor-input){bottom:0!important;}' +" +
-        "'footer:has(input),footer:has(form),footer:has(#wt-ai-tutor-input),#wt-ai-tutor-input,[role=\"dialog\"] footer' +" +
+        "'[data-ai-tutor-root] footer,#wt-ai-tutor-input,[role=\"dialog\"] footer' +" +
         "'{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}';" +
         "var noCopyId='wta-disable-copy';var cs=document.getElementById(noCopyId);" +
         "if(!cs){cs=document.createElement('style');cs.id=noCopyId;document.head?document.head.appendChild(cs):document.documentElement.appendChild(cs);}" +
@@ -430,92 +430,33 @@ private const val AI_TUTOR_CHROME_JS =
             "document.body.classList.add('wta-tool-overlay');" +
             "document.body.classList.add('wta-standalone-tool');" +
         "}" +
+        "try{sessionStorage.setItem('wta-native-app','1');localStorage.setItem('wta-native-app','1');}catch(_){}" +
         "var styleId='wta-ai-tutor-style';" +
         "var st=document.getElementById(styleId);" +
         "if(!st){" +
             "st=document.createElement('style');" +
             "st.id=styleId;" +
-            "st.textContent=" +
-                "'header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;}' +" +
-                "'template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div{display:none!important;}' +" +
-                "'body.wta-tool-overlay header:not([data-ai-tutor-header]),body.wta-tool-overlay footer,html.wta-tool-overlay header:not([data-ai-tutor-header]),html.wta-tool-overlay footer{display:none!important;}' +" +
-                "'div:has(#wt-ai-tutor-input){bottom:0!important;}' +" +
-                "'footer:has(#wt-ai-tutor-input){display:block!important;visibility:visible!important;position:sticky!important;bottom:0!important;z-index:50!important;background-color:#070d1d!important;border-top:1px solid rgba(255,255,255,0.12)!important;padding-bottom:max(0.5rem,env(safe-area-inset-bottom,0px))!important;}' +" +
-                "'#wt-ai-tutor-input{font-size:16px!important;color:#FFFFFF!important;caret-color:#00E5FF!important;background-color:#060B17!important;visibility:visible!important;opacity:1!important;}' +" +
-                "'.wta-tutor-avatar,img.wta-tutor-avatar-img{animation:none!important;transform:none!important;display:block!important;}' +" +
-                "'div.w-8.h-8:has(img.wta-tutor-avatar-img),div.sm\\\\:w-9.sm\\\\:h-9:has(img.wta-tutor-avatar-img){background:transparent!important;border-color:rgba(34,224,255,0.25)!important;}' +" +
-                "'.animate-bounce,span:has(> .animate-bounce),div:has(> .animate-bounce){display:none!important;}';" +
             "(document.head||document.documentElement).appendChild(st);" +
         "}" +
+        "st.textContent=" +
+            "'header:not([data-ai-tutor-header]),header.fixed.top-0:not([data-ai-tutor-header]),header[data-site-header],.site-header,[data-site-header],[role=\"banner\"]:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]) button[aria-label*=\"menu\" i]{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;pointer-events:none!important;opacity:0!important;}' +" +
+            "'body > footer,footer.site-footer,[data-site-footer],[role=\"contentinfo\"],.site-footer,footer:not([data-ai-tutor-root] footer){display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;pointer-events:none!important;opacity:0!important;}' +" +
+            "'template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div,.wta-route-loader,[data-wta-spinner],[data-nextjs-loading]{display:none!important;visibility:hidden!important;height:0!important;}' +" +
+            "'body.wta-tool-overlay header:not([data-ai-tutor-header]),html.wta-tool-overlay header:not([data-ai-tutor-header]){display:none!important;}' +" +
+            "'body.wta-tool-overlay footer:not([data-ai-tutor-root] footer),html.wta-tool-overlay footer:not([data-ai-tutor-root] footer){display:none!important;}' +" +
+            "'div[data-ai-tutor-root]{display:flex!important;visibility:visible!important;}' +" +
+            "'header[data-ai-tutor-header]{display:flex!important;visibility:visible!important;}' +" +
+            "'[data-ai-tutor-root] footer{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}' +" +
+            "'#wt-ai-tutor-input{font-size:16px!important;color:#FFFFFF!important;caret-color:#00E5FF!important;background-color:#060B17!important;visibility:visible!important;opacity:1!important;}';" +
         "function syncAiTutorChrome(){" +
             "try{" +
-                "var nodes=document.querySelectorAll('template[data-dgst]+div,h2,p');" +
+                "var nodes=document.querySelectorAll('template[data-dgst]+div,h2,p,.wta-route-loader');" +
                 "for(var k=0;k<nodes.length;k++){" +
                     "var el=nodes[k];" +
                     "var txt=(el.textContent||'').trim();" +
                     "if(txt.indexOf('Loading Learning Suite')!==-1||txt.indexOf('Opening your Wisdom Tower study')!==-1){" +
                         "var c=el.closest?el.closest('.relative,div'):null;" +
                         "if(c&&c!==document.body&&c!==document.documentElement){c.style.setProperty('display','none','important');}" +
-                    "}" +
-                "}" +
-                "var botBoxes=document.querySelectorAll('div.w-8.h-8,div.sm\\\\:w-9.sm\\\\:h-9,[data-bot-avatar]');" +
-                "for(var i=0;i<botBoxes.length;i++){" +
-                    "var box=botBoxes[i];" +
-                    "var cls=box.className||'';" +
-                    "var isBot=cls.indexOf('cyan')!==-1||cls.indexOf('indigo')!==-1||cls.indexOf('shadow')!==-1;" +
-                    "var parentRow=box.closest('.flex');" +
-                    "var hasStudyProse=parentRow?parentRow.querySelector('.study-prose')!==null:false;" +
-                    "if(isBot||hasStudyProse||(parentRow&&(parentRow.textContent||'').indexOf('Thinking')!==-1)){" +
-                        "box.setAttribute('data-wta-avatar','ready');" +
-                        "box.style.background='transparent';" +
-                        "box.style.border='none';" +
-                        "box.style.padding='0';" +
-                        "box.style.overflow='hidden';" +
-                        "box.style.display='flex';" +
-                        "box.style.alignItems='center';" +
-                        "box.style.justifyContent='center';" +
-                        "box.style.animation='none';" +
-                        "box.style.transform='none';" +
-                        "var svg=box.querySelector('svg');" +
-                        "if(svg)svg.style.display='none';" +
-                        "var curImg=box.querySelector('img');" +
-                        "if(curImg){" +
-                            "if(!curImg.src.includes('animation.gif'))curImg.src='/animation.gif';" +
-                            "curImg.className='wta-tutor-avatar-img';" +
-                            "curImg.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:12px;pointer-events:none;animation:none!important;transform:none!important;display:block;';" +
-                        "}else{" +
-                            "var img=document.createElement('img');" +
-                            "img.src='/animation.gif';" +
-                            "img.alt='Wisdom Tower AI Tutor';" +
-                            "img.className='wta-tutor-avatar-img';" +
-                            "img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:12px;pointer-events:none;animation:none!important;transform:none!important;display:block;';" +
-                            "box.appendChild(img);" +
-                        "} " +
-                    "}" +
-                "}" +
-                "var spans=document.querySelectorAll('span,div');" +
-                "for(var j=0;j<spans.length;j++){" +
-                    "var spNode=spans[j];" +
-                    "if((spNode.textContent||'').trim().indexOf('Thinking')===0&&spNode.parentElement){" +
-                        "var row=spNode.closest('.flex');" +
-                        "if(row){" +
-                            "var bounceDots=row.querySelectorAll('.animate-bounce,[class*=\"animate-bounce\"]');" +
-                            "for(var b=0;b<bounceDots.length;b++){" +
-                                "var bdParent=bounceDots[b].parentElement;" +
-                                "if(bdParent&&bdParent!==row)bdParent.style.display='none';" +
-                                "bounceDots[b].style.display='none';" +
-                            "}" +
-                            "var spinners=row.querySelectorAll('.animate-spin,svg');" +
-                            "for(var s=0;s<spinners.length;s++){spinners[s].style.display='none';}" +
-                            "if(!row.querySelector('.wta-compact-brand-loader')){" +
-                                "var loader=document.createElement('img');" +
-                                "loader.src='/animation.gif';" +
-                                "loader.alt='Thinking';" +
-                                "loader.className='wta-compact-brand-loader';" +
-                                "loader.style.cssText='width:20px;height:20px;object-fit:contain;pointer-events:none;display:inline-block;flex-shrink:0;margin-left:6px;';" +
-                                "row.appendChild(loader);" +
-                            "}" +
-                        "}" +
                     "}" +
                 "}" +
                 "var inputEl=document.getElementById('wt-ai-tutor-input');" +
@@ -542,6 +483,9 @@ private const val AI_TUTOR_CHROME_JS =
                             "}else if(window.AndroidBridge&&typeof window.AndroidBridge.closeOverlay==='function'){" +
                                 "e.preventDefault();e.stopPropagation();" +
                                 "window.AndroidBridge.closeOverlay();" +
+                            "}else if(window.Android&&typeof window.Android.closeOverlay==='function'){" +
+                                "e.preventDefault();e.stopPropagation();" +
+                                "window.Android.closeOverlay();" +
                             "}" +
                         "},true);" +
                     "}" +
@@ -556,6 +500,18 @@ private const val AI_TUTOR_CHROME_JS =
         "}" +
         "if(!window.__wta_tutor_timer){" +
             "window.__wta_tutor_timer=setInterval(syncAiTutorChrome,300);" +
+        "}" +
+        "if(!window.__wta_close_ev_listener){" +
+            "window.__wta_close_ev_listener=true;" +
+            "window.addEventListener('wta-close-tool',function(){" +
+                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.returnToStudyPage==='function'){" +
+                    "window.AndroidOfflineVault.returnToStudyPage();" +
+                "}else if(window.AndroidBridge&&typeof window.AndroidBridge.closeOverlay==='function'){" +
+                    "window.AndroidBridge.closeOverlay();" +
+                "}else if(window.Android&&typeof window.Android.closeOverlay==='function'){" +
+                    "window.Android.closeOverlay();" +
+                "}" +
+            "});" +
         "}" +
     "}catch(e){}})();"
 
@@ -1010,20 +966,26 @@ fun MainScreen(
     var activeToolOverlayTitle by remember { mutableStateOf("Study Tool") }
     var activeToolOverlayLoading by remember { mutableStateOf(false) }
     var toolOverlayWebView by remember { mutableStateOf<WebView?>(null) }
+    var lastLoadedOverlayUrl by remember { mutableStateOf<String?>(null) }
 
     val openToolOverlay: (String, String) -> Unit = { rawUrl, title ->
         menuExpanded = false
         activeToolOverlayTitle = title
-        val finalUrl = when {
-            rawUrl.contains("overlay=") -> rawUrl
-            rawUrl.contains("?") -> "$rawUrl&overlay=1"
-            else -> "$rawUrl?overlay=1"
+        activeToolOverlayLoading = true
+        var finalUrl = rawUrl.trim()
+        if (!finalUrl.contains("overlay=")) {
+            finalUrl = if (finalUrl.contains("?")) "$finalUrl&overlay=1" else "$finalUrl?overlay=1"
+        }
+        if (!finalUrl.contains("app=")) {
+            finalUrl = if (finalUrl.contains("?")) "$finalUrl&app=1" else "$finalUrl?app=1"
         }
         activeToolOverlayUrl = finalUrl
     }
 
     val closeToolOverlay: () -> Unit = {
         activeToolOverlayUrl = null
+        lastLoadedOverlayUrl = null
+        activeToolOverlayLoading = false
         toolOverlayWebView?.stopLoading()
     }
 
@@ -2606,7 +2568,6 @@ fun MainScreen(
                 .fillMaxSize()
                 .zIndex(130f)
         ) {
-            val useWebAiTutorHeader = activeToolOverlayTitle.equals("AI Tutor", ignoreCase = true)
             BackHandler(enabled = activeToolOverlayUrl != null) {
                 val twv = toolOverlayWebView
                 if (twv != null && twv.canGoBack()) {
@@ -2626,79 +2587,77 @@ fun MainScreen(
                     .background(Color(0xFF060B15))
                     .imePadding()
             ) {
-                if (!useWebAiTutorHeader) {
-                    // Header Bar with Back / Dismiss / Title / Done button
-                    Surface(
-                        color = BarBg,
-                        tonalElevation = 4.dp,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .windowInsetsPadding(WindowInsets.statusBars)
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                modifier = Modifier.weight(1f)
-                            ) {
-                                IconButton(
-                                    onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        closeToolOverlay()
-                                    },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Filled.Close,
-                                        contentDescription = "Close tool overlay",
-                                        tint = Accent,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                                Text(
-                                    text = activeToolOverlayTitle,
-                                    color = Color.White,
-                                    fontSize = 15.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    maxLines = 1
-                                )
-                            }
-
-                            // Explicit "Done" Button
-                            Box(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(Accent.copy(alpha = 0.15f))
-                                    .border(BorderStroke(1.dp, Accent.copy(alpha = 0.55f)), RoundedCornerShape(8.dp))
-                                    .clickable {
-                                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                        closeToolOverlay()
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 6.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = "Done",
-                                    color = Accent,
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    }
-
-                    Box(
+                // Dedicated Thin Native Header Bar with Back / Title / Done button
+                Surface(
+                    color = Color(0xFF070D18),
+                    tonalElevation = 6.dp,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(1.dp)
-                            .background(CardBorderSubtle)
-                    )
+                            .windowInsetsPadding(WindowInsets.statusBars)
+                            .padding(horizontal = 12.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            IconButton(
+                                onClick = {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    closeToolOverlay()
+                                },
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.Close,
+                                    contentDescription = "Close tool overlay",
+                                    tint = Accent,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Text(
+                                text = activeToolOverlayTitle,
+                                color = Color.White,
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1
+                            )
+                        }
+
+                        // Explicit "Done" Button
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Accent.copy(alpha = 0.15f))
+                                .border(BorderStroke(1.dp, Accent.copy(alpha = 0.55f)), RoundedCornerShape(8.dp))
+                                .clickable {
+                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    closeToolOverlay()
+                                }
+                                .padding(horizontal = 14.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Done",
+                                color = Accent,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
                 }
+
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(1.dp)
+                        .background(CardBorderSubtle)
+                )
 
                 // Tool Overlay WebView
                 Box(
@@ -2728,7 +2687,12 @@ fun MainScreen(
                                         loadWithOverviewMode = true
                                         mediaPlaybackRequiresUserGesture = false
                                         cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
+                                        userAgentString = "${settings.userAgentString} WisdomTowerApp wta-native"
                                     }
+                                    try {
+                                        CookieManager.getInstance().setAcceptCookie(true)
+                                        CookieManager.getInstance().setAcceptThirdPartyCookies(this, true)
+                                    } catch (_: Exception) {}
                                     val overlayBridge = object {
                                         @JavascriptInterface
                                         fun returnToStudyPage() {
@@ -2752,13 +2716,20 @@ fun MainScreen(
                                         }
                                         @JavascriptInterface
                                         fun isOverlay(): Boolean = true
+                                        @JavascriptInterface
+                                        fun isNativeApp(): Boolean = true
                                     }
                                     addJavascriptInterface(overlayBridge, "AndroidOfflineVault")
                                     addJavascriptInterface(overlayBridge, "AndroidBridge")
                                     addJavascriptInterface(overlayBridge, "Android")
+                                    addJavascriptInterface(overlayBridge, "WisdomTower")
                                     webChromeClient = object : WebChromeClient() {
                                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                            if (newProgress >= 80) {
+                                            if (newProgress >= 70) {
+                                                view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
+                                                view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
+                                            }
+                                            if (newProgress >= 85) {
                                                 activeToolOverlayLoading = false
                                             }
                                         }
@@ -2766,12 +2737,14 @@ fun MainScreen(
                                     webViewClient = object : WebViewClient() {
                                         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                             activeToolOverlayLoading = true
+                                            view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
                                             view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
                                             view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                         }
 
                                         override fun onPageFinished(view: WebView?, url: String?) {
                                             activeToolOverlayLoading = false
+                                            view?.evaluateJavascript("document.documentElement.classList.add('wta-native-app');document.documentElement.classList.add('wta-tool-overlay');", null)
                                             view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
                                             view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                             view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
@@ -2840,13 +2813,15 @@ fun MainScreen(
                                             return false
                                         }
                                     }
+                                    lastLoadedOverlayUrl = toolUrl
+                                    activeToolOverlayLoading = true
                                     loadUrl(toolUrl)
                                     toolOverlayWebView = this
                                 }
                             },
                             update = { wv ->
-                                val cur = wv.url.orEmpty()
-                                if (cur != toolUrl && !cur.startsWith("file://")) {
+                                if (lastLoadedOverlayUrl != toolUrl) {
+                                    lastLoadedOverlayUrl = toolUrl
                                     activeToolOverlayLoading = true
                                     wv.loadUrl(toolUrl)
                                 }
@@ -2859,7 +2834,7 @@ fun MainScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxSize()
-                                .background(BarBg.copy(alpha = 0.7f)),
+                                .background(Color(0xFF060B15)),
                             contentAlignment = Alignment.Center
                         ) {
                             CustomCenteredLoader()
