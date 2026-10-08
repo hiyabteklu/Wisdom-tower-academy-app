@@ -272,7 +272,8 @@ private const val EARLY_HIDE_CHROME_JS =
         "nav[aria-label=\"Main\"],nav.hidden.md\\\\:flex,.site-nav,.site-navigation,[data-site-nav],[role=\"banner\"],[role=\"contentinfo\"]," +
         ".hide-on-app,.app-hidden,[data-hide-on-app],[data-hide-app],.web-only,[data-web-only]," +
         "#nprogress,.nprogress,#nprogress .bar,[data-nprogress],#nextjs-toploader,.nextjs-toploader," +
-        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,img.wta-img-broken,img:not([src]),img[src=\"\"]" +
+        "nextjs-portal,[data-nextjs-dialog-overlay],[data-nextjs-toast],header button[aria-label*=\"menu\" i],button[aria-label*=\"menu\" i],.mobile-menu,[data-mobile-menu],nav[aria-label*=\"mobile\" i],[data-bottom-nav],.bottom-nav,nav.fixed.bottom-0,img.wta-img-broken,img:not([src]),img[src=\"\"]," +
+        "template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div,body.wta-tool-overlay header,body.wta-tool-overlay footer,html.wta-tool-overlay header,html.wta-tool-overlay footer" +
         "{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;opacity:0!important;pointer-events:none!important;margin:0!important;padding:0!important;}" +
         "div:has(#wt-ai-tutor-input){bottom:0!important;}" +
         "footer:has(input),footer:has(form),footer:has(#wt-ai-tutor-input),#wt-ai-tutor-input,[role=\"dialog\"] footer" +
@@ -420,36 +421,54 @@ private const val NATIVE_CHROME_JS =
 private const val AI_TUTOR_CHROME_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
+        "window.__wtaOverlay=true;" +
+        "document.documentElement.classList.add('wta-native-app');" +
+        "document.documentElement.classList.add('wta-tool-overlay');" +
+        "document.documentElement.classList.add('wta-standalone-tool');" +
+        "if(document.body){" +
+            "document.body.classList.add('wta-native-app');" +
+            "document.body.classList.add('wta-tool-overlay');" +
+            "document.body.classList.add('wta-standalone-tool');" +
+        "}" +
         "var styleId='wta-ai-tutor-style';" +
         "var st=document.getElementById(styleId);" +
         "if(!st){" +
             "st=document.createElement('style');" +
             "st.id=styleId;" +
             "st.textContent=" +
+                "'header,header.fixed.top-0,header[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer{display:none!important;visibility:hidden!important;height:0!important;max-height:0!important;overflow:hidden!important;margin:0!important;padding:0!important;}' +" +
+                "'template[data-dgst]+div,[data-dgst=\"BAILOUT_TO_CLIENT_SIDE_RENDERING\"]+div{display:none!important;}' +" +
+                "'body.wta-tool-overlay header,body.wta-tool-overlay footer,html.wta-tool-overlay header,html.wta-tool-overlay footer{display:none!important;}' +" +
                 "'div:has(#wt-ai-tutor-input){bottom:0!important;}' +" +
                 "'footer:has(#wt-ai-tutor-input){display:block!important;visibility:visible!important;position:sticky!important;bottom:0!important;z-index:50!important;background-color:#070d1d!important;border-top:1px solid rgba(255,255,255,0.12)!important;padding-bottom:max(0.5rem,env(safe-area-inset-bottom,0px))!important;}' +" +
                 "'#wt-ai-tutor-input{font-size:16px!important;color:#FFFFFF!important;caret-color:#00E5FF!important;background-color:#060B17!important;visibility:visible!important;opacity:1!important;}' +" +
                 "'.wta-tutor-avatar,img.wta-tutor-avatar-img{animation:none!important;transform:none!important;display:block!important;}' +" +
-                "'div.w-8.h-8.rounded-xl:has(img.wta-tutor-avatar-img){background:transparent!important;border-color:rgba(34,224,255,0.25)!important;}' +" +
+                "'div.w-8.h-8:has(img.wta-tutor-avatar-img),div.sm\\\\:w-9.sm\\\\:h-9:has(img.wta-tutor-avatar-img){background:transparent!important;border-color:rgba(34,224,255,0.25)!important;}' +" +
                 "'.animate-bounce,span:has(> .animate-bounce),div:has(> .animate-bounce){display:none!important;}';" +
             "(document.head||document.documentElement).appendChild(st);" +
         "}" +
         "function syncAiTutorChrome(){" +
             "try{" +
-                "var p=(window.location.pathname||'').toLowerCase();" +
-                "var q=(window.location.search||'').toLowerCase();" +
-                "var isTutor=p.indexOf('/learning')!==-1&&q.indexOf('tool=tutor')!==-1;" +
-                "var hasTutorInput=document.getElementById('wt-ai-tutor-input')!==null;" +
-                "if(!isTutor&&!hasTutorInput)return;" +
-                "var botBoxes=document.querySelectorAll('div.w-8.h-8.rounded-xl, [data-bot-avatar]');" +
+                "var nodes=document.querySelectorAll('template[data-dgst]+div,h2,p');" +
+                "for(var k=0;k<nodes.length;k++){" +
+                    "var el=nodes[k];" +
+                    "var txt=(el.textContent||'').trim();" +
+                    "if(txt.indexOf('Loading Learning Suite')!==-1||txt.indexOf('Opening your Wisdom Tower study')!==-1){" +
+                        "var c=el.closest?el.closest('.relative,div'):null;" +
+                        "if(c&&c!==document.body&&c!==document.documentElement){c.style.setProperty('display','none','important');}" +
+                    "}" +
+                "}" +
+                "var botBoxes=document.querySelectorAll('div.w-8.h-8,div.sm\\\\:w-9.sm\\\\:h-9,[data-bot-avatar]');" +
                 "for(var i=0;i<botBoxes.length;i++){" +
                     "var box=botBoxes[i];" +
                     "var cls=box.className||'';" +
                     "var isBot=cls.indexOf('cyan')!==-1||cls.indexOf('indigo')!==-1||cls.indexOf('shadow')!==-1;" +
                     "var parentRow=box.closest('.flex');" +
-                    "if(isBot||(parentRow&&(parentRow.textContent||'').indexOf('Thinking')!==-1)){" +
+                    "var hasStudyProse=parentRow?parentRow.querySelector('.study-prose')!==null:false;" +
+                    "if(isBot||hasStudyProse||(parentRow&&(parentRow.textContent||'').indexOf('Thinking')!==-1)){" +
                         "box.setAttribute('data-wta-avatar','ready');" +
                         "box.style.background='transparent';" +
+                        "box.style.border='none';" +
                         "box.style.padding='0';" +
                         "box.style.overflow='hidden';" +
                         "box.style.display='flex';" +
@@ -459,14 +478,19 @@ private const val AI_TUTOR_CHROME_JS =
                         "box.style.transform='none';" +
                         "var svg=box.querySelector('svg');" +
                         "if(svg)svg.style.display='none';" +
-                        "if(!box.querySelector('img.wta-tutor-avatar-img')){" +
+                        "var curImg=box.querySelector('img');" +
+                        "if(curImg){" +
+                            "if(!curImg.src.includes('animation.gif'))curImg.src='/animation.gif';" +
+                            "curImg.className='wta-tutor-avatar-img';" +
+                            "curImg.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:12px;pointer-events:none;animation:none!important;transform:none!important;display:block;';" +
+                        "}else{" +
                             "var img=document.createElement('img');" +
                             "img.src='/animation.gif';" +
                             "img.alt='Wisdom Tower AI Tutor';" +
                             "img.className='wta-tutor-avatar-img';" +
                             "img.style.cssText='width:100%;height:100%;object-fit:contain;border-radius:12px;pointer-events:none;animation:none!important;transform:none!important;display:block;';" +
                             "box.appendChild(img);" +
-                        "}" +
+                        "} " +
                     "}" +
                 "}" +
                 "var spans=document.querySelectorAll('span,div');" +
@@ -481,22 +505,15 @@ private const val AI_TUTOR_CHROME_JS =
                                 "if(bdParent&&bdParent!==row)bdParent.style.display='none';" +
                                 "bounceDots[b].style.display='none';" +
                             "}" +
-                            "var spinners=row.querySelectorAll('.animate-spin,div.w-4.h-4');" +
-                            "for(var k=0;k<spinners.length;k++){" +
-                                "var sEl=spinners[k];" +
-                                "var sParent=sEl.parentElement;" +
-                                "if(sParent&&sParent.getAttribute('data-wta-loader')!=='done'){" +
-                                    "sParent.setAttribute('data-wta-loader','done');" +
-                                    "sEl.style.display='none';" +
-                                    "var extra=sParent.querySelectorAll('.animate-pulse,.absolute');" +
-                                    "for(var e=0;e<extra.length;e++){extra[e].style.display='none';}" +
-                                    "var loader=document.createElement('img');" +
-                                    "loader.src='/animation.gif';" +
-                                    "loader.alt='Thinking';" +
-                                    "loader.className='wta-compact-brand-loader';" +
-                                    "loader.style.cssText='width:24px;height:24px;object-fit:contain;pointer-events:none;display:inline-block;flex-shrink:0;';" +
-                                    "sParent.appendChild(loader);" +
-                                "}" +
+                            "var spinners=row.querySelectorAll('.animate-spin,svg');" +
+                            "for(var s=0;s<spinners.length;s++){spinners[s].style.display='none';}" +
+                            "if(!row.querySelector('.wta-compact-brand-loader')){" +
+                                "var loader=document.createElement('img');" +
+                                "loader.src='/animation.gif';" +
+                                "loader.alt='Thinking';" +
+                                "loader.className='wta-compact-brand-loader';" +
+                                "loader.style.cssText='width:20px;height:20px;object-fit:contain;pointer-events:none;display:inline-block;flex-shrink:0;margin-left:6px;';" +
+                                "row.appendChild(loader);" +
                             "}" +
                         "}" +
                     "}" +
@@ -522,6 +539,9 @@ private const val AI_TUTOR_CHROME_JS =
                             "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.returnToStudyPage==='function'){" +
                                 "e.preventDefault();e.stopPropagation();" +
                                 "window.AndroidOfflineVault.returnToStudyPage();" +
+                            "}else if(window.AndroidBridge&&typeof window.AndroidBridge.closeOverlay==='function'){" +
+                                "e.preventDefault();e.stopPropagation();" +
+                                "window.AndroidBridge.closeOverlay();" +
                             "}" +
                         "},true);" +
                     "}" +
@@ -535,7 +555,7 @@ private const val AI_TUTOR_CHROME_JS =
             "tmo.observe(document.documentElement||document.body,{childList:true,subtree:true});" +
         "}" +
         "if(!window.__wta_tutor_timer){" +
-            "window.__wta_tutor_timer=setInterval(syncAiTutorChrome,400);" +
+            "window.__wta_tutor_timer=setInterval(syncAiTutorChrome,300);" +
         "}" +
     "}catch(e){}})();"
 
@@ -991,10 +1011,15 @@ fun MainScreen(
     var activeToolOverlayLoading by remember { mutableStateOf(false) }
     var toolOverlayWebView by remember { mutableStateOf<WebView?>(null) }
 
-    val openToolOverlay: (String, String) -> Unit = { url, title ->
+    val openToolOverlay: (String, String) -> Unit = { rawUrl, title ->
         menuExpanded = false
         activeToolOverlayTitle = title
-        activeToolOverlayUrl = url
+        val finalUrl = when {
+            rawUrl.contains("overlay=") -> rawUrl
+            rawUrl.contains("?") -> "$rawUrl&overlay=1"
+            else -> "$rawUrl?overlay=1"
+        }
+        activeToolOverlayUrl = finalUrl
     }
 
     val closeToolOverlay: () -> Unit = {
@@ -2709,15 +2734,33 @@ fun MainScreen(
                                         mediaPlaybackRequiresUserGesture = false
                                         cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                                     }
-                                    addJavascriptInterface(
-                                        object {
-                                            @JavascriptInterface
-                                            fun returnToStudyPage() {
-                                                mainHandler.post { closeToolOverlay() }
-                                            }
-                                        },
-                                        "AndroidOfflineVault"
-                                    )
+                                    val overlayBridge = object {
+                                        @JavascriptInterface
+                                        fun returnToStudyPage() {
+                                            mainHandler.post { closeToolOverlay() }
+                                        }
+                                        @JavascriptInterface
+                                        fun closeOverlay() {
+                                            mainHandler.post { closeToolOverlay() }
+                                        }
+                                        @JavascriptInterface
+                                        fun closeTool() {
+                                            mainHandler.post { closeToolOverlay() }
+                                        }
+                                        @JavascriptInterface
+                                        fun dismissOverlay() {
+                                            mainHandler.post { closeToolOverlay() }
+                                        }
+                                        @JavascriptInterface
+                                        fun onClose() {
+                                            mainHandler.post { closeToolOverlay() }
+                                        }
+                                        @JavascriptInterface
+                                        fun isOverlay(): Boolean = true
+                                    }
+                                    addJavascriptInterface(overlayBridge, "AndroidOfflineVault")
+                                    addJavascriptInterface(overlayBridge, "AndroidBridge")
+                                    addJavascriptInterface(overlayBridge, "Android")
                                     webChromeClient = object : WebChromeClient() {
                                         override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                             if (newProgress >= 80) {
@@ -2729,10 +2772,12 @@ fun MainScreen(
                                         override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                             activeToolOverlayLoading = true
                                             view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+                                            view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                         }
 
                                         override fun onPageFinished(view: WebView?, url: String?) {
                                             activeToolOverlayLoading = false
+                                            view?.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
                                             view?.evaluateJavascript(NATIVE_CHROME_JS, null)
                                             view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                             view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
@@ -2786,6 +2831,11 @@ fun MainScreen(
                                             val u = request?.url?.toString() ?: return false
                                             val host = request.url?.host?.lowercase() ?: ""
                                             val isInternal = host.contains("wisdom-tower-academy.live") || host.contains("wisdomtower.tech")
+                                            if (isInternal && !u.contains("tool=")) {
+                                                closeToolOverlay()
+                                                navigateTo(u)
+                                                return true
+                                            }
                                             if (!isInternal && !u.startsWith("file://")) {
                                                 try {
                                                     ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)))
@@ -2941,7 +2991,7 @@ fun MainScreen(
                                 label = "AI Tutor",
                                 onClick = {
                                     menuExpanded = false
-                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=tutor", "AI Tutor")
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=tutor&overlay=1", "AI Tutor")
                                 }
                             )
 
@@ -2950,7 +3000,7 @@ fun MainScreen(
                                 label = "Calculator",
                                 onClick = {
                                     menuExpanded = false
-                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=calculator", "Scientific Calculator")
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=calculator&overlay=1", "Scientific Calculator")
                                 }
                             )
 
@@ -2959,7 +3009,7 @@ fun MainScreen(
                                 label = "Notebook",
                                 onClick = {
                                     menuExpanded = false
-                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=notes", "Study Notebook")
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=notes&overlay=1", "Study Notebook")
                                 }
                             )
 
@@ -2968,7 +3018,7 @@ fun MainScreen(
                                 label = "Timer",
                                 onClick = {
                                     menuExpanded = false
-                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=timer", "Study Timer")
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=timer&overlay=1", "Study Timer")
                                 }
                             )
 
@@ -2977,7 +3027,7 @@ fun MainScreen(
                                 label = "Planner",
                                 onClick = {
                                     menuExpanded = false
-                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=planner", "Study Planner")
+                                    openToolOverlay("https://www.wisdom-tower-academy.live/learning?tool=planner&overlay=1", "Study Planner")
                                 }
                             )
 
