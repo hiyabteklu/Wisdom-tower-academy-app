@@ -205,9 +205,10 @@ internal fun isPdfUri(uri: Uri): Boolean {
 }
 
 internal fun isLearningToolUri(uri: Uri): Boolean {
+    if (!uri.isHierarchical) return false
     val path = uri.path.orEmpty().removeSuffix("/").lowercase()
     val isLearning = path == "/learning" || path.startsWith("/learning/")
-    val hasToolParam = uri.getQueryParameter("tool") != null || uri.toString().contains("tool=")
+    val hasToolParam = try { uri.getQueryParameter("tool") != null } catch (_: Exception) { false } || uri.toString().contains("tool=")
     return isLearning && hasToolParam
 }
 
@@ -736,7 +737,7 @@ class TabWebViewHostState(
 
                     if (WebViewFeature.isFeatureSupported(WebViewFeature.VISUAL_STATE_CALLBACK)) {
                         try {
-                            WebViewCompat.postVisualStateCallback(v, System.currentTimeMillis()) {
+                            WebViewCompat.postVisualStateCallback(v, System.currentTimeMillis()) { _ ->
                                 mainHandler.post { markVisualReady(tabIndex) }
                             }
                         } catch (_: Exception) {}
@@ -936,7 +937,7 @@ class TabWebViewHostState(
                             val statusText = if (size > 0L && !isHead) "Partial Content" else "OK"
                             return WebResourceResponse(
                                 "application/pdf",
-                                "binary",
+                                null,
                                 status,
                                 statusText,
                                 headers,
@@ -954,7 +955,7 @@ class TabWebViewHostState(
                                     "Content-Length" to local.length().toString(),
                                     "Cache-Control" to "public, max-age=31536000, immutable"
                                 )
-                                WebResourceResponse("application/pdf", "binary", 200, "OK", headers, FileInputStream(local))
+                                WebResourceResponse("application/pdf", null, 200, "OK", headers, FileInputStream(local))
                             } catch (_: Exception) { null }
                         }
                     }
@@ -981,9 +982,9 @@ class TabWebViewHostState(
                 }
             }
 
-            setDownloadListener(DownloadListener { url, _, _, _, _ ->
+            setDownloadListener { url, _, _, _, _ ->
                 openOrDownloadPdfCallback(this, ctx, url)
-            })
+            }
 
             loadUrl(tab.lastTargetUrl)
         }

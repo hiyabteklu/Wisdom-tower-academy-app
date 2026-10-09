@@ -1,7 +1,11 @@
 # ProGuard and R8 rules for Wisdom Tower Academy (Google Play Production)
 
 # 1. Preserve JavaScript Interface methods called from WebView JavaScript
+-keepattributes *Annotation*,JavascriptInterface
 -keepclassmembers class * {
+    @android.webkit.JavascriptInterface <methods>;
+}
+-keepclasseswithmembers class * {
     @android.webkit.JavascriptInterface <methods>;
 }
 
