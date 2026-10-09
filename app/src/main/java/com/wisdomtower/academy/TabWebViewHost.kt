@@ -5,6 +5,8 @@ import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
 import android.graphics.Color as AndroidColor
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.net.http.SslError
 import android.os.Build
@@ -34,6 +36,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.snap
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -97,6 +100,32 @@ private val ALLOWED_ORIGIN_RULES = setOf(
     "https://www.wisdom-tower-academy.live"
 )
 
+private const val TAB_OFFLINE_ASSET = "file:///android_asset/offline.html"
+
+// Safety nets: the cover can NEVER stay up longer than this, whatever the page does.
+private const val REVEAL_WATCHDOG_FIRST_LOAD_MS = 8000L
+private const val REVEAL_WATCHDOG_IN_TAB_MS = 2500L
+
+// How many times the watchdog re-issues the bundled offline screen while a failed
+// navigation is still pending, before it gives up and reveals anyway (last resort).
+private const val OFFLINE_SCREEN_MAX_RETRIES = 2
+
+private fun tabHasNetwork(ctx: Context): Boolean {
+    return try {
+        val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        val net = cm.activeNetwork ?: return false
+        val caps = cm.getNetworkCapabilities(net) ?: return false
+        caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+    } catch (_: Exception) {
+        false
+    }
+}
+
+private fun sameTabUrl(a: String, b: String): Boolean {
+    fun norm(u: String) = u.trim().substringBefore('#').trimEnd('/').lowercase()
+    return norm(a) == norm(b)
+}
+
 internal const val DOCUMENT_START_JS = """
 (function() {
     try {
@@ -135,53 +164,6 @@ internal const val DOCUMENT_START_JS = """
             document.addEventListener('DOMContentLoaded', function() {
                 if (document.body) document.body.classList.add('wta-native-app');
             });
-        }
-
-        // Native smooth in-tab transition hook for Next.js soft navigation and link taps
-        if (!window.__wta_nav_hooked) {
-            window.__wta_nav_hooked = true;
-            function triggerInTabTransition() {
-                if (window.AndroidOfflineVault && typeof window.AndroidOfflineVault.notifyLoadingStarted === 'function') {
-                    window.AndroidOfflineVault.notifyLoadingStarted("in-tab");
-                }
-                requestAnimationFrame(function() {
-                    requestAnimationFrame(function() {
-                        if (window.AndroidOfflineVault && typeof window.AndroidOfflineVault.notifyVisualCommitReady === 'function') {
-                            window.AndroidOfflineVault.notifyVisualCommitReady();
-                        }
-                    });
-                });
-            }
-
-            var origPush = history.pushState;
-            history.pushState = function() {
-                var res = origPush.apply(this, arguments);
-                triggerInTabTransition();
-                return res;
-            };
-
-            var origReplace = history.replaceState;
-            history.replaceState = function() {
-                var res = origReplace.apply(this, arguments);
-                triggerInTabTransition();
-                return res;
-            };
-
-            window.addEventListener('popstate', function() {
-                triggerInTabTransition();
-            });
-
-            document.addEventListener('click', function(e) {
-                var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
-                if (a && a.href && !a.getAttribute('target') && !a.href.startsWith('javascript:')) {
-                    try {
-                        var u = new URL(a.href, window.location.origin);
-                        if (u.origin === window.location.origin && !u.pathname.toLowerCase().endsWith('.pdf')) {
-                            triggerInTabTransition();
-                        }
-                    } catch(_) {}
-                }
-            }, true);
         }
     } catch(e) {}
 })();
@@ -229,6 +211,20 @@ class SingleTabState(val index: Int, val defaultUrl: String) {
     var lastTargetUrl: String = defaultUrl
     var lastOnlineUrl: String = defaultUrl
     internal var spinnerTimeoutRunnable: Runnable? = null
+    internal var watchdogRunnable: Runnable? = null
+
+    // True between "main-frame load failed" and "offline screen finished loading".
+    // While true we never reveal the WebView, so the browser error page is never visible.
+    internal var errorPending: Boolean = false
+
+    // Navigation generation: bumped on every onPageStarted (and on evict / renderer loss).
+    // Visual-commit callbacks remember the generation they belong to, so a callback from
+    // an older page can never reveal a newer navigation.
+    internal var navGen: Int = 0
+    internal var committedGen: Int = -1
+
+    // Watchdog-driven re-issues of the offline screen for the current failure.
+    internal var offlineRetries: Int = 0
 }
 
 /**
@@ -290,14 +286,31 @@ class TabWebViewHostState(
         return false
     }
 
+    /**
+     * Creates a background tab WebView, but only when it will not fight the visible tab
+     * for CPU/network: waits until every other tab has finished its first reveal,
+     * and skips entirely when there is no network.
+     */
     fun prewarmTab(index: Int) {
         if (index !in tabStates.indices) return
         val tab = tabStates[index]
-        if (tab.webView == null) {
-            mainHandler.post {
-                createWebViewForTab(index, context)
+        if (tab.webView != null) return
+        if (!tabHasNetwork(context)) return
+
+        var attempts = 0
+        lateinit var attempt: Runnable
+        attempt = Runnable {
+            if (tab.webView == null) {
+                val othersLoading = tabStates.any { it.index != index && it.webView != null && !it.isRevealed }
+                if (othersLoading && attempts < 20) {
+                    attempts++
+                    mainHandler.postDelayed(attempt, 500L)
+                } else {
+                    createWebViewForTab(index, context)
+                }
             }
         }
+        mainHandler.post(attempt)
     }
 
     fun onTrimMemory(level: Int, currentSelectedIndex: Int) {
@@ -315,6 +328,13 @@ class TabWebViewHostState(
                 }
             }
         }
+    }
+
+    private fun cancelRevealTimers(tab: SingleTabState) {
+        tab.spinnerTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        tab.spinnerTimeoutRunnable = null
+        tab.watchdogRunnable?.let { mainHandler.removeCallbacks(it) }
+        tab.watchdogRunnable = null
     }
 
     private fun evictTab(tabIndex: Int) {
@@ -335,8 +355,10 @@ class TabWebViewHostState(
         tab.isFirstLoad = true
         tab.showSpinner = false
         tab.inTabTransitioning = false
-        tab.spinnerTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        tab.spinnerTimeoutRunnable = null
+        tab.errorPending = false
+        tab.offlineRetries = 0
+        tab.navGen++
+        cancelRevealTimers(tab)
         synchronized(tabAccessLru) {
             tabAccessLru.remove(tabIndex)
         }
@@ -349,26 +371,24 @@ class TabWebViewHostState(
         val isOfflineAsset = currentUrl.contains("offline.html") || currentUrl.startsWith("file://")
         val target = if (isOfflineAsset) tab.lastTargetUrl.ifBlank { tab.defaultUrl } else currentUrl.ifBlank { tab.lastTargetUrl }
 
-        startRevealGate(tab)
         if (isOnline) {
+            tab.errorPending = false
+            startRevealGate(tab)
             wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-            if (isOfflineAsset) {
+            if (isOfflineAsset || currentUrl.isBlank()) {
                 wv.loadUrl(target)
             } else {
-                wv.evaluateJavascript(
-                    "(function(){try{window.location.reload(true);}catch(e){window.location.reload();}})();"
-                ) {
-                    mainHandler.post { wv.reload() }
-                }
+                wv.reload()
             }
-        } else {
-            if (WebCacheVault.has(context, target)) {
-                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                wv.loadUrl(target)
-            } else {
-                showOfflineCallback(wv, true)
-            }
+        } else if (WebCacheVault.has(context, target)) {
+            tab.errorPending = false
+            startRevealGate(tab)
+            wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            wv.loadUrl(target)
+        } else if (!isOfflineAsset) {
+            loadOfflineScreen(tab, wv)
         }
+        // else: offline, nothing cached, already on the offline screen: nothing to do (no cover).
     }
 
     fun navigateTo(
@@ -379,66 +399,125 @@ class TabWebViewHostState(
     ) {
         recordTabAccess(targetTabIndex)
         val tab = tabStates.getOrNull(targetTabIndex) ?: return
-        var wv = tab.webView
-        if (wv == null) {
-            wv = createWebViewForTab(targetTabIndex, context)
-        }
 
+        val previousTarget = tab.lastTargetUrl
         tab.lastTargetUrl = url
         if (isOnline) {
             tab.lastOnlineUrl = url
         }
 
-        // Start reveal gate transition
-        startRevealGate(tab)
+        val existing = tab.webView
+        if (existing == null) {
+            // Brand-new WebView: it loads tab.lastTargetUrl itself (offline-aware).
+            createWebViewForTab(targetTabIndex, context)
+            return
+        }
+        val wv: WebView = existing
 
         if (resetHistory) {
             wv.clearHistory()
         }
 
-        if (isOnline) {
-            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-            val currentUrl = wv.url.orEmpty()
-            if (!resetHistory && tab.isRevealed && currentUrl.isNotBlank() && !currentUrl.startsWith("file://") && !currentUrl.contains("offline.html")) {
-                val escapedUrl = url.replace("\\", "\\\\").replace("'", "\\'")
-                val js = "(function(targetUrl){try{" +
-                    "if(!targetUrl||window.location.protocol==='file:')return 'fallback';" +
-                    "var cur=window.location.href;" +
-                    "if(cur===targetUrl)return 'noop';" +
-                    "var path=targetUrl;" +
-                    "try{var u=new URL(targetUrl,window.location.origin);path=u.pathname+u.search+u.hash;}catch(_){}" +
-                    "try{window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:path,url:targetUrl}}));}catch(_){}" +
-                    "if(typeof window.__wtaNavigate==='function'){try{var r=window.__wtaNavigate(path);if(r===true||r==='ok')return 'ok';}catch(_){}}" +
-                    "if(window.next&&window.next.router&&typeof window.next.router.push==='function'){try{window.next.router.push(path);return 'ok';}catch(_){}}" +
-                    "try{var existing=document.querySelector('a[href=\"'+path+'\"],a[href=\"'+targetUrl+'\"]');if(existing){existing.click();return 'ok';}}catch(_){}" +
-                    "return 'fallback';" +
-                    "}catch(e){return 'fallback';}})('$escapedUrl');"
-                wv.evaluateJavascript(js) { res ->
-                    val r = res?.replace("\"", "")?.trim().orEmpty()
-                    if (r != "ok" && r != "noop") {
-                        mainHandler.post { wv.loadUrl(url) }
-                    }
-                }
-            } else {
+        val currentUrl = wv.url.orEmpty()
+        val onOfflinePage = currentUrl.contains("offline.html") || currentUrl.startsWith("file://")
+
+        // Already showing this page and healthy: just switch to the tab.
+        // No cover, no reload, no JS navigation (works online and offline).
+        if (!resetHistory && !onOfflinePage && !tab.errorPending && tab.isRevealed &&
+            sameTabUrl(currentUrl, url)
+        ) {
+            return
+        }
+
+        if (!isOnline) {
+            if (WebCacheVault.has(context, url)) {
+                tab.errorPending = false
+                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                startRevealGate(tab)
+                wv.loadUrl(url)
+            } else if (!onOfflinePage) {
+                loadOfflineScreen(tab, wv)
+            }
+            // else: already showing the offline screen, nothing to do (and no cover).
+            return
+        }
+
+        wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+
+        // A failed navigation is still being swapped for the offline screen, but we are online
+        // again: abandon the swap and retry the real page.
+        if (tab.errorPending) {
+            tab.errorPending = false
+            startRevealGate(tab)
+            wv.loadUrl(url)
+            return
+        }
+
+        // Coming back online from the offline screen.
+        if (onOfflinePage) {
+            startRevealGate(tab)
+            wv.loadUrl(url)
+            return
+        }
+
+        // Tab is still on its very first load: do not restart it for the same URL.
+        if (!tab.isRevealed) {
+            if (!sameTabUrl(previousTarget, url)) {
+                startRevealGate(tab)
                 wv.loadUrl(url)
             }
-        } else {
-            if (WebCacheVault.has(context, url)) {
-                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                wv.loadUrl(url)
-            } else {
-                showOfflineCallback(wv, true)
+            return
+        }
+
+        if (resetHistory) {
+            startRevealGate(tab)
+            wv.loadUrl(url)
+            return
+        }
+
+        // Different page inside an already-loaded tab: try smooth in-page navigation first.
+        val escapedUrl = url.replace("\\", "\\\\").replace("'", "\\'")
+        val js = "(function(targetUrl){try{" +
+            "if(!targetUrl||window.location.protocol==='file:')return 'fallback';" +
+            "var cur=window.location.href;" +
+            "if(cur===targetUrl)return 'noop';" +
+            "var path=targetUrl;" +
+            "try{var u=new URL(targetUrl,window.location.origin);path=u.pathname+u.search+u.hash;}catch(_){}" +
+            "try{window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:path,url:targetUrl}}));}catch(_){}" +
+            "if(typeof window.__wtaNavigate==='function'){try{var r=window.__wtaNavigate(path);if(r===true||r==='ok')return 'ok';}catch(_){}}" +
+            "if(window.next&&window.next.router&&typeof window.next.router.push==='function'){try{window.next.router.push(path);return 'ok';}catch(_){}}" +
+            "try{var existing=document.querySelector('a[href=\"'+path+'\"],a[href=\"'+targetUrl+'\"]');if(existing){existing.click();return 'ok';}}catch(_){}" +
+            "return 'fallback';" +
+            "}catch(e){return 'fallback';}})('$escapedUrl');"
+        wv.evaluateJavascript(js) { res ->
+            val r = res?.replace("\"", "")?.trim().orEmpty()
+            if (r == "ok") {
+                // If the in-page navigation silently did nothing, fall back to a real load.
+                // Skipped if the tab was retargeted, evicted or already moved on meanwhile.
+                mainHandler.postDelayed({
+                    if (tab.webView === wv && sameTabUrl(tab.lastTargetUrl, url) &&
+                        sameTabUrl(wv.url.orEmpty(), currentUrl)
+                    ) {
+                        startRevealGate(tab)
+                        wv.loadUrl(url)
+                    }
+                }, 1500L)
+            } else if (r != "noop") {
+                mainHandler.post {
+                    if (tab.webView === wv && sameTabUrl(tab.lastTargetUrl, url)) {
+                        startRevealGate(tab)
+                        wv.loadUrl(url)
+                    }
+                }
             }
         }
     }
 
     fun startRevealGate(tab: SingleTabState) {
-        tab.spinnerTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
+        cancelRevealTimers(tab)
         if (tab.isRevealed) {
             // In-tab navigation: use short native transition layer
             tab.inTabTransitioning = true
-        } else {
-            tab.isRevealed = false
         }
         tab.showSpinner = false
 
@@ -450,16 +529,65 @@ class TabWebViewHostState(
         }
         tab.spinnerTimeoutRunnable = showSpinnerRunnable
         mainHandler.postDelayed(showSpinnerRunnable, 400L)
+
+        // Hard safety net: whatever happens, the cover comes down.
+        val watchdog = Runnable { onRevealWatchdog(tab) }
+        tab.watchdogRunnable = watchdog
+        mainHandler.postDelayed(
+            watchdog,
+            if (tab.isFirstLoad) REVEAL_WATCHDOG_FIRST_LOAD_MS else REVEAL_WATCHDOG_IN_TAB_MS
+        )
     }
 
-    fun markVisualReady(tabIndex: Int) {
+    private fun onRevealWatchdog(tab: SingleTabState) {
+        tab.watchdogRunnable = null
+        val wv = tab.webView
+        if (tab.errorPending && wv != null && tab.offlineRetries < OFFLINE_SCREEN_MAX_RETRIES) {
+            // A failed navigation never got its offline screen: try again instead of
+            // revealing the browser-generated error page.
+            tab.offlineRetries++
+            loadOfflineScreen(tab, wv)
+            return
+        }
+        markVisualReady(tab.index, force = true)
+    }
+
+    fun markVisualReady(tabIndex: Int, force: Boolean = false) {
         val tab = tabStates.getOrNull(tabIndex) ?: return
-        tab.spinnerTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        tab.spinnerTimeoutRunnable = null
+        // A failed navigation keeps the cover up until the bundled offline screen has loaded.
+        // Only the watchdog (after its offline retries are used up) may override that.
+        if (tab.errorPending && !force) return
+        cancelRevealTimers(tab)
+        tab.errorPending = false
+        tab.offlineRetries = 0
         tab.showSpinner = false
         tab.inTabTransitioning = false
         tab.isRevealed = true
         tab.isFirstLoad = false
+    }
+
+    private fun handleMainFrameFailure(tab: SingleTabState, view: WebView) {
+        // Several error callbacks can fire for one failure; swap the offline screen in once.
+        if (tab.errorPending) return
+        loadOfflineScreen(tab, view)
+    }
+
+    /**
+     * Keeps the cover up and loads the bundled offline screen directly. Does not rely on
+     * showOfflineCallback, which skips the load when the view already reports an offline URL.
+     */
+    private fun loadOfflineScreen(tab: SingleTabState, view: WebView) {
+        tab.errorPending = true
+        startRevealGate(tab)
+        // mainHandler (not view.post): a background tab's WebView is detached, and View.post
+        // would wait for attachment.
+        mainHandler.post {
+            // Skip if the tab was evicted/recreated, or a newer navigation cleared the failure.
+            if (tab.webView === view && tab.errorPending) {
+                try { view.stopLoading() } catch (_: Exception) {}
+                view.loadUrl(TAB_OFFLINE_ASSET)
+            }
+        }
     }
 
     fun createWebViewForTab(tabIndex: Int, ctx: Context): WebView {
@@ -499,7 +627,7 @@ class TabWebViewHostState(
                 allowContentAccess = false
                 useWideViewPort = true
                 loadWithOverviewMode = true
-                cacheMode = WebSettings.LOAD_DEFAULT
+                cacheMode = if (tabHasNetwork(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                 // Add WisdomTowerApp token so the Next.js server recognizes native app
                 userAgentString = "${settings.userAgentString} WisdomTowerApp wta-native"
             }
@@ -615,7 +743,12 @@ class TabWebViewHostState(
                 @JavascriptInterface
                 fun notifyLoadingStarted(msg: String?) {
                     mainHandler.post {
-                        startRevealGate(tab)
+                        // An already-revealed tab never gets a cover from page JS (ordinary
+                        // in-page navigation must stay uncovered). While the tab is still
+                        // gated this only re-arms the gate.
+                        if (!tab.isRevealed && !tab.errorPending) {
+                            startRevealGate(tab)
+                        }
                     }
                 }
 
@@ -629,14 +762,30 @@ class TabWebViewHostState(
                 @JavascriptInterface
                 fun notifyVisualCommitReady() {
                     mainHandler.post {
-                        markVisualReady(tabIndex)
+                        // Ignore a callback that belongs to a page older than the current navigation.
+                        if (tab.committedGen == tab.navGen) {
+                            markVisualReady(tabIndex)
+                        }
                     }
                 }
 
                 @JavascriptInterface
                 fun reloadLastOnlinePage() {
                     mainHandler.post {
-                        reloadActiveTab(tabIndex, true)
+                        if (tabHasNetwork(ctx)) {
+                            reloadActiveTab(tabIndex, true)
+                        } else {
+                            // Still offline: no reload and no cover; just let the offline
+                            // screen reset its "Try again" button.
+                            mainHandler.postDelayed({
+                                if (tab.webView === this@apply) {
+                                    this@apply.evaluateJavascript(
+                                        "if(typeof onRetryFailed==='function')onRetryFailed();",
+                                        null
+                                    )
+                                }
+                            }, 700L)
+                        }
                     }
                 }
 
@@ -703,6 +852,7 @@ class TabWebViewHostState(
             webViewClient = object : WebViewClient() {
                 override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                     val v = view ?: return
+                    tab.navGen++
                     startRevealGate(tab)
                     // Fallback CSS injection if DOCUMENT_START_SCRIPT is not supported
                     if (!WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
@@ -723,22 +873,32 @@ class TabWebViewHostState(
                         } catch (_: Exception) {}
                     }
 
+                    // A failed navigation never counts as a visual commit.
+                    if (tab.errorPending) return
+
+                    val gen = tab.navGen
+                    tab.committedGen = gen
+
                     // 2 animation frames reveal gate callback
-                    v.post {
-                        v.evaluateJavascript(
-                            "(function(){requestAnimationFrame(function(){requestAnimationFrame(function(){" +
-                            "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyVisualCommitReady==='function'){" +
-                            "window.AndroidOfflineVault.notifyVisualCommitReady();" +
-                            "}" +
-                            "});});})();",
-                            null
-                        )
+                    mainHandler.post {
+                        if (tab.webView === v) {
+                            v.evaluateJavascript(
+                                "(function(){requestAnimationFrame(function(){requestAnimationFrame(function(){" +
+                                "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.notifyVisualCommitReady==='function'){" +
+                                "window.AndroidOfflineVault.notifyVisualCommitReady();" +
+                                "}" +
+                                "});});})();",
+                                null
+                            )
+                        }
                     }
 
                     if (WebViewFeature.isFeatureSupported(WebViewFeature.VISUAL_STATE_CALLBACK)) {
                         try {
                             WebViewCompat.postVisualStateCallback(v, System.currentTimeMillis()) { _ ->
-                                mainHandler.post { markVisualReady(tabIndex) }
+                                mainHandler.post {
+                                    if (tab.navGen == gen) markVisualReady(tabIndex)
+                                }
                             }
                         } catch (_: Exception) {}
                     }
@@ -747,10 +907,14 @@ class TabWebViewHostState(
                 override fun onPageFinished(view: WebView?, url: String?) {
                     val v = view ?: return
                     val u = url ?: v.url.orEmpty()
-                    if (u.isNotBlank() && !u.startsWith("file://") && !u.contains("offline.html")) {
+                    if (u.contains("offline.html")) {
+                        // Our own offline screen finished: it is now safe to reveal.
+                        tab.errorPending = false
+                    } else if (u.isNotBlank() && !u.startsWith("file://") && !tab.errorPending) {
                         tab.lastOnlineUrl = u
                         tab.lastTargetUrl = u
                     }
+                    // Blocked while errorPending, so a failed page's own "finished" never reveals it.
                     markVisualReady(tabIndex)
                 }
 
@@ -761,11 +925,11 @@ class TabWebViewHostState(
                 ) {
                     if (request?.isForMainFrame != true) return
                     val v = view ?: return
+                    val code = error?.errorCode ?: 0
+                    if (code == WebViewClient.ERROR_UNSUPPORTED_SCHEME || code == WebViewClient.ERROR_BAD_URL) return
                     val failedUrl = request.url?.toString().orEmpty()
                     if (failedUrl.startsWith("file:///android_asset/")) return
-                    if (!WebCacheVault.has(ctx, failedUrl)) {
-                        showOfflineCallback(v, true)
-                    }
+                    handleMainFrameFailure(tab, v)
                 }
 
                 override fun onReceivedHttpError(
@@ -780,7 +944,7 @@ class TabWebViewHostState(
                     if (failedUrl.startsWith("file:///android_asset/")) return
                     if (statusCode in listOf(404, 500, 502, 503, 504)) {
                         if (!WebCacheVault.has(ctx, failedUrl)) {
-                            showOfflineCallback(v, true)
+                            handleMainFrameFailure(tab, v)
                         }
                     }
                 }
@@ -792,7 +956,7 @@ class TabWebViewHostState(
                 ) {
                     handler?.cancel()
                     val v = view ?: return
-                    showOfflineCallback(v, true)
+                    handleMainFrameFailure(tab, v)
                 }
 
                 override fun onRenderProcessGone(
@@ -804,11 +968,21 @@ class TabWebViewHostState(
                         (v.parent as? ViewGroup)?.removeView(v)
                         v.destroy()
                     } catch (_: Exception) {}
+                    // Reset the tab synchronously so nothing keeps using the dead view and no
+                    // timer/callback from the lost page can touch the recreated one.
+                    cancelRevealTimers(tab)
+                    tab.navGen++
+                    tab.webView = null
+                    tab.isRevealed = false
+                    tab.isFirstLoad = true
+                    tab.inTabTransitioning = false
+                    tab.showSpinner = false
+                    tab.errorPending = false
+                    tab.offlineRetries = 0
+                    tab.lastTargetUrl = tab.lastOnlineUrl.ifBlank { tab.defaultUrl }
                     mainHandler.post {
-                        tab.webView = null
-                        val recreated = createWebViewForTab(tabIndex, ctx)
-                        val reloadUrl = tab.lastOnlineUrl.ifBlank { tab.defaultUrl }
-                        recreated.loadUrl(reloadUrl)
+                        // createWebViewForTab loads tab.lastTargetUrl itself (offline-aware).
+                        createWebViewForTab(tabIndex, ctx)
                     }
                     return true
                 }
@@ -986,7 +1160,18 @@ class TabWebViewHostState(
                 openOrDownloadPdfCallback(this, ctx, url)
             }
 
-            loadUrl(tab.lastTargetUrl)
+            // The cover is up from the very first moment; make sure a watchdog is running
+            // even if the first load never reports onPageStarted.
+            startRevealGate(tab)
+
+            // Offline-aware first load: with no network (and nothing cached) go straight to
+            // our offline screen instead of letting the browser show its own error page.
+            val startUrl = tab.lastTargetUrl
+            if (!tabHasNetwork(ctx) && !WebCacheVault.has(ctx, startUrl)) {
+                loadUrl(TAB_OFFLINE_ASSET)
+            } else {
+                loadUrl(startUrl)
+            }
         }
 
         tab.webView = newWv
@@ -1107,8 +1292,8 @@ internal fun NativeTabSkeleton(modifier: Modifier = Modifier) {
 /**
  * Tab Reveal Gate:
  * Holds the page behind solid navy (#060B15) until onPageCommitVisible + 2 frames,
- * showing native skeleton on first load, native spinner only if load takes >400ms,
- * and crossfading in over ~150ms.
+ * showing native skeleton on first load, native spinner only if load takes >400ms.
+ * The cover appears instantly (so nothing underneath can flash) and fades out over ~150ms.
  */
 @Composable
 private fun TabRevealGate(
@@ -1122,7 +1307,7 @@ private fun TabRevealGate(
 
     val gateAlpha by animateFloatAsState(
         targetValue = if (shouldShowCover) 1f else 0f,
-        animationSpec = tween(150, easing = FastOutSlowInEasing),
+        animationSpec = if (shouldShowCover) snap<Float>() else tween<Float>(150, easing = FastOutSlowInEasing),
         label = "gateAlpha"
     )
 
