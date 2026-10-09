@@ -912,7 +912,6 @@ fun MainScreen(
 
     // Instant cold-start and process-death network validation
     val isInitiallyOnline = isOnline(context)
-    var lastTargetUrl by remember { mutableStateOf(initialNotificationUrl?.takeIf { it.isNotBlank() } ?: SITE) }
 
     var isInitialLoading by remember { mutableStateOf(true) }
     var minSplashElapsed by remember { mutableStateOf(false) }
@@ -969,6 +968,38 @@ fun MainScreen(
     var timerTitle by remember { mutableStateOf("Study Timer") }
     var isTimerDismissed by remember { mutableStateOf(false) }
 
+    fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
+        val cleanUrl = url.trim()
+        val local = OfflineVault.localFileFor(ctx, cleanUrl)
+        if (local != null && local.exists() && local.length() > 0) {
+            mainHandler.post {
+                Toast.makeText(ctx, "Already downloaded — opening", Toast.LENGTH_SHORT).show()
+            }
+            wv.loadUrl(OfflineVault.fileUrl(local))
+            return
+        }
+        if (!isOnline(ctx)) {
+            mainHandler.post {
+                Toast.makeText(ctx, "Book not available offline yet. Open it once while online.", Toast.LENGTH_LONG).show()
+            }
+            return
+        }
+        mainHandler.post {
+            Toast.makeText(ctx, "Saving for offline use", Toast.LENGTH_SHORT).show()
+        }
+        OfflineVault.downloadUserInitiated(ctx, cleanUrl) { file ->
+            mainHandler.post {
+                if (file != null && file.exists() && file.length() > 0) {
+                    OfflineVault.cachePdfSize(ctx, cleanUrl, file.length())
+                    Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
+                    wv.loadUrl(OfflineVault.fileUrl(file))
+                } else {
+                    wv.loadUrl(cleanUrl)
+                }
+            }
+        }
+    }
+
     val tabHostState = remember {
         TabWebViewHostState(
             context = context,
@@ -1010,7 +1041,9 @@ fun MainScreen(
                 }
             },
             notifyPlannerTaskCallback = { taskName, dueTime, studentName ->
-                AcademyNotificationManager.notifyPlannerTaskDue(context, taskName, dueTime, studentName)
+                if (taskName != null) {
+                    AcademyNotificationManager.notifyPlannerTaskDue(context, taskName, dueTime, studentName)
+                }
             },
             notifyDailyStudyGoalCallback = {
                 AcademyNotificationManager.notifyDailyGoalNudge(context)
@@ -1207,38 +1240,6 @@ fun MainScreen(
         } else {
             lastBackPressTime = currentTime
             Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
-        }
-    }
-
-    fun openOrDownloadPdf(wv: WebView, ctx: Context, url: String) {
-        val cleanUrl = url.trim()
-        val local = OfflineVault.localFileFor(ctx, cleanUrl)
-        if (local != null && local.exists() && local.length() > 0) {
-            mainHandler.post {
-                Toast.makeText(ctx, "Already downloaded — opening", Toast.LENGTH_SHORT).show()
-            }
-            wv.loadUrl(OfflineVault.fileUrl(local))
-            return
-        }
-        if (!isOnline(ctx)) {
-            mainHandler.post {
-                Toast.makeText(ctx, "Book not available offline yet. Open it once while online.", Toast.LENGTH_LONG).show()
-            }
-            return
-        }
-        mainHandler.post {
-            Toast.makeText(ctx, "Saving for offline use", Toast.LENGTH_SHORT).show()
-        }
-        OfflineVault.downloadUserInitiated(ctx, cleanUrl) { file ->
-            mainHandler.post {
-                if (file != null && file.exists() && file.length() > 0) {
-                    OfflineVault.cachePdfSize(ctx, cleanUrl, file.length())
-                    Toast.makeText(ctx, "Saved offline", Toast.LENGTH_SHORT).show()
-                    wv.loadUrl(OfflineVault.fileUrl(file))
-                } else {
-                    wv.loadUrl(cleanUrl)
-                }
-            }
         }
     }
 
@@ -2123,7 +2124,7 @@ fun MainScreen(
                             "var raw=localStorage.getItem('wt_focus_timer_v1');" +
                             "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=$timerRemainingSeconds;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
                             "}catch(e){}})();"
-                        webView?.evaluateJavascript(js, null)
+                        tabHostState.getActiveWebView(selectedIndex)?.evaluateJavascript(js, null)
                     } else {
                         isTimerRunning = true
                         isTimerPaused = false
@@ -2132,7 +2133,7 @@ fun MainScreen(
                             "var raw=localStorage.getItem('wt_focus_timer_v1');" +
                             "if(raw){var s=JSON.parse(raw);s.running=true;s.endAt=Date.now()+($timerRemainingSeconds*1000);localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
                             "}catch(e){}})();"
-                        webView?.evaluateJavascript(js, null)
+                        tabHostState.getActiveWebView(selectedIndex)?.evaluateJavascript(js, null)
                     }
                 },
                 onStop = stopStudyTimerWithEndFlow,
