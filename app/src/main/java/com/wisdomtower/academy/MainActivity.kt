@@ -204,16 +204,16 @@ import com.wisdomtower.academy.ui.theme.MyApplicationTheme
 import kotlinx.coroutines.delay
 
 // Unified native tokens mirroring the live website (wisdom.* palette)
-private val BarBg = Color(0xFF060B15) // Deep navy, exactly matching website page background
-private val Accent = Color(0xFF22E0FF) // Website source of truth cyan
-private val AccentDark = Color(0xFF00C4E6)
-private val CardSurface = Color(0xFF0C1424) // Glass-like card surface
-private val CardBorder = Color(0x3322E0FF) // Soft 1px cyan border
-private val CardBorderSubtle = Color(0x1F22E0FF) // Hairline quiet divider
-private val SurfaceColor = CardSurface
-private val Muted = Color(0xFF94A3B8)
-private val TextPrimary = Color(0xFFF8FAFC)
-private val DarkOnCyan = Color(0xFF070D17) // Dark text on solid cyan pills
+internal val BarBg = Color(0xFF060B15) // Deep navy, exactly matching website page background
+internal val Accent = Color(0xFF22E0FF) // Website source of truth cyan
+internal val AccentDark = Color(0xFF00C4E6)
+internal val CardSurface = Color(0xFF0C1424) // Glass-like card surface
+internal val CardBorder = Color(0x3322E0FF) // Soft 1px cyan border
+internal val CardBorderSubtle = Color(0x1F22E0FF) // Hairline quiet divider
+internal val SurfaceColor = CardSurface
+internal val Muted = Color(0xFF94A3B8)
+internal val TextPrimary = Color(0xFFF8FAFC)
+internal val DarkOnCyan = Color(0xFF070D17) // Dark text on solid cyan pills
 
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 // Direct 200 URL (eliminates 308 redirect round-trip delay)
@@ -753,6 +753,10 @@ class MainActivity : ComponentActivity() {
         // TODO: Re-enable FLAG_SECURE before final production release to prevent unauthorized screen captures
         // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
+
+    override fun onTrimMemory(level: Int) {
+        super.onTrimMemory(level)
+    }
 }
 
 sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: String) {
@@ -904,62 +908,18 @@ fun MainScreen(
     }
 
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
-    var webView: WebView? by remember { mutableStateOf(null) }
     var menuExpanded by remember { mutableStateOf(false) }
 
     // Instant cold-start and process-death network validation
     val isInitiallyOnline = isOnline(context)
     var lastTargetUrl by remember { mutableStateOf(initialNotificationUrl?.takeIf { it.isNotBlank() } ?: SITE) }
 
-    // Loading states for zero blank screen and lively navigation feedback
     var isInitialLoading by remember { mutableStateOf(true) }
     var minSplashElapsed by remember { mutableStateOf(false) }
-    var pageRendered by remember { mutableStateOf(false) }
-    var webProgress by remember { mutableIntStateOf(0) }
-    var isNavigating by remember { mutableStateOf(false) }
-    var navigationStatusText by remember { mutableStateOf("Loading…") }
-    var navigationStartTime by remember { mutableLongStateOf(0L) }
-    var navShowRunnable by remember { mutableStateOf<Runnable?>(null) }
-    var navTimeoutRunnable by remember { mutableStateOf<Runnable?>(null) }
-
-    fun startNavigationLoading(delayMs: Long = 0L) {
-        navShowRunnable?.let { mainHandler.removeCallbacks(it) }
-        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        navigationStartTime = System.currentTimeMillis()
-        if (delayMs > 0L) {
-            val showRunnable = Runnable { isNavigating = true }
-            navShowRunnable = showRunnable
-            mainHandler.postDelayed(showRunnable, delayMs)
-        } else {
-            isNavigating = true
-        }
-        val timeout = Runnable { isNavigating = false }
-        navTimeoutRunnable = timeout
-        mainHandler.postDelayed(timeout, 4000L)
-    }
-
-    fun stopNavigationLoading(forceImmediate: Boolean = false) {
-        navShowRunnable?.let { mainHandler.removeCallbacks(it) }
-        navShowRunnable = null
-        navTimeoutRunnable?.let { mainHandler.removeCallbacks(it) }
-        navTimeoutRunnable = null
-        if (forceImmediate) {
-            isNavigating = false
-        } else {
-            val elapsed = System.currentTimeMillis() - navigationStartTime
-            val remainingMin = (260L - elapsed).coerceAtLeast(80L)
-            mainHandler.postDelayed({
-                isNavigating = false
-            }, remainingMin)
-        }
-    }
 
     var showNotificationSettingsDialog by remember { mutableStateOf(false) }
     var showTimerControlDialog by remember { mutableStateOf(false) }
-    var studyPageReturnUrl by remember { mutableStateOf("") }
     var previousTimerRunning by remember { mutableStateOf(false) }
-    var lastOnlineUrl by remember { mutableStateOf(SITE) }
-    var pendingClearHistory by remember { mutableStateOf(false) }
 
     var activeToolOverlayUrl by remember { mutableStateOf<String?>(null) }
     var activeToolOverlayTitle by remember { mutableStateOf("Study Tool") }
@@ -988,47 +948,92 @@ fun MainScreen(
         toolOverlayWebView?.stopLoading()
     }
 
-    var pendingNavRunnable by remember { mutableStateOf<Runnable?>(null) }
-
     fun showOffline(wv: WebView, force: Boolean = false) {
-        if (!force && isOnline(context)) {
-            // Absolute safety check: Never show offline page during normal online browsing
-            return
-        }
+        if (!force && isOnline(context)) return
         val cur = wv.url.orEmpty()
-        // If already showing offline asset, DO NOT reload it in an infinite loop!
         if (cur.contains("offline.html") || cur.startsWith("file:///android_asset/")) {
-            if (minSplashElapsed) {
-                isInitialLoading = false
-            }
-            stopNavigationLoading()
             return
-        }
-
-        if (cur.isNotBlank() && !cur.startsWith("file://") && !cur.contains("offline.html")) {
-            lastOnlineUrl = cur
         }
         mainHandler.post {
             if (!force && isOnline(context)) return@post
-            try {
-                wv.stopLoading()
-            } catch (_: Exception) {}
+            try { wv.stopLoading() } catch (_: Exception) {}
             wv.loadUrl(OFFLINE_ASSET)
         }
-        mainHandler.postDelayed({
-            if (minSplashElapsed) {
-                isInitialLoading = false
+    }
+
+    // MP3-player style Study Timer state
+    var isTimerRunning by remember { mutableStateOf(false) }
+    var isTimerPaused by remember { mutableStateOf(false) }
+    var timerRemainingSeconds by remember { mutableIntStateOf(0) }
+    var timerTotalSeconds by remember { mutableIntStateOf(0) }
+    var timerTitle by remember { mutableStateOf("Study Timer") }
+    var isTimerDismissed by remember { mutableStateOf(false) }
+
+    val tabHostState = remember {
+        TabWebViewHostState(
+            context = context,
+            onRouteChangedCallback = { path ->
+                selectedIndex = tabIndexForUrl(path, selectedIndex)
+                val lower = path.lowercase()
+                if (lower.contains("login") || lower.contains("account") || lower.contains("dashboard") || lower.contains("learning")) {
+                    FcmTokenRegistrar.checkAndRegisterToken(context)
+                }
+            },
+            onUserLoginCallback = { _ ->
+                FcmTokenRegistrar.checkAndRegisterToken(context)
+            },
+            syncStudyTimerCallback = { isRunning, secondsLeft, totalSeconds, title ->
+                val wasRunning = isTimerRunning
+                isTimerRunning = isRunning
+                if (isRunning) {
+                    if (!wasRunning) {
+                        Toast.makeText(context, "Focus session started — we'll notify you when it wraps up.", Toast.LENGTH_SHORT).show()
+                    }
+                    isTimerPaused = false
+                    timerRemainingSeconds = secondsLeft.coerceAtLeast(0)
+                    isTimerDismissed = false
+                } else {
+                    if (wasRunning && secondsLeft == 0 && totalSeconds > 0) {
+                        AcademyNotificationManager.notifyStudyTimerCompleted(context)
+                    }
+                    if (secondsLeft > 0 && !isTimerDismissed) {
+                        isTimerPaused = true
+                        timerRemainingSeconds = secondsLeft
+                    } else {
+                        isTimerPaused = false
+                        timerRemainingSeconds = 0
+                    }
+                }
+                timerTotalSeconds = totalSeconds.coerceAtLeast(0)
+                if (!title.isNullOrBlank()) {
+                    timerTitle = title
+                }
+            },
+            notifyPlannerTaskCallback = { taskName, dueTime, studentName ->
+                AcademyNotificationManager.notifyPlannerTaskDue(context, taskName, dueTime, studentName)
+            },
+            notifyDailyStudyGoalCallback = {
+                AcademyNotificationManager.notifyDailyGoalNudge(context)
+            },
+            openNotificationSettingsCallback = {
+                showNotificationSettingsDialog = true
+            },
+            openToolOverlayCallback = { u, t ->
+                openToolOverlay(u, t)
+            },
+            openOrDownloadPdfCallback = { wv, ctx, u ->
+                openOrDownloadPdf(wv, ctx, u)
+            },
+            showOfflineCallback = { wv, force ->
+                showOffline(wv, force)
             }
-            stopNavigationLoading()
-        }, 550L)
+        )
     }
 
     fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
-        pendingNavRunnable?.let { mainHandler.removeCallbacks(it) }
-        pendingNavRunnable = null
-
         val targetUrl = url.trim()
-        if (targetUrl.contains("/learning") && targetUrl.contains("tool=")) {
+        val uri = try { Uri.parse(targetUrl) } catch (_: Exception) { null }
+        if (uri != null && isLearningToolUri(uri)) {
             val toolTitle = when {
                 targetUrl.contains("tool=tutor") -> "AI Tutor"
                 targetUrl.contains("tool=calc") -> "Scientific Calculator"
@@ -1040,71 +1045,28 @@ fun MainScreen(
             openToolOverlay(targetUrl, toolTitle)
             return
         }
-        val wv = webView
 
-        if (tabIndex != null) {
-            selectedIndex = tabIndex
+        val path = uri?.path?.removeSuffix("/")?.lowercase().orEmpty()
+        val isNotif = path == "/notifications" || path.startsWith("/notifications/")
+        val targetTab = if (isNotif) {
+            selectedIndex // Notifications do NOT alter selected bottom-nav tab
+        } else if (tabIndex != null) {
+            tabIndex
         } else {
-            selectedIndex = tabIndexForUrl(targetUrl, selectedIndex)
-        }
-        if (resetHistory) pendingClearHistory = true
-
-        if (!targetUrl.startsWith("file://") && !targetUrl.contains("offline.html")) {
-            lastTargetUrl = targetUrl
+            tabIndexForUrl(targetUrl, selectedIndex)
         }
 
-        if (!targetUrl.contains("tool=")) {
-            studyPageReturnUrl = ""
+        if (!isNotif) {
+            selectedIndex = targetTab
         }
 
-        val targetTitle = when {
-            tabIndex != null && tabIndex in items.indices -> items[tabIndex].title
-            else -> {
-                val idx = tabIndexForUrl(targetUrl, selectedIndex)
-                if (idx in items.indices) items[idx].title else "Wisdom Tower Academy"
-            }
-        }
-        navigationStatusText = "Opening $targetTitle…"
-
-        if (wv == null) {
-            val r = Runnable { stopNavigationLoading(forceImmediate = true) }
-            pendingNavRunnable = r
-            mainHandler.postDelayed(r, 600L)
-            return
-        }
-
-        val online = isOnline(context)
-        startNavigationLoading(delayMs = 0L)
-        wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
-
-        // For tool URLs: remember previous study return URL if not already on a tool
-        if (targetUrl.contains("tool=")) {
-            val currentUrl = wv.url.orEmpty().trim()
-            if (!currentUrl.contains("tool=") && currentUrl.isNotBlank() && !currentUrl.startsWith("file://") && !currentUrl.contains("offline.html")) {
-                studyPageReturnUrl = currentUrl
-            }
-        }
-
-        if (online) {
-            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-            wv.loadUrl(targetUrl)
-        } else {
-            if (WebCacheVault.has(context, targetUrl)) {
-                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                wv.loadUrl(targetUrl)
-            } else {
-                showOffline(wv, force = true)
-            }
-        }
+        tabHostState.navigateTo(
+            url = targetUrl,
+            targetTabIndex = targetTab,
+            resetHistory = resetHistory,
+            isOnline = isOnline(context)
+        )
     }
-
-    // MP3-player style Study Timer state
-    var isTimerRunning by remember { mutableStateOf(false) }
-    var isTimerPaused by remember { mutableStateOf(false) }
-    var timerRemainingSeconds by remember { mutableIntStateOf(0) }
-    var timerTotalSeconds by remember { mutableIntStateOf(0) }
-    var timerTitle by remember { mutableStateOf("Study Timer") }
-    var isTimerDismissed by remember { mutableStateOf(false) }
 
     LaunchedEffect(isTimerRunning) {
         if (isTimerRunning && !previousTimerRunning) {
@@ -1126,7 +1088,6 @@ fun MainScreen(
         }
     }
 
-    var lastResumeRefreshAt by remember { mutableLongStateOf(0L) }
     var showOnboarding by remember { mutableStateOf(!hasCompletedOnboarding(context)) }
     var showExitDialog by remember { mutableStateOf(false) }
     var lastBackPressTime by remember { mutableLongStateOf(0L) }
@@ -1144,7 +1105,7 @@ fun MainScreen(
             "var raw=localStorage.getItem('wt_focus_timer_v1');" +
             "if(raw){var s=JSON.parse(raw);s.running=false;s.endAt=null;s.leftWhenPaused=s.totalSec||1500;localStorage.setItem('wt_focus_timer_v1',JSON.stringify(s));window.dispatchEvent(new CustomEvent('wt-focus-timer'));}" +
             "}catch(e){}})();"
-        webView?.evaluateJavascript(js, null)
+        tabHostState.getActiveWebView(selectedIndex)?.evaluateJavascript(js, null)
 
         if (wasActive) {
             val rewardingMsg = AcademyNotificationManager.TIMER_REWARDING_MESSAGES.random()
@@ -1160,103 +1121,32 @@ fun MainScreen(
         }
     }
 
-    // Immediate cold-start / process-death check for offline
+    // Initial launch splash check
     LaunchedEffect(Unit) {
         FcmTokenRegistrar.checkAndRegisterToken(context)
         onReady()
         delay(MIN_SPLASH_DISPLAY_MS)
         minSplashElapsed = true
-        if (!isOnline(context)) {
-            if (!WebCacheVault.hasAnyPage(context)) {
-                webView?.let { showOffline(it, force = true) }
-            }
-            delay(200L)
-            isInitialLoading = false
-        } else {
-            val startWait = System.currentTimeMillis()
-            while (!pageRendered && (System.currentTimeMillis() - startWait) < 14_000L) {
-                delay(120L)
-            }
-            isInitialLoading = false
-        }
+        isInitialLoading = false
     }
 
-    // Active network monitoring for instant auto-recovery and offline enforcement
-    DisposableEffect(context) {
-        val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: android.net.Network) {
-                mainHandler.postDelayed({
-                    webView?.let { wv ->
-                        if (isOnline(context)) {
-                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                            val curUrl = wv.url.orEmpty()
-                            if (curUrl.contains("offline.html") || curUrl.startsWith("file://")) {
-                                val target = lastTargetUrl.ifBlank { SITE }
-                                navigationStatusText = "Connecting…"
-                                startNavigationLoading()
-                                wv.loadUrl(target)
-                            }
-                        }
-                    }
-                }, 300L)
-            }
-            override fun onLost(network: android.net.Network) {
-                mainHandler.post {
-                    webView?.settings?.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                }
-            }
-        }
-        val request = android.net.NetworkRequest.Builder()
-            .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-            .build()
-        try {
-            cm?.registerNetworkCallback(request, callback)
-        } catch (_: Exception) {}
-        onDispose {
-            try {
-                cm?.unregisterNetworkCallback(callback)
-            } catch (_: Exception) {}
-        }
+    // Prewarm Learning tab in background (Requirement 5)
+    LaunchedEffect(Unit) {
+        delay(600L)
+        tabHostState.prewarmTab(TAB_LEARNING)
     }
 
     val lifecycleOwner = LocalLifecycleOwner.current
-    DisposableEffect(lifecycleOwner, webView) {
+    DisposableEffect(lifecycleOwner, selectedIndex) {
         val observer = LifecycleEventObserver { _, event ->
             when (event) {
                 Lifecycle.Event.ON_RESUME -> {
-                    val wv = webView ?: return@LifecycleEventObserver
+                    val wv = tabHostState.getActiveWebView(selectedIndex) ?: return@LifecycleEventObserver
                     wv.onResume()
                     wv.resumeTimers()
-                    val online = isOnline(context)
-                    wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
-                    if (online) {
-                        val current = wv.url.orEmpty()
-                        if (current.contains("offline.html") || current.startsWith("file://")) {
-                            wv.loadUrl(lastTargetUrl.ifBlank { SITE })
-                        } else {
-                            wv.evaluateJavascript("(function(){return window.location.pathname||'';})();") { rawPath ->
-                                val p = rawPath?.trim('"')?.trim() ?: ""
-                                if (p.isNotBlank() && p != "null") {
-                                    selectedIndex = tabIndexForUrl(p, selectedIndex)
-                                }
-                            }
-                            val currentUrl = wv.url
-                            if (currentUrl != null && !currentUrl.startsWith("file://")) {
-                                val now = System.currentTimeMillis()
-                                if (now - lastResumeRefreshAt >= 5000L) {
-                                    lastResumeRefreshAt = now
-                                    wv.evaluateJavascript(
-                                        "(function(){try{window.dispatchEvent(new CustomEvent('wta-refresh',{detail:{source:'app-resume'}}));}catch(e){}})();",
-                                        null
-                                    )
-                                }
-                            }
-                        }
-                    }
                 }
                 Lifecycle.Event.ON_PAUSE -> {
-                    val wv = webView ?: return@LifecycleEventObserver
+                    val wv = tabHostState.getActiveWebView(selectedIndex) ?: return@LifecycleEventObserver
                     wv.onPause()
                     wv.pauseTimers()
                 }
@@ -1277,6 +1167,7 @@ fun MainScreen(
             menuExpanded = false
             return@BackHandler
         }
+        // 1) Tool overlay has highest priority
         if (activeToolOverlayUrl != null) {
             val twv = toolOverlayWebView
             if (twv != null && twv.canGoBack()) {
@@ -1290,79 +1181,32 @@ fun MainScreen(
             closeToolOverlay()
             return@BackHandler
         }
+
+        // 2) Active tab history
+        if (tabHostState.canActiveTabGoBack(selectedIndex)) {
+            tabHostState.activeTabGoBack(selectedIndex)
+            return@BackHandler
+        }
+
+        // 3) Onboarding rules
         if (showOnboarding) return@BackHandler
         if (showExitDialog) {
             showExitDialog = false
             return@BackHandler
         }
-        val triggerDoubleTapExit: () -> Unit = {
-            val currentTime = System.currentTimeMillis()
-            if (currentTime - lastBackPressTime < 2000L) {
-                activity?.finish()
-            } else {
-                lastBackPressTime = currentTime
-                Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
-            }
-        }
 
-        val wv = webView
-        val currentUrl = wv?.url ?: ""
-        if (wv == null || currentUrl.isBlank() || currentUrl.startsWith("file://") || currentUrl.contains("offline.html")) {
-            if (selectedIndex != 0) {
-                navigateTo(StructuralNav.SITE_HOME, tabIndex = 0)
-                return@BackHandler
-            }
-            triggerDoubleTapExit()
+        // 4) Existing exit behavior
+        if (selectedIndex != TAB_HOME) {
+            navigateTo(StructuralNav.SITE_HOME, tabIndex = TAB_HOME)
             return@BackHandler
         }
 
-        // Structural back JS bridge. If "ok" -> handled by site; else app structural back
-        wv.evaluateJavascript(StructuralNav.STRUCTURAL_BACK_JS) { rawResult ->
-            val res = rawResult?.trim('"')?.trim() ?: ""
-            if (res == "ok") {
-                return@evaluateJavascript
-            }
-            mainHandler.post {
-                val activeUrl = wv.url ?: currentUrl
-                val activeTab = tabIndexForUrl(activeUrl, selectedIndex)
-                val isToolUrl = activeUrl.contains("tool=")
-
-                // 1) Prefer normal WebView history so device Back returns to the previous page
-                // (e.g. question bank -> tool -> Back -> question bank). Do not clear the whole stack to Home.
-                val list = wv.copyBackForwardList()
-                val currIdx = list.currentIndex
-                if (currIdx > 0 && wv.canGoBack()) {
-                    val prevItem = list.getItemAtIndex(currIdx - 1)
-                    val prevUrl = prevItem.url.orEmpty()
-                    if (prevUrl.isNotBlank() && !prevUrl.startsWith("file://") && !prevUrl.contains("offline.html")) {
-                        wv.goBack()
-                        return@post
-                    }
-                }
-
-                // 2) If on a tool URL without web history, restore the remembered study return URL
-                if (isToolUrl && studyPageReturnUrl.isNotBlank() && studyPageReturnUrl != activeUrl) {
-                    val returnUrl = studyPageReturnUrl
-                    studyPageReturnUrl = ""
-                    navigateTo(returnUrl, tabIndex = tabIndexForUrl(returnUrl, 1))
-                    return@post
-                }
-
-                // 3) If no previous history step, use structural parent hierarchy
-                val parentUrl = StructuralNav.getParentStructuralUrl(activeUrl)
-                if (parentUrl != null) {
-                    navigateTo(parentUrl, tabIndex = activeTab)
-                } else {
-                    if (isToolUrl) {
-                        // Never clear stack to Home from a tool page; fall back to learning hub
-                        navigateTo(StructuralNav.SITE_LEARNING, tabIndex = 1)
-                    } else if (activeTab != 0 || selectedIndex != 0) {
-                        navigateTo(StructuralNav.SITE_HOME, tabIndex = 0)
-                    } else {
-                        triggerDoubleTapExit()
-                    }
-                }
-            }
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - lastBackPressTime < 2000L) {
+            activity?.finish()
+        } else {
+            lastBackPressTime = currentTime
+            Toast.makeText(context, "Press back again to exit", Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -1531,36 +1375,7 @@ fun MainScreen(
                             IconButton(
                                 onClick = {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    val wv = webView
-                                    val currentUrl = wv?.url.orEmpty()
-                                    if (wv != null) {
-                                        navigationStatusText = "Refreshing…"
-                                        startNavigationLoading()
-                                        webProgress = 15
-                                        val online = isOnline(context)
-                                        val isOfflineAsset = currentUrl.contains("offline.html") || currentUrl.startsWith("file://")
-                                        val target = if (isOfflineAsset) lastTargetUrl.ifBlank { SITE } else currentUrl.ifBlank { lastTargetUrl.ifBlank { SITE } }
-
-                                        if (online) {
-                                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                            if (isOfflineAsset) {
-                                                wv.loadUrl(target)
-                                            } else {
-                                                wv.evaluateJavascript(StructuralNav.HARD_REFRESH_JS) {
-                                                    Handler(Looper.getMainLooper()).post {
-                                                        wv.reload()
-                                                    }
-                                                }
-                                            }
-                                        } else {
-                                            if (WebCacheVault.has(context, target)) {
-                                                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                                wv.loadUrl(target)
-                                            } else {
-                                                showOffline(wv, force = true)
-                                            }
-                                        }
-                                    }
+                                    tabHostState.reloadActiveTab(selectedIndex, isOnline(context))
                                 },
                                 modifier = Modifier.size(44.dp)
                             ) {
@@ -1617,939 +1432,25 @@ fun MainScreen(
                     .padding(padding)
                     .imePadding()
             ) {
-                // Main Web View
-                AndroidView(
-                    factory = { ctx ->
-                        WebView(ctx).apply {
-                            setBackgroundColor(AndroidColor.parseColor("#060B15"))
-                            setLayerType(View.LAYER_TYPE_HARDWARE, null)
-                            layoutParams = ViewGroup.LayoutParams(
-                                ViewGroup.LayoutParams.MATCH_PARENT,
-                                ViewGroup.LayoutParams.MATCH_PARENT
-                            )
-                            isLongClickable = true
-                            setOnLongClickListener {
-                                val hit = hitTestResult
-                                val isEditText = hit?.type == WebView.HitTestResult.EDIT_TEXT_TYPE
-                                val currentUrl = url?.lowercase().orEmpty()
-                                val isAllowedPage = currentUrl.contains("/login") || currentUrl.contains("/auth") ||
-                                                    currentUrl.contains("/signin") || currentUrl.contains("/signup") ||
-                                                    currentUrl.contains("/register") || currentUrl.contains("/learning") ||
-                                                    currentUrl.contains("/notes") || currentUrl.contains("/study") ||
-                                                    currentUrl.contains("/account")
-                                if (isEditText || isAllowedPage) {
-                                    false
-                                } else {
-                                    true
-                                }
-                            }
-                            settings.apply {
-                                javaScriptEnabled = true
-                                domStorageEnabled = true
-                                @Suppress("DEPRECATION")
-                                databaseEnabled = true
-                                loadsImagesAutomatically = true
-                                blockNetworkImage = false
-                                mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
-                                mediaPlaybackRequiresUserGesture = false
-                                allowFileAccess = true
-                                allowContentAccess = true
-
-                                // Ultra-smooth rendering and fast hydration
-                                useWideViewPort = true
-                                loadWithOverviewMode = true
-                                offscreenPreRaster = false
-                                cacheMode = WebSettings.LOAD_DEFAULT
-                            }
-                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-                                try {
-                                    val swController = ServiceWorkerController.getInstance()
-                                    val swSettings = swController.serviceWorkerWebSettings
-                                    swSettings.cacheMode = WebSettings.LOAD_DEFAULT
-                                    swSettings.allowContentAccess = true
-                                    swSettings.allowFileAccess = true
-                                    swSettings.blockNetworkLoads = false
-                                } catch (_: Exception) {}
-                            }
-                            val prefs = ctx.getSharedPreferences("wta_web_cache_prefs", Context.MODE_PRIVATE)
-                            if (!prefs.getBoolean("wta_vault_v3_sanitized", false)) {
-                                try {
-                                    clearCache(false)
-                                    prefs.edit().putBoolean("wta_vault_v3_sanitized", true).apply()
-                                } catch (_: Exception) {}
-                            }
-                            if (isOnline(ctx)) {
-                                WebCacheVault.precacheHubsAsync(ctx)
-                            }
-                            val cookieMgr = CookieManager.getInstance()
-                            cookieMgr.setAcceptCookie(true)
-                            cookieMgr.setAcceptThirdPartyCookies(this, true)
-
-                            val startedDownloads = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
-
-                            addJavascriptInterface(object {
-                                @JavascriptInterface
-                                fun isPdfCached(url: String?): Boolean {
-                                    if (url.isNullOrBlank()) return false
-                                    return OfflineVault.has(ctx, url)
-                                }
-
-                                @JavascriptInterface
-                                fun getPdfSize(url: String?): Long {
-                                    if (url.isNullOrBlank()) return 0L
-                                    val clean = OfflineVault.normalizeUrl(url)
-                                    val known = OfflineVault.getPdfSize(ctx, clean)
-                                    if (known > 0L) return known
-                                    val knownOrig = OfflineVault.getPdfSize(ctx, url)
-                                    if (knownOrig > 0L) return knownOrig
-                                    val probed = OfflineVault.probeSizeOnline(ctx, clean)
-                                    if (probed > 0L) return probed
-                                    return 0L
-                                }
-
-                                @JavascriptInterface
-                                fun getPdfSizeByTitle(title: String?): Long {
-                                    if (title.isNullOrBlank()) return 0L
-                                    return OfflineVault.getPdfSizeByTitle(title)
-                                }
-
-                                @JavascriptInterface
-                                fun markDownloadStarted(url: String?) {
-                                    if (!url.isNullOrBlank()) {
-                                        startedDownloads.add(url.trim())
-                                        startedDownloads.add(OfflineVault.normalizeUrl(url))
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun isDownloadStarted(url: String?): Boolean {
-                                    if (url.isNullOrBlank()) return false
-                                    return startedDownloads.contains(url.trim()) ||
-                                           startedDownloads.contains(OfflineVault.normalizeUrl(url))
-                                }
-
-                                @JavascriptInterface
-                                fun getDownloadProgress(url: String?): String {
-                                    val clean = url?.trim().orEmpty()
-                                    val p = if (clean.isNotBlank()) {
-                                        OfflineVault.getDownloadProgress(clean)
-                                            ?: OfflineVault.getDownloadProgress(OfflineVault.normalizeUrl(clean))
-                                            ?: OfflineVault.getActiveProgressAny()
-                                    } else {
-                                        OfflineVault.getActiveProgressAny()
-                                    } ?: return "{\"loaded\":0,\"total\":0}"
-                                    return "{\"loaded\":${p.loaded},\"total\":${p.total}}"
-                                }
-
-                                @JavascriptInterface
-                                fun onRouteChanged(path: String?) {
-                                    if (!path.isNullOrBlank()) {
-                                        mainHandler.post {
-                                            selectedIndex = tabIndexForUrl(path, selectedIndex)
-                                            mainHandler.postDelayed({
-                                                stopNavigationLoading()
-                                            }, 100L)
-                                        }
-                                        val lower = path.lowercase()
-                                        if (lower.contains("login") || lower.contains("account") || lower.contains("dashboard") || lower.contains("learning")) {
-                                            FcmTokenRegistrar.checkAndRegisterToken(ctx)
-                                        }
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun onUserLogin(userId: String? = null) {
-                                    FcmTokenRegistrar.checkAndRegisterToken(ctx)
-                                }
-
-                                @JavascriptInterface
-                                fun getOfflinePdfUrl(url: String?): String {
-                                    if (url.isNullOrBlank()) return ""
-                                    val f = OfflineVault.localFileFor(ctx, url) ?: return ""
-                                    return OfflineVault.fileUrl(f)
-                                }
-
-                                @JavascriptInterface
-                                fun openCachedPdf(url: String?) {
-                                    if (url.isNullOrBlank()) return
-                                    mainHandler.post {
-                                        openOrDownloadPdf(this@apply, ctx, url)
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun showToast(message: String?) {
-                                    if (message.isNullOrBlank()) return
-                                    mainHandler.post {
-                                        Toast.makeText(ctx, message, Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun notifyLoadingStarted(msg: String?) {
-                                    mainHandler.post {
-                                        if (!msg.isNullOrBlank()) {
-                                            navigationStatusText = msg
-                                        }
-                                        startNavigationLoading(0L)
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun notifyLoadingFinished() {
-                                    mainHandler.post {
-                                        stopNavigationLoading()
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun reloadLastOnlinePage() {
-                                    mainHandler.post {
-                                        navigationStatusText = "Connecting…"
-                                        startNavigationLoading(0L)
-                                        webProgress = 25
-                                        val wv = webView ?: return@post
-                                        val online = isOnline(context)
-                                        val target = lastTargetUrl.ifBlank { SITE }
-                                        if (online) {
-                                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                            try {
-                                                wv.stopLoading()
-                                            } catch (_: Exception) {}
-                                            wv.loadUrl(target)
-                                        } else {
-                                            if (WebCacheVault.has(context, target)) {
-                                                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                                try {
-                                                    wv.stopLoading()
-                                                } catch (_: Exception) {}
-                                                wv.loadUrl(target)
-                                            } else {
-                                                mainHandler.postDelayed({
-                                                    stopNavigationLoading()
-                                                    wv.evaluateJavascript("if(typeof onRetryFailed==='function')onRetryFailed();", null)
-                                                }, 800L)
-                                            }
-                                        }
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun openOfflineUrl(url: String?) {
-                                    if (url.isNullOrBlank()) return
-                                    mainHandler.post {
-                                        webView?.let { wv ->
-                                            lastTargetUrl = url
-                                            val online = isOnline(context)
-                                            wv.settings.cacheMode = if (online) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                            try {
-                                                wv.stopLoading()
-                                            } catch (_: Exception) {}
-                                            wv.loadUrl(url)
-                                        }
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun showOfflinePage() {
-                                    mainHandler.post {
-                                        val wv = webView ?: return@post
-                                        val cur = wv.url.orEmpty()
-                                        if (cur.contains("offline.html") || cur.startsWith("file://")) return@post
-                                        if (isOnline(context)) return@post
-                                        showOffline(wv, force = false)
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun syncStudyTimer(isRunning: Boolean, secondsLeft: Int, totalSeconds: Int, title: String?) {
-                                    mainHandler.post {
-                                        val wasRunning = isTimerRunning
-                                        isTimerRunning = isRunning
-                                        if (isRunning) {
-                                            if (!wasRunning) {
-                                                Toast.makeText(context, "Focus session started — we'll notify you when it wraps up.", Toast.LENGTH_SHORT).show()
-                                            }
-                                            isTimerPaused = false
-                                            timerRemainingSeconds = secondsLeft.coerceAtLeast(0)
-                                            isTimerDismissed = false
-                                        } else {
-                                            if (wasRunning && secondsLeft == 0 && totalSeconds > 0) {
-                                                AcademyNotificationManager.notifyStudyTimerCompleted(ctx)
-                                            }
-                                            if (secondsLeft > 0 && !isTimerDismissed) {
-                                                isTimerPaused = true
-                                                timerRemainingSeconds = secondsLeft
-                                            } else {
-                                                isTimerPaused = false
-                                                timerRemainingSeconds = 0
-                                            }
-                                        }
-                                        timerTotalSeconds = totalSeconds.coerceAtLeast(0)
-                                        if (!title.isNullOrBlank()) {
-                                            timerTitle = title
-                                        }
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun notifyPlannerTask(taskName: String?, dueTime: String?, studentName: String?) {
-                                    if (!taskName.isNullOrBlank()) {
-                                        mainHandler.post {
-                                            AcademyNotificationManager.notifyPlannerTaskDue(ctx, taskName, dueTime, studentName)
-                                        }
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun notifyDailyStudyGoal() {
-                                    mainHandler.post {
-                                        AcademyNotificationManager.notifyDailyGoalNudge(ctx)
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun openNotificationSettings() {
-                                    mainHandler.post {
-                                        showNotificationSettingsDialog = true
-                                    }
-                                }
-
-                                @JavascriptInterface
-                                fun isStudyTimerActive(): Boolean {
-                                    return (isTimerRunning || (isTimerPaused && timerRemainingSeconds > 0)) && !isTimerDismissed
-                                }
-
-                                @JavascriptInterface
-                                fun returnToStudyPage() {
-                                    mainHandler.post {
-                                        if (activeToolOverlayUrl != null) {
-                                            closeToolOverlay()
-                                            return@post
-                                        }
-                                        if (studyPageReturnUrl.isNotBlank()) {
-                                            val returnUrl = studyPageReturnUrl
-                                            studyPageReturnUrl = ""
-                                            navigateTo(returnUrl, tabIndex = tabIndexForUrl(returnUrl, 1))
-                                        } else {
-                                            navigateTo(StructuralNav.SITE_LEARNING, tabIndex = 1)
-                                        }
-                                    }
-                                }
-                            }, "AndroidOfflineVault")
-
-                            webChromeClient = object : WebChromeClient() {
-                                override fun onProgressChanged(view: WebView?, newProgress: Int) {
-                                    webProgress = newProgress
-                                    if (newProgress >= 85) {
-                                        stopNavigationLoading()
-                                    }
-                                    if (newProgress >= 60) {
-                                        pageRendered = true
-                                        if (minSplashElapsed) {
-                                            isInitialLoading = false
-                                        }
-                                    }
-                                }
-
-                                override fun onConsoleMessage(consoleMessage: ConsoleMessage?): Boolean {
-                                    val msg = consoleMessage?.message().orEmpty()
-                                    val line = consoleMessage?.lineNumber() ?: 0
-                                    val src = consoleMessage?.sourceId().orEmpty()
-                                    android.util.Log.d("WTA_JS", "[$src:$line] $msg")
-                                    return true
-                                }
-                            }
-
-                            webViewClient = object : WebViewClient() {
-                                override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
-                                    val wv = view ?: return
-                                    if (url != null && (url.startsWith("chrome-error://") || url.startsWith("about:neterror") || url.contains("chromewebdata"))) {
-                                        try {
-                                            wv.stopLoading()
-                                        } catch (_: Exception) {}
-                                        showOffline(wv)
-                                        return
-                                    }
-                                    wv.settings.cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                    if (url != null && !url.startsWith("file://")) {
-                                        // Early hide-chrome CSS injection at onPageStarted (before first paint)
-                                        wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
-
-                                        val newIdx = tabIndexForUrl(url, selectedIndex)
-                                        val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
-                                        if (!isNavigating || newIdx == targetIdx) {
-                                            selectedIndex = newIdx
-                                        }
-                                        if (!isInitialLoading) {
-                                            val title = if (newIdx in items.indices) items[newIdx].title else "Wisdom Tower Academy"
-                                            navigationStatusText = "Opening $title…"
-                                            startNavigationLoading()
-                                        }
-                                    }
-                                    if (url != null && url.startsWith("file:///android_asset/")) {
-                                        if (minSplashElapsed) {
-                                            isInitialLoading = false
-                                        }
-                                    }
-                                }
-
-                                override fun onPageCommitVisible(view: WebView?, url: String?) {
-                                    val u = url.orEmpty()
-                                    if (!u.startsWith("file://") && (u.contains("wisdom-tower-academy.live/offline") || u.endsWith("/offline"))) {
-                                        view?.let { showOffline(it, force = true) }
-                                        return
-                                    }
-                                    if (u.isNotBlank() && !u.startsWith("file://")) {
-                                        val newIdx = tabIndexForUrl(u, selectedIndex)
-                                        val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
-                                        if (!isNavigating || newIdx == targetIdx) {
-                                            selectedIndex = newIdx
-                                        }
-                                    }
-                                    pageRendered = true
-                                    if (minSplashElapsed) {
-                                        isInitialLoading = false
-                                    }
-                                    stopNavigationLoading()
-                                    if (!u.startsWith("file://")) {
-                                        view?.evaluateJavascript(NATIVE_CHROME_JS, null)
-                                        view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
-                                        view?.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
-                                        view?.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
-                                        view?.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
-                                        view?.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
-                                    }
-                                }
-
-                                override fun onPageFinished(view: WebView?, url: String?) {
-                                    val wv = view ?: return
-                                    val curUrl = url ?: wv.url
-                                    val u = curUrl.orEmpty()
-                                    if (!u.startsWith("file://") && (u.contains("wisdom-tower-academy.live/offline") || u.endsWith("/offline"))) {
-                                        showOffline(wv, force = true)
-                                        return
-                                    }
-                                    if (u.isNotBlank() && !u.startsWith("file://") && !u.contains("offline.html")) {
-                                        val newIdx = tabIndexForUrl(u, selectedIndex)
-                                        val targetIdx = tabIndexForUrl(lastTargetUrl, selectedIndex)
-                                        if (!isNavigating || newIdx == targetIdx) {
-                                            selectedIndex = newIdx
-                                        }
-                                        lastOnlineUrl = u
-                                        lastTargetUrl = u
-
-                                        // Persist rendered HTML into WebCacheVault for 100% offline availability
-                                        if (isOnline(ctx)) {
-                                            wv.evaluateJavascript("(function(){return document.documentElement ? document.documentElement.outerHTML : '';})();") { htmlJson ->
-                                                if (!htmlJson.isNullOrBlank() && htmlJson != "\"\"" && htmlJson != "null") {
-                                                    try {
-                                                        val rawHtml = org.json.JSONTokener(htmlJson).nextValue() as? String ?: ""
-                                                        val saveUrl = curUrl ?: u
-                                                        if (rawHtml.length > 500 &&
-                                                            saveUrl.isNotBlank() &&
-                                                            !WebCacheVault.isDynamicListOrDataApi(saveUrl) &&
-                                                            !WebCacheVault.isDegradedOrEmptyHtml(rawHtml) &&
-                                                            (rawHtml.contains("<html") || rawHtml.contains("<body") || rawHtml.contains("<!DOCTYPE"))
-                                                        ) {
-                                                            WebCacheVault.saveHtmlPage(ctx, saveUrl, rawHtml)
-                                                        }
-                                                    } catch (_: Exception) {}
-                                                }
-                                            }
-                                        }
-                                    }
-                                    pageRendered = true
-                                    if (minSplashElapsed) {
-                                        isInitialLoading = false
-                                    }
-                                    stopNavigationLoading()
-                                    if (!u.startsWith("file://")) {
-                                        wv.evaluateJavascript(NATIVE_CHROME_JS, null)
-                                        wv.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
-                                        wv.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
-                                        wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
-                                        wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
-                                        wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
-                                        mainHandler.postDelayed({
-                                            val cur = wv.url ?: ""
-                                            if (!cur.startsWith("file://")) {
-                                                wv.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
-                                                wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
-                                                wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
-                                                wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
-                                            }
-                                        }, 800L)
-                                    }
-                                    if (pendingClearHistory) {
-                                        pendingClearHistory = false
-                                        wv.clearHistory()
-                                    }
-                                }
-
-                                override fun doUpdateVisitedHistory(view: WebView?, url: String?, isReload: Boolean) {
-                                    super.doUpdateVisitedHistory(view, url, isReload)
-                                    if (url != null && !url.startsWith("file://")) {
-                                        selectedIndex = tabIndexForUrl(url, selectedIndex)
-                                    }
-                                }
-
-                                override fun onReceivedHttpError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    errorResponse: WebResourceResponse?
-                                ) {
-                                    if (request?.isForMainFrame != true) return
-                                    val wv = view ?: return
-                                    val statusCode = errorResponse?.statusCode ?: 0
-                                    val failedUrl = request.url?.toString().orEmpty()
-                                    if (failedUrl.startsWith("file:///android_asset/")) return
-
-                                    if (statusCode in listOf(404, 500, 502, 503, 504)) {
-                                        if (!isOnline(context) && !WebCacheVault.has(context, failedUrl)) {
-                                            try {
-                                                wv.stopLoading()
-                                            } catch (_: Exception) {}
-                                            showOffline(wv, force = true)
-                                        }
-                                    }
-                                }
-
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    request: WebResourceRequest?,
-                                    error: WebResourceError?
-                                ) {
-                                    if (request?.isForMainFrame != true) return
-                                    val wv = view ?: return
-                                    val failedUrl = request.url?.toString().orEmpty()
-                                    if (failedUrl.startsWith("file:///android_asset/")) return
-                                    if (!isOnline(context) && !WebCacheVault.has(context, failedUrl)) {
-                                        try {
-                                            wv.stopLoading()
-                                        } catch (_: Exception) {}
-                                        showOffline(wv, force = true)
-                                    }
-                                }
-
-                                @Deprecated("Deprecated in Java")
-                                override fun onReceivedError(
-                                    view: WebView?,
-                                    errorCode: Int,
-                                    description: String?,
-                                    failingUrl: String?
-                                ) {
-                                    val wv = view ?: return
-                                    val failedUrl = failingUrl.orEmpty()
-                                    if (failedUrl.startsWith("file:///android_asset/")) return
-                                    if (!isOnline(context) && !WebCacheVault.has(context, failedUrl)) {
-                                        try {
-                                            wv.stopLoading()
-                                        } catch (_: Exception) {}
-                                        showOffline(wv, force = true)
-                                    }
-                                }
-
-                                override fun onReceivedSslError(
-                                    view: WebView?,
-                                    handler: SslErrorHandler?,
-                                    error: SslError?
-                                ) {
-                                    handler?.cancel()
-                                    val wv = view ?: return
-                                    if (!isOnline(context)) {
-                                        showOffline(wv, force = true)
-                                    }
-                                }
-
-                                override fun onRenderProcessGone(
-                                    view: WebView?,
-                                    detail: RenderProcessGoneDetail?
-                                ): Boolean {
-                                    val wv = view ?: return true
-                                    try {
-                                        (wv.parent as? ViewGroup)?.removeView(wv)
-                                        wv.destroy()
-                                    } catch (_: Exception) {}
-                                    mainHandler.post {
-                                        val targetUrl = lastOnlineUrl.ifBlank { SITE }
-                                        webView?.loadUrl(targetUrl)
-                                    }
-                                    return true
-                                }
-
-                                override fun shouldInterceptRequest(
-                                    view: WebView?,
-                                    request: WebResourceRequest?
-                                ): WebResourceResponse? {
-                                    val req = request ?: return null
-                                    val u = req.url?.toString() ?: return null
-                                    val method = req.method?.uppercase() ?: "GET"
-                                    val isGet = method == "GET"
-                                    val isHead = method == "HEAD"
-
-                                    val cleanLower = u.lowercase()
-                                    if (isGet && (cleanLower.contains("animation.gif") || cleanLower.contains("brand/animation.gif"))) {
-                                        try {
-                                            val stream = ctx.assets.open("brand/animation.gif")
-                                            val headers = mapOf(
-                                                "Access-Control-Allow-Origin" to "*",
-                                                "Cache-Control" to "public, max-age=31536000"
-                                            )
-                                            return WebResourceResponse("image/gif", null, 200, "OK", headers, stream)
-                                        } catch (_: Exception) {
-                                            val bytes = BrandBytes.gif(ctx)
-                                            if (bytes.isNotEmpty()) {
-                                                return WebResourceResponse("image/gif", null, 200, "OK", mapOf("Access-Control-Allow-Origin" to "*"), java.io.ByteArrayInputStream(bytes))
-                                            }
-                                        }
-                                    }
-                                    if (isGet && (cleanLower.contains("logo.png") || cleanLower.contains("brand/logo.png"))) {
-                                        try {
-                                            val stream = ctx.assets.open("brand/logo.png")
-                                            val headers = mapOf(
-                                                "Access-Control-Allow-Origin" to "*",
-                                                "Cache-Control" to "public, max-age=31536000"
-                                            )
-                                            return WebResourceResponse("image/png", null, 200, "OK", headers, stream)
-                                        } catch (_: Exception) {
-                                            val bytes = BrandBytes.logo(ctx)
-                                            if (bytes.isNotEmpty()) {
-                                                return WebResourceResponse("image/png", null, 200, "OK", mapOf("Access-Control-Allow-Origin" to "*"), java.io.ByteArrayInputStream(bytes))
-                                            }
-                                        }
-                                    }
-
-                                    if ((isGet || isHead) && (u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u))) {
-                                        val rangeHeader = req.requestHeaders?.entries?.firstOrNull { it.key.equals("Range", ignoreCase = true) }?.value
-                                        val isRangeProbe = rangeHeader != null && rangeHeader.matches(Regex("""bytes=\s*0-\s*[01]"""))
-                                        val isExplicitDownload = startedDownloads.contains(u.trim())
-                                        val isProbe = isHead || isRangeProbe
-
-                                        // 1. Lightweight Size Probes: Answer ONLY from local/catalog/memory, NEVER download body or save to vault
-                                        if (isProbe) {
-                                            val local = OfflineVault.localFileFor(ctx, u)
-                                            var size = if (local != null && local.exists() && local.length() > 0L) {
-                                                local.length()
-                                            } else {
-                                                OfflineVault.getPdfSize(ctx, u)
-                                            }
-                                            if (size <= 0L) {
-                                                size = OfflineVault.getPdfSize(ctx, OfflineVault.normalizeUrl(u))
-                                            }
-                                            if (size <= 0L) {
-                                                size = OfflineVault.probeSizeOnline(ctx, u)
-                                            }
-                                            val headers = HashMap<String, String>().apply {
-                                                put("Access-Control-Allow-Origin", "*")
-                                                put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-                                                put("Access-Control-Allow-Headers", "*")
-                                                put("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
-                                                put("Content-Type", "application/pdf")
-                                                put("Accept-Ranges", "bytes")
-                                                if (size > 0L) {
-                                                    put("Content-Length", if (isHead) size.toString() else "1")
-                                                    put("Content-Range", "bytes 0-0/$size")
-                                                }
-                                                put("Cache-Control", "public, max-age=300")
-                                            }
-                                            val status = if (size > 0L) (if (isHead) 200 else 206) else 200
-                                            val statusText = if (size > 0L && !isHead) "Partial Content" else "OK"
-                                            return WebResourceResponse(
-                                                "application/pdf",
-                                                "binary",
-                                                status,
-                                                statusText,
-                                                headers,
-                                                ByteArrayInputStream(if (size > 0L && !isHead) ByteArray(1) else ByteArray(0))
-                                            )
-                                        }
-
-                                        // 2. Full Download/View (User explicitly clicked Download & open):
-                                        val local = OfflineVault.localFileFor(ctx, u)
-                                        if (local != null && local.exists() && local.length() > 0L) {
-                                            if (isExplicitDownload) {
-                                                mainHandler.post {
-                                                    Toast.makeText(ctx, "Already downloaded — opening", Toast.LENGTH_SHORT).show()
-                                                }
-                                            }
-                                            return try {
-                                                val headers = HashMap<String, String>().apply {
-                                                    put("Access-Control-Allow-Origin", "*")
-                                                    put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-                                                    put("Access-Control-Allow-Headers", "*")
-                                                    put("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
-                                                    put("Content-Type", "application/pdf")
-                                                    put("Content-Length", local.length().toString())
-                                                    put("Accept-Ranges", "bytes")
-                                                    put("Cache-Control", "public, max-age=31536000, immutable")
-                                                }
-                                                WebResourceResponse("application/pdf", "binary", 200, "OK", headers, FileInputStream(local))
-                                            } catch (_: Exception) {
-                                                null
-                                            }
-                                        }
-                                        if (isOnline(ctx)) {
-                                            return try {
-                                                val conn = (URL(u).openConnection() as HttpURLConnection).apply {
-                                                    requestMethod = "GET"
-                                                    connectTimeout = 30_000
-                                                    readTimeout = 60_000
-                                                    instanceFollowRedirects = true
-                                                    setRequestProperty("User-Agent", "WisdomTowerApp/1.0")
-                                                    val cookies = CookieManager.getInstance().getCookie(u)
-                                                    if (!cookies.isNullOrBlank()) {
-                                                        setRequestProperty("Cookie", cookies)
-                                                    }
-                                                    req.requestHeaders?.forEach { (k, v) ->
-                                                        if (!k.equals("Cookie", ignoreCase = true) &&
-                                                            !k.equals("User-Agent", ignoreCase = true)) {
-                                                            setRequestProperty(k, v)
-                                                        }
-                                                    }
-                                                }
-                                                conn.connect()
-                                                val code = conn.responseCode
-                                                if (code in 200..299) {
-                                                    val totalLen = conn.contentLengthLong
-                                                    val mime = conn.contentType ?: "application/pdf"
-                                                    var totalToUse = if (totalLen > 0L) totalLen else OfflineVault.getPdfSize(ctx, u)
-                                                    if (totalToUse <= 0L) {
-                                                        totalToUse = OfflineVault.getPdfSize(ctx, OfflineVault.normalizeUrl(u))
-                                                    }
-                                                    if (totalToUse <= 0L) {
-                                                        totalToUse = OfflineVault.probeSizeOnline(ctx, u)
-                                                    }
-                                                    val headers = HashMap<String, String>().apply {
-                                                        put("Access-Control-Allow-Origin", "*")
-                                                        put("Access-Control-Allow-Methods", "GET, HEAD, OPTIONS")
-                                                        put("Access-Control-Allow-Headers", "*")
-                                                        put("Access-Control-Expose-Headers", "Content-Length, Content-Range, Accept-Ranges, Content-Type")
-                                                        put("Content-Type", mime)
-                                                        if (totalToUse > 0L) {
-                                                            put("Content-Length", totalToUse.toString())
-                                                        } else if (totalLen > 0L) {
-                                                            put("Content-Length", totalLen.toString())
-                                                        }
-                                                        put("Accept-Ranges", "bytes")
-                                                        put("Cache-Control", "public, max-age=31536000, immutable")
-                                                    }
-                                                    val stream = if (isExplicitDownload || u.contains("/api/content/pdf") || OfflineVault.isPdfUrl(u)) {
-                                                        val targetFile = OfflineVault.targetFileFor(ctx, u)
-                                                        CachingInputStream(conn.inputStream, targetFile, u, totalToUse) { savedFile ->
-                                                            OfflineVault.remember(ctx, u, savedFile.name)
-                                                            OfflineVault.cachePdfSize(ctx, u, savedFile.length())
-                                                        }
-                                                    } else {
-                                                        conn.inputStream
-                                                    }
-                                                    WebResourceResponse(mime, "binary", 200, "OK", headers, stream)
-                                                } else {
-                                                    conn.disconnect()
-                                                    null
-                                                }
-                                            } catch (_: Exception) {
-                                                null
-                                            }
-                                        }
-                                    }
-
-                                    // Intercept any attempt to load /offline or site's offline fallback
-                                    if (cleanLower.endsWith("/offline") || cleanLower.contains("/offline")) {
-                                        try {
-                                            val stream = ctx.assets.open("offline.html")
-                                            val headers = mapOf(
-                                                "Content-Type" to "text/html; charset=utf-8",
-                                                "Cache-Control" to "no-cache, no-store, must-revalidate"
-                                            )
-                                            return WebResourceResponse("text/html", "utf-8", 200, "OK", headers, stream)
-                                        } catch (_: Exception) {}
-                                    }
-
-                                    // Local brand asset interception (instant 0ms, works 100% offline and online)
-                                    if (cleanLower.endsWith("/animation.gif") || cleanLower.contains("animation.gif") || cleanLower.contains("/brand/animation.gif")) {
-                                        try {
-                                            val stream = ctx.assets.open("brand/animation.gif")
-                                            val headers = mapOf(
-                                                "Content-Type" to "image/gif",
-                                                "Cache-Control" to "public, max-age=31536000, immutable",
-                                                "Access-Control-Allow-Origin" to "*"
-                                            )
-                                            return WebResourceResponse("image/gif", null, 200, "OK", headers, stream)
-                                        } catch (_: Exception) {}
-                                    }
-
-                                    if (cleanLower.endsWith("/logo.png") || cleanLower.contains("logo.png") || cleanLower.contains("/brand/logo.png")) {
-                                        try {
-                                            val stream = ctx.assets.open("brand/logo.png")
-                                            val headers = mapOf(
-                                                "Content-Type" to "image/png",
-                                                "Cache-Control" to "public, max-age=31536000, immutable",
-                                                "Access-Control-Allow-Origin" to "*"
-                                            )
-                                            return WebResourceResponse("image/png", null, 200, "OK", headers, stream)
-                                        } catch (_: Exception) {}
-                                    }
-
-                                    // 2. WebCacheVault handling
-                                    val online = isOnline(ctx)
-
-                                    if (!online) {
-                                        if (OfflineVault.isPdfUrl(u)) {
-                                            val local = OfflineVault.localFileFor(ctx, u)
-                                            if (local != null && local.exists() && local.length() > 0L) {
-                                                val headers = mapOf(
-                                                    "Access-Control-Allow-Origin" to "*",
-                                                    "Content-Type" to "application/pdf"
-                                                )
-                                                return WebResourceResponse("application/pdf", "binary", 200, "OK", headers, FileInputStream(local))
-                                            }
-                                        }
-
-                                        // Return from WebCacheVault if cached offline
-                                        if (WebCacheVault.has(ctx, u)) {
-                                            val cached = WebCacheVault.getCachedResponse(ctx, u)
-                                            if (cached != null) return cached
-                                        }
-
-                                        // Fallback for non-cached images offline: return transparent 1x1 PNG to avoid broken document icons
-                                        if (cleanLower.endsWith(".png") || cleanLower.endsWith(".jpg") ||
-                                            cleanLower.endsWith(".jpeg") || cleanLower.endsWith(".webp") ||
-                                            cleanLower.endsWith(".svg") || cleanLower.endsWith(".gif") ||
-                                            cleanLower.contains("/_next/image")
-                                        ) {
-                                            return WebResourceResponse("image/png", null, 200, "OK", emptyMap(), ByteArrayInputStream(WebCacheVault.EMPTY_PNG))
-                                        }
-
-                                        // If main frame requested while offline and NOT in WebCacheVault:
-                                        // Return offline.html asset stream directly so Chromium never shows chrome error
-                                        if (req.isForMainFrame) {
-                                            try {
-                                                val stream = ctx.assets.open("offline.html")
-                                                val headers = mapOf(
-                                                    "Content-Type" to "text/html; charset=utf-8",
-                                                    "Cache-Control" to "no-cache, no-store, must-revalidate"
-                                                )
-                                                return WebResourceResponse("text/html", "utf-8", 200, "OK", headers, stream)
-                                            } catch (_: Exception) {}
-                                        }
-
-                                        return null
-                                    }
-
-                                    // Online: serve cached subresources if available for maximum speed (never for dynamic list/data APIs)
-                                    if (isGet && !req.isForMainFrame && !WebCacheVault.isDynamicListOrDataApi(u) && WebCacheVault.has(ctx, u)) {
-                                        val cached = WebCacheVault.getCachedResponse(ctx, u)
-                                        if (cached != null) return cached
-                                    }
-
-                                    // Online: precache assets in background
-                                    if (isGet && WebCacheVault.isCacheable(u) && !WebCacheVault.has(ctx, u)) {
-                                        val isImg = cleanLower.endsWith(".png") || cleanLower.endsWith(".jpg") ||
-                                            cleanLower.endsWith(".jpeg") || cleanLower.endsWith(".webp") ||
-                                            cleanLower.endsWith(".svg") || cleanLower.endsWith(".gif") ||
-                                            cleanLower.contains("/_next/image")
-                                        if (isImg) {
-                                            try {
-                                                val fetched = WebCacheVault.fetchAndCache(ctx, req)
-                                                if (fetched != null) return fetched
-                                            } catch (_: Exception) {}
-                                        } else {
-                                            WebCacheVault.cacheUrlAsync(ctx, u)
-                                        }
-                                    }
-
-                                    return super.shouldInterceptRequest(view, request)
-                                }
-
-                                override fun shouldOverrideUrlLoading(
-                                    view: WebView?,
-                                    request: WebResourceRequest?
-                                ): Boolean {
-                                    val u = request?.url?.toString() ?: return false
-                                    val wv = view ?: return false
-                                    if (u.startsWith("chrome-error://") || u.startsWith("about:neterror") || u.contains("chromewebdata") || u.contains("/offline")) {
-                                        showOffline(wv, force = true)
-                                        return true
-                                    }
-                                    if (u.contains("/my-learning")) {
-                                        navigateTo("https://www.wisdom-tower-academy.live/learning", 1)
-                                        return true
-                                    }
-                                    if (u.contains("/learning") && u.contains("tool=")) {
-                                        val toolTitle = when {
-                                            u.contains("tool=tutor") -> "AI Tutor"
-                                            u.contains("tool=calc") -> "Scientific Calculator"
-                                            u.contains("tool=note") -> "Study Notebook"
-                                            u.contains("tool=time") -> "Study Timer"
-                                            u.contains("tool=plan") -> "Study Planner"
-                                            else -> "Study Tool"
-                                        }
-                                        openToolOverlay(u, toolTitle)
-                                        return true
-                                    }
-                                    if (OfflineVault.isPdfUrl(u) || u.endsWith(".pdf", ignoreCase = true) || u.contains("/pdf")) {
-                                        view?.let { openOrDownloadPdf(it, ctx, u) }
-                                        return true
-                                    }
-                                    val host = request.url?.host?.lowercase() ?: ""
-                                    val isInternal = host.contains("wisdom-tower-academy.live") ||
-                                        host.contains("wisdomtower.tech")
-                                    if (!isInternal && !u.startsWith("file://") &&
-                                        (u.startsWith("http://") || u.startsWith("https://") ||
-                                         u.startsWith("tg:") || u.startsWith("tel:") || u.startsWith("mailto:"))
-                                    ) {
-                                        try {
-                                            ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)))
-                                        } catch (_: Exception) { }
-                                        return true
-                                    }
-                                    return false
-                                }
-                            }
-
-                            setDownloadListener(DownloadListener { url, _, _, _, _ ->
-                                openOrDownloadPdf(this, ctx, url)
-                            })
-
-                            val target = lastTargetUrl.ifBlank { SITE }
-                            if (isOnline(ctx)) {
-                                settings.cacheMode = WebSettings.LOAD_DEFAULT
-                                loadUrl(target)
-                            } else {
-                                settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
-                                if (WebCacheVault.has(ctx, target) || WebCacheVault.hasAnyPage(ctx)) {
-                                    loadUrl(target)
-                                } else {
-                                    showOffline(this, force = true)
-                                }
-                            }
-                            webView = this
-                        }
-                    },
+                TabWebViewHost(
+                    state = tabHostState,
+                    selectedIndex = selectedIndex,
                     modifier = Modifier.fillMaxSize()
                 )
 
-                // Restored & Fixed Custom Animated Loader Overlay:
-                // - Transparent background only (solid BarBg only on initial cold splash)
-                // - NO text at all (no titles, no captions)
-                // - NO percent (no 20%, 80%, etc.)
-                // - NO card, NO panel, NO dim box
-                // - ONE continuous stable animation (same 110.dp scale, same center, zero size jumps)
-                val isLoaderVisible = isInitialLoading || isNavigating
+                // Initial launch splash only
                 AnimatedVisibility(
-                    visible = isLoaderVisible,
+                    visible = isInitialLoading,
                     enter = fadeIn(tween(140, easing = FastOutSlowInEasing)),
                     exit = fadeOut(tween(200, easing = FastOutSlowInEasing)),
                     modifier = Modifier
                         .fillMaxSize()
                         .zIndex(95f)
                 ) {
-                    val loaderBg = if (isInitialLoading) BarBg else Color.Transparent
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(loaderBg),
+                            .background(BarBg),
                         contentAlignment = Alignment.Center
                     ) {
                         CustomCenteredLoader()
@@ -2678,6 +1579,7 @@ fun MainScreen(
                                     settings.apply {
                                         javaScriptEnabled = true
                                         domStorageEnabled = true
+                                        @Suppress("DEPRECATION")
                                         databaseEnabled = true
                                         setSupportZoom(true)
                                         builtInZoomControls = true
@@ -2685,6 +1587,9 @@ fun MainScreen(
                                         useWideViewPort = true
                                         loadWithOverviewMode = true
                                         mediaPlaybackRequiresUserGesture = false
+                                        allowFileAccess = false
+                                        allowContentAccess = false
+                                        mixedContentMode = WebSettings.MIXED_CONTENT_NEVER_ALLOW
                                         cacheMode = if (isOnline(ctx)) WebSettings.LOAD_DEFAULT else WebSettings.LOAD_CACHE_ELSE_NETWORK
                                         userAgentString = "${settings.userAgentString} WisdomTowerApp wta-native"
                                     }
@@ -2887,21 +1792,38 @@ fun MainScreen(
                                             return super.shouldInterceptRequest(view, request)
                                         }
 
+                                        override fun onRenderProcessGone(
+                                            view: WebView?,
+                                            detail: RenderProcessGoneDetail?
+                                        ): Boolean {
+                                            val wv = view ?: return true
+                                            try {
+                                                (wv.parent as? ViewGroup)?.removeView(wv)
+                                                wv.destroy()
+                                            } catch (_: Exception) {}
+                                            mainHandler.post {
+                                                toolOverlayWebView = null
+                                                lastLoadedOverlayUrl = null
+                                            }
+                                            return true
+                                        }
+
                                         override fun shouldOverrideUrlLoading(
                                             view: WebView?,
                                             request: WebResourceRequest?
                                         ): Boolean {
                                             val u = request?.url?.toString() ?: return false
-                                            val host = request.url?.host?.lowercase() ?: ""
-                                            val isInternal = host.contains("wisdom-tower-academy.live") || host.contains("wisdomtower.tech")
-                                            if (isInternal && !u.contains("tool=")) {
+                                            val uri = request.url ?: return false
+                                            val host = uri.host?.lowercase().orEmpty()
+                                            val isInternal = isAllowedDomain(host)
+                                            if (isInternal && !isLearningToolUri(uri)) {
                                                 closeToolOverlay()
                                                 navigateTo(u)
                                                 return true
                                             }
                                             if (!isInternal && !u.startsWith("file://")) {
                                                 try {
-                                                    ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(u)))
+                                                    ctx.startActivity(Intent(Intent.ACTION_VIEW, uri))
                                                 } catch (_: Exception) {}
                                                 return true
                                             }
@@ -3433,7 +2355,7 @@ private fun AliveBottomNav(
  * - Constant single scale (110.dp) and constant center (no size jumps, no glitches)
  */
 @Composable
-private fun CustomCenteredLoader(
+internal fun CustomCenteredLoader(
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -3455,7 +2377,7 @@ private fun CustomCenteredLoader(
  * High-speed dual orbital neon rings with outward thick gear ticks / teeth rotating between them.
  */
 @Composable
-private fun FuturisticGearRings(
+internal fun FuturisticGearRings(
     size: Dp,
     brandSize: Dp,
     numTicks: Int,

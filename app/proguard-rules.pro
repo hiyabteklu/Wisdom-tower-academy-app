@@ -20,6 +20,9 @@
 # 4. Keep main components referenced by AndroidManifest.xml
 -keep class com.wisdomtower.academy.WisdomTowerApplication { *; }
 -keep class com.wisdomtower.academy.MainActivity { *; }
+-keep class com.wisdomtower.academy.TabWebViewHost* { *; }
+-keep class com.wisdomtower.academy.SingleTabState { *; }
+-keep class com.wisdomtower.academy.TabWebViewHostState { *; }
 
 # 5. Keep data models and serialization structures
 -keepclassmembers class com.wisdomtower.academy.OfflineVault$* { *; }
