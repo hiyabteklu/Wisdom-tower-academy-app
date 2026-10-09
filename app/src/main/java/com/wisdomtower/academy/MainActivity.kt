@@ -29,6 +29,9 @@ import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
+import androidx.webkit.WebViewCompat
+import androidx.webkit.WebViewFeature
+import org.json.JSONObject
 import java.io.ByteArrayInputStream
 import java.io.FileInputStream
 import java.io.InputStream
@@ -220,13 +223,29 @@ private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 private const val SITE = "https://www.wisdom-tower-academy.live/"
 private const val MIN_SPLASH_DISPLAY_MS = 1200L
 
+private fun isSameSiteOrigin(urlA: String?, urlB: String?): Boolean {
+    if (urlA.isNullOrBlank() || urlB.isNullOrBlank()) return false
+    val hostA = try { Uri.parse(urlA).host?.lowercase() ?: "" } catch (_: Exception) { "" }
+    val hostB = try { Uri.parse(urlB).host?.lowercase() ?: "" } catch (_: Exception) { "" }
+    if (hostA.isEmpty() || hostB.isEmpty()) return false
+    fun isWta(h: String) = h.contains("wisdom-tower-academy.live") || h.contains("wisdomtower.tech")
+    return (hostA == hostB) || (isWta(hostA) && isWta(hostB))
+}
+
 private const val SOFT_NAV_JS =
     "(function(targetUrl){try{" +
         "if(!targetUrl||window.location.protocol==='file:')return 'fallback';" +
         "var cur=window.location.href;" +
         "if(cur===targetUrl)return 'noop';" +
         "var path=targetUrl;" +
-        "try{var u=new URL(targetUrl,window.location.origin);path=u.pathname+u.search+u.hash;}catch(_){}" +
+        "try{" +
+            "var curU=new URL(window.location.href);" +
+            "var tgtU=new URL(targetUrl,window.location.origin);" +
+            "path=tgtU.pathname+tgtU.search+tgtU.hash;" +
+            "if((curU.pathname.replace(/\\/$/,'')||'/')===(tgtU.pathname.replace(/\\/$/,'')||'/')&&curU.search===tgtU.search){" +
+                "return 'noop';" +
+            "}" +
+        "}catch(_){}" +
         "try{" +
             "window.dispatchEvent(new CustomEvent('wta-navigate',{detail:{path:path,url:targetUrl}}));" +
         "}catch(_){}" +
@@ -264,8 +283,16 @@ private const val CRITICAL_CHROME_STYLE =
 private const val EARLY_HIDE_CHROME_JS =
     "(function(){try{" +
         "if(window.location.protocol==='file:')return;" +
-        "document.documentElement.classList.add('wta-native-app');" +
-        "if(document.body){document.body.classList.add('wta-native-app');}" +
+        "if(document.documentElement){" +
+            "document.documentElement.classList.add('wta-native-app','wta-app-mode');" +
+            "document.documentElement.setAttribute('data-wta-app','1');" +
+            "document.documentElement.style.backgroundColor='#060B15';" +
+        "}" +
+        "if(document.body){" +
+            "document.body.classList.add('wta-native-app','wta-app-mode');" +
+            "document.body.setAttribute('data-wta-app','1');" +
+            "document.body.style.backgroundColor='#060B15';" +
+        "}" +
         "var id='wta-app-chrome';var s=document.getElementById(id);" +
         "if(!s){s=document.createElement('style');s.id=id;var head=document.head||document.documentElement;if(head){head.insertBefore(s,head.firstChild);}}" +
         "s.textContent='html,body{background-color:#060B15!important;color-scheme:dark!important;}header:not([data-ai-tutor-header]),header:not([data-ai-tutor-header]).fixed.top-0,header:not([data-ai-tutor-header])[data-site-header],body > footer,footer.site-footer,[data-site-footer],.site-header,.site-footer,footer:not([data-ai-tutor-root] footer)," +
@@ -278,7 +305,9 @@ private const val EARLY_HIDE_CHROME_JS =
         "div:has(#wt-ai-tutor-input){bottom:0!important;}" +
         "[data-ai-tutor-root] footer,#wt-ai-tutor-input,[role=\"dialog\"] footer" +
         "{display:block!important;visibility:visible!important;height:auto!important;max-height:none!important;opacity:1!important;pointer-events:auto!important;}';" +
-    "}catch(e){}})"
+    "}catch(e){}})();"
+
+private const val DOCUMENT_START_HIDE_CHROME_JS = EARLY_HIDE_CHROME_JS
 
 private const val NATIVE_CHROME_JS =
     "(function(){try{" +
@@ -641,14 +670,14 @@ private const val DETECT_AND_RECOVER_JS =
 
 private const val STUDY_TIMER_BRIDGE_JS =
     "(function(){try{" +
-        "if(window.__wta_timer_bridge_hooked)return;" +
-        "window.__wta_timer_bridge_hooked=true;" +
         "function checkFocusTimer(){" +
             "try{" +
                 "var raw=localStorage.getItem('wt_focus_timer_v1');" +
                 "if(!raw){" +
                     "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
                         "window.AndroidOfflineVault.syncStudyTimer(false,0,0,'');" +
+                    "}else if(window.AndroidBridge&&typeof window.AndroidBridge.syncStudyTimer==='function'){" +
+                        "window.AndroidBridge.syncStudyTimer(false,0,0,'');" +
                     "}" +
                     "return;" +
                 "}" +
@@ -659,9 +688,14 @@ private const val STUDY_TIMER_BRIDGE_JS =
                 "var tot=s.totalSec||1500;" +
                 "if(window.AndroidOfflineVault&&typeof window.AndroidOfflineVault.syncStudyTimer==='function'){" +
                     "window.AndroidOfflineVault.syncStudyTimer(isRunning,rem,tot,'Study Timer');" +
+                "}else if(window.AndroidBridge&&typeof window.AndroidBridge.syncStudyTimer==='function'){" +
+                    "window.AndroidBridge.syncStudyTimer(isRunning,rem,tot,'Study Timer');" +
                 "}" +
             "}catch(_){}" +
         "}" +
+        "window.__wta_checkFocusTimer=checkFocusTimer;" +
+        "if(window.__wta_timer_bridge_hooked){try{window.__wta_checkFocusTimer();}catch(_){}return;}" +
+        "window.__wta_timer_bridge_hooked=true;" +
         "window.addEventListener('wt-focus-timer',checkFocusTimer);" +
         "window.addEventListener('storage',function(e){if(e.key==='wt_focus_timer_v1')checkFocusTimer();});" +
         "window.addEventListener('wta-study-timer-control',function(e){" +
@@ -989,6 +1023,40 @@ fun MainScreen(
     }
 
     var pendingNavRunnable by remember { mutableStateOf<Runnable?>(null) }
+    var softNavFallbackRunnable by remember { mutableStateOf<Runnable?>(null) }
+
+    fun handleOnPageReady(path: String?) {
+        softNavFallbackRunnable?.let { mainHandler.removeCallbacks(it) }
+        softNavFallbackRunnable = null
+
+        stopNavigationLoading(forceImmediate = true)
+        pageRendered = true
+        if (minSplashElapsed) {
+            isInitialLoading = false
+        }
+
+        val cleanPath = path?.trim().orEmpty()
+        val fullUrl = if (cleanPath.startsWith("http://") || cleanPath.startsWith("https://")) {
+            cleanPath
+        } else {
+            val p = if (cleanPath.startsWith("/")) cleanPath else "/$cleanPath"
+            SITE.trimEnd('/') + p
+        }
+
+        if (!cleanPath.contains("offline.html") && !cleanPath.startsWith("file://")) {
+            lastOnlineUrl = fullUrl
+            lastTargetUrl = fullUrl
+            selectedIndex = tabIndexForUrl(fullUrl, selectedIndex)
+        }
+
+        val wv = webView ?: return
+        wv.evaluateJavascript(NATIVE_CHROME_JS, null)
+        wv.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
+        wv.evaluateJavascript(PRECACHE_AND_UNBLOCK_JS, null)
+        wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
+        wv.evaluateJavascript(STUDY_TIMER_BRIDGE_JS, null)
+        wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
+    }
 
     fun showOffline(wv: WebView, force: Boolean = false) {
         if (!force && isOnline(context)) {
@@ -1026,6 +1094,8 @@ fun MainScreen(
     fun navigateTo(url: String, tabIndex: Int? = null, resetHistory: Boolean = false) {
         pendingNavRunnable?.let { mainHandler.removeCallbacks(it) }
         pendingNavRunnable = null
+        softNavFallbackRunnable?.let { mainHandler.removeCallbacks(it) }
+        softNavFallbackRunnable = null
 
         val targetUrl = url.trim()
         if (targetUrl.contains("/learning") && targetUrl.contains("tool=")) {
@@ -1074,8 +1144,6 @@ fun MainScreen(
         }
 
         val online = isOnline(context)
-        startNavigationLoading(delayMs = 0L)
-        wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
 
         // For tool URLs: remember previous study return URL if not already on a tool
         if (targetUrl.contains("tool=")) {
@@ -1085,15 +1153,61 @@ fun MainScreen(
             }
         }
 
-        if (online) {
-            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
-            wv.loadUrl(targetUrl)
+        val currentWvUrl = wv.url.orEmpty().trim()
+        val isCurrentlyOnSite = currentWvUrl.startsWith("https://") &&
+            !currentWvUrl.contains("offline.html") &&
+            isSameSiteOrigin(currentWvUrl, targetUrl)
+        val isPdf = OfflineVault.isPdfUrl(targetUrl) || targetUrl.lowercase().endsWith(".pdf")
+        val canSoftNav = !resetHistory && online && isCurrentlyOnSite && !isPdf &&
+            !targetUrl.startsWith("file://") && !targetUrl.contains("offline.html")
+
+        if (canSoftNav) {
+            // Debounced loader: only show circular loader if navigation exceeds 400ms
+            startNavigationLoading(delayMs = 400L)
+
+            val jsCode = "($SOFT_NAV_JS)(${JSONObject.quote(targetUrl)})"
+            wv.evaluateJavascript(jsCode) { rawRes ->
+                val res = rawRes?.trim()?.removeSurrounding("\"")
+                mainHandler.post {
+                    when (res) {
+                        "noop" -> {
+                            stopNavigationLoading(forceImmediate = true)
+                        }
+                        "ok" -> {
+                            val fallback = Runnable {
+                                val currentPath = try { Uri.parse(wv.url.orEmpty()).path?.removeSuffix("/") ?: "" } catch (_: Exception) { "" }
+                                val targetPath = try { Uri.parse(targetUrl).path?.removeSuffix("/") ?: "" } catch (_: Exception) { "" }
+                                if (currentPath != targetPath) {
+                                    startNavigationLoading(delayMs = 0L)
+                                    wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                                    wv.loadUrl(targetUrl)
+                                }
+                            }
+                            softNavFallbackRunnable = fallback
+                            mainHandler.postDelayed(fallback, 1500L)
+                        }
+                        else -> {
+                            startNavigationLoading(delayMs = 0L)
+                            wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
+                            wv.loadUrl(targetUrl)
+                        }
+                    }
+                }
+            }
         } else {
-            if (WebCacheVault.has(context, targetUrl)) {
-                wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+            startNavigationLoading(delayMs = 0L)
+            wv.evaluateJavascript(EARLY_HIDE_CHROME_JS, null)
+
+            if (online) {
+                wv.settings.cacheMode = WebSettings.LOAD_DEFAULT
                 wv.loadUrl(targetUrl)
             } else {
-                showOffline(wv, force = true)
+                if (WebCacheVault.has(context, targetUrl)) {
+                    wv.settings.cacheMode = WebSettings.LOAD_CACHE_ELSE_NETWORK
+                    wv.loadUrl(targetUrl)
+                } else {
+                    showOffline(wv, force = true)
+                }
             }
         }
     }
@@ -1660,6 +1774,16 @@ fun MainScreen(
                                 loadWithOverviewMode = true
                                 offscreenPreRaster = false
                                 cacheMode = WebSettings.LOAD_DEFAULT
+                                userAgentString = "${settings.userAgentString} WisdomTowerApp wta-native"
+                            }
+                            if (WebViewFeature.isFeatureSupported(WebViewFeature.DOCUMENT_START_SCRIPT)) {
+                                try {
+                                    WebViewCompat.addDocumentStartJavaScript(
+                                        this,
+                                        DOCUMENT_START_HIDE_CHROME_JS,
+                                        setOf("https://www.wisdom-tower-academy.live", "https://wisdom-tower-academy.live")
+                                    )
+                                } catch (_: Exception) {}
                             }
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                                 try {
@@ -1672,10 +1796,10 @@ fun MainScreen(
                                 } catch (_: Exception) {}
                             }
                             val prefs = ctx.getSharedPreferences("wta_web_cache_prefs", Context.MODE_PRIVATE)
-                            if (!prefs.getBoolean("wta_vault_v3_sanitized", false)) {
+                            if (!prefs.getBoolean("wta_vault_v4_sanitized", false)) {
                                 try {
                                     clearCache(false)
-                                    prefs.edit().putBoolean("wta_vault_v3_sanitized", true).apply()
+                                    prefs.edit().putBoolean("wta_vault_v4_sanitized", true).apply()
                                 } catch (_: Exception) {}
                             }
                             if (isOnline(ctx)) {
@@ -1687,7 +1811,14 @@ fun MainScreen(
 
                             val startedDownloads = java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
 
-                            addJavascriptInterface(object {
+                            val mainBridge = object {
+                                @JavascriptInterface
+                                fun onPageReady(path: String?) {
+                                    mainHandler.post {
+                                        handleOnPageReady(path)
+                                    }
+                                }
+
                                 @JavascriptInterface
                                 fun isPdfCached(url: String?): Boolean {
                                     if (url.isNullOrBlank()) return false
@@ -1936,7 +2067,11 @@ fun MainScreen(
                                         }
                                     }
                                 }
-                            }, "AndroidOfflineVault")
+                            }
+                            addJavascriptInterface(mainBridge, "AndroidOfflineVault")
+                            addJavascriptInterface(mainBridge, "AndroidBridge")
+                            addJavascriptInterface(mainBridge, "Android")
+                            addJavascriptInterface(mainBridge, "WisdomTower")
 
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {

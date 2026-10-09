@@ -30,7 +30,8 @@ import java.util.regex.Pattern
 object WebCacheVault {
     private const val TAG = "WebCacheVault"
     private const val DIR = "wta_web_vault"
-    private const val INDEX_FILE = "web_index_v3.json"
+    private const val INDEX_FILE = "web_index_v4.json"
+    private const val LEGACY_INDEX_FILE_V3 = "web_index_v3.json"
     private const val LEGACY_INDEX_FILE_V2 = "web_index_v2.json"
     private const val PREFS = "wta_web_cache_prefs"
 
@@ -101,9 +102,9 @@ object WebCacheVault {
     private fun loadIndexDirect(ctx: Context) {
         val dir = vaultDir(ctx)
         try {
-            val v3File = File(dir, INDEX_FILE)
-            if (v3File.exists()) {
-                val raw = v3File.readText(Charsets.UTF_8)
+            val v4File = File(dir, INDEX_FILE)
+            if (v4File.exists()) {
+                val raw = v4File.readText(Charsets.UTF_8)
                 val json = JSONObject(raw)
                 val keys = json.keys()
                 var dirty = false
@@ -144,10 +145,50 @@ object WebCacheVault {
                 return
             }
 
+            // One-time self-healing migration from v3: purge stale server-rendered HTML shells
+            val v3File = File(dir, LEGACY_INDEX_FILE_V3)
+            if (v3File.exists()) {
+                Log.i(TAG, "Migrating web cache index from v3 to v4 (purging stale header/footer HTML)")
+                val raw = v3File.readText(Charsets.UTF_8)
+                val json = JSONObject(raw)
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    val obj = json.getJSONObject(k)
+                    val url = obj.optString("url", "")
+                    val mime = obj.optString("mime", "text/html")
+
+                    // Strictly reject dynamic list/data APIs
+                    if (isDynamicListOrDataApi(url)) {
+                        try { File(dir, "$k.body").delete() } catch (_: Exception) {}
+                        continue
+                    }
+
+                    // Pre-v4 HTML contains server-rendered header/footer shells; purge to prevent visual flash
+                    if (mime.contains("html") || url.endsWith(".html") || (!url.contains(".") && !url.contains("/_next/"))) {
+                        try { File(dir, "$k.body").delete() } catch (_: Exception) {}
+                        continue
+                    }
+
+                    index[k] = EntryMeta(
+                        url = url,
+                        mime = mime,
+                        encoding = obj.optString("encoding", "utf-8").takeIf { it.isNotBlank() },
+                        size = obj.optLong("size", 0L),
+                        timestamp = obj.optLong("ts", System.currentTimeMillis())
+                    )
+                }
+                persistIndex(ctx)
+                try { v3File.delete() } catch (_: Exception) {}
+                try { File(dir, LEGACY_INDEX_FILE_V2).delete() } catch (_: Exception) {}
+                Log.i(TAG, "Web index v4 migration complete with ${index.size} verified entries")
+                return
+            }
+
             // One-time self-healing migration from legacy v2: sanitize poisoned entries
             val v2File = File(dir, LEGACY_INDEX_FILE_V2)
             if (v2File.exists()) {
-                Log.i(TAG, "Migrating web cache index from v2 to v3 with anti-poisoning sanitization")
+                Log.i(TAG, "Migrating web cache index from v2 to v4 with anti-poisoning sanitization")
                 val raw = v2File.readText(Charsets.UTF_8)
                 val json = JSONObject(raw)
                 val keys = json.keys()
@@ -163,16 +204,10 @@ object WebCacheVault {
                         continue
                     }
 
-                    // Strictly inspect HTML for degraded empty shells or error messages
-                    if (mime.contains("html")) {
-                        val bodyFile = File(dir, "$k.body")
-                        if (bodyFile.exists()) {
-                            val content = try { bodyFile.readText(Charsets.UTF_8) } catch (_: Exception) { "" }
-                            if (isDegradedOrEmptyHtml(content)) {
-                                try { bodyFile.delete() } catch (_: Exception) {}
-                                continue
-                            }
-                        }
+                    // Pre-v4 HTML contains server-rendered header/footer shells; purge
+                    if (mime.contains("html") || url.endsWith(".html") || (!url.contains(".") && !url.contains("/_next/"))) {
+                        try { File(dir, "$k.body").delete() } catch (_: Exception) {}
+                        continue
                     }
 
                     index[k] = EntryMeta(
@@ -185,7 +220,7 @@ object WebCacheVault {
                 }
                 persistIndex(ctx)
                 try { v2File.delete() } catch (_: Exception) {}
-                Log.i(TAG, "Web index v3 migration complete with ${index.size} verified entries")
+                Log.i(TAG, "Web index v4 migration complete from v2 with ${index.size} verified entries")
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed reading web index", e)
