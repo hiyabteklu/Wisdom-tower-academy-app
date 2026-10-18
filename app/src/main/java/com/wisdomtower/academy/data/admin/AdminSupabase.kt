@@ -13,8 +13,11 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/** Reply of one admin REST call. code -1 = could not reach the server, -2 = not signed in. */
-class AdminHttpResult(val code: Int, val body: String) {
+/**
+ * Reply of one admin REST call. code -1 = could not reach the server, -2 = not signed in.
+ * contentRange is the Content-Range header (only filled by count(), it looks like 0-4/5 or star/0).
+ */
+class AdminHttpResult(val code: Int, val body: String, val contentRange: String? = null) {
     val ok: Boolean get() = code in 200..299
 
     /** A short, honest message for a toast or an error card. */
@@ -37,6 +40,8 @@ class AdminHttpResult(val code: Int, val body: String) {
  * (HTTP 200 with zero rows) can be detected by the caller.
  * N3 added: post() for inserts and upserts, and postPublic() for the website API route that sends the payment
  * e-mail and SMS (that route is called exactly as the website panel calls it: JSON body, no key from the app).
+ * N5 added: count() for exact row counts (HEAD request with Prefer count=exact, the request supabase-js sends for
+ * head: true, count: exact). A count that could not be read is null, never a made-up number.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -74,10 +79,14 @@ object AdminSupabase {
                 if (prefer != null) builder.addHeader("Prefer", prefer)
                 builder.post((jsonBody ?: "{}").toRequestBody(JSON_MEDIA))
             }
+            "HEAD" -> {
+                builder.addHeader("Prefer", "count=exact")
+                builder.head()
+            }
             else -> builder.get()
         }
         http.newCall(builder.build()).execute().use { resp ->
-            return AdminHttpResult(resp.code, resp.body?.string().orEmpty())
+            return AdminHttpResult(resp.code, resp.body?.string().orEmpty(), resp.header("Content-Range"))
         }
     }
 
@@ -108,6 +117,13 @@ object AdminSupabase {
 
     /** path is everything after /rest/v1/, e.g. inquiries?select=id&limit=5 */
     suspend fun get(path: String): AdminHttpResult = request("GET", path, null, null)
+
+    /** Exact number of rows that match path (include select=id and the filters). Null when it could not be read. */
+    suspend fun count(path: String): Int? {
+        val reply = request("HEAD", path, null, null)
+        if (!reply.ok) return null
+        return reply.contentRange?.substringAfter('/', "")?.trim()?.toIntOrNull()
+    }
 
     /** path includes the row filter, e.g. inquiries?id=eq.abc ; the body is a JSON object of the columns to change. */
     suspend fun patch(path: String, jsonBody: String): AdminHttpResult = request("PATCH", path, jsonBody, null)
