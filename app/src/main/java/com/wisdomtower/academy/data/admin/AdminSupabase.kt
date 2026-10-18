@@ -31,10 +31,12 @@ class AdminHttpResult(val code: Int, val body: String) {
 }
 
 /**
- * ADMIN-native N2. ONE shared helper for every native admin module: PostgREST calls with the signed-in admin's own
+ * ADMIN-native N2/N3. ONE shared helper for every native admin module: PostgREST calls with the signed-in admin's own
  * token (refresh first, one retry on 401, same handling as AdminAccess.kt). Row-level security decides what the
  * account may read or change. No secret key, ever. PATCH asks for the changed rows back so a silent RLS refusal
  * (HTTP 200 with zero rows) can be detected by the caller.
+ * N3 added: post() for inserts and upserts, and postPublic() for the website API route that sends the payment
+ * e-mail and SMS (that route is called exactly as the website panel calls it: JSON body, no key from the app).
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -51,16 +53,27 @@ object AdminSupabase {
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
 
-    private fun execute(method: String, path: String, jsonBody: String?, token: String): AdminHttpResult {
+    private fun execute(
+        method: String,
+        path: String,
+        jsonBody: String?,
+        token: String,
+        prefer: String?
+    ): AdminHttpResult {
         val builder = Request.Builder()
             .url("$supabaseUrl/rest/v1/$path")
             .addHeader("apikey", anonKey)
             .addHeader("Authorization", "Bearer $token")
             .addHeader("Accept", "application/json")
         when (method) {
-            "PATCH" -> builder
-                .addHeader("Prefer", "return=representation")
-                .patch((jsonBody ?: "{}").toRequestBody(JSON_MEDIA))
+            "PATCH" -> {
+                builder.addHeader("Prefer", prefer ?: "return=representation")
+                builder.patch((jsonBody ?: "{}").toRequestBody(JSON_MEDIA))
+            }
+            "POST" -> {
+                if (prefer != null) builder.addHeader("Prefer", prefer)
+                builder.post((jsonBody ?: "{}").toRequestBody(JSON_MEDIA))
+            }
             else -> builder.get()
         }
         http.newCall(builder.build()).execute().use { resp ->
@@ -68,16 +81,21 @@ object AdminSupabase {
         }
     }
 
-    private suspend fun request(method: String, path: String, jsonBody: String?): AdminHttpResult =
+    private suspend fun request(
+        method: String,
+        path: String,
+        jsonBody: String?,
+        prefer: String?
+    ): AdminHttpResult =
         withContext(Dispatchers.IO) {
             try {
                 AuthStateManager.refreshIfNeeded()
                 val token = AuthStateManager.currentUser.value?.accessToken
                 if (token.isNullOrBlank()) return@withContext AdminHttpResult(-2, "")
-                var reply = execute(method, path, jsonBody, token)
+                var reply = execute(method, path, jsonBody, token, prefer)
                 if (reply.code == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
                     val token2 = AuthStateManager.currentUser.value?.accessToken
-                    if (!token2.isNullOrBlank()) reply = execute(method, path, jsonBody, token2)
+                    if (!token2.isNullOrBlank()) reply = execute(method, path, jsonBody, token2, prefer)
                 }
                 reply
             } catch (e: CancellationException) {
@@ -89,8 +107,32 @@ object AdminSupabase {
         }
 
     /** path is everything after /rest/v1/, e.g. inquiries?select=id&limit=5 */
-    suspend fun get(path: String): AdminHttpResult = request("GET", path, null)
+    suspend fun get(path: String): AdminHttpResult = request("GET", path, null, null)
 
     /** path includes the row filter, e.g. inquiries?id=eq.abc ; the body is a JSON object of the columns to change. */
-    suspend fun patch(path: String, jsonBody: String): AdminHttpResult = request("PATCH", path, jsonBody)
+    suspend fun patch(path: String, jsonBody: String): AdminHttpResult = request("PATCH", path, jsonBody, null)
+
+    /** Insert or upsert. prefer example: resolution=ignore-duplicates,return=minimal */
+    suspend fun post(path: String, jsonBody: String, prefer: String): AdminHttpResult =
+        request("POST", path, jsonBody, prefer)
+
+    /** POST to a public website API route (no login header, same as the website panel). absoluteUrl is the full url. */
+    suspend fun postPublic(absoluteUrl: String, jsonBody: String): AdminHttpResult =
+        withContext(Dispatchers.IO) {
+            try {
+                val req = Request.Builder()
+                    .url(absoluteUrl)
+                    .addHeader("Accept", "application/json")
+                    .post(jsonBody.toRequestBody(JSON_MEDIA))
+                    .build()
+                http.newCall(req).execute().use { resp ->
+                    AdminHttpResult(resp.code, resp.body?.string().orEmpty())
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "public POST failed: ${e.javaClass.simpleName}")
+                AdminHttpResult(-1, "")
+            }
+        }
 }
