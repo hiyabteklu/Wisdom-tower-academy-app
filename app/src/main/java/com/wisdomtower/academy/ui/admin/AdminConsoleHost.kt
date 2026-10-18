@@ -26,6 +26,8 @@ import com.wisdomtower.academy.ui.theme.WisdomBackground
 // Flow: native home grid -> tap a module -> (native screen if its id is in NATIVE_ADMIN_MODULE_IDS, otherwise the
 // website panel in AdminWebSection under a native section bar) -> Back returns to the grid -> Back on the grid closes.
 // Deep links keep working: a url with ?tab=<id or alias> opens that module directly.
+// N2 (2026-10-18): Inquiries is native. To add the next native module: add its id to NATIVE_ADMIN_MODULE_IDS in
+// AdminModules.kt and one branch in the when below.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private const val DEFAULT_SITE_ORIGIN = "https://www.wisdom-tower-academy.live"
@@ -51,8 +53,14 @@ fun AdminConsoleScreen(
     var reloadKey by remember { mutableIntStateOf(0) }
     val origin = remember(url) { siteOrigin(url) }
 
-    // On the grid, Back closes the admin. Inside a module the module's own handler runs first.
-    BackHandler(enabled = sectionId == null) { onClose() }
+    val currentId = sectionId
+    val module = if (currentId == null) null else adminModuleForTab(currentId)
+    val isNative = module != null && NATIVE_ADMIN_MODULE_IDS.contains(module.id)
+
+    // On the grid, Back closes the admin. In a native module, Back returns to the grid.
+    // A website module (AdminWebSection) has its own Back handler that goes back inside the page first.
+    BackHandler(enabled = currentId == null) { onClose() }
+    BackHandler(enabled = isNative) { sectionId = null }
 
     // Fresh counts every time the grid is shown (first open, after returning from a module, after Refresh).
     LaunchedEffect(sectionId, reloadKey) {
@@ -62,9 +70,6 @@ fun AdminConsoleScreen(
             loading = false
         }
     }
-
-    val currentId = sectionId
-    val module = if (currentId == null) null else adminModuleForTab(currentId)
 
     Column(modifier = modifier.fillMaxSize().background(WisdomBackground)) {
         if (module == null) {
@@ -78,13 +83,15 @@ fun AdminConsoleScreen(
             )
         } else {
             AdminSectionBar(module = module, onBack = { sectionId = null })
-            // Native screens are added here, one per slice (N2, N3, ...). Until then every module uses the website panel.
-            AdminWebSection(
-                url = "$origin/admin?tab=${module.id}",
-                onClose = { sectionId = null },
-                onLeaveToApp = onLeaveToApp,
-                modifier = Modifier.weight(1f)
-            )
+            when (module.id) {
+                "inquiries" -> InquiriesScreen(modifier = Modifier.weight(1f))
+                else -> AdminWebSection(
+                    url = "$origin/admin?tab=${module.id}",
+                    onClose = { sectionId = null },
+                    onLeaveToApp = onLeaveToApp,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }
