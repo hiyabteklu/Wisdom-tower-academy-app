@@ -23,6 +23,11 @@ import androidx.compose.ui.viewinterop.AndroidView
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.delay
 
+// ADMIN-native N1 (2026-10-18, docs/ADMIN_NATIVE_PLAN.md): the function in this file was renamed from
+// AdminConsoleScreen to AdminWebSection and made internal. The public AdminConsoleScreen (same signature, the one
+// MainActivity.kt calls) is now in AdminConsoleHost.kt: native home grid first, this WebView only for modules that
+// have no native screen yet. Nothing else in this file changed.
+//
 // Admin slice A3 (docs/ADMIN_MOBILE_PLAN.md section 5, findings F1 to F7 in docs/SESSION_2026-10-15_ADMIN_A0.md).
 // The Admin Console page hosted in its OWN small WebView, meant to sit between the app top bar and the bottom
 // navigation (same idea as CompetitionFullScreen), instead of the shared tool overlay.
@@ -70,7 +75,7 @@ private fun allWebViews(root: View): List<WebView> {
 
 @SuppressLint("SetJavaScriptEnabled", "ClickableViewAccessibility")
 @Composable
-fun AdminConsoleScreen(
+internal fun AdminWebSection(
     url: String,
     onClose: () -> Unit,
     onLeaveToApp: (String) -> Unit,
