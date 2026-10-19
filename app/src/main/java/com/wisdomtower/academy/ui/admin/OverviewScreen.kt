@@ -49,11 +49,14 @@ import com.wisdomtower.academy.data.admin.OverviewRepository
 import com.wisdomtower.academy.data.admin.OverviewResult
 import com.wisdomtower.academy.data.admin.OverviewStats
 import com.wisdomtower.academy.data.admin.ProfileStats
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
+import com.wisdomtower.academy.ui.theme.WisdomAccentPurple
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCard
 import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 
@@ -63,6 +66,9 @@ import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 // Charts are plain boxes (no chart library, no Canvas). No animations, one LazyColumn, no horizontal scrolling.
 // Differences on purpose: see OverviewRepository.kt; also the website text 100% Ethiopian Rail is NOT copied (a
 // claim the database does not back) and the card hover tooltips have no phone equivalent.
+// D7k (docs/DAY_MODE_PLAN.md, 2026-10-19): PurpleTone is now a getter (night A78BFA as before, day the deep purple token;
+// the pale lavender was too light as text on ivory), and the empty bar tracks use WisdomInk at 6 percent (night: white 6
+// percent as before; day: a faint navy tint, white was invisible on ivory). Night is identical.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val FEED_FILTERS: List<Pair<String, String>> = listOf(
@@ -73,7 +79,7 @@ private val FEED_FILTERS: List<Pair<String, String>> = listOf(
     "user" to "Scholars"
 )
 
-private val PurpleTone = Color(0xFFA78BFA)
+private val PurpleTone: Color get() = if (AppThemeMode.isDark) Color(0xFFA78BFA) else WisdomAccentPurple
 
 private fun dash(v: Int?): String = v?.toString() ?: "-"
 
@@ -484,7 +490,7 @@ private fun BarRow(label: String, right: String, fraction: Float, tone: Color) {
                 .fillMaxWidth()
                 .height(8.dp)
                 .clip(trackShape)
-                .background(Color.White.copy(alpha = 0.06f))
+                .background(WisdomInk.copy(alpha = 0.06f))
         ) {
             Box(
                 modifier = Modifier
@@ -535,7 +541,7 @@ private fun VelocityCard(orders: OrderStats?) {
                                     .fillMaxWidth()
                                     .height(90.dp)
                                     .clip(trackShape)
-                                    .background(Color.White.copy(alpha = 0.06f))
+                                    .background(WisdomInk.copy(alpha = 0.06f))
                             ) {
                                 Box(
                                     modifier = Modifier
