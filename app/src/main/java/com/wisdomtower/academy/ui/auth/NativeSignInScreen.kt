@@ -108,6 +108,11 @@ import com.wisdomtower.academy.data.auth.SupabaseAuthResult
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
+import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomCardSurfaceGradient
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlinx.coroutines.launch
 
 /**
@@ -144,17 +149,19 @@ private val ACADEMIC_LEVEL_OPTIONS = listOf(
     "Other"
 )
 
-private val Slate200 = Color(0xFFE2E8F0)
-private val Slate300 = Color(0xFFCBD5E1)
-private val Slate400 = Color(0xFF94A3B8)
-private val CyanLight = Color(0xFF67E8F9)
+// D5: day mode. Night keeps the old value, day uses the Ivory & Navy tokens (docs/DAY_MODE_PLAN.md).
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+private val Slate200: Color get() = dayNight(Color(0xFFE2E8F0), WisdomTextPrimary)
+private val Slate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomTextPrimary)
+private val Slate400: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val CyanLight: Color get() = dayNight(Color(0xFF67E8F9), WisdomCyan)
 
 // Glass tokens for this screen (same family as ui/theme/WisdomGlass.kt, a little stronger so
 // text fields stay easy to see on the card).
-private val FieldBackground = Color.White.copy(alpha = 0.06f)
-private val FieldBorder = Color.White.copy(alpha = 0.12f)
-private val GlassRowFill = Color.White.copy(alpha = 0.04f)
-private val GlassRowBorder = Color.White.copy(alpha = 0.10f)
+private val FieldBackground: Color get() = WisdomInk.copy(alpha = 0.06f)
+private val FieldBorder: Color get() = WisdomInk.copy(alpha = 0.12f)
+private val GlassRowFill: Color get() = WisdomInk.copy(alpha = 0.04f)
+private val GlassRowBorder: Color get() = WisdomInk.copy(alpha = 0.10f)
 
 private class AuthNotice(
     val text: String,
@@ -338,7 +345,7 @@ fun NativeSignInScreen(
             Spacer(modifier = Modifier.height(14.dp))
             Text(
                 text = "Wisdom Tower Academy",
-                color = Color.White,
+                color = WisdomInk,
                 fontSize = 26.sp,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
@@ -358,20 +365,24 @@ fun NativeSignInScreen(
                     }
                     .clip(cardShape)
                     .background(
-                        Brush.verticalGradient(
-                            listOf(
-                                Color.White.copy(alpha = 0.09f),
-                                Color.White.copy(alpha = 0.03f)
+                        if (AppThemeMode.isDark) {
+                            Brush.verticalGradient(
+                                listOf(
+                                    WisdomInk.copy(alpha = 0.09f),
+                                    WisdomInk.copy(alpha = 0.03f)
+                                )
                             )
-                        )
+                        } else {
+                            WisdomCardSurfaceGradient
+                        }
                     )
                     .border(
                         BorderStroke(
                             1.dp,
                             Brush.verticalGradient(
                                 listOf(
-                                    Color.White.copy(alpha = 0.28f),
-                                    Color.White.copy(alpha = 0.06f)
+                                    WisdomInk.copy(alpha = if (AppThemeMode.isDark) 0.28f else 0.14f),
+                                    WisdomInk.copy(alpha = if (AppThemeMode.isDark) 0.06f else 0.05f)
                                 )
                             )
                         ),
@@ -473,7 +484,7 @@ fun NativeSignInScreen(
                                 Spacer(modifier = Modifier.width(12.dp))
                                 Text(
                                     text = educationLevel,
-                                    color = Color.White,
+                                    color = WisdomInk,
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
                                     modifier = Modifier.weight(1f)
@@ -500,8 +511,8 @@ fun NativeSignInScreen(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .clip(listShape)
-                                            .background(Color(0x66101A2E))
-                                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.16f)), listShape)
+                                            .background(dayNight(Color(0x66101A2E), Color(0xEBF8F5EE)))
+                                            .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.16f)), listShape)
                                             .padding(vertical = 6.dp)
                                     ) {
                                         ACADEMIC_LEVEL_OPTIONS.forEach { option ->
@@ -510,7 +521,7 @@ fun NativeSignInScreen(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .background(
-                                                        if (isSelected) Color(0x3306B6D4) else Color.Transparent
+                                                        if (isSelected) dayNight(Color(0x3306B6D4), WisdomCyan.copy(alpha = 0.14f)) else Color.Transparent
                                                     )
                                                     .selectable(
                                                         selected = isSelected,
@@ -665,8 +676,8 @@ fun NativeSignInScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .clip(noticeShape)
-                                        .background(Color.White.copy(alpha = 0.06f))
-                                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.14f)), noticeShape)
+                                        .background(WisdomInk.copy(alpha = 0.06f))
+                                        .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.14f)), noticeShape)
                                         .semantics { liveRegion = LiveRegionMode.Polite }
                                         .padding(12.dp),
                                     horizontalAlignment = Alignment.CenterHorizontally
@@ -709,7 +720,7 @@ fun NativeSignInScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(Color.White.copy(alpha = 0.08f))
+                            .background(WisdomInk.copy(alpha = 0.08f))
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     if (mode == AuthMode.SIGN_IN) {
@@ -744,8 +755,8 @@ fun NativeSignInScreen(
                     .padding(8.dp)
                     .size(44.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.06f))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), CircleShape),
+                    .background(WisdomInk.copy(alpha = 0.06f))
+                    .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.08f)), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 IconButton(onClick = onClose, modifier = Modifier.fillMaxSize()) {
@@ -779,8 +790,8 @@ private fun GlassModeTabs(
         modifier = modifier
             .fillMaxWidth()
             .clip(trackShape)
-            .background(Color.Black.copy(alpha = 0.22f))
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), trackShape)
+            .background(dayNight(Color.Black.copy(alpha = 0.22f), WisdomInk.copy(alpha = 0.08f)))
+            .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.08f)), trackShape)
     ) {
         // Sliding pill (sized by the labels row below, so it always matches its height)
         Box(modifier = Modifier.matchParentSize().padding(3.dp)) {
@@ -790,8 +801,8 @@ private fun GlassModeTabs(
                     .fillMaxHeight()
                     .align(BiasAlignment(horizontalBias = bias, verticalBias = 0f))
                     .clip(pillShape)
-                    .background(Color.White.copy(alpha = 0.16f))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)), pillShape)
+                    .background(WisdomInk.copy(alpha = 0.16f))
+                    .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.20f)), pillShape)
             )
         }
         Row(modifier = Modifier.fillMaxWidth().padding(3.dp)) {
@@ -819,7 +830,7 @@ private fun ModeTab(
     modifier: Modifier = Modifier
 ) {
     val textColor by animateColorAsState(
-        targetValue = if (selected) Color.White else Slate400,
+        targetValue = if (selected) WisdomInk else Slate400,
         animationSpec = tween(durationMillis = 220),
         label = "authTabText"
     )
@@ -985,8 +996,8 @@ internal fun AuthField(
             keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction),
             keyboardActions = KeyboardActions(onDone = { onImeAction() }),
             colors = OutlinedTextFieldDefaults.colors(
-                focusedTextColor = Color.White,
-                unfocusedTextColor = Color.White,
+                focusedTextColor = WisdomInk,
+                unfocusedTextColor = WisdomInk,
                 focusedContainerColor = FieldBackground,
                 unfocusedContainerColor = FieldBackground,
                 focusedBorderColor = WisdomCyan.copy(alpha = 0.85f),
