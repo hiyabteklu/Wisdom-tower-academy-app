@@ -26,12 +26,14 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCard
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -46,10 +48,20 @@ import java.util.TimeZone
 // ADMIN-native N3 (docs/ADMIN_NATIVE_PLAN.md). The shared pieces for the native admin screens that come after
 // Inquiries: search box, choice chip, tone badge, action button, confirm dialog, date text. Reuse these, do not add
 // a fourth copy. (InquiriesScreen.kt still has its own private chip from N2; tidy up in the regression slice.)
+// D7g (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode for the shared kit. The 18 admin screens pass bright "tone" colours
+// (amber, emerald, rose, cyan) that are readable on the night page but too light on ivory. Instead of editing every screen,
+// the kit now runs each tone through adminTone: night returns the tone unchanged, day mixes it 45 percent toward the navy
+// ink so the text, border and filled buttons stay readable. AdminRose is a getter (night FB7185 as before, day BE123C).
+// The white text on a filled button stays white (the day fill is the darkened tone). Night is identical.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
-/** Soft red used for rejected and destructive actions (the website uses rose). */
-internal val AdminRose: Color = Color(0xFFFB7185)
+/** Soft red used for rejected and destructive actions (the website uses rose). Day: a deeper rose. Read while composing. */
+internal val AdminRose: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFFB7185) else Color(0xFFBE123C)
+
+/** Night: the tone as given. Day: the tone mixed 45 percent toward the navy ink 0B1B33, so it reads on ivory. */
+internal fun adminTone(tone: Color): Color =
+    if (AppThemeMode.isDark) tone else lerp(tone, Color(0xFF0B1B33), 0.45f)
 
 @Composable
 internal fun AdminSearchBox(
@@ -110,18 +122,19 @@ internal fun AdminChoiceChip(
     tone: Color = Color(0xFFF59E0B)
 ) {
     val shape = RoundedCornerShape(50)
+    val t = adminTone(tone)
     Box(
         modifier = modifier
             .height(40.dp)
             .clip(shape)
-            .background(if (selected) tone.copy(alpha = 0.15f) else WisdomCard)
-            .border(1.dp, if (selected) tone.copy(alpha = 0.4f) else WisdomBorderWhite, shape)
+            .background(if (selected) t.copy(alpha = 0.15f) else WisdomCard)
+            .border(1.dp, if (selected) t.copy(alpha = 0.4f) else WisdomBorderWhite, shape)
             .clickable(onClick = onClick),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (selected) tone else WisdomMuted,
+            color = if (selected) t else WisdomMuted,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1
@@ -132,17 +145,18 @@ internal fun AdminChoiceChip(
 @Composable
 internal fun AdminToneBadge(text: String, tone: Color, modifier: Modifier = Modifier) {
     val shape = RoundedCornerShape(50)
+    val t = adminTone(tone)
     Text(
         text = text.uppercase(),
-        color = tone,
+        color = t,
         fontSize = 11.sp,
         fontWeight = FontWeight.ExtraBold,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         modifier = modifier
             .clip(shape)
-            .background(tone.copy(alpha = 0.12f))
-            .border(1.dp, tone.copy(alpha = 0.4f), shape)
+            .background(t.copy(alpha = 0.12f))
+            .border(1.dp, t.copy(alpha = 0.4f), shape)
             .padding(horizontal = 8.dp, vertical = 3.dp)
     )
 }
@@ -158,20 +172,21 @@ internal fun AdminActionButton(
     modifier: Modifier = Modifier
 ) {
     val shape = RoundedCornerShape(50)
+    val t = adminTone(tone)
     Box(
         modifier = modifier
             .height(44.dp)
             .alpha(if (enabled) 1f else 0.5f)
             .clip(shape)
-            .background(if (filled) tone else Color.Transparent)
-            .border(1.dp, tone.copy(alpha = 0.5f), shape)
+            .background(if (filled) t else Color.Transparent)
+            .border(1.dp, t.copy(alpha = 0.5f), shape)
             .clickable(enabled = enabled, onClick = onClick)
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
-            color = if (filled) Color.White else tone,
+            color = if (filled) Color.White else t,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -201,7 +216,7 @@ internal fun AdminConfirmDialog(
         },
         confirmButton = {
             TextButton(onClick = onConfirm) {
-                Text(text = confirmLabel, color = confirmTone, fontWeight = FontWeight.Bold)
+                Text(text = confirmLabel, color = adminTone(confirmTone), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
