@@ -12,11 +12,18 @@ import androidx.compose.ui.graphics.Color
  * token returns exactly the value it always had (the approved look). In day mode it returns the light value from
  * [WisdomLightPalette].
  *
- * D1 (docs/DAY_MODE_PLAN.md, owner order 2026-10-19): the day values are now the premium "Ivory & Navy" palette, NOT the old
- * pale one (page F4F7FB, white cards). Day cards are NOT see-through: they are frosted ivory (about 82 to 88 percent
- * opaque) with a hairline navy border. Text is deep navy ink (never pure black). The accent is a deep teal-cyan with white
- * text on it. The contrast figures in the plan are hand estimates (hypothesis) until the D9 audit measures them.
+ * D1 (docs/DAY_MODE_PLAN.md, owner order 2026-10-19): the day values are the premium "Ivory & Navy" palette, NOT the old
+ * pale one (page F4F7FB, white cards). Day cards are NOT see-through: they are frosted (about 82 to 88 percent opaque) with a
+ * hairline border. Text is deep navy ink (never pure black). The accent is a deep teal-cyan with white text on it. The
+ * contrast figures in the plan are hand estimates (hypothesis) until the D9 audit measures them.
  * Gold (badges, leaderboard, Pro: fill F1DFB4, text 5C3F0A) has no token yet; it arrives with the slice that first uses it.
+ *
+ * DAY-SAGE (owner order 2026-10-19: "I hate the white background, black thumbnails on white are awkward"): the page and the
+ * frosted surfaces of the day look are no longer ivory / white. They are a sage-teal family: page A9C6C1, card DCEAE7,
+ * elevated card E4F0ED, deep surface C9DCD8 (the same alphas as before). Ink and accents are unchanged; muted text is a
+ * little darker (3F4E64) because it also sits directly on the page. The ivory values were: page E9E5DC, card F8F5EE,
+ * elevated FBF9F4, deep E4DFD4, muted 4A5A70. The same three card values are repeated in WisdomGlass.kt
+ * (WisdomGlassFill / Strong / Quiet) and the page colour in AppBackground.kt (Day); change them together.
  *
  * BG-TOKENS (2026-10-17, owner: the chosen background must show literally everywhere): the three NIGHT fill tokens
  * [card], [cardElevated] and [surfaceDeep] and the night [WisdomCardSurfaceGradient] are see-through, so every screen that
@@ -63,28 +70,28 @@ internal object WisdomDarkPalette {
 }
 
 /**
- * Day values, "Ivory & Navy" (D1, docs/DAY_MODE_PLAN.md section 4). Values are the starting point: the owner sees them on a
- * phone and they change on the owner's word.
- *  - page: ivory-stone E9E5DC (solid; also the status and navigation bars)
- *  - card: frosted ivory F8F5EE at 82 percent (alpha D1), elevated card FBF9F4 at 85 percent (D9), deep surface E4DFD4 at 82 percent
+ * Day values, "Sage & Navy" (D1 plan "Ivory & Navy", page and surfaces retinted by DAY-SAGE, see the file comment). Values are
+ * the starting point: the owner sees them on a phone and they change on the owner's word.
+ *  - page: sage-teal A9C6C1 (solid; also the status and navigation bars)
+ *  - card: frosted sage DCEAE7 at 82 percent (alpha D1), elevated card E4F0ED at 85 percent (D9), deep surface C9DCD8 at 82 percent
  *  - borders: deep navy 0B1B33 at 12 percent (hairline) and 14 percent; the soft accent border is the teal at 20 percent
- *  - text: deep navy ink 0B1B33; muted 4A5A70
+ *  - text: deep navy ink 0B1B33; muted 3F4E64
  *  - accent: deep teal-cyan 0B7285, white text on it
- * The category accents are the darker day versions, chosen by hand to stay readable on ivory (hypothesis, D9 measures them);
- * amber, emerald and orange are one step darker than the old pale palette because the old values were too light on ivory.
+ * The category accents are the darker day versions, chosen by hand to stay readable on light cards (hypothesis, D9 measures
+ * them); amber, emerald and orange are one step darker than the old pale palette because the old values were too light.
  */
 internal object WisdomLightPalette {
     val cyan = Color(0xFF0B7285)
     val cyanDark = Color(0xFF095A69)
-    val background = Color(0xFFE9E5DC)
-    val surfaceDeep = Color(0xD1E4DFD4)
-    val navy = Color(0xFFE9E5DC)
-    val card = Color(0xD1F8F5EE)
-    val cardElevated = Color(0xD9FBF9F4)
+    val background = Color(0xFFA9C6C1)
+    val surfaceDeep = Color(0xD1C9DCD8)
+    val navy = Color(0xFFA9C6C1)
+    val card = Color(0xD1DCEAE7)
+    val cardElevated = Color(0xD9E4F0ED)
     val cardBorder = Color(0x330B7285)
     val cardBorderSubtle = Color(0x1F0B1B33)
     val borderWhite = Color(0x240B1B33)
-    val muted = Color(0xFF4A5A70)
+    val muted = Color(0xFF3F4E64)
     val textPrimary = Color(0xFF0B1B33)
     val onCyan = Color(0xFFFFFFFF)
     val ink = Color(0xFF0B1B33)
@@ -108,7 +115,7 @@ val WisdomCyanDark: Color get() = pick(WisdomDarkPalette.cyanDark, WisdomLightPa
 val WisdomBackground: Color get() = pick(WisdomDarkPalette.background, WisdomLightPalette.background) // root canvas (--background: #070c16)
 val WisdomDark: Color get() = pick(WisdomDarkPalette.surfaceDeep, WisdomLightPalette.surfaceDeep) // secondary background (--wt-dark: #0a101c)
 val WisdomNavy: Color get() = pick(WisdomDarkPalette.navy, WisdomLightPalette.navy) // page / status background
-val WisdomCard: Color get() = pick(WisdomDarkPalette.card, WisdomLightPalette.card) // surface card (--wt-card); day: frosted ivory
+val WisdomCard: Color get() = pick(WisdomDarkPalette.card, WisdomLightPalette.card) // surface card (--wt-card); day: frosted sage
 val WisdomCardElevated: Color get() = pick(WisdomDarkPalette.cardElevated, WisdomLightPalette.cardElevated) // card-modern surface
 val WisdomCardBorder: Color get() = pick(WisdomDarkPalette.cardBorder, WisdomLightPalette.cardBorder) // soft accent card border
 val WisdomCardBorderSubtle: Color get() = pick(WisdomDarkPalette.cardBorderSubtle, WisdomLightPalette.cardBorderSubtle) // 1px border
@@ -121,7 +128,7 @@ val WisdomDarkOnCyan: Color get() = pick(WisdomDarkPalette.onCyan, WisdomLightPa
 val WisdomInk: Color get() = pick(WisdomDarkPalette.ink, WisdomLightPalette.ink)
 val WisdomOnInk: Color get() = pick(WisdomDarkPalette.onInk, WisdomLightPalette.onInk)
 
-// Semantic & Category Accents (day values are darker so they stay readable on ivory cards)
+// Semantic & Category Accents (day values are darker so they stay readable on light cards)
 val WisdomAccentPurple: Color get() = pick(WisdomDarkPalette.purple, WisdomLightPalette.purple)
 val WisdomAccentViolet: Color get() = pick(WisdomDarkPalette.violet, WisdomLightPalette.violet)
 val WisdomAccentAmber: Color get() = pick(WisdomDarkPalette.amber, WisdomLightPalette.amber)
@@ -140,12 +147,12 @@ val WisdomHeroGradientBrush: Brush
         Brush.horizontalGradient(colors = listOf(Color(0xFF0B7285), Color(0xFF0369A1), Color(0xFF4338CA)))
     }
 
-// Day: frosted ivory, 88 percent at the top (E0) to 82 percent at the bottom (D1). NOT see-through like the night glass.
+// Day: frosted sage, 88 percent at the top (E0) to 82 percent at the bottom (D1). NOT see-through like the night glass.
 val WisdomCardSurfaceGradient: Brush
     get() = if (AppThemeMode.isDark) {
         Brush.verticalGradient(colors = listOf(Color(0x85162134), Color(0x8F0E1624)))
     } else {
-        Brush.verticalGradient(colors = listOf(Color(0xE0FAF7F0), Color(0xD1F4F0E6)))
+        Brush.verticalGradient(colors = listOf(Color(0xE0E2EFEC), Color(0xD1D6E6E2)))
     }
 
 val WisdomPrimaryBtnGradient: Brush

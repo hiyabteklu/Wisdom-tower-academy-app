@@ -33,21 +33,24 @@ import androidx.compose.ui.unit.dp
  * Plan and order of the areas: docs/GLASS_PLAN.md.
  *
  * D2 (docs/DAY_MODE_PLAN.md, owner order 2026-10-19): by day the glass is NOT see-through (that was the reason day mode was
- * cancelled on 2026-10-17). It is frosted ivory F8F5EE: panel / row 82 percent, pill / button 90 percent, quiet (done) 65
- * percent, with a hairline deep-navy edge (12 percent) and a soft navy shadow ([wisdomCardShadow]). The text on it is
- * [WisdomInk] (deep navy). Night is unchanged. These are getters: read them while composing or drawing, not once at class load.
+ * cancelled on 2026-10-17). It is frosted: panel / row 82 percent, pill / button 90 percent, quiet (done) 65 percent, with a
+ * hairline deep-navy edge (12 percent) and a soft navy shadow ([wisdomCardShadow]). The text on it is [WisdomInk] (deep
+ * navy). Night is unchanged. These are getters: read them while composing or drawing, not once at class load.
+ *
+ * DAY-SAGE (owner order 2026-10-19): the day frost is a pale sage (DCEAE7 / E4F0ED / D3E3DF) instead of ivory (F8F5EE / FBF9F4 /
+ * F3EFE6), to match the new sage page in AppBackground.kt (Day) and the card tokens in Color.kt. Change them together.
  */
 val WisdomGlassFill: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color(0xD1F8F5EE)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color(0xD1DCEAE7)
 val WisdomGlassFillStrong: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.16f) else Color(0xE6FBF9F4)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.16f) else Color(0xE6E4F0ED)
 val WisdomGlassFillQuiet: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.07f) else Color(0xA6F3EFE6)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.07f) else Color(0xA6D3E3DF)
 val WisdomGlassBorder: Color
     get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.18f) else WisdomLightPalette.ink.copy(alpha = 0.12f)
 
 /**
- * Soft navy shadow under a card, DAY ONLY (plan section 4: frosted ivory card, hairline border, soft navy shadow). At night it
+ * Soft navy shadow under a card, DAY ONLY (plan section 4: frosted card, hairline border, soft navy shadow). At night it
  * returns the modifier unchanged, so night cards are exactly as before. Put it BEFORE `.clip(shape)` so the shadow is drawn
  * outside the card. Elevation is small (3 dp) so long lists stay cheap and smooth.
  */
