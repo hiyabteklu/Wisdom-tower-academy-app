@@ -43,8 +43,8 @@ import androidx.compose.ui.graphics.Color
  * OLD SCRIPT UNCHANGED. The day script does the same navy-to-glass job with the Ivory & Navy values (panel = ivory 84
  * percent, pop-up panel = ivory 97 percent, scrim = navy 50 percent, inline dark chips = a 8 percent navy tint) and in
  * addition:
- *  - TEXT: every element sitting on the page or on a dark panel gets a day text colour (almost white = deep navy ink,
- *    light grey-blue = muted 4A5A70, light colours such as cyan or green = the same hue at 27 percent lightness).
+ *  - TEXT: every element sitting on the page or on a dark panel gets a day text colour (light text = deep navy ink,
+ *    mid grey-blue = muted 4A5A70, light colours such as cyan or green = the same hue at 27 percent lightness).
  *    Text on a coloured, non-navy fill (a green button, a cyan chip) is left alone, so white on green stays white.
  *  - BORDERS: whitish hairlines on those elements become a navy 16 percent line.
  * It also keeps the original inline values and restores them before every pass, like the night script.
@@ -57,10 +57,14 @@ import androidx.compose.ui.graphics.Color
  *    heads, highlights, the result gauge track);
  *  - the insides of KaTeX formulas are skipped (the formula root gets the colour and the parts inherit it), and the size
  *    limit is 15000 elements, because a maths page can have thousands of nodes.
- * NOT done (hypotheses, D8c onwards): SVG fill and stroke attributes other than the gauge track, gradient-clip text
- * (transparent text colour), `flashcards.html`, `index.html` and the `competition*.html` pages were not read, and the
- * glass strength by day. Not compiled, not seen on a phone. Perf risk: on a long chat the script walks every element
- * on every streamed update, like the night script does.
+ * D8c (2026-10-19), after reading index.html (notes), flashcards.html and the competition question and exam pages:
+ *  - the body text of a note is the soft light grey CBD5E1 (lightness 0.83). The first rule turned that into the MUTED
+ *    grey (only 0.85 and above became ink), so long reading text would have been grey instead of ink. Now everything
+ *    from 0.78 lightness up is ink; 94A3B8 (0.65) and below stays muted.
+ * NOT done (hypotheses, D8d onwards): SVG fill and stroke attributes other than the gauge track, gradient-clip text
+ * (transparent text colour), `competition_review.html` was not read, and the glass strength by day. Not compiled, not
+ * seen on a phone. Perf risk: on a long chat the script walks every element on every streamed update, like the night
+ * script does.
  */
 object AppBackdrop {
     /** The plain page colour of the chosen option. Reading it in a composable follows the choice live. */
@@ -150,8 +154,8 @@ object AppBackdrop {
 """
 
     /**
-     * D8a / D8b: the DAY script (see the class comment). Same structure as [GLASS_JS], with ivory glass and a text / border
-     * remap for pages that were written for a dark page. No dollar sign and no triple quote may appear (Kotlin raw string).
+     * D8a / D8b / D8c: the DAY script (see the class comment). Same structure as [GLASS_JS], with ivory glass and a text /
+     * border remap for pages that were written for a dark page. No dollar sign and no triple quote may appear (Kotlin raw string).
      */
     private const val GLASS_JS_DAY = """
 (function(){
@@ -173,7 +177,7 @@ object AppBackdrop {
   return 'rgb('+Math.round((r+m)*255)+','+Math.round((g+m)*255)+','+Math.round((b+m)*255)+')';}
  function dayText(c){
   if(!c||c.a<0.05)return null;var v=hsl(c);
-  if(v.s<0.3){if(v.l>0.85)return 'rgba('+INK+','+Math.max(c.a,0.75)+')';if(v.l>0.5)return MUTED;return null;}
+  if(v.s<0.3){if(v.l>0.78)return 'rgba('+INK+','+Math.max(c.a,0.75)+')';if(v.l>0.5)return MUTED;return null;}
   if(v.l>0.35)return rgbOf(v.h,Math.min(v.s,0.85),0.27);
   return null;}
  function settle(){try{var a=document.getAnimations(),i,t;
