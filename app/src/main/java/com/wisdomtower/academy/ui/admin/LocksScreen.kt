@@ -66,6 +66,7 @@ import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCard
 import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlinx.coroutines.delay
@@ -75,6 +76,9 @@ import kotlinx.coroutines.launch
 // package shortcuts, then a step-by-step tree (Academy > package > subject > hub) with the four lock modes for the
 // selected step, and the list of all active overrides at the top level. Each mode is a full-width row with its hint
 // (no tiny buttons); shortcuts open on tap. System Back and the arrow go up one step. Texts copied from the website.
+// D7j (docs/DAY_MODE_PLAN.md, 2026-10-19): RoseTone is now the kit's AdminRose (night FB7185 as before, day BE123C; the
+// literal pink was too light as the lock icon on ivory), and the shortcut block tint is WisdomInk at 4 percent (night:
+// white 4 percent as before; day: a faint navy tint, white 4 percent was invisible on ivory). Night is identical.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private class LockMode(val id: String, val label: String, val hint: String)
@@ -96,7 +100,7 @@ private val SHORTCUTS: List<Pair<String, String>> = listOf(
     "ece-y3-sem-2" to "ECE Year 3 \u00B7 Semester 2"
 )
 
-private val RoseTone = Color(0xFFFB7185)
+private val RoseTone: Color get() = AdminRose
 
 private fun modeTone(mode: String?): Color = when (mode) {
     "open" -> WisdomAccentEmerald
@@ -463,7 +467,7 @@ private fun ShortcutBlock(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(WisdomInk.copy(alpha = 0.04f))
             .border(1.dp, WisdomBorderWhite, shape)
     ) {
         Row(
