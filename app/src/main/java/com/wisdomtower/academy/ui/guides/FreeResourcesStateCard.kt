@@ -1,5 +1,8 @@
 package com.wisdomtower.academy.ui.guides
 
+import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -33,7 +36,7 @@ fun FreeResourcesStateCard(heading: String?, message: String) {
                     fontSize = 17.sp,
                     lineHeight = 22.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color.White
+                    color = WisdomInk
                 )
             }
             Text(
@@ -42,7 +45,7 @@ fun FreeResourcesStateCard(heading: String?, message: String) {
                 fontSize = 14.sp,
                 lineHeight = 22.sp,
                 fontWeight = FontWeight.Normal,
-                color = Color(0xFFCBD5E1)
+                color = if (AppThemeMode.isDark) Color(0xFFCBD5E1) else WisdomMuted
             )
         }
     }

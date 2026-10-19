@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.notifications
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -313,7 +314,7 @@ fun NotificationsScreen(
                                 .fillMaxWidth(0.33f)
                                 .height(14.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White.copy(alpha = 0.10f))
+                                .background(WisdomInk.copy(alpha = 0.10f))
                         )
                         Spacer(Modifier.height(10.dp))
                         Box(
@@ -321,7 +322,7 @@ fun NotificationsScreen(
                                 .fillMaxWidth(0.66f)
                                 .height(10.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
+                                .background(WisdomInk.copy(alpha = 0.05f))
                         )
                     }
                 }
