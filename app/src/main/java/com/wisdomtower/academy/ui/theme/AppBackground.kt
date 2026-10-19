@@ -4,16 +4,25 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.FilterQuality
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.graphics.drawscope.DrawScope
+import androidx.compose.ui.graphics.drawscope.clipRect
+import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.layout.findRootCoordinates
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import com.wisdomtower.academy.WisdomTowerApplication
@@ -168,33 +177,68 @@ private object BackdropPhotos {
  * the soft glows. With no [option] it draws the one the student chose and follows later changes at once (the
  * choice is Compose state read while drawing). Settings passes each option to draw its preview.
  * Day (D1) has no picture, so it draws the ivory colour and its two soft glows (no dark shade).
+ *
+ * SEAM FIX (owner 2026-10-19: the picture showed cut into three slices, header, page and bottom bar, joined badly):
+ * every screen draws its own copy of the background inside the area between the top bar and the bottom bar, so each
+ * copy used to scale the picture to ITS OWN size. With no [option] the picture, shade and glows are now laid out for the
+ * WHOLE window (the root layout) and shifted by the position of this box, so every copy shows the matching part of one
+ * picture and the pieces line up. With an [option] (a small preview) the old behaviour stays: fitted to the box itself.
+ * Before the first layout pass the box does not know its place yet and draws the old way for one frame.
  */
-fun Modifier.appBackdrop(option: AppBackgroundOption? = null): Modifier = this.drawBehind {
-    val opt = option ?: AppBackground.selected
-    drawRect(color = opt.base)
+fun Modifier.appBackdrop(option: AppBackgroundOption? = null): Modifier = composed {
+    var origin by remember { mutableStateOf(Offset.Zero) }
+    var screen by remember { mutableStateOf(Size.Zero) }
+    this
+        .onGloballyPositioned { coords ->
+            val position = coords.positionInRoot()
+            val root = coords.findRootCoordinates().size
+            val rootSize = Size(root.width.toFloat(), root.height.toFloat())
+            if (position != origin) origin = position
+            if (rootSize != screen) screen = rootSize
+        }
+        .drawBehind {
+            val opt = option ?: AppBackground.selected
+            val aligned = option == null && screen.width > 0f && screen.height > 0f
+            if (aligned) {
+                clipRect {
+                    translate(left = -origin.x, top = -origin.y) {
+                        drawBackdrop(opt, screen.width, screen.height)
+                    }
+                }
+            } else {
+                drawBackdrop(opt, size.width, size.height)
+            }
+        }
+}
+
+/** Draws the whole look (colour, picture with shade, glows) into a rectangle of [w] x [h] pixels at the origin. */
+private fun DrawScope.drawBackdrop(opt: AppBackgroundOption, w: Float, h: Float) {
+    val full = Size(w, h)
+    drawRect(color = opt.base, size = full)
     val photo = BackdropPhotos.get(opt)
     if (photo != null) {
-        // "Cover": scale the picture to fill the screen and crop the overflow evenly; High quality filtering keeps it smooth.
-        val scale = maxOf(size.width / photo.width, size.height / photo.height)
-        val srcW = (size.width / scale).roundToInt().coerceIn(1, photo.width)
-        val srcH = (size.height / scale).roundToInt().coerceIn(1, photo.height)
+        // "Cover": scale the picture to fill the rectangle and crop the overflow evenly; High quality filtering keeps it smooth.
+        val scale = maxOf(w / photo.width, h / photo.height)
+        val srcW = (w / scale).roundToInt().coerceIn(1, photo.width)
+        val srcH = (h / scale).roundToInt().coerceIn(1, photo.height)
         drawImage(
             image = photo,
             srcOffset = IntOffset((photo.width - srcW) / 2, (photo.height - srcH) / 2),
             srcSize = IntSize(srcW, srcH),
-            dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt()),
+            dstSize = IntSize(w.roundToInt(), h.roundToInt()),
             filterQuality = FilterQuality.High
         )
-        drawRect(color = Color.Black.copy(alpha = PHOTO_SCRIM_ALPHA))
+        drawRect(color = Color.Black.copy(alpha = PHOTO_SCRIM_ALPHA), size = full)
     }
-    val longSide = maxOf(size.width, size.height)
+    val longSide = maxOf(w, h)
     opt.glows.forEach { g ->
         drawRect(
             brush = Brush.radialGradient(
                 colors = listOf(g.color.copy(alpha = g.alpha), g.color.copy(alpha = 0f)),
-                center = Offset(size.width * g.x, size.height * g.y),
+                center = Offset(w * g.x, h * g.y),
                 radius = longSide * g.radius
-            )
+            ),
+            size = full
         )
     }
 }
