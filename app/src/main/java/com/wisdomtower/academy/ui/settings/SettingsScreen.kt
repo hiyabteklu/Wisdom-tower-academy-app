@@ -1,26 +1,14 @@
 package com.wisdomtower.academy.ui.settings
 
-import com.wisdomtower.academy.ui.theme.WisdomInk
-import com.wisdomtower.academy.ui.theme.WisdomOnInk
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.ui.draw.rotate
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.ui.semantics.LiveRegionMode
-import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.liveRegion
-import androidx.compose.ui.semantics.selected
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,26 +23,20 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.filled.Adjust
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Notifications
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.PhoneAndroid
 import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
-import androidx.compose.material.icons.filled.VolumeDown
 import androidx.compose.material.icons.filled.VolumeMute
 import androidx.compose.material.icons.filled.VolumeUp
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material3.ripple
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -67,7 +49,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,9 +56,16 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -91,48 +79,27 @@ import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
 import com.wisdomtower.academy.ui.theme.WisdomAccentRose
-import com.wisdomtower.academy.ui.theme.WisdomAccentSky
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
-import com.wisdomtower.academy.ui.theme.WisdomDark
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomExpandable
-import com.wisdomtower.academy.ui.theme.wisdomAnimatedColor
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomOnInk
 import kotlinx.coroutines.launch
 import java.io.File
 
 /**
- * Native Settings screen mirroring website reference:
- * - src/app/settings/page.tsx
+ * Native Settings screen. Since 2026-10-19 (owner order) it holds app settings ONLY:
+ *  1. Dark | Transparent pill (DisplayThemeSection in DisplaySection.kt)
+ *  2. Notifications & Study Alerts
+ *  3. Game Sound
+ *  4. Offline Data & Cloud Sync   (size is the real app storage; Sync pushes the profile for real)
+ *  5. Account & Security          (Update Password calls Supabase; "Delete Account" block, see AccountDeletionSection.kt)
  *
- * 2026-10-19 (owner order): the very first thing in the list is now ONLY the Dark | Transparent pill
- * (DisplayThemeSection in DisplaySection.kt). The old "Reading & Display" card (font size, typography style, live
- * sample preview) is removed.
- *
- * Header card:
- * - Student avatar, full name, VERIFIED badge, academic level, "Edit Profile" and "Account" navigation buttons
- *
- * Stacked Accordion Sections:
- * 1. Study Goals & Target Milestones  (Save writes to Supabase `profiles`, real result shown)
- * 2. Notifications & Study Alerts
- * 3. Game Sound
- * 5. Offline Data & Cloud Sync        (size is the real app storage; Sync pushes the profile for real)
- * 6. Security                          (Update Password calls Supabase, like the website's updateUser;
- *                                       "Delete Account" block calls the website route, see AccountDeletionSection.kt)
- *
- * 2026-10-11: the password form used to show "updated successfully" without calling the server,
- * and the storage size and sync message were fixed texts. All three are now real.
- * 2026-10-11 (session F): every label was compared with the website page; study-window hours, the
- * password success text, the "Saved" confirmation and the default name now use the website wording.
- * 2026-10-12 (session T): the missing website texts were added (study target description, "15 min/day"
- * buttons, "Reflected in analytics", "Master sound level calibrated for study games", "Live Sample
- * Preview" box with "Preview" tag and the website's px sizes, "Change Password" heading and the two
- * password placeholders). Not changed on purpose: "Edit Profile" still opens the native Account tab
- * (the website's ?tab=profile has no native meaning) and the avatar is still a generic icon.
- * 2026-10-12 (session Z): Security now ends with the "Delete Account" block (Google Play requires
- * in-app account deletion). The block is NOT on the website settings page; it is the only addition.
+ * Everything about the student (header card, Study Goals & Target Milestones, My Subjects) moved to the
+ * Profile screen (ui/account/AccountScreen.kt), where it is saved with one "Save Profile Changes" button.
  */
 @Composable
 fun SettingsScreen(
@@ -144,50 +111,35 @@ fun SettingsScreen(
     val prefsStorage = remember { context.getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE) }
 
     val currentProfile by AuthStateManager.currentProfile.collectAsState()
-    val currentUser by AuthStateManager.currentUser.collectAsState()
     val isLoggedIn by AuthStateManager.isLoggedIn.collectAsState()
 
-    // Website: profile.full_name || "Enrolled Student"
-    val displayName = currentProfile?.fullName ?: currentUser?.fullName ?: "Enrolled Student"
-    val academicLevel = currentProfile?.educationLevel ?: "Academic Scholar"
-    val institution = currentProfile?.schoolName
+    // The daily goal is edited on the Profile screen; here it is only shown in the reminder text.
+    val dailyGoalMinutes = currentProfile?.dailyStudyGoalMinutes ?: 45
 
     // Section expanded states
-    var openStudy by remember { mutableStateOf(false) }
     var openNotifs by remember { mutableStateOf(false) }
     var openAudio by remember { mutableStateOf(false) }
     var openStorage by remember { mutableStateOf(false) }
     var openSecurity by remember { mutableStateOf(false) }
 
-    // Section 1: Study Goals
-    var dailyGoalMinutes by remember { mutableIntStateOf(currentProfile?.dailyStudyGoalMinutes ?: prefsStorage.getInt("daily_study_goal_minutes", 45)) }
-    var targetExam by remember { mutableStateOf(currentProfile?.targetExam ?: prefsStorage.getString("target_exam", "") ?: "") }
-    var targetScore by remember { mutableStateOf(currentProfile?.targetScore ?: prefsStorage.getString("target_score", "") ?: "") }
-    var studyWindow by remember {
-        mutableStateOf(currentProfile?.preferredStudyTime ?: prefsStorage.getString("preferred_study_time", "evening") ?: "evening")
-    }
-    var savingGoals by remember { mutableStateOf(false) }
-
-    // Section 2: Notifications
-    // These four are the switches the app really obeys (AcademyNotificationManager): the study timer alert,
-    // planner reminders, daily goal nudge and academy announcements (pushes).
+    // Notifications: the switches the app really obeys (AcademyNotificationManager)
     var notifTimer by remember { mutableStateOf(AcademyNotificationManager.isTimerEnabled(context)) }
     var notifPlanner by remember { mutableStateOf(AcademyNotificationManager.isPlannerEnabled(context)) }
     var notifDailyStudy by remember { mutableStateOf(AcademyNotificationManager.isGoalsEnabled(context)) }
     var notifExams by remember { mutableStateOf(AcademyNotificationManager.isUpdatesEnabled(context)) }
     var notifWeeklyDigest by remember { mutableStateOf(prefsStorage.getBoolean("notif_weekly_digest", true)) }
 
-    // Section 3: Game Sound
+    // Game Sound
     var soundEffects by remember { mutableStateOf(prefsStorage.getBoolean("sound_effects", true)) }
     var soundVolume by remember { mutableFloatStateOf(prefsStorage.getFloat("sound_volume", 0.5f)) }
 
-    // Section 5: Offline Data
+    // Offline Data
     var syncMessage by remember { mutableStateOf<String?>(null) }
     var syncIsError by remember { mutableStateOf(false) }
     var isSyncing by remember { mutableStateOf(false) }
     val storageLabel = remember(syncMessage, openStorage) { formatBytes(appStorageBytes(context)) }
 
-    // Section 6: Security
+    // Account & Security
     var newPassword by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var passwordSuccess by remember { mutableStateOf(false) }
@@ -207,343 +159,8 @@ fun SettingsScreen(
                 DisplayThemeSection()
             }
 
-            // TOP HEADER: Student Identity & Actions
-            item(key = "settings_header_card") {
-                WisdomGlassCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    cornerRadius = 20.dp,
-                    borderColor = WisdomBorderWhite
-                ) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(18.dp)
-                    ) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(
-                                modifier = Modifier.weight(1f),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(48.dp)
-                                        .clip(CircleShape)
-                                        .background(WisdomCyan.copy(alpha = 0.15f))
-                                        .border(BorderStroke(1.5.dp, WisdomCyan.copy(alpha = 0.5f)), CircleShape),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Icon(
-                                        imageVector = Icons.Default.Person,
-                                        contentDescription = null,
-                                        tint = WisdomCyan,
-                                        modifier = Modifier.size(26.dp)
-                                    )
-                                }
-
-                                Column {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                    ) {
-                                        Text(
-                                            text = displayName,
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Black,
-                                            color = WisdomInk
-                                        )
-                                        Box(
-                                            modifier = Modifier
-                                                .clip(CircleShape)
-                                                .background(WisdomInk.copy(alpha = 0.08f))
-                                                .border(BorderStroke(1.dp, WisdomBorderWhite), CircleShape)
-                                                .padding(horizontal = 6.dp, vertical = 1.dp)
-                                        ) {
-                                            Text(
-                                                text = "VERIFIED",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = WisdomInk
-                                            )
-                                        }
-                                    }
-
-                                    Text(
-                                        text = if (institution.isNullOrBlank()) academicLevel else "$academicLevel · $institution",
-                                        fontSize = 11.5.sp,
-                                        color = WisdomMuted,
-                                        fontWeight = FontWeight.Medium
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        // Header Action Buttons: "Edit Profile" & "Account"
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(WisdomCyan.copy(alpha = 0.12f))
-                                    .border(BorderStroke(1.dp, WisdomCyan.copy(alpha = 0.4f)), RoundedCornerShape(12.dp))
-                                    .clickable(role = Role.Button) { onNavigateToUrl("/account") }
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Person, contentDescription = null, tint = WisdomCyan, modifier = Modifier.size(14.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "Edit Profile", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WisdomCyan)
-                                }
-                            }
-
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(WisdomInk.copy(alpha = 0.05f))
-                                    .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
-                                    .clickable(role = Role.Button) { onNavigateToUrl("/account") }
-                                    .padding(vertical = 8.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = WisdomInk, modifier = Modifier.size(13.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "Account", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // SECTION 1: Study Goals & Target Milestones
-            item(key = "section_1_study") {
-                SettingsAccordionCard(
-                    icon = Icons.Default.Adjust,
-                    title = "Study Goals & Target Milestones",
-                    subtitle = "Daily target ($dailyGoalMinutes mins), study hours, and exam targets",
-                    isExpanded = openStudy,
-                    onToggle = { openStudy = !openStudy }
-                ) {
-                    Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = "DAILY STUDY TARGET (MINUTES PER DAY)",
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = WisdomMuted,
-                                letterSpacing = 0.5.sp
-                            )
-                            Text(
-                                text = "Select your target study commitment. This powers your streak calculation and pacing HUD.",
-                                fontSize = 11.sp,
-                                color = WisdomMuted,
-                                lineHeight = 15.sp
-                            )
-                        }
-
-                        // Website: 2 buttons per row on a phone, text "{n} min/day"
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            listOf(15, 30, 45, 60, 90, 120).chunked(3).forEach { rowMins ->
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                    rowMins.forEach { mins ->
-                                        val isSelected = dailyGoalMinutes == mins
-                                        Box(
-                                            modifier = Modifier
-                                                .weight(1f)
-                                                .clip(RoundedCornerShape(10.dp))
-                                                .background(wisdomAnimatedColor(isSelected, WisdomInk, WisdomInk.copy(alpha = 0.04f)))
-                                                .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, WisdomInk, WisdomBorderWhite)), RoundedCornerShape(10.dp))
-                                                .semantics { selected = isSelected }
-                                                    .clickable(role = Role.RadioButton) {
-                                                    dailyGoalMinutes = mins
-                                                    prefsStorage.edit().putInt("daily_study_goal_minutes", mins).apply()
-                                                }
-                                                .padding(vertical = 8.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = "$mins min/day",
-                                                fontSize = 11.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = wisdomAnimatedColor(isSelected, WisdomOnInk, WisdomInk)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        OutlinedTextField(
-                            value = targetExam,
-                            onValueChange = {
-                                targetExam = it
-                                prefsStorage.edit().putString("target_exam", it).apply()
-                            },
-                            label = { Text("Target Milestone / Exam", fontSize = 11.sp) },
-                            placeholder = { Text("e.g. University Exit Exam or Matriculation", fontSize = 11.sp, color = WisdomMuted) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            colors = settingsFieldColors()
-                        )
-
-                        OutlinedTextField(
-                            value = targetScore,
-                            onValueChange = {
-                                targetScore = it
-                                prefsStorage.edit().putString("target_score", it).apply()
-                            },
-                            label = { Text("Target Score / GPA", fontSize = 11.sp) },
-                            placeholder = { Text("e.g. 3.85 GPA or 90%+", fontSize = 11.sp, color = WisdomMuted) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            shape = RoundedCornerShape(10.dp),
-                            colors = settingsFieldColors()
-                        )
-
-                        Text(
-                            text = "PREFERRED DAILY STUDY WINDOW",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WisdomMuted,
-                            letterSpacing = 0.5.sp
-                        )
-
-                        val windows = listOf(
-                            "morning" to ("Early Morning" to "5:00 AM to 8:00 AM"),
-                            "afternoon" to ("Afternoon" to "1:00 PM to 4:00 PM"),
-                            "evening" to ("Evening" to "6:00 PM to 9:00 PM"),
-                            "night" to ("Late Night" to "10:00 PM to 1:00 AM")
-                        )
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            windows.take(2).forEach { (id, pair) ->
-                                val isSelected = studyWindow == id
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.15f), WisdomInk.copy(alpha = 0.03f)))
-                                        .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.5f), WisdomBorderWhite)), RoundedCornerShape(10.dp))
-                                        .semantics { selected = isSelected }
-                                            .clickable(role = Role.RadioButton) {
-                                            studyWindow = id
-                                            prefsStorage.edit().putString("preferred_study_time", id).apply()
-                                        }
-                                        .padding(10.dp)
-                                ) {
-                                    Column {
-                                        Text(text = pair.first, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
-                                        Text(text = pair.second, fontSize = 12.sp, color = WisdomMuted)
-                                    }
-                                }
-                            }
-                        }
-
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            windows.drop(2).forEach { (id, pair) ->
-                                val isSelected = studyWindow == id
-                                Box(
-                                    modifier = Modifier
-                                        .weight(1f)
-                                        .clip(RoundedCornerShape(10.dp))
-                                        .background(wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.15f), WisdomInk.copy(alpha = 0.03f)))
-                                        .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.5f), WisdomBorderWhite)), RoundedCornerShape(10.dp))
-                                        .semantics { selected = isSelected }
-                                            .clickable(role = Role.RadioButton) {
-                                            studyWindow = id
-                                            prefsStorage.edit().putString("preferred_study_time", id).apply()
-                                        }
-                                        .padding(10.dp)
-                                ) {
-                                    Column {
-                                        Text(text = pair.first, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
-                                        Text(text = pair.second, fontSize = 12.sp, color = WisdomMuted)
-                                    }
-                                }
-                            }
-                        }
-
-                        // Website: Save button on the left, "Reflected in analytics" hint on the right
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(WisdomCyan)
-                                    .clickable(role = Role.Button) {
-                                        val base = currentProfile
-                                        if (!isLoggedIn || base == null) {
-                                            Toast.makeText(context, "Sign in to save your study goals", Toast.LENGTH_SHORT).show()
-                                        } else if (!savingGoals) {
-                                            savingGoals = true
-                                            scope.launch {
-                                                val result = AuthStateManager.saveProfile(
-                                                    base.copy(
-                                                        dailyStudyGoalMinutes = dailyGoalMinutes,
-                                                        targetExam = targetExam,
-                                                        targetScore = targetScore,
-                                                        preferredStudyTime = studyWindow
-                                                    )
-                                                )
-                                                savingGoals = false
-                                                val text = when (result) {
-                                                    is AccountCallResult.Success -> "Saved"
-                                                    is AccountCallResult.Failure -> result.message
-                                                }
-                                                Toast.makeText(context, text, Toast.LENGTH_LONG).show()
-                                            }
-                                        }
-                                    }
-                                    .padding(vertical = 12.dp),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.Save, contentDescription = null, tint = WisdomDarkOnCyan, modifier = Modifier.size(15.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(
-                                        text = if (savingGoals) "Saving..." else "Save Study Goals",
-                                        fontSize = 12.5.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = WisdomDarkOnCyan
-                                    )
-                                }
-                            }
-
-                            Text(
-                                text = "Reflected in analytics",
-                                fontSize = 12.sp,
-                                color = WisdomMuted,
-                                fontFamily = FontFamily.Monospace
-                            )
-                        }
-                    }
-                }
-            }
-
-            // T8: My Subjects (which subjects "Your status" counts)
-            item(key = "section_my_subjects") {
-                MySubjectsSection()
-            }
-
-            // SECTION 2: Notifications & Study Alerts
-            item(key = "section_2_notifs") {
+            // Notifications & Study Alerts
+            item(key = "section_notifs") {
                 SettingsAccordionCard(
                     icon = Icons.Default.Notifications,
                     title = "Notifications & Study Alerts",
@@ -605,8 +222,8 @@ fun SettingsScreen(
                 }
             }
 
-            // SECTION 3: Game Sound
-            item(key = "section_3_audio") {
+            // Game Sound
+            item(key = "section_audio") {
                 val volumePercent = (soundVolume * 100).toInt()
                 val badgeText = if (soundEffects) "$volumePercent% Volume" else "Muted"
 
@@ -697,8 +314,8 @@ fun SettingsScreen(
                 }
             }
 
-            // SECTION 5: Offline Data & Cloud Sync
-            item(key = "section_5_storage") {
+            // Offline Data & Cloud Sync
+            item(key = "section_storage") {
                 SettingsAccordionCard(
                     icon = Icons.Default.Storage,
                     title = "Offline Data & Cloud Sync",
@@ -808,12 +425,12 @@ fun SettingsScreen(
                 }
             }
 
-            // SECTION 6: Security
-            item(key = "section_6_security") {
+            // Account & Security (password + Google Play account deletion)
+            item(key = "section_security") {
                 SettingsAccordionCard(
                     icon = Icons.Default.Lock,
-                    title = "Security",
-                    subtitle = "Change account password",
+                    title = "Account & Security",
+                    subtitle = "Change password or delete your account",
                     isExpanded = openSecurity,
                     onToggle = { openSecurity = !openSecurity }
                 ) {
