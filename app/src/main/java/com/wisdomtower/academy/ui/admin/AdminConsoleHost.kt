@@ -31,6 +31,7 @@ import com.wisdomtower.academy.ui.theme.WisdomBackground
 // Catalog are native. N7: Course Content is native.
 // N8a (2026-10-19): Push Broadcasts is native for the history and the scheduled list. Its composer is still the
 // website panel: the screen asks this host to show it (composerOpen), and Back returns to the native list.
+// N9 (2026-10-19): Competitions is native (the deep link /admin?tab=competitions opens it).
 // To add the next native module: add its id to NATIVE_ADMIN_MODULE_IDS in AdminModules.kt and one branch in the when below.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
@@ -104,6 +105,7 @@ fun AdminConsoleScreen(
                 "locks" -> LocksScreen(modifier = Modifier.weight(1f))
                 "catalog" -> CatalogScreen(modifier = Modifier.weight(1f))
                 "content" -> CourseContentScreen(modifier = Modifier.weight(1f))
+                "competitions" -> CompetitionsScreen(modifier = Modifier.weight(1f))
                 "notifications" -> if (composerOpen) {
                     AdminWebSection(
                         url = "$origin/admin?tab=notifications",
