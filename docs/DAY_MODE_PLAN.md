@@ -1,6 +1,6 @@
 # DAY_MODE_PLAN.md — premium day mode "Ivory & Navy" (owner order 2026-10-19)
 
-> Repo is PUBLIC: no secrets, no student data. Free-plan rule: ONE slice per chat (`docs/AGENT_QUOTA_PROTOCOL.md`). Slices D1 to D3 are written (2026-10-19, see section 9); D4 to D9 are open.
+> Repo is PUBLIC: no secrets, no student data. Free-plan rule: ONE slice per chat (`docs/AGENT_QUOTA_PROTOCOL.md`). Slices D1 to D4 are written (2026-10-19, see section 9); D5 to D9 are open.
 
 ## 1. Owner words (2026-10-19)
 The custom background BG 2 is awkward. Keep the dark mode as it is and design a compatible plan for day mode: not white, something premium that elevates the app. The app is being prepared for publishing.
@@ -40,10 +40,10 @@ The custom background BG 2 is awkward. Keep the dark mode as it is and design a 
 | D1 | Foundation: replace the day palette in `Color.kt`; switch driven by the saved choice (default night); picker pill moon / sun (an old saved BG choice falls back to Dark); real light Material scheme and status bars in `Theme.kt`; day backdrop in `AppBackground.kt` | written 2026-10-19, pushed to `main`, CI and phone test pending (`docs/SESSION_2026-10-19_DAY_D1_FOUNDATION.md`) |
 | D2 | Glass and surface tokens for day (`WisdomGlass.kt`, card gradient, field surface, message card), shared cards, overlays and pop-ups | written 2026-10-19, pushed to `main`, CI and phone test pending (`docs/SESSION_2026-10-19_DAY_D2_GLASS_SURFACES.md`). Custom pop-ups drawn inside screens are swept per screen in D3 to D7 |
 | D3 | Home, Learning, Packages, Package detail, Settings, My Subjects, GPA card, Study workspace | written 2026-10-19. Part 1 and 2 pushed by hand (Packages, Package detail `d022d49`; Home `5617a21`). Part 3 = patch script `scripts/patch_d3_day_sweep.py` for Learning, Settings, My Subjects, GPA card, Study workspace (plus the "Delete Account" title in Settings): owner runs the Action `Apply pending patches`, then CI and phone test (`docs/SESSION_2026-10-19_DAY_D3_PART3_SWEEP.md`) |
-| D4 | Top bar, bottom nav, drawer (`MainActivity.kt` / `StructuralNav.kt`, patch script) | open (next) |
-| D5 | Account, native sign-in, forgot password | open |
+| D4 | Top bar, bottom nav, drawer, tool overlay header, study-timer dialog (all in `MainActivity.kt`, patch script) | written 2026-10-19: `scripts/patch_d4_day_shell.py` (28 edits, tested twice on the real file). Owner runs the Action `Apply pending patches`, branch `fix/day-d4-shell`, then CI and phone test in both modes (`docs/SESSION_2026-10-19_DAY_D4_SHELL.md`) |
+| D5 | Account, native sign-in, forgot password | open (next) |
 | D6 | Study tools, readers, hub lists, tutor, PDF reader, dialogs | open |
-| D7 | Competitions, native admin console, onboarding, splash | open |
+| D7 | Competitions, native admin console, onboarding, splash (and the loading spinner, see the D4 log) | open |
 | D8 | Local WebView pages (notes, quiz, flashcards, tutor, math): day variant of the glass script and page CSS; math, highlights and code blocks need day colours | open |
 | D9 | Full contrast audit with owner screenshots in both modes (all tabs, TalkBack, font Large) and a night regression pass | open |
 
@@ -59,3 +59,4 @@ Day REPLACES BG 2 in the pill (assumed above), or sits next to it as a third ico
 - 2026-10-19 (Claude chat, D1, on the owner's "continue the open tasks, UI day mode"): D1 written and pushed in two commits to `main`. Files: `AppThemeMode.kt`, `Color.kt`, `Theme.kt`, `AppBackground.kt`, `settings/BackgroundSection.kt`. NOT compiled by the agent. Details, what is known to look wrong in day until D2 to D8, and what to test: `docs/SESSION_2026-10-19_DAY_D1_FOUNDATION.md`. Next: D2.
 - 2026-10-19 (Claude chat, D2, owner said "Continue"): D2 written and pushed. Files: `WisdomGlass.kt` (frosted ivory glass, new `wisdomCardShadow`), `WisdomComponents.kt` (shared card shadow), `WisdomMessageCard.kt`, `WisdomFieldTokens.kt`. NOT compiled by the agent. Details and test list: `docs/SESSION_2026-10-19_DAY_D2_GLASS_SURFACES.md`. Next: D3.
 - 2026-10-19 (Claude chat, D3 part 3, owner said "continue the open tasks"): D3 parts 1 and 2 (Packages, Package detail, Home) were already on `main` without a board entry; recorded now. Part 3 written: `scripts/patch_d3_day_sweep.py` (tested twice on fixtures) moves Learning, Settings, My Subjects, GPA card, Study workspace and the Settings "Delete Account" title from `Color.White` / `Color.Black` to `WisdomInk` / `WisdomOnInk`; night unchanged. NOT compiled, NOT run on the real files by the agent: the owner runs the Action. Details, test list, what was left on purpose: `docs/SESSION_2026-10-19_DAY_D3_PART3_SWEEP.md`. Next: D4.
+- 2026-10-19 (Claude chat, D4, owner said "continue the open tasks on ui day mode"): D4 written. `scripts/patch_d4_day_shell.py` (28 edits) turns the nine private colour vals at the top of `MainActivity.kt` into getters and moves the top bar, bottom nav pill, drawer, tool overlay header and study-timer dialog to day / night pairs (night keeps the old literals). Tested twice on the real `MainActivity.kt` from `main`; brackets balanced; NOT compiled, NOT run on the repo by the agent: the owner runs the Action. Not verified: whether the D3 part 3 Action was run. Details, test list, what was left on purpose (loading spinner, red dot): `docs/SESSION_2026-10-19_DAY_D4_SHELL.md`. Next: D5.
