@@ -42,6 +42,12 @@ private val PopupGlassNavy = Color(0xF20F1829)
 private val PopupGlassNavyLow = Color(0xE60F1829)
 private val PopupGlassChip = Color(0x59FFFFFF)
 
+// Day pop-ups (D1, docs/DAY_MODE_PLAN.md): the same ivory as the day cards, about 92 percent opaque (overlays are more
+// opaque than cards, owner feedback 2026-10-17), the chip a slightly deeper solid ivory.
+private val PopupGlassIvory = Color(0xEBF8F5EE)
+private val PopupGlassIvoryLow = Color(0xE0F8F5EE)
+private val PopupGlassIvoryChip = Color(0xFFE6E0D2)
+
 private val DarkColorScheme =
   darkColorScheme(
     primary = WisdomDarkPalette.cyan,
@@ -59,7 +65,8 @@ private val DarkColorScheme =
     surfaceDim = PopupGlassNavy
   )
 
-// Day (L1, docs/DAY_NIGHT_PLAN.md): a real light scheme. Built from the same palette the tokens in Color.kt use.
+// Day (D1, docs/DAY_MODE_PLAN.md): a real light scheme, "Ivory & Navy". Built from the same palette the tokens in Color.kt use.
+// `surface` is a solid ivory here (the card tokens in Color.kt are the frosted 82 percent version).
 private val LightColorScheme =
   lightColorScheme(
     primary = WisdomLightPalette.cyan,
@@ -68,13 +75,20 @@ private val LightColorScheme =
     onSecondary = WisdomLightPalette.onCyan,
     background = WisdomLightPalette.navy,
     onBackground = WisdomLightPalette.textPrimary,
-    surface = WisdomLightPalette.card,
+    surface = Color(0xFFF8F5EE),
     onSurface = WisdomLightPalette.textPrimary,
-    surfaceVariant = WisdomLightPalette.cardElevated,
+    surfaceVariant = Color(0xFFEFEADF),
     onSurfaceVariant = WisdomLightPalette.muted,
     outline = WisdomLightPalette.muted,
     error = WisdomLightPalette.rose,
-    onError = WisdomLightPalette.onCyan
+    onError = WisdomLightPalette.onCyan,
+    surfaceContainerLowest = PopupGlassIvoryLow,
+    surfaceContainerLow = PopupGlassIvoryLow,
+    surfaceContainer = PopupGlassIvory,
+    surfaceContainerHigh = PopupGlassIvory,
+    surfaceContainerHighest = PopupGlassIvoryChip,
+    surfaceBright = PopupGlassIvoryChip,
+    surfaceDim = PopupGlassIvory
   )
 
 /**
@@ -95,8 +109,8 @@ private const val APP_FONT_SCALE_CAP = 1.5f
 private val APP_CONTENT_MAX_WIDTH = 720.dp
 
 /**
- * L1: day / night is chosen by the student with the sun / moon switch in Settings ([AppThemeMode]); it no longer
- * follows the phone's own dark setting. Night is the default.
+ * D1: day / night is the chosen background ([AppThemeMode], driven by [AppBackground]); it does not follow the phone's own
+ * dark setting. Night (Dark) is the default.
  */
 @Composable
 fun MyApplicationTheme(
