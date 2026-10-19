@@ -37,15 +37,16 @@ import androidx.compose.ui.unit.dp
  * hairline deep-navy edge (12 percent) and a soft navy shadow ([wisdomCardShadow]). The text on it is [WisdomInk] (deep
  * navy). Night is unchanged. These are getters: read them while composing or drawing, not once at class load.
  *
- * DAY-SAGE (owner order 2026-10-19): the day frost is a pale sage (DCEAE7 / E4F0ED / D3E3DF) instead of ivory (F8F5EE / FBF9F4 /
- * F3EFE6), to match the new sage page in AppBackground.kt (Day) and the card tokens in Color.kt. Change them together.
+ * DAY-SAGE (owner order 2026-10-19) made the day frost a pale sage (DCEAE7 / E4F0ED / D3E3DF). DAY-IVORY2 (owner order
+ * 2026-10-19, the sage page looked muddy and inverse) put it BACK to frosted ivory (F8F5EE / FBF9F4 / F3EFE6), to match the
+ * ivory page in AppBackground.kt (Day) and the card tokens in Color.kt. Change them together.
  */
 val WisdomGlassFill: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color(0xD1DCEAE7)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color(0xD1F8F5EE)
 val WisdomGlassFillStrong: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.16f) else Color(0xE6E4F0ED)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.16f) else Color(0xE6FBF9F4)
 val WisdomGlassFillQuiet: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.07f) else Color(0xA6D3E3DF)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.07f) else Color(0xA6F3EFE6)
 val WisdomGlassBorder: Color
     get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.18f) else WisdomLightPalette.ink.copy(alpha = 0.12f)
 
