@@ -22,6 +22,7 @@ sealed class LocksResult {
  *  - set: upsert on lock_key with mode and label; note and updated_by are written as null, exactly like the website
  *  - clear: delete the row (the code default applies again)
  * Difference, on purpose: clear reports an error when no row was deleted (a silent refusal), the website does not.
+ * 2026-10-19: the missing-table message no longer tells admins to run the old setup script on the live database.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -41,7 +42,7 @@ object LocksRepository {
             val msg = reply.errorText()
             val missingTable = msg.contains("relation") || msg.contains("does not exist")
             return LocksResult.Failure(
-                if (missingTable) "Table missing: run docs/content-locks-setup.sql in Supabase SQL Editor." else msg
+                if (missingTable) "Table missing: tell the database owner. Do not run the old setup scripts." else msg
             )
         }
         return try {
