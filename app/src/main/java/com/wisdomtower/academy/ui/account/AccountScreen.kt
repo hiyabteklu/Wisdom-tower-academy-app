@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.account
 
+import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -47,9 +48,12 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -73,10 +77,15 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.auth.AccountCallResult
 import com.wisdomtower.academy.data.auth.AuthStateManager
+import com.wisdomtower.academy.data.auth.ProfileSubjectsSync
+import com.wisdomtower.academy.data.content.MySubjectsStore
 import com.wisdomtower.academy.data.model.UserProfile
 import com.wisdomtower.academy.ui.auth.NativeSignInScreen
 import com.wisdomtower.academy.ui.competition.CompetitionPointsCard
+import com.wisdomtower.academy.ui.settings.MySubjectsEditor
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
@@ -85,11 +94,11 @@ import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
-import com.wisdomtower.academy.ui.theme.WisdomMuted
-import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomPrimaryBtnGradient
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
+import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
@@ -161,6 +170,17 @@ val ETHIOPIAN_REGION_OPTIONS = listOf(
     "Dire Dawa", "Harari", "Somali", "Afar", "Benishangul-Gumuz", "Gambela"
 )
 
+/** Daily study target choices. The database accepts 5 to 600 minutes (profiles_daily_goal_valid). */
+private val DAILY_GOAL_OPTIONS = listOf(15, 30, 45, 60, 90, 120)
+
+/** Preferred study window ids must stay exactly these four (profiles_preferred_study_time_valid). */
+private val STUDY_WINDOWS = listOf(
+    Triple("morning", "Early Morning", "5:00 AM to 8:00 AM"),
+    Triple("afternoon", "Afternoon", "1:00 PM to 4:00 PM"),
+    Triple("evening", "Evening", "6:00 PM to 9:00 PM"),
+    Triple("night", "Late Night", "10:00 PM to 1:00 AM")
+)
+
 // Gold tones for the completed gauge (metal look: light, mid, deep)
 private val GoldLight = Color(0xFFFFF1B8)
 private val GoldMid = Color(0xFFF2C14E)
@@ -172,23 +192,22 @@ private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark)
 private val PillOnAccent: Color get() = dayNight(Color(0xFF06101F), WisdomDarkOnCyan)
 
 /**
- * Native Account screen.
- * - Signed-out: native sign-in / create-account screen (ui/auth/NativeSignInScreen.kt), a copy of
- *   the website login page that talks to Supabase directly (S2d). On success the session is stored
- *   by AuthStateManager.applyNativeSession and this screen switches to the signed-in view.
- * - Signed-in (T7 2026-10-13; simplified 2026-10-16): ONLY the profile completion gauge at the top,
- *   then three sections: name; academic level + university (university students pick from a list)
- *   or school name (typed) + region; phone + target exam. Then Save, and Log Out as the LAST item.
- *   The avatar picker and the stream / academic track picker were removed (owner, 2026-10-16).
- * - Competition points (owner decision B, session O): a small card above the profile panel with the
- *   cumulative competition points total from the server (ui/competition/CompetitionPointsCard.kt).
+ * Native PROFILE screen (the bottom tab was called "Account").
+ * - Signed-out: native sign-in / create-account screen (ui/auth/NativeSignInScreen.kt).
+ * - Signed-in: completion gauge, competition points, then FIVE cards, then ONE Save button, Log Out last:
+ *     1. Personal Details            (first name, last name, phone)
+ *     2. Academic Level & Institution (level, university or school, region)
+ *     3. My Subjects                 (what "Your status" counts)
+ *     4. Study Goals & Targets       (daily minutes, target exam, target score / GPA)
+ *     5. Study Schedule              (preferred study window)
+ *
+ * 2026-10-19 (owner order): Study Goals and My Subjects were moved here from Settings, and the duplicate
+ * "Target Exam" field (it wrote the same `target_exam` column as the Settings field) is now ONE field.
+ * Save uses [AuthStateManager.saveProfile], so "Saved" is shown only when the server really returned the row
+ * (before, this screen showed "Saved" even when the server write failed). Subjects are written with
+ * [ProfileSubjectsSync] (`my_subject_keys` + `study_subjects`).
  *
  * Saving never touches `stream` or `avatarPreset`: whatever is already stored stays as it is.
- * Not ported: the website's Admin button (shown only for admin e-mails).
- *
- * S3 part 2 (2026-10-17, docs/SESSION_2026-10-17_S3_PART2_ACCOUNT.md): TalkBack. The three step headers and the
- * university field say "Expanded" / "Collapsed"; the pills and university rows are radio buttons that say
- * "selected"; Save and Log Out are buttons; pills and rows have a 48 dp touch target. Looks unchanged.
  */
 @Composable
 fun AccountScreen(
@@ -200,8 +219,6 @@ fun AccountScreen(
     onSignOut: () -> Unit = {},
     onNavigateToUrl: (String) -> Unit
 ) {
-    val context = LocalContext.current
-
     if (!isLoggedIn) {
         NativeSignInScreen(
             modifier = modifier,
@@ -214,15 +231,13 @@ fun AccountScreen(
     }
 
     // Signed-in state. When no saved profile exists yet, start empty (the website does the same).
-    var currentProfile by remember(userProfile) {
-        mutableStateOf(
-            userProfile ?: UserProfile(
-                id = "student",
-                email = userEmail,
-                fullName = userName,
-                firstName = userName?.substringBefore(" "),
-                lastName = userName?.substringAfter(" ", "")
-            )
+    val currentProfile = remember(userProfile) {
+        userProfile ?: UserProfile(
+            id = "student",
+            email = userEmail,
+            fullName = userName,
+            firstName = userName?.substringBefore(" "),
+            lastName = userName?.substringAfter(" ", "")
         )
     }
 
@@ -244,15 +259,7 @@ fun AccountScreen(
             }
 
             item(key = "my_profile_panel") {
-                MyProfilePanel(
-                    profile = currentProfile,
-                    onProfileUpdated = { updated ->
-                        currentProfile = updated
-                        AuthStateManager.updateProfile(updated)
-                        Toast.makeText(context, "Saved", Toast.LENGTH_SHORT).show()
-                    },
-                    onSignOut = onSignOut
-                )
+                MyProfilePanel(profile = currentProfile, onSignOut = onSignOut)
             }
 
             item(key = "bottom_space") {
@@ -279,20 +286,19 @@ private fun pressScale(interactionSource: MutableInteractionSource, pressed: Flo
 }
 
 // ---------------------------------------------------------------------------
-// My Profile: panel (gauge + sections + save + log out)
+// My Profile: panel (gauge + five cards + save + log out)
 // ---------------------------------------------------------------------------
 
-/**
- * Same fields, defaults and option lists as the website ProfileCompletionPanel.tsx, minus avatar and stream.
- * The completion score is computed live from the form state. Without the stream (it was worth 15) the
- * institution is worth 30, so the total is still 100.
- */
 @Composable
 private fun MyProfilePanel(
     profile: UserProfile,
-    onProfileUpdated: (UserProfile) -> Unit,
     onSignOut: () -> Unit
 ) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val authUser by AuthStateManager.currentUser.collectAsState()
+    val userId = authUser?.id ?: profile.id
+
     // Website defaults: first/last name from full name; level "Freshman"; region empty
     var firstName by remember(profile.firstName, profile.fullName) {
         mutableStateOf(
@@ -306,13 +312,12 @@ private fun MyProfilePanel(
                 ?: profile.fullName?.trim()?.substringAfter(" ", "").orEmpty()
         )
     }
+    var phone by remember(profile.phone) { mutableStateOf(profile.phone ?: "") }
     var educationLevel by remember(profile.educationLevel) {
         mutableStateOf(profile.educationLevel?.takeIf { it.isNotBlank() } ?: "Freshman")
     }
     var schoolName by remember(profile.schoolName) { mutableStateOf(profile.schoolName ?: "") }
     var townRegion by remember(profile.townRegion) { mutableStateOf(profile.townRegion ?: "") }
-    var phone by remember(profile.phone) { mutableStateOf(profile.phone ?: "") }
-    var targetExam by remember(profile.targetExam) { mutableStateOf(profile.targetExam ?: "") }
     // Website stores the free-text level under "Other" in bio as "Custom Level: ..."
     var customLevel by remember(profile.bio) {
         mutableStateOf(
@@ -320,9 +325,32 @@ private fun MyProfilePanel(
         )
     }
 
-    var step1Expanded by remember { mutableStateOf(false) }
-    var step2Expanded by remember { mutableStateOf(false) }
-    var step3Expanded by remember { mutableStateOf(false) }
+    // Study goals and schedule (were in Settings)
+    var dailyGoal by remember(profile.dailyStudyGoalMinutes) { mutableStateOf(profile.dailyStudyGoalMinutes) }
+    var targetExam by remember(profile.targetExam) { mutableStateOf(profile.targetExam ?: "") }
+    var targetScore by remember(profile.targetScore) { mutableStateOf(profile.targetScore ?: "") }
+    var studyWindow by remember(profile.preferredStudyTime) {
+        mutableStateOf(profile.preferredStudyTime?.takeIf { it.isNotBlank() } ?: "evening")
+    }
+
+    // My Subjects (was in Settings). Saved on this phone at once; written to the server with the Save button.
+    val initialPicks = remember(userId, profile.educationLevel) { MySubjectsStore.load(context, userId, profile.educationLevel) }
+    var picks by remember(userId, profile.educationLevel) { mutableStateOf(initialPicks.keys) }
+    var picksFromLevel by remember(userId, profile.educationLevel) { mutableStateOf(initialPicks.fromAcademicLevel) }
+    var subjectsTouched by remember(userId) { mutableStateOf(false) }
+
+    // A new phone: take the picks the student saved on the server (unless they already changed them here).
+    LaunchedEffect(userId) {
+        val remote = ProfileSubjectsSync.load()
+        if (remote != null && !subjectsTouched) {
+            MySubjectsStore.save(context, userId, remote)
+            picks = remote
+            picksFromLevel = false
+        }
+    }
+
+    var saving by remember { mutableStateOf(false) }
+    var openCard by remember { mutableStateOf(0) } // 0 = all closed, otherwise the card number that is open
 
     val hasName = firstName.isNotBlank() || !profile.fullName.isNullOrBlank()
     val isUniversityStudent = educationLevel in UNIVERSITY_LEVELS
@@ -342,15 +370,15 @@ private fun MyProfilePanel(
     Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
         ProfileCompletionGauge(score = completionScore)
 
-        // STEP 1: Legal Identity
+        // CARD 1: Personal details
         StepAccordionCard(
             stepNumber = 1,
-            title = "Legal Identity",
-            subtitle = "Your first and last name",
+            title = "Personal Details",
+            subtitle = "Your name and phone number",
             isFilled = hasName,
             unfilledLabel = "Required",
-            isExpanded = step1Expanded,
-            onToggle = { step1Expanded = !step1Expanded }
+            isExpanded = openCard == 1,
+            onToggle = { openCard = if (openCard == 1) 0 else 1 }
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -375,18 +403,28 @@ private fun MyProfilePanel(
                         colors = fieldColors()
                     )
                 }
+                OutlinedTextField(
+                    value = phone,
+                    onValueChange = { phone = it },
+                    label = { Text("Phone Number (Optional)", fontSize = 11.sp) },
+                    placeholder = { Text("e.g. 0911223344", fontSize = 11.sp, color = WisdomMuted) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    shape = RoundedCornerShape(14.dp),
+                    colors = fieldColors()
+                )
             }
         }
 
-        // STEP 2: Academic level and institution
+        // CARD 2: Academic level and institution
         StepAccordionCard(
             stepNumber = 2,
             title = "Academic Level & Institution",
             subtitle = "Academic level, university or school, and region",
             isFilled = educationLevel.isNotBlank() && schoolName.isNotBlank() && townRegion.isNotBlank(),
             unfilledLabel = "Incomplete",
-            isExpanded = step2Expanded,
-            onToggle = { step2Expanded = !step2Expanded }
+            isExpanded = openCard == 2,
+            onToggle = { openCard = if (openCard == 2) 0 else 2 }
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 FieldLabel("EDUCATION LEVEL")
@@ -446,22 +484,60 @@ private fun MyProfilePanel(
             }
         }
 
-        // STEP 3: Contact Phone & Target Exam
+        // CARD 3: My Subjects
         StepAccordionCard(
             stepNumber = 3,
-            title = "Contact Phone & Target Exam",
-            subtitle = "Phone number, target national exam, and score goal",
-            isFilled = phone.isNotBlank() && targetExam.isNotBlank(),
-            unfilledLabel = "Incomplete",
-            isExpanded = step3Expanded,
-            onToggle = { step3Expanded = !step3Expanded }
+            title = "My Subjects",
+            subtitle = "Choose what you study. Your status counts only these.",
+            isFilled = picks.isNotEmpty(),
+            unfilledLabel = "Not chosen",
+            isExpanded = openCard == 3,
+            onToggle = { openCard = if (openCard == 3) 0 else 3 }
         ) {
-            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Box(modifier = Modifier.padding(14.dp)) {
+                MySubjectsEditor(
+                    picks = picks,
+                    fromAcademicLevel = picksFromLevel,
+                    onPicksChange = { newPicks ->
+                        picks = newPicks
+                        picksFromLevel = false
+                        subjectsTouched = true
+                        MySubjectsStore.save(context, userId, newPicks)
+                    }
+                )
+            }
+        }
+
+        // CARD 4: Study goals and targets
+        StepAccordionCard(
+            stepNumber = 4,
+            title = "Study Goals & Targets",
+            subtitle = "Daily target ($dailyGoal mins), target exam, and score goal",
+            isFilled = targetExam.isNotBlank(),
+            unfilledLabel = "Incomplete",
+            isExpanded = openCard == 4,
+            onToggle = { openCard = if (openCard == 4) 0 else 4 }
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                FieldLabel("DAILY STUDY TARGET (MINUTES PER DAY)")
+                Text(
+                    text = "Select your target study commitment. This powers your streak calculation and pacing HUD.",
+                    fontSize = 11.sp,
+                    color = WisdomMuted,
+                    lineHeight = 15.sp
+                )
+                PillSelector(
+                    options = DAILY_GOAL_OPTIONS.map { "$it min/day" },
+                    selected = "$dailyGoal min/day",
+                    accent = WisdomCyan,
+                    onSelect = { label -> dailyGoal = label.substringBefore(" ").toIntOrNull() ?: dailyGoal }
+                )
+
                 OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    label = { Text("Phone Number (Optional)", fontSize = 11.sp) },
-                    placeholder = { Text("e.g. 0911223344", fontSize = 11.sp, color = WisdomMuted) },
+                    value = targetExam,
+                    onValueChange = { targetExam = it },
+                    label = { Text("Target Exam / Milestone", fontSize = 11.sp) },
+                    placeholder = { Text("e.g. National Matric, Exit Exam", fontSize = 11.sp, color = WisdomMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -469,10 +545,10 @@ private fun MyProfilePanel(
                 )
 
                 OutlinedTextField(
-                    value = targetExam,
-                    onValueChange = { targetExam = it },
-                    label = { Text("Target Exam / Goal", fontSize = 11.sp) },
-                    placeholder = { Text("e.g. National Matric, Exit Exam, GPA 3.8+", fontSize = 11.sp, color = WisdomMuted) },
+                    value = targetScore,
+                    onValueChange = { targetScore = it },
+                    label = { Text("Target Score / GPA", fontSize = 11.sp) },
+                    placeholder = { Text("e.g. 3.85 GPA or 90%+", fontSize = 11.sp, color = WisdomMuted) },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -481,8 +557,39 @@ private fun MyProfilePanel(
             }
         }
 
+        // CARD 5: Study schedule
+        StepAccordionCard(
+            stepNumber = 5,
+            title = "Study Schedule",
+            subtitle = "Your preferred daily study window",
+            isFilled = studyWindow.isNotBlank(),
+            unfilledLabel = "Not set",
+            isExpanded = openCard == 5,
+            onToggle = { openCard = if (openCard == 5) 0 else 5 }
+        ) {
+            Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                FieldLabel("PREFERRED DAILY STUDY WINDOW")
+                STUDY_WINDOWS.chunked(2).forEach { pair ->
+                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        pair.forEach { (id, label, hours) ->
+                            StudyWindowOption(
+                                label = label,
+                                hours = hours,
+                                selected = studyWindow == id,
+                                modifier = Modifier.weight(1f),
+                                onClick = { studyWindow = id }
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
         SaveProfileButton(
+            saving = saving,
             onClick = {
+                if (saving) return@SaveProfileButton
+                saving = true
                 // Website: bio is only rewritten while the level is "Other"
                 val newBio = if (educationLevel == "Other") {
                     if (customLevel.isNotBlank()) "Custom Level: ${customLevel.trim()}" else ""
@@ -494,14 +601,42 @@ private fun MyProfilePanel(
                     fullName = if (composedName.isNotBlank()) composedName else profile.fullName,
                     firstName = firstName.trim(),
                     lastName = lastName.trim(),
+                    phone = phone.trim(),
                     educationLevel = educationLevel,
                     schoolName = schoolName.trim(),
                     townRegion = townRegion,
-                    phone = phone.trim(),
+                    bio = newBio,
+                    dailyStudyGoalMinutes = dailyGoal,
                     targetExam = targetExam.trim(),
-                    bio = newBio
+                    targetScore = targetScore.trim(),
+                    preferredStudyTime = studyWindow
                 )
-                onProfileUpdated(updated)
+                // Same keys the old Settings card wrote, so anything that still reads them keeps working.
+                context.getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE).edit()
+                    .putInt("daily_study_goal_minutes", dailyGoal)
+                    .putString("target_exam", targetExam.trim())
+                    .putString("target_score", targetScore.trim())
+                    .putString("preferred_study_time", studyWindow)
+                    .apply()
+
+                val sendSubjects = subjectsTouched || !picksFromLevel
+                val keysToSend = picks
+                scope.launch {
+                    var result: AccountCallResult = AuthStateManager.saveProfile(updated)
+                    if (result is AccountCallResult.Success && sendSubjects) {
+                        val labels = MySubjectsStore.packages
+                            .filter { pkg -> pkg.subjects.any { it.key in keysToSend } }
+                            .map { it.label }
+                        val subjectsResult = ProfileSubjectsSync.save(keysToSend, labels)
+                        if (subjectsResult is AccountCallResult.Failure) result = subjectsResult
+                    }
+                    saving = false
+                    val text = when (val done = result) {
+                        is AccountCallResult.Success -> "Saved"
+                        is AccountCallResult.Failure -> done.message
+                    }
+                    Toast.makeText(context, text, Toast.LENGTH_LONG).show()
+                }
             }
         )
 
@@ -512,8 +647,7 @@ private fun MyProfilePanel(
 }
 
 // ---------------------------------------------------------------------------
-// Completion gauge: the only thing at the top (owner request 2026-10-16:
-// no emoji, no big card, no clutter)
+// Completion gauge (no emoji, no big card, no clutter)
 // ---------------------------------------------------------------------------
 
 /**
@@ -793,7 +927,7 @@ private fun PillOption(label: String, selected: Boolean, accent: Color, onClick:
 
     Row(
         modifier = Modifier
-            .minimumInteractiveComponentSize() // S3: 48 dp touch target, the pill looks the same
+            .minimumInteractiveComponentSize() // 48 dp touch target, the pill looks the same
             .graphicsLayer {
                 scaleX = scale
                 scaleY = scale
@@ -828,6 +962,36 @@ private fun PillOption(label: String, selected: Boolean, accent: Color, onClick:
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
             color = textColor
         )
+    }
+}
+
+/** One preferred-study-window choice: name on top, hours below (same look the Settings card had). */
+@Composable
+private fun StudyWindowOption(
+    label: String,
+    hours: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .background(if (selected) WisdomCyan.copy(alpha = 0.16f) else WisdomInk.copy(alpha = 0.04f))
+            .border(BorderStroke(1.dp, if (selected) WisdomCyan else WisdomBorderWhite), shape)
+            .semantics { this.selected = selected }
+            .clickable(role = Role.RadioButton, onClick = onClick)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
+    ) {
+        Text(
+            text = label,
+            fontSize = 12.5.sp,
+            fontWeight = FontWeight.Bold,
+            color = if (selected) WisdomCyan else WisdomInk
+        )
+        Text(text = hours, fontSize = 12.sp, color = WisdomMuted)
     }
 }
 
@@ -938,7 +1102,7 @@ private fun StepAccordionCard(
 }
 
 @Composable
-private fun SaveProfileButton(onClick: () -> Unit) {
+private fun SaveProfileButton(saving: Boolean, onClick: () -> Unit) {
     val interaction = remember { MutableInteractionSource() }
     val scale = pressScale(interaction, 0.97f)
     val shape = RoundedCornerShape(16.dp)
@@ -958,7 +1122,12 @@ private fun SaveProfileButton(onClick: () -> Unit) {
     ) {
         Icon(imageVector = Icons.Default.Save, contentDescription = null, tint = WisdomDarkOnCyan, modifier = Modifier.size(16.dp))
         Spacer(modifier = Modifier.width(6.dp))
-        Text(text = "Save Profile Changes", fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WisdomDarkOnCyan)
+        Text(
+            text = if (saving) "Saving..." else "Save Profile Changes",
+            fontSize = 13.sp,
+            fontWeight = FontWeight.Bold,
+            color = WisdomDarkOnCyan
+        )
     }
 }
 
