@@ -25,6 +25,8 @@ class DbTableStatus(
  * steps, and the two fixed text cards about row level security and student ids (they were not read from the
  * database).
  * What a row count can show is limited by the signed-in account's own row level security, like on the website.
+ * Follow-up 2026-10-19: tables in NO_ADMIN_READ have no read policy for admins (checked live), so their count would
+ * always be 0 and look like an empty table; they show no count instead.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -44,6 +46,9 @@ object DatabaseStatusRepository {
         Tracked("api_rate_limits", "API Rate Limiting", "Protection against brute force on AI endpoints and checkouts")
     )
 
+    /** Tables that admins cannot read (no read policy). A HEAD count on them is always 0, which would mislead. */
+    private val NO_ADMIN_READ: Set<String> = setOf("api_rate_limits")
+
     /** All tracked tables, asked at the same time. Never throws. */
     suspend fun check(): List<DbTableStatus> = coroutineScope {
         val calls = TRACKED.map { t -> async { checkOne(t) } }
@@ -54,6 +59,12 @@ object DatabaseStatusRepository {
         // select=* because some tables have no id column (for example api_rate_limits)
         val reply = AdminSupabase.headCount("${t.table}?select=*")
         if (reply.ok) {
+            if (NO_ADMIN_READ.contains(t.table)) {
+                return DbTableStatus(
+                    t.table, t.label, t.description, DbTableState.DENIED, null,
+                    "Admins have no read access to this table, so no count is shown"
+                )
+            }
             val n = reply.contentRange?.substringAfter('/', "")?.trim()?.toIntOrNull()
             return DbTableStatus(t.table, t.label, t.description, DbTableState.OK, n, "")
         }
