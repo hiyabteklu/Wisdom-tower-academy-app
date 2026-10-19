@@ -1,0 +1,302 @@
+package com.wisdomtower.academy.data.admin
+
+import android.net.Uri
+import org.json.JSONArray
+import org.json.JSONObject
+import org.json.JSONTokener
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
+import java.util.TimeZone
+
+/** One row of the `learning_resources` table (website-reference/src/lib/content.ts, type LearningResource). */
+data class AdminContentItem(
+    val id: String,
+    val packageId: String,
+    val scopePath: String,
+    val hub: String,
+    val title: String,
+    val chapter: Int?,
+    val sortOrder: Int,
+    val contentType: String,
+    val storagePath: String?,
+    val bodyMd: String?,
+    /** The meta column as compact JSON text. Pretty printing happens only when the editor opens. */
+    val metaRaw: String,
+    val published: Boolean
+)
+
+/** What the editor hands to save(): the same fields the website ResourceInput carries. */
+class AdminContentInput(
+    val packageId: String,
+    val scopePath: String,
+    val hub: String,
+    val title: String,
+    val chapter: Int?,
+    val sortOrder: Int,
+    val contentType: String,
+    val storagePath: String?,
+    val bodyMd: String?,
+    val metaText: String,
+    val published: Boolean
+)
+
+sealed class AdminContentResult {
+    class Success(val items: List<AdminContentItem>) : AdminContentResult()
+    class Failure(val message: String) : AdminContentResult()
+}
+
+/**
+ * ADMIN-native N7 (Course Content). Same data and steps as the website ContentPanel and lib/content.ts
+ * (listResources, upsertResource, deleteResource), with the admin's own login. Plain Supabase REST, no API route,
+ * no secret.
+ *  - list: rows of learning_resources for one scope and one hub, ordered by sort_order. Same scope rules as the
+ *    website: an ECE course also matches its twin in the other semester, freshman math has two scope names,
+ *    short-notes also matches the old hub name references. Not carried over: the background auto-heal write and
+ *    the same-origin API fallback (an admin reads the table directly).
+ *  - save: new row = insert; existing row = update by id (the website upserts; the result is the same).
+ *  - delete: delete by id.
+ * NOT carried over: choosing a file on the phone and uploading it (the website posts it to its API route
+ * /api/storage/upload, which has no app-side caller yet). The Appwrite File ID field, which the website offers for
+ * large files, IS here and is the way to attach a PDF from the app.
+ * Difference, on purpose: delete and update report an error when no row was changed (a silent refusal).
+ *
+ * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
+ */
+object AdminContentRepository {
+    private const val APPWRITE_PREFIX = "appwrite:"
+    private val ECE_SCOPE = Regex("^ece/(sem-[12])/([^/]+)\$")
+
+    private fun JSONObject.text(key: String): String? =
+        if (isNull(key)) null else optString(key, "").takeIf { it.isNotEmpty() }
+
+    private fun nowIso(): String {
+        val f = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", Locale.US)
+        f.timeZone = TimeZone.getTimeZone("UTC")
+        return f.format(Date())
+    }
+
+    // ---- hub rules (HUB_CONTENT_DEFAULTS in website-reference/src/data/admin-nav.ts) ----
+
+    fun contentTypeFor(hub: String, fallback: String): String = when (hub) {
+        "books", "life-savers" -> "pdf"
+        "short-notes" -> "markdown"
+        "videos" -> "video_url"
+        "flashcards" -> "flashcard_deck"
+        "question-banks" -> "quiz"
+        "exams" -> "exam"
+        else -> fallback.ifEmpty { "markdown" }
+    }
+
+    /** The website's own hint for the hub, except where it talks about choosing a file (the app has no file chooser yet). */
+    fun hubHint(hub: String): String = when (hub) {
+        "books", "life-savers" ->
+            "Paste the Appwrite File ID of the PDF (upload it in Appwrite Console > Storage). " +
+                "Choosing a file on the phone is not in the app yet."
+        "short-notes" ->
+            "Markdown notes in the text box (Amharic OK). Images: paste image URLs in markdown. No file upload required."
+        "videos" ->
+            "Paste a YouTube/Vimeo URL. An optional file is attached with its Appwrite File ID."
+        "flashcards" ->
+            "JSON in meta only (stored in Supabase DB, not Appwrite). Example: { cards: [{front, back}] }."
+        "question-banks" ->
+            "JSON in meta only (Supabase DB). Example: { questions: [{prompt, choices, correct, solution}] }."
+        "exams" ->
+            "JSON in meta only (Supabase DB). For rich solutions with images, put markdown image URLs in solution text."
+        else -> ""
+    }
+
+    private val FLASHCARD_TEMPLATE = """
+{
+  "cards": [
+    {
+      "front": "Term",
+      "back": "Definition"
+    }
+  ]
+}
+""".trimIndent()
+
+    private fun quizTemplate(withDuration: Boolean): String {
+        val duration = if (withDuration) "  \"durationMin\": 60,\n" else ""
+        return "{\n" + duration +
+            "  \"questions\": [\n" +
+            "    {\n" +
+            "      \"prompt\": \"Sample question?\",\n" +
+            "      \"choices\": [\n" +
+            "        \"A\",\n" +
+            "        \"B\",\n" +
+            "        \"C\",\n" +
+            "        \"D\"\n" +
+            "      ],\n" +
+            "      \"correct\": 0,\n" +
+            "      \"solution\": \"Explanation\u2026\"\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}"
+    }
+
+    /** What a new item starts with (openNew in ContentPanel.tsx). */
+    fun defaultMeta(hub: String): String = when (hub) {
+        "flashcards" -> FLASHCARD_TEMPLATE
+        "question-banks" -> quizTemplate(false)
+        "exams" -> quizTemplate(true)
+        else -> "{}"
+    }
+
+    /** Pretty JSON for the editor. Android escapes the slash as backslash-slash, which is undone so links stay readable. */
+    fun prettyMeta(raw: String): String = try {
+        JSONObject(raw).toString(2).replace("\\/", "/")
+    } catch (e: Exception) {
+        raw
+    }
+
+    fun appwriteIdOf(storagePath: String?): String =
+        if (storagePath != null && storagePath.startsWith(APPWRITE_PREFIX)) storagePath.substring(APPWRITE_PREFIX.length) else ""
+
+    fun appwritePath(fileId: String): String = APPWRITE_PREFIX + fileId
+
+    fun isAppwritePath(storagePath: String?): Boolean = storagePath != null && storagePath.startsWith(APPWRITE_PREFIX)
+
+    // ---- reading ----
+
+    private fun scopeFilter(scopePath: String): String {
+        val ece = ECE_SCOPE.find(scopePath)
+        if (ece != null) {
+            val other = if (ece.groupValues[1] == "sem-1") "sem-2" else "sem-1"
+            return "in.(" + Uri.encode(scopePath) + "," + Uri.encode("ece/" + other + "/" + ece.groupValues[2]) + ")"
+        }
+        if (scopePath == "freshman/math-natural" || scopePath == "freshman/mathematics") {
+            return "in.(" + Uri.encode("freshman/math-natural") + "," + Uri.encode("freshman/mathematics") + ")"
+        }
+        return "eq." + Uri.encode(scopePath)
+    }
+
+    private fun parse(body: String): List<AdminContentItem>? {
+        return try {
+            val arr = JSONArray(body)
+            val out = ArrayList<AdminContentItem>(arr.length())
+            for (i in 0 until arr.length()) {
+                val o = arr.getJSONObject(i)
+                val id = o.text("id") ?: continue
+                val rawHub = o.text("hub") ?: ""
+                val metaValue = o.opt("meta")
+                out.add(
+                    AdminContentItem(
+                        id = id,
+                        packageId = o.text("package_id") ?: "",
+                        scopePath = o.text("scope_path") ?: "",
+                        hub = if (rawHub == "references") "short-notes" else rawHub,
+                        title = o.text("title") ?: "",
+                        chapter = if (o.isNull("chapter")) null else o.optInt("chapter"),
+                        sortOrder = o.optInt("sort_order", 0),
+                        contentType = o.text("content_type") ?: "",
+                        storagePath = o.text("storage_path"),
+                        bodyMd = o.text("body_md"),
+                        metaRaw = if (metaValue is JSONObject) metaValue.toString() else "{}",
+                        published = o.optBoolean("published", false)
+                    )
+                )
+            }
+            out
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    private fun failure(reply: AdminHttpResult): AdminContentResult.Failure {
+        val msg = reply.errorText()
+        val missingTable = msg.contains("relation") || msg.contains("does not exist")
+        return AdminContentResult.Failure(
+            if (missingTable) "Table missing: run docs/learning-content-setup.sql in Supabase SQL Editor." else msg
+        )
+    }
+
+    suspend fun list(scopePath: String, hub: String): AdminContentResult {
+        val hubFilter = if (hub == "short-notes") "in.(short-notes,references)" else "eq." + Uri.encode(hub)
+        val base = "learning_resources?select=*&order=sort_order.asc&hub=" + hubFilter
+        val reply = AdminSupabase.get(base + "&scope_path=" + scopeFilter(scopePath))
+        if (!reply.ok) return failure(reply)
+        var items: List<AdminContentItem> =
+            parse(reply.body) ?: return AdminContentResult.Failure("Unexpected reply from the server")
+
+        val ece = ECE_SCOPE.find(scopePath)
+        if (ece != null) {
+            if (items.isEmpty()) {
+                // Same fallback as the website: look for the course slug anywhere in the scope path.
+                val slug = ece.groupValues[2]
+                val fallback = AdminSupabase.get(base + "&scope_path=ilike.*" + Uri.encode(slug) + "*")
+                if (fallback.ok) {
+                    val more = parse(fallback.body)
+                    if (more != null && more.isNotEmpty()) items = more
+                }
+            }
+            val packageId = if (ece.groupValues[1] == "sem-1") "ece-y3-sem-1" else "ece-y3-sem-2"
+            items = items.map { it.copy(scopePath = scopePath, packageId = packageId) }
+        }
+        return AdminContentResult.Success(items)
+    }
+
+    // ---- writing ----
+
+    /** Empty text = empty object. Anything that is not exactly one JSON object gives null. */
+    private fun parseMeta(text: String): JSONObject? {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return JSONObject()
+        return try {
+            val tokener = JSONTokener(trimmed)
+            val value = tokener.nextValue()
+            if (value is JSONObject && tokener.nextClean() == '\u0000') value else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** itemId empty = new item. */
+    suspend fun save(itemId: String, input: AdminContentInput): GrantOutcome {
+        val meta: JSONObject = parseMeta(input.metaText) ?: return GrantOutcome(false, "Meta JSON is invalid")
+
+        val storage = input.storagePath?.trim().orEmpty()
+        val bodyMd = input.bodyMd.orEmpty()
+        val body = JSONObject()
+        body.put("package_id", input.packageId)
+        body.put("scope_path", input.scopePath)
+        body.put("hub", input.hub)
+        body.put("title", input.title.trim().ifEmpty { "Untitled" })
+        body.put("chapter", input.chapter ?: JSONObject.NULL)
+        body.put("sort_order", input.sortOrder)
+        body.put("content_type", input.contentType)
+        body.put("storage_path", if (storage.isEmpty()) JSONObject.NULL else storage)
+        body.put("body_md", if (bodyMd.isEmpty()) JSONObject.NULL else bodyMd)
+        body.put("meta", meta)
+        body.put("published", input.published)
+        body.put("updated_at", nowIso())
+
+        if (itemId.isEmpty()) {
+            val reply = AdminSupabase.post("learning_resources", body.toString(), "return=minimal")
+            if (!reply.ok) return GrantOutcome(false, reply.errorText())
+            return GrantOutcome(true, "Saved")
+        }
+        val reply = AdminSupabase.patch("learning_resources?id=eq." + Uri.encode(itemId), body.toString())
+        if (!reply.ok) return GrantOutcome(false, reply.errorText())
+        val changed = try {
+            JSONArray(reply.body).length()
+        } catch (e: Exception) {
+            0
+        }
+        if (changed == 0) return GrantOutcome(false, "Not saved: item not found or no permission")
+        return GrantOutcome(true, "Saved")
+    }
+
+    suspend fun delete(itemId: String): GrantOutcome {
+        val reply = AdminSupabase.delete("learning_resources?id=eq." + Uri.encode(itemId))
+        if (!reply.ok) return GrantOutcome(false, reply.errorText())
+        val removed = try {
+            JSONArray(reply.body).length()
+        } catch (e: Exception) {
+            0
+        }
+        if (removed == 0) return GrantOutcome(false, "Not deleted: no such item or no permission")
+        return GrantOutcome(true, "Deleted")
+    }
+}
