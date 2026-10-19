@@ -275,7 +275,7 @@ object AppBackground {
      */
     val options: List<AppBackgroundOption> =
         if (DAY_MODE_OFFERED) {
-            listOf(AppBackgroundOption.Black, AppBackgroundOption.Day)
+            listOf(AppBackgroundOption.Black, AppBackgroundOption.Day, AppBackgroundOption.Photo2)
         } else {
             listOf(AppBackgroundOption.Black, AppBackgroundOption.Photo2)
         }
