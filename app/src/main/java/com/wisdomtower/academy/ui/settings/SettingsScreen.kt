@@ -107,14 +107,17 @@ import java.io.File
  * Native Settings screen mirroring website reference:
  * - src/app/settings/page.tsx
  *
+ * 2026-10-19 (owner order): the very first thing in the list is now ONLY the Dark | Transparent pill
+ * (DisplayThemeSection in DisplaySection.kt). The old "Reading & Display" card (font size, typography style, live
+ * sample preview) is removed.
+ *
  * Header card:
  * - Student avatar, full name, VERIFIED badge, academic level, "Edit Profile" and "Account" navigation buttons
  *
- * 6 Stacked Accordion Sections:
+ * Stacked Accordion Sections:
  * 1. Study Goals & Target Milestones  (Save writes to Supabase `profiles`, real result shown)
  * 2. Notifications & Study Alerts
  * 3. Game Sound
- * 4. Reading & Display
  * 5. Offline Data & Cloud Sync        (size is the real app storage; Sync pushes the profile for real)
  * 6. Security                          (Update Password calls Supabase, like the website's updateUser;
  *                                       "Delete Account" block calls the website route, see AccountDeletionSection.kt)
@@ -153,7 +156,6 @@ fun SettingsScreen(
     var openStudy by remember { mutableStateOf(false) }
     var openNotifs by remember { mutableStateOf(false) }
     var openAudio by remember { mutableStateOf(false) }
-    var openDisplay by remember { mutableStateOf(false) }
     var openStorage by remember { mutableStateOf(false) }
     var openSecurity by remember { mutableStateOf(false) }
 
@@ -179,9 +181,6 @@ fun SettingsScreen(
     var soundEffects by remember { mutableStateOf(prefsStorage.getBoolean("sound_effects", true)) }
     var soundVolume by remember { mutableFloatStateOf(prefsStorage.getFloat("sound_volume", 0.5f)) }
 
-    // Section 4: Reading & Display
-    var fontSize by remember { mutableStateOf(prefsStorage.getString("font_size", "normal") ?: "normal") }
-
     // Section 5: Offline Data
     var syncMessage by remember { mutableStateOf<String?>(null) }
     var syncIsError by remember { mutableStateOf(false) }
@@ -203,6 +202,11 @@ fun SettingsScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // FIRST ITEM (owner order 2026-10-19): only the Dark | Transparent pill, always visible
+            item(key = "section_display_theme") {
+                DisplayThemeSection()
+            }
+
             // TOP HEADER: Student Identity & Actions
             item(key = "settings_header_card") {
                 WisdomGlassCard(
@@ -691,11 +695,6 @@ fun SettingsScreen(
                         }
                     }
                 }
-            }
-
-            // L1 (docs/DAY_NIGHT_PLAN.md): Display, Theme and Background in ONE card, with the day/night icon switch
-            item(key = "section_display_theme") {
-                DisplayThemeSection()
             }
 
             // SECTION 5: Offline Data & Cloud Sync
