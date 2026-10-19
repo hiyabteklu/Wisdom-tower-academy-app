@@ -42,7 +42,9 @@ import com.wisdomtower.academy.ui.auth.SignInPill
  *  - [showSignIn] shows the shared [SignInPill] under the message (label [signInLabel]); [onSignIn] null = the
  *                 app's normal sign-in route (SignInNavigator)
  * L2 (day / night): the title uses [WisdomInk]; the error text is the soft pink `FDA4AF` at night (unchanged) and the
- * deep rose of the day palette by day (5:1 or more on the pale card), because the pink would be invisible on white.
+ * deep rose of the day palette by day (5:1 or more on the pale card), because the pink would be invisible on ivory.
+ * D2: by day the card is the frosted ivory glass of WisdomGlass.kt with a soft navy shadow, and an error card is a solid
+ * pale rose (FBE9EA at 95 percent) instead of the see-through 13 percent red, so it is not see-through either.
  */
 @Composable
 fun WisdomMessageCard(
@@ -57,7 +59,8 @@ fun WisdomMessageCard(
     onSignIn: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(20.dp)
-    val fill = if (isError) Color(0x22F43F5E) else WisdomGlassFill
+    val errorFill = if (AppThemeMode.isDark) Color(0x22F43F5E) else Color(0xF2FBE9EA)
+    val fill = if (isError) errorFill else WisdomGlassFill
     val edge = if (isError) Color(0xFFF43F5E).copy(alpha = 0.35f) else WisdomGlassBorder
     val messageColor = if (isError) {
         if (AppThemeMode.isDark) Color(0xFFFDA4AF) else WisdomLightPalette.rose
@@ -70,6 +73,7 @@ fun WisdomMessageCard(
         modifier = modifier
             .fillMaxWidth()
             .then(live)
+            .wisdomCardShadow(shape)
             .clip(shape)
             .background(fill)
             .border(BorderStroke(1.dp, edge), shape)

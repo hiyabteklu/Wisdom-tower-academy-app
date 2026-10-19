@@ -64,6 +64,7 @@ fun Modifier.wisdomPressScale(source: MutableInteractionSource, pressedScale: Fl
  * GLASS (2026-10-13, owner request, docs/GLASS_PLAN.md area 5): the default card is now the see-through glass of the
  * Targets screen (white 4% fill, white 8% edge, see WisdomGlass.kt), so every screen that still calls this card
  * follows the glass look. An explicit borderColor passed by a caller (accent edges) is kept.
+ * D2 (day mode): by day it is the frosted ivory card with a soft navy shadow ([wisdomCardShadow]); night is unchanged.
  *
  * 2026-10-14: a card that is tappable ([onClick] given) now presses in softly (scale 0.975). A card without [onClick]
  * is exactly as before (no extra state, so long lists stay cheap).
@@ -84,6 +85,7 @@ fun WisdomModernCard(
     if (onClick == null) {
         Box(
             modifier = modifier
+                .wisdomCardShadow(shape)
                 .clip(shape)
                 .background(WisdomGlassFill)
                 .border(BorderStroke(borderWidth, borderColor), shape),
@@ -94,6 +96,7 @@ fun WisdomModernCard(
         Box(
             modifier = modifier
                 .wisdomPressScale(interaction, 0.975f)
+                .wisdomCardShadow(shape)
                 .clip(shape)
                 .background(WisdomGlassFill)
                 .border(BorderStroke(borderWidth, borderColor), shape)

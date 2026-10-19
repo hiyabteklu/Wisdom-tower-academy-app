@@ -13,7 +13,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -30,18 +32,37 @@ import androidx.compose.ui.unit.dp
  * 4 / 6 / 2 / 8 percent. To go back to them, use those four numbers.
  * Plan and order of the areas: docs/GLASS_PLAN.md.
  *
- * L1 (docs/DAY_NIGHT_PLAN.md): by day the glass is frosted white (a see-through white card on the light glow) with a thin
- * ink edge, so cards stay visible and the text on them ([WisdomInk]) has strong contrast. Night is unchanged.
- * These are getters: read them while composing or drawing, not once at class load.
+ * D2 (docs/DAY_MODE_PLAN.md, owner order 2026-10-19): by day the glass is NOT see-through (that was the reason day mode was
+ * cancelled on 2026-10-17). It is frosted ivory F8F5EE: panel / row 82 percent, pill / button 90 percent, quiet (done) 65
+ * percent, with a hairline deep-navy edge (12 percent) and a soft navy shadow ([wisdomCardShadow]). The text on it is
+ * [WisdomInk] (deep navy). Night is unchanged. These are getters: read them while composing or drawing, not once at class load.
  */
 val WisdomGlassFill: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.72f)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color(0xD1F8F5EE)
 val WisdomGlassFillStrong: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.16f) else Color.White.copy(alpha = 0.88f)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.16f) else Color(0xE6FBF9F4)
 val WisdomGlassFillQuiet: Color
-    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.07f) else Color.White.copy(alpha = 0.5f)
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.07f) else Color(0xA6F3EFE6)
 val WisdomGlassBorder: Color
     get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.18f) else WisdomLightPalette.ink.copy(alpha = 0.12f)
+
+/**
+ * Soft navy shadow under a card, DAY ONLY (plan section 4: frosted ivory card, hairline border, soft navy shadow). At night it
+ * returns the modifier unchanged, so night cards are exactly as before. Put it BEFORE `.clip(shape)` so the shadow is drawn
+ * outside the card. Elevation is small (3 dp) so long lists stay cheap and smooth.
+ */
+fun Modifier.wisdomCardShadow(shape: Shape): Modifier =
+    if (AppThemeMode.isDark) {
+        this
+    } else {
+        this.shadow(
+            elevation = 3.dp,
+            shape = shape,
+            clip = false,
+            ambientColor = WisdomLightPalette.ink.copy(alpha = 0.10f),
+            spotColor = WisdomLightPalette.ink.copy(alpha = 0.14f)
+        )
+    }
 
 /**
  * Same shape of call as [WisdomModernCard], but see-through glass instead of the almost solid navy.
@@ -69,6 +90,7 @@ fun WisdomGlassCard(
 
     Box(
         modifier = modifier
+            .wisdomCardShadow(shape)
             .clip(shape)
             .background(fill)
             .border(BorderStroke(borderWidth, borderColor), shape)
