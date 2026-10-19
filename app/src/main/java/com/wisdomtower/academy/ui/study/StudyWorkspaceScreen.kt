@@ -45,7 +45,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.ContentAccess
-import com.wisdomtower.academy.data.content.CourseAccess
+import com.wisdomtower.academy.data.content.CourseLocks
 import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningResource
@@ -246,6 +246,11 @@ internal fun safeHubUrl(basePath: String, hubId: String): String {
  * no purchase button: purchases happen on the website). The state is read when the screen opens and again after
  * every card tap (cached 30 s), so a change made on the website is picked up on the next visit.
  *
+ * GRANULAR LOCKS (2026-10-20, owner order): the check is now per HUB ([CourseLocks.hubGate]): a `hub:` lock row
+ * closes (or opens) only that hub card, no longer all six together; chapter and item locks are applied by
+ * [HubItemListScreen], which receives the same [CourseLocks]. Key formats: see [CourseLocks]. No row = the course /
+ * package / static rule decides, exactly as before.
+ *
  * F1 (2026-10-12): while a native list or viewer is shown, [PauseShellWhileShown] pauses the hidden website
  * WebView underneath (hypothesis for the owner's "vertical scroll freezes" report).
  */
@@ -277,13 +282,13 @@ fun StudyWorkspaceScreen(
 
     val loggedIn by AuthStateManager.isLoggedIn.collectAsState()
     val uiScope = rememberCoroutineScope()
-    var access by remember(basePath, loggedIn) {
-        mutableStateOf<CourseAccess>(ContentAccess.staticAccess(basePath, loggedIn))
+    var locks by remember(basePath, loggedIn) {
+        mutableStateOf<CourseLocks>(ContentAccess.staticLocks(basePath, loggedIn))
     }
     var gateMessage by remember(basePath) { mutableStateOf<GateMessage?>(null) }
 
     LaunchedEffect(basePath, loggedIn) {
-        access = ContentAccess.resolve(basePath, loggedIn)
+        locks = ContentAccess.resolveLocks(basePath, loggedIn)
     }
 
     if (entranceUrl != null) {
@@ -298,14 +303,14 @@ fun StudyWorkspaceScreen(
     }
 
     // P13 initial hub: a link that ends with a hub id (for example .../physics/life-savers) opens that native
-    // hub list straight away, once the access check says the course is open. Back returns to the six cards.
+    // hub list straight away, once the access check says that hub is open. Back returns to the six cards.
     val initialHub = remember(basePath) {
         cleanBase(basePath).substringAfterLast('/')
             .takeIf { it in NATIVE_HUB_IDS && contentScope != null && entranceUrl == null }
     }
     var initialHubHandled by remember(basePath) { mutableStateOf(false) }
-    LaunchedEffect(basePath, access.gate) {
-        if (initialHub != null && !initialHubHandled && access.gate == HubGate.Open) {
+    LaunchedEffect(basePath, locks) {
+        if (initialHub != null && !initialHubHandled && locks.hubGate(initialHub) == HubGate.Open) {
             initialHubHandled = true
             view = WorkspaceView.HubList(initialHub)
         }
@@ -347,7 +352,8 @@ fun StudyWorkspaceScreen(
                         "exam" -> view = WorkspaceView.Quiz(item, true, shown.hubId)
                     }
                 },
-                modifier = modifier
+                modifier = modifier,
+                locks = locks
             )
 
             is WorkspaceView.Pdf -> PdfReaderScreen(
@@ -466,8 +472,9 @@ fun StudyWorkspaceScreen(
                         if (isExitExam) {
                             exitExamHub = hub.name
                         } else {
-                            // N9: closed course -> message instead of opening (Entrance Questions are never gated here)
-                            val gate = if (entranceUrl == null) access.gate else HubGate.Open
+                            // N9 + granular locks: THIS hub's own gate (hub row, else course / package / static rule).
+                            // Entrance Questions are never gated here.
+                            val gate = if (entranceUrl == null) locks.hubGate(hub.id) else HubGate.Open
                             when (gate) {
                                 HubGate.ComingSoon, HubGate.PackageRequired -> {
                                     gateMessage = GateMessage(gate, hub.name)
@@ -483,7 +490,7 @@ fun StudyWorkspaceScreen(
                             }
                             if (entranceUrl == null) {
                                 // Re-check in the background so the next tap uses a fresh answer (cached 30 s).
-                                uiScope.launch { access = ContentAccess.resolve(basePath, loggedIn) }
+                                uiScope.launch { locks = ContentAccess.resolveLocks(basePath, loggedIn) }
                             }
                         }
                     }
