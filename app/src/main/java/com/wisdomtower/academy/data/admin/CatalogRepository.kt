@@ -40,6 +40,7 @@ sealed class CatalogResult {
  * Difference, on purpose: delete reports an error when no row was deleted (a silent refusal).
  * IMPORTANT (read in catalog.ts, function applyStaticPrice): for the packages defined in the website code, the
  * price, includes and description that students see come from the website code, not from these rows.
+ * 2026-10-19: the missing-table message no longer tells admins to run the old setup script on the live database.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -59,7 +60,7 @@ object CatalogRepository {
             val msg = reply.errorText()
             val missingTable = msg.contains("relation") || msg.contains("does not exist")
             return CatalogResult.Failure(
-                if (missingTable) "Table missing: run docs/catalog-setup.sql in Supabase SQL Editor." else msg
+                if (missingTable) "Table missing: tell the database owner. Do not run the old setup scripts." else msg
             )
         }
         return try {
