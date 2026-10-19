@@ -61,7 +61,16 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomAccentSky
+import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
+import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlin.math.roundToInt
 
 /**
@@ -74,6 +83,12 @@ import kotlin.math.roundToInt
  * 8 start lines and 25 pop-up lines. The rules live in [NativeFocusTimer] (port of `lib/focus-timer.ts`).
  * Not ported: the phone vibration at the end of a session (needs the VIBRATE permission; the app sends its
  * "session finished" notification instead, from the shell) and the website's sub-title, which the website hides on phones.
+ *
+ * D6e (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Night keeps the exact old literals as `dayNight` pairs. By day: the
+ * card, chips and buttons are the ivory glass; the clock and texts are ink or muted slate; the ring arc, the Start / Set /
+ * Keep studying buttons and the selected chip use the deep teal (white text on the solid ones); the quit pop-up is the
+ * 95 percent ivory overlay. The two big composables were re-bracketed while editing (the old file had a mis-indented block);
+ * the layout is the same.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -151,8 +166,8 @@ fun NativeTimerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.Timer, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
-                    Text("Focus Pomodoro Station", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Icon(Icons.Filled.Timer, contentDescription = null, tint = WisdomAccentSky, modifier = Modifier.size(20.dp))
+                    Text("Focus Pomodoro Station", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 }
             }
 
@@ -170,184 +185,183 @@ fun NativeTimerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-
-                // Card with the timer itself
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.03f))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(24.dp))
-                        .padding(horizontal = 16.dp, vertical = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    // Presets: Focus 25, Short 5, Long 15, Sprint 45, Custom
+                    // Card with the timer itself
                     Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(TmCardFill)
+                            .border(BorderStroke(1.dp, TmCardBorder), RoundedCornerShape(24.dp))
+                            .padding(horizontal = 16.dp, vertical = 24.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FOCUS_PRESETS.take(3).forEach { p ->
-                                TimerChip(
-                                    label = p.label,
-                                    selected = totalSec == p.minutes * 60,
-                                    enabled = !running,
-                                    onClick = { choosePreset(p.minutes) }
-                                )
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FOCUS_PRESETS.drop(3).forEach { p ->
-                                TimerChip(
-                                    label = p.label,
-                                    selected = totalSec == p.minutes * 60,
-                                    enabled = !running,
-                                    onClick = { choosePreset(p.minutes) }
-                                )
-                            }
-                            TimerChip(
-                                label = if (!isPreset) "Custom (${(totalSec / 60.0).roundToInt()}m)" else "Custom",
-                                selected = customOpen || !isPreset,
-                                enabled = !running,
-                                icon = Icons.Filled.Tune,
-                                onClick = { customOpen = !customOpen }
-                            )
-                        }
-                    }
-
-                    // Inline custom minutes selector
-                    if (customOpen && !running) {
+                        // Presets: Focus 25, Short 5, Long 15, Sprint 45, Custom
                         Column(
-                            modifier = Modifier
-                                .padding(top = 20.dp)
-                                .widthIn(max = 280.dp)
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(24.dp))
-                                .background(Color.White.copy(alpha = 0.05f))
-                                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(24.dp))
-                                .padding(16.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("Custom Duration", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFCBD5E1))
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                BasicTextField(
-                                    value = customMinutes.toString(),
-                                    onValueChange = { v ->
-                                        customMinutes = (v.filter { it.isDigit() }.take(4).toIntOrNull() ?: 1).coerceIn(1, 360)
-                                    },
-                                    singleLine = true,
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    textStyle = TextStyle(
-                                        color = Color.White,
-                                        fontFamily = FontFamily.Monospace,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 14.sp,
-                                        textAlign = TextAlign.Center
-                                    ),
-                                    cursorBrush = SolidColor(Color.White),
-                                    modifier = Modifier
-                                        .width(80.dp)
-                                        .clip(RoundedCornerShape(50))
-                                        .background(Color(0x4D020617).copy(alpha = 0.80f))
-                                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), RoundedCornerShape(50))
-                                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                                )
-                                Text("min", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color(0xFFCBD5E1))
-                                TimerPillButton(
-                                    label = "Set",
-                                    icon = Icons.Filled.Check,
-                                    bg = Color.White,
-                                    borderColor = Color.White,
-                                    textColor = Color(0xFF020617),
-                                    hPad = 14.dp,
-                                    vPad = 7.dp,
-                                    fontSize = 12.sp,
-                                    onClick = { choosePreset(customMinutes) }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FOCUS_PRESETS.take(3).forEach { p ->
+                                    TimerChip(
+                                        label = p.label,
+                                        selected = totalSec == p.minutes * 60,
+                                        enabled = !running,
+                                        onClick = { choosePreset(p.minutes) }
+                                    )
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FOCUS_PRESETS.drop(3).forEach { p ->
+                                    TimerChip(
+                                        label = p.label,
+                                        selected = totalSec == p.minutes * 60,
+                                        enabled = !running,
+                                        onClick = { choosePreset(p.minutes) }
+                                    )
+                                }
+                                TimerChip(
+                                    label = if (!isPreset) "Custom (${(totalSec / 60.0).roundToInt()}m)" else "Custom",
+                                    selected = customOpen || !isPreset,
+                                    enabled = !running,
+                                    icon = Icons.Filled.Tune,
+                                    onClick = { customOpen = !customOpen }
                                 )
                             }
                         }
-                    }
 
-                    Spacer(modifier = Modifier.height(24.dp))
+                        // Inline custom minutes selector
+                        if (customOpen && !running) {
+                            Column(
+                                modifier = Modifier
+                                    .padding(top = 20.dp)
+                                    .widthIn(max = 280.dp)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(TmInnerFill)
+                                    .border(BorderStroke(1.dp, TmInnerBorder), RoundedCornerShape(24.dp))
+                                    .padding(16.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Text("Custom Duration", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TmSlate300)
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    BasicTextField(
+                                        value = customMinutes.toString(),
+                                        onValueChange = { v ->
+                                            customMinutes = (v.filter { it.isDigit() }.take(4).toIntOrNull() ?: 1).coerceIn(1, 360)
+                                        },
+                                        singleLine = true,
+                                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                        textStyle = TextStyle(
+                                            color = WisdomInk,
+                                            fontFamily = FontFamily.Monospace,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 14.sp,
+                                            textAlign = TextAlign.Center
+                                        ),
+                                        cursorBrush = SolidColor(WisdomInk),
+                                        modifier = Modifier
+                                            .width(80.dp)
+                                            .clip(RoundedCornerShape(50))
+                                            .background(TmFieldFill)
+                                            .border(BorderStroke(1.dp, TmFieldBorder), RoundedCornerShape(50))
+                                            .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    )
+                                    Text("min", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = TmSlate300)
+                                    TimerPillButton(
+                                        label = "Set",
+                                        icon = Icons.Filled.Check,
+                                        bg = TmPrimaryBg,
+                                        borderColor = TmPrimaryBg,
+                                        textColor = TmPrimaryInk,
+                                        hPad = 14.dp,
+                                        vPad = 7.dp,
+                                        fontSize = 12.sp,
+                                        onClick = { choosePreset(customMinutes) }
+                                    )
+                                }
+                            }
+                        }
 
-                    // Ring with the clock and the Ready / Focus / Done label
-                    FocusRing(
-                        progress = progress,
-                        clock = formatFocusClock(left),
-                        label = if (running) "Focus" else if (left == 0) "Done" else "Ready"
-                    )
+                        Spacer(modifier = Modifier.height(24.dp))
 
-                    val line = startLine
-                    if (line != null && running) {
-                        Text(
-                            text = line,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color(0xFFE2E8F0),
-                            textAlign = TextAlign.Center,
-                            lineHeight = 21.sp,
-                            modifier = Modifier
-                                .padding(top = 16.dp)
-                                .widthIn(max = 360.dp)
+                        // Ring with the clock and the Ready / Focus / Done label
+                        FocusRing(
+                            progress = progress,
+                            clock = formatFocusClock(left),
+                            label = if (running) "Focus" else if (left == 0) "Done" else "Ready"
                         )
-                    }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    // Pause (or Start) and Reset
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                    ) {
-                        if (running) {
-                            TimerPillButton(
-                                label = "Pause",
-                                icon = Icons.Filled.Pause,
-                                bg = Color.White.copy(alpha = 0.10f),
-                                borderColor = Color.White.copy(alpha = 0.15f),
-                                textColor = Color.White,
-                                hPad = 28.dp,
-                                onClick = { requestStop("pause") }
-                            )
-                        } else {
-                            TimerPillButton(
-                                label = "Start",
-                                icon = Icons.Filled.PlayArrow,
-                                bg = Color.White,
-                                borderColor = Color.White,
-                                textColor = Color(0xFF020617),
-                                enabled = left > 0,
-                                hPad = 28.dp,
-                                onClick = { startSession() }
+                        val line = startLine
+                        if (line != null && running) {
+                            Text(
+                                text = line,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TmSlate200,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 21.sp,
+                                modifier = Modifier
+                                    .padding(top = 16.dp)
+                                    .widthIn(max = 360.dp)
                             )
                         }
-                        TimerPillButton(
-                            label = "Reset",
-                            icon = Icons.Filled.Refresh,
-                            bg = Color.White.copy(alpha = 0.04f),
-                            borderColor = Color.White.copy(alpha = 0.10f),
-                            textColor = Color(0xFFCBD5E1),
-                            hPad = 20.dp,
-                            onClick = { requestStop("reset") }
+
+                        Spacer(modifier = Modifier.height(20.dp))
+
+                        // Pause (or Start) and Reset
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            if (running) {
+                                TimerPillButton(
+                                    label = "Pause",
+                                    icon = Icons.Filled.Pause,
+                                    bg = TmPauseFill,
+                                    borderColor = TmPauseBorder,
+                                    textColor = WisdomInk,
+                                    hPad = 28.dp,
+                                    onClick = { requestStop("pause") }
+                                )
+                            } else {
+                                TimerPillButton(
+                                    label = "Start",
+                                    icon = Icons.Filled.PlayArrow,
+                                    bg = TmPrimaryBg,
+                                    borderColor = TmPrimaryBg,
+                                    textColor = TmPrimaryInk,
+                                    enabled = left > 0,
+                                    hPad = 28.dp,
+                                    onClick = { startSession() }
+                                )
+                            }
+                            TimerPillButton(
+                                label = "Reset",
+                                icon = Icons.Filled.Refresh,
+                                bg = TmQuietFill,
+                                borderColor = TmQuietBorder,
+                                textColor = TmSlate300,
+                                hPad = 20.dp,
+                                onClick = { requestStop("reset") }
+                            )
+                        }
+
+                        Text(
+                            text = "Timer continues running across all subjects and notes.",
+                            fontSize = 12.sp,
+                            color = TmSlate400,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.padding(top = 16.dp)
                         )
                     }
-
-                    Text(
-                        text = "Timer continues running across all subjects and notes.",
-                        fontSize = 12.sp,
-                        color = Color(0xFF94A3B8),
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 16.dp)
-                    )
                 }
             }
         }
     }
-}
 
     val shownNudge = nudge
     if (shownNudge != null) {
@@ -359,6 +373,35 @@ fun NativeTimerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         )
     }
 }
+
+// ---- D6e day / night colours. Night value = the exact old literal; day value = Ivory & Navy token. Getters: read while composing / drawing. ----
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+
+private val TmSlate400: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val TmSlate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomMuted)
+private val TmSlate200: Color get() = dayNight(Color(0xFFE2E8F0), WisdomInk)
+private val TmCardFill: Color get() = dayNight(Color.White.copy(alpha = 0.03f), WisdomGlassFill)
+private val TmCardBorder: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
+private val TmInnerFill: Color get() = dayNight(Color.White.copy(alpha = 0.05f), WisdomGlassFillQuiet)
+private val TmInnerBorder: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
+private val TmFieldFill: Color get() = dayNight(Color(0x4D020617).copy(alpha = 0.80f), WisdomGlassFillStrong)
+private val TmFieldBorder: Color get() = dayNight(Color.White.copy(alpha = 0.15f), WisdomGlassBorder)
+private val TmPrimaryBg: Color get() = dayNight(Color.White, WisdomCyan)
+private val TmPrimaryInk: Color get() = dayNight(Color(0xFF020617), Color.White)
+private val TmPauseFill: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassFillStrong)
+private val TmPauseBorder: Color get() = dayNight(Color.White.copy(alpha = 0.15f), WisdomGlassBorder)
+private val TmQuietFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFillQuiet)
+private val TmQuietBorder: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
+private val TmRingTrack: Color get() = dayNight(Color.White.copy(alpha = 0.06f), WisdomInk.copy(alpha = 0.12f))
+private val TmRingArc: Color get() = dayNight(Color.White, WisdomCyan)
+private val TmChipOnFill: Color get() = dayNight(Color.White.copy(alpha = 0.20f), WisdomCyan.copy(alpha = 0.16f))
+private val TmChipOnBorder: Color get() = dayNight(Color.White.copy(alpha = 0.30f), WisdomCyan.copy(alpha = 0.50f))
+private val TmChipOffFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFillQuiet)
+private val TmChipOffBorder: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
+private val TmDialogFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), Color(0xF2F8F5EE))
+private val TmDialogBorder: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
+private val TmDialogQuietFill: Color get() = dayNight(Color.White.copy(alpha = 0.05f), WisdomGlassFillQuiet)
+private val TmDialogQuietBorder: Color get() = dayNight(Color.White.copy(alpha = 0.15f), WisdomGlassBorder)
 
 private data class FocusPreset(val label: String, val minutes: Int)
 
@@ -387,7 +430,7 @@ private fun FocusRing(progress: Float, clock: String, label: String) {
             val topLeft = Offset(center.x - radius, center.y - radius)
             val arcSize = Size(radius * 2f, radius * 2f)
             drawArc(
-                color = Color.White.copy(alpha = 0.06f),
+                color = TmRingTrack,
                 startAngle = -90f,
                 sweepAngle = 360f,
                 useCenter = false,
@@ -397,7 +440,7 @@ private fun FocusRing(progress: Float, clock: String, label: String) {
             )
             if (progress > 0f) {
                 drawArc(
-                    color = Color.White,
+                    color = TmRingArc,
                     startAngle = -90f,
                     sweepAngle = 360f * progress,
                     useCenter = false,
@@ -413,7 +456,7 @@ private fun FocusRing(progress: Float, clock: String, label: String) {
                 style = TextStyle(
                     fontSize = 38.sp,
                     fontWeight = FontWeight.Black,
-                    color = Color.White,
+                    color = WisdomInk,
                     fontFeatureSettings = "tnum"
                 ),
                 maxLines = 1
@@ -423,7 +466,7 @@ private fun FocusRing(progress: Float, clock: String, label: String) {
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
                 letterSpacing = 1.sp,
-                color = Color(0xFF94A3B8),
+                color = TmSlate400,
                 modifier = Modifier.padding(top = 4.dp)
             )
         }
@@ -443,9 +486,9 @@ private fun TimerChip(
         modifier = Modifier
             .alpha(if (enabled) 1f else 0.5f)
             .clip(shape)
-            .background(if (selected) Color.White.copy(alpha = 0.20f) else Color.White.copy(alpha = 0.04f))
+            .background(if (selected) TmChipOnFill else TmChipOffFill)
             .border(
-                BorderStroke(1.dp, if (selected) Color.White.copy(alpha = 0.30f) else Color.White.copy(alpha = 0.08f)),
+                BorderStroke(1.dp, if (selected) TmChipOnBorder else TmChipOffBorder),
                 shape
             )
             .clickable(enabled = enabled, onClick = onClick)
@@ -457,7 +500,7 @@ private fun TimerChip(
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                tint = if (selected) Color.White else Color(0xFFCBD5E1),
+                tint = if (selected) WisdomInk else TmSlate300,
                 modifier = Modifier.size(14.dp)
             )
         }
@@ -465,7 +508,7 @@ private fun TimerChip(
             text = label,
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (selected) Color.White else Color(0xFFCBD5E1),
+            color = if (selected) WisdomInk else TmSlate300,
             maxLines = 1
         )
     }
@@ -514,8 +557,8 @@ private fun NudgeDialog(
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
-                .background(Color.White.copy(alpha = 0.04f))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(24.dp))
+                .background(TmDialogFill)
+                .border(BorderStroke(1.dp, TmDialogBorder), RoundedCornerShape(24.dp))
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -525,14 +568,14 @@ private fun NudgeDialog(
                 text = nudge.title,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White,
+                color = WisdomInk,
                 textAlign = TextAlign.Center
             )
             Spacer(modifier = Modifier.height(6.dp))
             Text(
                 text = nudge.body,
                 fontSize = 12.sp,
-                color = Color(0xFFCBD5E1),
+                color = TmSlate300,
                 textAlign = TextAlign.Center,
                 lineHeight = 19.sp
             )
@@ -541,25 +584,25 @@ private fun NudgeDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(50))
-                    .background(Color.White)
+                    .background(TmPrimaryBg)
                     .clickable { onKeep() }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Keep studying", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF020617))
+                Text("Keep studying", fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TmPrimaryInk)
             }
             Spacer(modifier = Modifier.height(10.dp))
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(50))
-                    .background(Color.White.copy(alpha = 0.05f))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), RoundedCornerShape(50))
+                    .background(TmDialogQuietFill)
+                    .border(BorderStroke(1.dp, TmDialogQuietBorder), RoundedCornerShape(50))
                     .clickable { onConfirm() }
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(confirmLabel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFCBD5E1))
+                Text(confirmLabel, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = TmSlate300)
             }
         }
     }
