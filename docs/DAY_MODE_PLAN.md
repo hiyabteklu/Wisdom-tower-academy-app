@@ -1,6 +1,6 @@
 # DAY_MODE_PLAN.md — premium day mode "Ivory & Navy" (owner order 2026-10-19)
 
-> Repo is PUBLIC: no secrets, no student data. Planning only: NO code was changed in this session. Free-plan rule: ONE slice per chat (`docs/AGENT_QUOTA_PROTOCOL.md`).
+> Repo is PUBLIC: no secrets, no student data. Free-plan rule: ONE slice per chat (`docs/AGENT_QUOTA_PROTOCOL.md`). Slice D1 is written (2026-10-19, see section 9); D2 to D9 are open.
 
 ## 1. Owner words (2026-10-19)
 The custom background BG 2 is awkward. Keep the dark mode as it is and design a compatible plan for day mode: not white, something premium that elevates the app. The app is being prepared for publishing.
@@ -12,8 +12,8 @@ The custom background BG 2 is awkward. Keep the dark mode as it is and design a 
 - ASSUMPTION (owner did not answer yet; hypothesis, change on the owner's word): Day REPLACES BG 2 in the two-icon pill (moon = Dark, unchanged; sun = Day). `bg_2.jpg` stays in the repo, unused (nothing is deleted).
 
 ## 3. Verified facts (code read 2026-10-19)
-- `AppThemeMode.isDark` is forced true. Every colour token in `ui/theme/Color.kt` is a mode-aware getter (`pick(dark, light)`), so the switch plumbing still exists. The light values in `WisdomLightPalette` are the old pale ones and get replaced in D1.
-- `ui/theme/AppBackground.kt`: options Dark (`Black`, pure black), BG 1/2/3 (pictures), Blue; offered in the picker: Dark and BG 2 only. BG 2 = `assets/backgrounds/bg_2.jpg` (270 KB) with a 35 percent black shade (`PHOTO_SCRIM_ALPHA`).
+- `AppThemeMode.isDark` was forced true. Every colour token in `ui/theme/Color.kt` is a mode-aware getter (`pick(dark, light)`), so the switch plumbing still existed. The light values in `WisdomLightPalette` were the old pale ones and were replaced in D1.
+- `ui/theme/AppBackground.kt`: options Dark (`Black`, pure black), BG 1/2/3 (pictures), Blue; offered in the picker: Dark and BG 2 only (before D1). BG 2 = `assets/backgrounds/bg_2.jpg` (270 KB) with a 35 percent black shade (`PHOTO_SCRIM_ALPHA`).
 - The glass for local WebView pages is a script in `ui/theme/AppBackdrop.kt` (reads page colours, paints glass). It assumes light text on a dark page, so D8 needs a day variant.
 - NOT verified: what BG 2 looks like (the chat tool cannot view pictures). Hypothesis for "awkward": the photo competes with text, like the first galaxy photo did (`docs/SESSION_2026-10-17_B6_GALAXY_PHOTO.md`).
 
@@ -37,8 +37,8 @@ The custom background BG 2 is awkward. Keep the dark mode as it is and design a 
 ## 6. Slices
 | Slice | What | Status |
 |---|---|---|
-| D1 | Foundation: replace the day palette in `Color.kt`; switch driven by the saved choice (default night); picker pill moon / sun (an old saved BG choice falls back to Dark); real light Material scheme and status bars in `Theme.kt`; day backdrop in `AppBackground.kt` | open |
-| D2 | Glass and surface tokens for day (`WisdomGlass.kt`, card gradient, field surface, message card), shared cards, overlays and pop-ups | open |
+| D1 | Foundation: replace the day palette in `Color.kt`; switch driven by the saved choice (default night); picker pill moon / sun (an old saved BG choice falls back to Dark); real light Material scheme and status bars in `Theme.kt`; day backdrop in `AppBackground.kt` | written 2026-10-19, pushed to `main`, CI and phone test pending (`docs/SESSION_2026-10-19_DAY_D1_FOUNDATION.md`) |
+| D2 | Glass and surface tokens for day (`WisdomGlass.kt`, card gradient, field surface, message card), shared cards, overlays and pop-ups | open (next) |
 | D3 | Home, Learning, Packages, Package detail, Settings, My Subjects, GPA card, Study workspace | open |
 | D4 | Top bar, bottom nav, drawer (`MainActivity.kt` / `StructuralNav.kt`, patch script) | open |
 | D5 | Account, native sign-in, forgot password | open |
@@ -49,9 +49,11 @@ The custom background BG 2 is awkward. Keep the dark mode as it is and design a 
 
 ## 7. Publishing gate (recommended; owner to confirm)
 Ship the first Play Store build with Dark only (BG 2 removed from the picker, no sun icon). Turn the sun on in an update after D9 is signed off. A half-finished day mode must not reach students.
+How (added in D1): `DAY_MODE_OFFERED` at the top of `ui/theme/AppBackground.kt`. It is `true` now so the owner can test the sun on a phone. Set it to `false` for the Play Store build: the picker then offers Dark only and a saved Day choice falls back to Dark. Nothing else changes.
 
 ## 8. Open question for the owner
 Day REPLACES BG 2 in the pill (assumed above), or sits next to it as a third icon?
 
 ## 9. Session log
 - 2026-10-19 (Claude chat): plan written from the owner's request after reading `Color.kt`, `AppBackground.kt`, `CLAUDE.md`, `docs/DAY_NIGHT_PLAN.md`, session logs B5, B6 and BG_FEEDBACK_1. No code changed. Next: the owner says "do D1".
+- 2026-10-19 (Claude chat, D1, on the owner's "continue the open tasks, UI day mode"): D1 written and pushed in two commits to `main`. Files: `AppThemeMode.kt`, `Color.kt`, `Theme.kt`, `AppBackground.kt`, `settings/BackgroundSection.kt`. NOT compiled by the agent. Details, what is known to look wrong in day until D2 to D8, and what to test: `docs/SESSION_2026-10-19_DAY_D1_FOUNDATION.md`. Next: D2.
