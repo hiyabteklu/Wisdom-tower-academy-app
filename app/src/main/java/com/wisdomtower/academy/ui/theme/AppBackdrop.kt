@@ -47,11 +47,20 @@ import androidx.compose.ui.graphics.Color
  *    light grey-blue = muted 4A5A70, light colours such as cyan or green = the same hue at 27 percent lightness).
  *    Text on a coloured, non-navy fill (a green button, a cyan chip) is left alone, so white on green stays white.
  *  - BORDERS: whitish hairlines on those elements become a navy 16 percent line.
- * It also keeps the original inline values and restores them before every pass, like the night script, and runs at most
- * every 120 ms while a message streams (tutor) so typing is not slowed down.
- * NOT done (hypotheses, D8b onwards): SVG fill and stroke attributes, gradient-clip text (transparent text colour),
- * colours set in `richtext.css` for code blocks / highlights / math that are NOT navy backgrounds or light text, and
- * the glass strength by day (the old 16 percent figure was for night). Not compiled, not seen on a phone.
+ * It also keeps the original inline values and restores them before every pass, like the night script.
+ * D8b (2026-10-19), after reading quiz.html, tutor.html and richtext.css against the script:
+ *  - a dark fill counts from 35 percent opacity (the night script needs 60): the exam timer (black 50 percent) and the
+ *    crossed-out choice (black 40 percent) were treated as coloured fills, so their light text would have stayed light;
+ *  - the script runs on every change, like the night script (a first version waited up to 150 ms, which would have shown
+ *    new tutor text in its light night colour for a moment while an answer streams);
+ *  - it adds the class `wt-day` to the page's html element, so `richtext.css` can give day backgrounds (code chips, table
+ *    heads, highlights, the result gauge track);
+ *  - the insides of KaTeX formulas are skipped (the formula root gets the colour and the parts inherit it), and the size
+ *    limit is 15000 elements, because a maths page can have thousands of nodes.
+ * NOT done (hypotheses, D8c onwards): SVG fill and stroke attributes other than the gauge track, gradient-clip text
+ * (transparent text colour), `flashcards.html`, `index.html` and the `competition*.html` pages were not read, and the
+ * glass strength by day. Not compiled, not seen on a phone. Perf risk: on a long chat the script walks every element
+ * on every streamed update, like the night script does.
  */
 object AppBackdrop {
     /** The plain page colour of the chosen option. Reading it in a composable follows the choice live. */
@@ -141,19 +150,20 @@ object AppBackdrop {
 """
 
     /**
-     * D8a: the DAY script (see the class comment). Same structure as [GLASS_JS], with ivory glass and a text / border
+     * D8a / D8b: the DAY script (see the class comment). Same structure as [GLASS_JS], with ivory glass and a text / border
      * remap for pages that were written for a dark page. No dollar sign and no triple quote may appear (Kotlin raw string).
      */
     private const val GLASS_JS_DAY = """
 (function(){
  if(window.__wtGlassDay){window.__wtGlassDay.run();return;}
+ try{document.documentElement.classList.add('wt-day');}catch(err){}
  var KEY='data-wtg',GLASS='rgba(248,245,238,0.84)',SCRIM='rgba(11,27,51,0.5)',PANEL='rgba(248,245,238,0.97)',
   CHIP='rgba(11,27,51,0.08)',INK='11,27,51',MUTED='rgb(74,90,112)',LINE='rgba(11,27,51,0.16)',
-  PROPS=['background-color','background-image','color','border-color'],timer=null,busy=false,last=0;
+  PROPS=['background-color','background-image','color','border-color'],timer=null,busy=false;
  function parse(s){var m=s&&s.match(/rgba?\(([^)]+)\)/);if(!m)return null;
   var p=m[1].split(/[ ,\/]+/).filter(Boolean).map(parseFloat);
   return {r:p[0],g:p[1],b:p[2],a:(p.length>3&&!isNaN(p[3]))?p[3]:1};}
- function navy(c){return !!c&&c.a>=0.6&&c.b>=c.g&&c.b>=c.r&&Math.max(c.r,c.g,c.b)<=110;}
+ function navy(c){return !!c&&c.a>=0.35&&c.b>=c.g&&c.b>=c.r&&Math.max(c.r,c.g,c.b)<=110;}
  function hsl(c){var r=c.r/255,g=c.g/255,b=c.b/255,mx=Math.max(r,g,b),mn=Math.min(r,g,b),l=(mx+mn)/2,h=0,s=0,d=mx-mn;
   if(d>0){s=l>0.5?d/(2-mx-mn):d/(mx+mn);
    if(mx===r)h=(g-b)/d+(g<b?6:0);else if(mx===g)h=(b-r)/d+2;else h=(r-g)/d+4;h*=60;}
@@ -174,10 +184,10 @@ object AppBackdrop {
   if(o){PROPS.forEach(function(p){e.style.removeProperty(p);var v=o[p];if(v&&v[0])e.style.setProperty(p,v[0],v[1]);});}
   e.removeAttribute(KEY);e.__wtOrig=null;}
  function run(){
-  if(busy||!document.body)return;busy=true;last=Date.now();
+  if(busy||!document.body)return;busy=true;
   try{
    var els=document.body.querySelectorAll('*');
-   if(els.length>4000){busy=false;return;}
+   if(els.length>15000){busy=false;return;}
    var i,j,e,a,cs,bc,bi,r,recs=[],scrims=[],kind=new Map();
    for(i=0;i<els.length;i++){if(els[i].hasAttribute(KEY))restore(els[i]);}
    settle();
@@ -185,6 +195,7 @@ object AppBackdrop {
    for(i=0;i<els.length;i++){
     e=els[i];var tg=e.tagName;
     if(tg==='SCRIPT'||tg==='STYLE'||tg==='IMG'||tg==='CANVAS'||tg==='VIDEO')continue;
+    if(e.parentElement&&e.parentElement.closest&&e.parentElement.closest('.katex'))continue;
     cs=getComputedStyle(e);
     if(cs.display==='none')continue;
     var inl=cs.display==='inline';
@@ -236,7 +247,7 @@ object AppBackdrop {
    settle();
   }catch(err){}
   busy=false;}
- function sched(){if(Date.now()-last>120)run();clearTimeout(timer);timer=setTimeout(run,150);}
+ function sched(){run();clearTimeout(timer);timer=setTimeout(run,150);}
  try{new MutationObserver(sched).observe(document.documentElement,
   {childList:true,subtree:true,attributes:true,attributeFilter:['class']});}catch(err){}
  window.__wtGlassDay={run:run};
