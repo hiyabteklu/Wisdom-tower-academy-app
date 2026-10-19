@@ -137,7 +137,9 @@ object FreeResourcesRepository {
     private fun friendly(message: String): String {
         val missingTable = message.contains("relation") || message.contains("does not exist")
         return if (missingTable) {
-            "Table missing: run website-reference/docs/free-resources-setup.sql in Supabase SQL Editor."
+            // Follow-up 2026-10-19: the old text told admins to run the setup script in the SQL Editor. That script
+            // has policies for any signed-in account and must not be run on the live database.
+            "Table missing: tell the database owner. Do not run the old setup scripts."
         } else {
             message
         }
