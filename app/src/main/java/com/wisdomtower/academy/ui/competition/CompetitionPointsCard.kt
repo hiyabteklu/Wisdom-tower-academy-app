@@ -14,7 +14,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -27,6 +26,7 @@ import com.wisdomtower.academy.data.competition.MyPoints
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 
@@ -39,6 +39,8 @@ import com.wisdomtower.academy.ui.theme.wisdomReveal
 // TalkBack (S3 part 2c, 2026-10-17): the header row and each entry row are merged into one spoken line
 // ("Competition points, 120" / "<title>, plus 10 points"), so the number is not read apart from its label and
 // a title cut short with an ellipsis is still spoken in full. Look and data unchanged.
+// D7d (docs/DAY_MODE_PLAN.md, 2026-10-19): the two numbers were Color.White; they are now WisdomInk (white at night,
+// deep navy by day). Night is identical.
 // Status: written, not compiled, not seen on a device.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 @Composable
@@ -87,7 +89,7 @@ fun CompetitionPointsCard(modifier: Modifier = Modifier) {
                     text = p.total.toString(),
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Black,
-                    color = Color.White
+                    color = WisdomInk
                 )
             }
             val shown = p.items.take(5)
@@ -112,7 +114,7 @@ fun CompetitionPointsCard(modifier: Modifier = Modifier) {
                         text = "+" + item.points.toString(),
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = WisdomInk
                     )
                 }
             }
