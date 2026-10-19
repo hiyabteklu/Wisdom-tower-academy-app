@@ -71,16 +71,27 @@ class WisdomTowerApplication : Application(), ImageLoaderFactory {
         // Quiet background FCM token registration
         com.wisdomtower.academy.fcm.FcmTokenRegistrar.checkAndRegisterToken(this)
 
-        // Load the saved (encrypted) sign-in session, then keep it fresh: every time the app comes
-        // to the foreground, renew the Supabase session if it is about to expire (no-op otherwise).
+        // Load the saved (encrypted) sign-in session, then keep it fresh. The NATIVE side is the only
+        // one that renews the Supabase login (the website page inside the WebView is blocked from
+        // doing it, see src/lib/supabase.ts in the website repo): on every return to the foreground,
+        // and every 45 seconds while the app is visible (AuthStateManager.onAppForeground), the
+        // session is renewed when it is close to expiry and pushed into every open website WebView.
         AuthStateManager.init(this)
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
             override fun onActivityStarted(activity: Activity) {}
             override fun onActivityResumed(activity: Activity) {
-                appScope.launch { AuthStateManager.refreshIfNeeded() }
+                AuthStateManager.onAppForeground(activity)
+                appScope.launch {
+                    AuthStateManager.refreshIfNeeded()
+                    // Also covers the case where nothing needed renewing but a page was restored
+                    // from the background holding an older copy of the session.
+                    AuthStateManager.injectIntoAllWebViews()
+                }
             }
-            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {
+                AuthStateManager.onAppBackground(activity)
+            }
             override fun onActivityStopped(activity: Activity) {}
             override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
             override fun onActivityDestroyed(activity: Activity) {}
