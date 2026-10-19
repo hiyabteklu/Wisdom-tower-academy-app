@@ -42,6 +42,13 @@ private val PopupGlassNavy = Color(0xF20F1829)
 private val PopupGlassNavyLow = Color(0xE60F1829)
 private val PopupGlassChip = Color(0x59FFFFFF)
 
+// Day (D1, docs/DAY_MODE_PLAN.md section 4): overlays (pop-ups, menus, sheets, dialogs) use the same ivory as the cards but
+// at about 92 percent (0xEB), because overlays need more opacity than cards (owner feedback 2026-10-17). The low variant is a
+// touch deeper ivory and the chip role is the deeper ivory E4DFD3.
+private val PopupIvory = Color(0xEBF8F5EE)
+private val PopupIvoryLow = Color(0xEBF3EFE6)
+private val PopupIvoryChip = Color(0xEBE4DFD3)
+
 private val DarkColorScheme =
   darkColorScheme(
     primary = WisdomDarkPalette.cyan,
@@ -59,7 +66,8 @@ private val DarkColorScheme =
     surfaceDim = PopupGlassNavy
   )
 
-// Day (L1, docs/DAY_NIGHT_PLAN.md): a real light scheme. Built from the same palette the tokens in Color.kt use.
+// Day (D1): a real light scheme built from the "Ivory & Navy" palette in Color.kt (deep navy text on ivory, deep teal accent
+// with white text on it) and the ivory overlay roles above.
 private val LightColorScheme =
   lightColorScheme(
     primary = WisdomLightPalette.cyan,
@@ -73,8 +81,16 @@ private val LightColorScheme =
     surfaceVariant = WisdomLightPalette.cardElevated,
     onSurfaceVariant = WisdomLightPalette.muted,
     outline = WisdomLightPalette.muted,
+    outlineVariant = WisdomLightPalette.borderWhite,
     error = WisdomLightPalette.rose,
-    onError = WisdomLightPalette.onCyan
+    onError = WisdomLightPalette.onCyan,
+    surfaceContainerLowest = PopupIvoryLow,
+    surfaceContainerLow = PopupIvoryLow,
+    surfaceContainer = PopupIvory,
+    surfaceContainerHigh = PopupIvory,
+    surfaceContainerHighest = PopupIvoryChip,
+    surfaceBright = PopupIvoryChip,
+    surfaceDim = PopupIvory
   )
 
 /**
@@ -95,8 +111,9 @@ private const val APP_FONT_SCALE_CAP = 1.5f
 private val APP_CONTENT_MAX_WIDTH = 720.dp
 
 /**
- * L1: day / night is chosen by the student with the sun / moon switch in Settings ([AppThemeMode]); it no longer
- * follows the phone's own dark setting. Night is the default.
+ * D1: day / night follows the saved background choice ([AppThemeMode], [AppBackground]): the sun icon in Settings >
+ * Background selects Day, the moon selects Dark. It does not follow the phone's own dark setting. Night is the default.
+ * `darkTheme` is read here while composing, so choosing a background re-themes the whole app at once.
  */
 @Composable
 fun MyApplicationTheme(
@@ -139,8 +156,8 @@ fun MyApplicationTheme(
 }
 
 /**
- * L1: the status bar and the navigation bar follow day / night (their colour is navy in `themes.xml`, which would be a
- * dark strip above a light app). Night uses the same navy as before; day uses the page colour with dark icons.
+ * L1 / D1: the status bar and the navigation bar follow day / night (their colour is navy in `themes.xml`, which would be a
+ * dark strip above a light app). Night uses the same navy as before; day uses the solid ivory page colour with dark icons.
  * Setting the bar colours is deprecated from Android 15 on (the bars are then transparent anyway), so the warning is
  * silenced; the icon colours use the AndroidX controller, which is not deprecated.
  */
