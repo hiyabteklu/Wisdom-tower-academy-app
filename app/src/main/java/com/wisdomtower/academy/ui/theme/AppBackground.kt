@@ -53,14 +53,20 @@ private const val DAY_MODE_OFFERED = true
 /**
  * The backgrounds the code knows. Owner order 2026-10-19 (after D1): BG 2 is offered TOGETHER with Day, so the owner can
  * try different backgrounds; see [AppBackground.options] (Dark, BG 2, Day). BG 2 is a dark picture, so it keeps the night
- * colours (light text), exactly as it did before day mode came back; only [Day] switches the app to day colours. BG 1,
- * BG 3 and Blue stay here on purpose (nothing is deleted) but are not offered and are never loaded from a saved choice.
+ * colours (light text), exactly as it did before day mode came back. BG 1, BG 3 and Blue stay here on purpose (nothing is
+ * deleted) but are not offered and are never loaded from a saved choice.
+ *
+ * DAY-SLATE (owner order 2026-10-19, after the ivory day look showed white text on a light page): [Day] is now a deep
+ * slate-blue page 52667F with soft glows and keeps [isLight] = false, so the app uses the NIGHT colour tokens on it (light
+ * text, see-through dark glass cards). Only the page colour is new; no screen, token or script was edited. The ivory look
+ * (D1 to D8 work in Color.kt, WisdomGlass.kt, MainActivity.kt, AppBackdrop.kt, richtext.css) is still in the code and comes
+ * back by setting [isLight] = true on [Day] and restoring the old values written in the comment on that entry.
  *
  * The saved choice is the constant NAME. A saved name that is not one of the offered options falls back to the default,
  * Dark.
  * [base] is the plain colour under the look; it is also what native views that need one solid colour use, and what shows
  * while a picture is still loading.
- * [isLight] is true only for the Day look. It is what switches the whole app to day colours (see [AppThemeMode]).
+ * [isLight] switches the whole app to the ivory day colours (see [AppThemeMode]). No offered option sets it now.
  */
 enum class AppBackgroundOption(
     val label: String,
@@ -68,7 +74,7 @@ enum class AppBackgroundOption(
     val glows: List<BackdropGlow> = emptyList(),
     /** Path of the picture inside the app's assets folder, or null for a plain / glow look. */
     val photoAsset: String? = null,
-    /** True for a light look. Only [Day] is light. */
+    /** True for the ivory light look (not used by any option now, see DAY-SLATE above). */
     val isLight: Boolean = false
 ) {
     Black("Dark", Color(0xFF000000)),
@@ -81,16 +87,20 @@ enum class AppBackgroundOption(
     ),
 
     /**
-     * D1 "Ivory & Navy" day look: the ivory-stone page E9E5DC with two very soft glows (pale sky at the top, champagne at the
-     * bottom), low alpha. The glow colours and strengths are a starting point the owner judges on a phone.
+     * DAY-SLATE day look: slate-blue page 52667F (white text about 5.9 to 1 by hand arithmetic, hypothesis until measured), a
+     * faint lighter glow at the top and a deeper one at the bottom. [isLight] is false on purpose, so night tokens apply.
+     * To try another colour change the first colour here (and nothing else).
+     *
+     * OLD ivory values, to go back: base E9E5DC, glows BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFFBFD8EC), 0.38f) and
+     * BackdropGlow(0.5f, 1.05f, 0.95f, Color(0xFFF3DFB6), 0.42f), isLight = true.
      */
     Day(
-        "Day", Color(0xFFE9E5DC),
+        "Day", Color(0xFF52667F),
         listOf(
-            BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFFBFD8EC), 0.38f),
-            BackdropGlow(0.5f, 1.05f, 0.95f, Color(0xFFF3DFB6), 0.42f)
+            BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFF8FAAC9), 0.22f),
+            BackdropGlow(0.5f, 1.05f, 0.95f, Color(0xFF2B3C57), 0.45f)
         ),
-        isLight = true
+        isLight = false
     );
 
     /** The plain colour (same as [base]). */
@@ -176,7 +186,6 @@ private object BackdropPhotos {
  * Draws a background: the plain colour, then the picture covering the screen with a dark shade over it, then
  * the soft glows. With no [option] it draws the one the student chose and follows later changes at once (the
  * choice is Compose state read while drawing). Settings passes each option to draw its preview.
- * Day (D1) has no picture, so it draws the ivory colour and its two soft glows (no dark shade).
  *
  * SEAM FIX (owner 2026-10-19: the picture showed cut into three slices, header, page and bottom bar, joined badly):
  * every screen draws its own copy of the background inside the area between the top bar and the bottom bar, so each
