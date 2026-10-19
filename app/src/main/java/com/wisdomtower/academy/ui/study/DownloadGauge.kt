@@ -33,7 +33,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
 import com.wisdomtower.academy.ui.theme.WisdomCyan
+
+// D6k (docs/DAY_MODE_PLAN.md, 2026-10-19): the saved check mark and the retry icon are icons and need 3:1 against the
+// ivory cards. Night = the exact old literals (34D399, F87171). Day = the darker emerald / rose tokens of the day palette.
+// Getters, so they are read while composing (and follow the switch).
+private val GaugeDoneColor: Color get() = if (AppThemeMode.isDark) Color(0xFF34D399) else WisdomAccentEmerald
+private val GaugeFailedColor: Color get() = if (AppThemeMode.isDark) Color(0xFFF87171) else WisdomAccentRose
 
 /**
  * Download states for offline learning materials (books, notes, flashcards, exams, question banks).
@@ -64,6 +73,9 @@ enum class DownloadState {
  * M6 (docs/UI_MOTION_PLAN.md): the arc EASES (250 ms) to the real progress instead of jumping (the percent text always shows
  * the real value, it never counts up on its own), and the check mark POPS with a short spring, only when a download that
  * was running has just finished (items that are already saved when the list opens do not pop).
+ *
+ * D6k (day mode): only the two default colours of the check mark and the retry icon changed, see [GaugeDoneColor] and
+ * [GaugeFailedColor]. Night is identical. The arc, the percent and the arrow use [WisdomCyan], which already follows the switch.
  */
 @Composable
 fun DownloadGauge(
@@ -73,8 +85,8 @@ fun DownloadGauge(
     size: Dp = 22.dp,
     strokeWidth: Dp = 2.dp,
     color: Color = WisdomCyan,
-    downloadedColor: Color = Color(0xFF34D399),
-    failedColor: Color = Color(0xFFF87171),
+    downloadedColor: Color = GaugeDoneColor,
+    failedColor: Color = GaugeFailedColor,
     trackColor: Color = WisdomCyan.copy(alpha = 0.2f)
 ) {
     val iconSize = if (size > 22.dp) 22.dp else size
@@ -206,8 +218,8 @@ fun DownloadGauge(
     size: Dp = 22.dp,
     strokeWidth: Dp = 2.dp,
     color: Color = WisdomCyan,
-    downloadedColor: Color = Color(0xFF34D399),
-    failedColor: Color = Color(0xFFF87171),
+    downloadedColor: Color = GaugeDoneColor,
+    failedColor: Color = GaugeFailedColor,
     trackColor: Color = WisdomCyan.copy(alpha = 0.2f)
 ) {
     val state = when {
