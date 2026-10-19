@@ -60,6 +60,7 @@ sealed class AdminContentResult {
  * /api/storage/upload, which has no app-side caller yet). The Appwrite File ID field, which the website offers for
  * large files, IS here and is the way to attach a PDF from the app.
  * Difference, on purpose: delete and update report an error when no row was changed (a silent refusal).
+ * 2026-10-19: the missing-table message no longer tells admins to run the old setup script on the live database.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -208,7 +209,7 @@ object AdminContentRepository {
         val msg = reply.errorText()
         val missingTable = msg.contains("relation") || msg.contains("does not exist")
         return AdminContentResult.Failure(
-            if (missingTable) "Table missing: run docs/learning-content-setup.sql in Supabase SQL Editor." else msg
+            if (missingTable) "Table missing: tell the database owner. Do not run the old setup scripts." else msg
         )
     }
 
