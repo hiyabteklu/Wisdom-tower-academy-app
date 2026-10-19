@@ -57,8 +57,19 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.ContentQuestionStyle
+import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomAccentSky
+import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
+import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.delay
 
 /**
@@ -76,6 +87,13 @@ import kotlinx.coroutines.delay
  * asks for the folder name with the browser's prompt box, here a small dialog with the same text; the phone layout
  * stacks the sheet list above the editor (the website has two columns on wide screens); a Close button is the way back;
  * when there is no folder yet a short line tells the student to tap New Folder (text not on the website).
+ *
+ * D6f (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Night keeps the exact old literals as `dayNight` pairs (the `Nb...`
+ * getters at the bottom of the screen code). By day: the cards, tabs, rows and buttons are the ivory glass; titles and
+ * the note text are ink, small texts muted slate; the primary buttons (Add Sheet, OK), the selected folder tab and the
+ * selected sheet row use the deep teal (white text on the solid ones); the writing box is the strong glass; the two
+ * pop-ups are the 95 percent ivory overlay; Delete is the day rose. The screen was re-bracketed while editing (the old
+ * file closed the page Box at the very end, around the pop-ups); layout, texts and behaviour are the same.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -190,10 +208,10 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.Folder, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.Folder, contentDescription = null, tint = WisdomAccentSky, modifier = Modifier.size(20.dp))
                     Column {
-                        Text("Notebook", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("Study notes, formulas, and chapter summaries.", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                        Text("Notebook", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+                        Text("Study notes, formulas, and chapter summaries.", fontSize = 11.sp, color = NbSlate400)
                     }
                 }
             }
@@ -211,8 +229,8 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(24.dp))
+                        .background(NbCardFill)
+                        .border(BorderStroke(1.dp, NbCardBorder), RoundedCornerShape(24.dp))
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -221,267 +239,268 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        NbButton("New Folder", Icons.Filled.Add, Color.White.copy(alpha = 0.06f), Color(0xFFE2E8F0), Color.White.copy(alpha = 0.08f)) {
+                        NbButton("New Folder", Icons.Filled.Add, NbQuietFill, NbSlate200, NbCardBorder) {
                             newFolderName = ""
                             newFolderOpen = true
                         }
-                        NbButton("Add Sheet", Icons.Filled.Add, Color.White, Color(0xFF020617), Color.White) { addSheet() }
+                        NbButton("Add Sheet", Icons.Filled.Add, NbPrimaryBg, NbPrimaryInk, NbPrimaryBg) { addSheet() }
                     }
                 }
 
-            if (folders.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.02f))
-                        .padding(28.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text("No folders yet. Tap New Folder to begin.", fontSize = 14.sp, color = Color(0xFF94A3B8))
-                }
-            } else {
-                // Folder tabs
-                Row(
-                    modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    folders.forEach { folder ->
-                        val active = folder.id == currentFolder?.id
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Row(
-                                modifier = Modifier
-                                    .clip(RoundedCornerShape(50))
-                                    .background(if (active) Color.White else Color.White.copy(alpha = 0.04f))
-                                    .border(BorderStroke(1.dp, if (active) Color.White else Color.White.copy(alpha = 0.08f)), RoundedCornerShape(50))
-                                    .clickable {
-                                        selectedFolderId = folder.id
-                                        selectedSheetId = folder.sheets.firstOrNull()?.id ?: ""
-                                    }
-                                    .padding(horizontal = 14.dp, vertical = 7.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Text(
-                                    folder.name,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
-                                    color = if (active) Color(0xFF020617) else Color(0xFFCBD5E1),
-                                    maxLines = 1
-                                )
-                                Box(
+                if (folders.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .border(BorderStroke(1.dp, NbEmptyBorder), RoundedCornerShape(24.dp))
+                            .background(NbEmptyFill)
+                            .padding(28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text("No folders yet. Tap New Folder to begin.", fontSize = 14.sp, color = NbSlate400)
+                    }
+                } else {
+                    // Folder tabs
+                    Row(
+                        modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        folders.forEach { folder ->
+                            val active = folder.id == currentFolder?.id
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
                                     modifier = Modifier
                                         .clip(RoundedCornerShape(50))
-                                        .background(if (active) Color(0xFFE2E8F0) else Color.Black.copy(alpha = 0.40f))
-                                        .padding(horizontal = 6.dp, vertical = 1.dp)
+                                        .background(if (active) NbTabOnFill else NbCardFill)
+                                        .border(BorderStroke(1.dp, if (active) NbTabOnFill else NbCardBorder), RoundedCornerShape(50))
+                                        .clickable {
+                                            selectedFolderId = folder.id
+                                            selectedSheetId = folder.sheets.firstOrNull()?.id ?: ""
+                                        }
+                                        .padding(horizontal = 14.dp, vertical = 7.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text(
-                                        "${folder.sheets.size}",
+                                        folder.name,
                                         fontSize = 12.sp,
-                                        color = if (active) Color(0xFF0F172A) else Color(0xFF94A3B8)
+                                        fontWeight = if (active) FontWeight.Bold else FontWeight.SemiBold,
+                                        color = if (active) NbTabOnInk else NbSlate300,
+                                        maxLines = 1
                                     )
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(50))
+                                            .background(if (active) NbTabOnBadgeFill else NbTabOffBadgeFill)
+                                            .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    ) {
+                                        Text(
+                                            "${folder.sheets.size}",
+                                            fontSize = 12.sp,
+                                            color = if (active) NbTabOnBadgeInk else NbSlate400
+                                        )
+                                    }
                                 }
-                            }
-                            if (folders.size > 1) {
-                                Box(
-                                    modifier = Modifier
-                                        .padding(start = 2.dp)
-                                        .clip(CircleShape)
-                                        .clickable { deleteFolderId = folder.id }
-                                        .padding(6.dp)
-                                ) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Delete folder", tint = Color(0xFF64748B), modifier = Modifier.size(14.dp))
+                                if (folders.size > 1) {
+                                    Box(
+                                        modifier = Modifier
+                                            .padding(start = 2.dp)
+                                            .clip(CircleShape)
+                                            .clickable { deleteFolderId = folder.id }
+                                            .padding(6.dp)
+                                    ) {
+                                        Icon(Icons.Filled.Delete, contentDescription = "Delete folder", tint = NbSlate500, modifier = Modifier.size(14.dp))
+                                    }
                                 }
                             }
                         }
                     }
-                }
 
-                // Sheets of the current folder
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(24.dp))
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            "${currentFolder?.name ?: ""} Sheets",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = Color(0xFFCBD5E1),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Row(
-                            modifier = Modifier
-                                .padding(start = 8.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color.White.copy(alpha = 0.04f))
-                                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(50))
-                                .clickable { addSheet() }
-                                .padding(horizontal = 10.dp, vertical = 5.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            Icon(Icons.Filled.Add, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(12.dp))
-                            Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF38BDF8))
-                        }
-                    }
-                    Box(modifier = Modifier.fillMaxWidth().padding(top = 0.dp).heightIn(max = 1.dp).background(Color.White.copy(alpha = 0.08f)))
-
+                    // Sheets of the current folder
                     Column(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .heightIn(max = 300.dp)
-                            .verticalScroll(rememberScrollState()),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(NbCardFill)
+                            .border(BorderStroke(1.dp, NbCardBorder), RoundedCornerShape(24.dp))
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        currentFolder?.sheets?.forEach { sheet ->
-                            val selected = sheet.id == currentSheet?.id
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                "${currentFolder?.name ?: ""} Sheets",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = NbSlate300,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f)
+                            )
                             Row(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(RoundedCornerShape(16.dp))
-                                    .background(if (selected) Color.White.copy(alpha = 0.12f) else Color.White.copy(alpha = 0.02f))
-                                    .border(
-                                        BorderStroke(1.dp, if (selected) Color.White.copy(alpha = 0.30f) else Color.White.copy(alpha = 0.06f)),
-                                        RoundedCornerShape(16.dp)
-                                    )
-                                    .clickable { selectedSheetId = sheet.id }
-                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    .padding(start = 8.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(NbRowFill)
+                                    .border(BorderStroke(1.dp, NbCardBorder), RoundedCornerShape(50))
+                                    .clickable { addSheet() }
+                                    .padding(horizontal = 10.dp, vertical = 5.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.SpaceBetween
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                    Text(
-                                        if (sheet.title.isEmpty()) "Untitled Sheet" else sheet.title,
-                                        fontSize = 12.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = Color.White,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                    Text(NativeNotebookState.displayDate(sheet.updatedAt), fontSize = 12.sp, color = Color(0xFF94A3B8))
-                                }
-                                if ((currentFolder?.sheets?.size ?: 0) > 1) {
-                                    Box(
-                                        modifier = Modifier
-                                            .clip(CircleShape)
-                                            .clickable { deleteSheet(sheet.id) }
-                                            .padding(6.dp)
-                                    ) {
-                                        Icon(Icons.Filled.Delete, contentDescription = "Delete sheet", tint = Color(0xFF64748B), modifier = Modifier.size(16.dp))
+                                Icon(Icons.Filled.Add, contentDescription = null, tint = NbAccent, modifier = Modifier.size(12.dp))
+                                Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NbAccent)
+                            }
+                        }
+                        Box(modifier = Modifier.fillMaxWidth().heightIn(max = 1.dp).background(NbDivider))
+
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .heightIn(max = 300.dp)
+                                .verticalScroll(rememberScrollState()),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            currentFolder?.sheets?.forEach { sheet ->
+                                val selected = sheet.id == currentSheet?.id
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(16.dp))
+                                        .background(if (selected) NbRowOnFill else NbRowFill)
+                                        .border(
+                                            BorderStroke(1.dp, if (selected) NbRowOnBorder else NbRowBorder),
+                                            RoundedCornerShape(16.dp)
+                                        )
+                                        .clickable { selectedSheetId = sheet.id }
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            if (sheet.title.isEmpty()) "Untitled Sheet" else sheet.title,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = WisdomInk,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Text(NativeNotebookState.displayDate(sheet.updatedAt), fontSize = 12.sp, color = NbSlate400)
+                                    }
+                                    if ((currentFolder?.sheets?.size ?: 0) > 1) {
+                                        Box(
+                                            modifier = Modifier
+                                                .clip(CircleShape)
+                                                .clickable { deleteSheet(sheet.id) }
+                                                .padding(6.dp)
+                                        ) {
+                                            Icon(Icons.Filled.Delete, contentDescription = "Delete sheet", tint = NbSlate500, modifier = Modifier.size(16.dp))
+                                        }
                                     }
                                 }
                             }
                         }
                     }
-                }
 
-                // Editor
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(24.dp))
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    if (currentSheet != null) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Box(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                                BasicTextField(
-                                    value = currentSheet.title,
-                                    onValueChange = { updateSheet(title = it) },
-                                    singleLine = true,
-                                    textStyle = TextStyle(color = Color.White, fontSize = 17.sp, fontWeight = FontWeight.Bold),
-                                    cursorBrush = SolidColor(Color(0xFF22D3EE)),
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                                if (currentSheet.title.isEmpty()) {
-                                    Text("Sheet Title...", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                    // Editor
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(NbCardFill)
+                            .border(BorderStroke(1.dp, NbCardBorder), RoundedCornerShape(24.dp))
+                            .padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (currentSheet != null) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Box(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                                    BasicTextField(
+                                        value = currentSheet.title,
+                                        onValueChange = { updateSheet(title = it) },
+                                        singleLine = true,
+                                        textStyle = TextStyle(color = WisdomInk, fontSize = 17.sp, fontWeight = FontWeight.Bold),
+                                        cursorBrush = SolidColor(NbCursor),
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+                                    if (currentSheet.title.isEmpty()) {
+                                        Text("Sheet Title...", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = NbSlate500)
+                                    }
+                                }
+                                Row(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(NbQuietFill)
+                                        .border(BorderStroke(1.dp, NbCardBorder), RoundedCornerShape(50))
+                                        .clickable { copySheet() }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                ) {
+                                    Icon(
+                                        if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
+                                        contentDescription = null,
+                                        tint = if (copied) NbGreen else NbSlate200,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                    Text(if (copied) "Copied" else "Copy Notes", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NbSlate200)
                                 }
                             }
-                            Row(
+                            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 1.dp).background(NbDivider))
+
+                            Box(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(50))
-                                    .background(Color.White.copy(alpha = 0.06f))
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(50))
-                                    .clickable { copySheet() }
-                                    .padding(horizontal = 12.dp, vertical = 6.dp),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(5.dp)
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(NbEditorFill)
+                                    .border(BorderStroke(1.dp, NbCardBorder), RoundedCornerShape(16.dp))
+                                    .padding(14.dp)
                             ) {
-                                Icon(
-                                    if (copied) Icons.Filled.Check else Icons.Filled.ContentCopy,
-                                    contentDescription = null,
-                                    tint = if (copied) Color(0xFF34D399) else Color(0xFFE2E8F0),
-                                    modifier = Modifier.size(14.dp)
+                                BasicTextField(
+                                    value = currentSheet.content,
+                                    onValueChange = { updateSheet(content = it) },
+                                    textStyle = ContentQuestionStyle.copy(
+                                        color = NbNoteInk,
+                                        fontSize = 17.sp,
+                                        lineHeight = 26.sp
+                                    ),
+                                    cursorBrush = SolidColor(NbCursor),
+                                    modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp)
                                 )
-                                Text(if (copied) "Copied" else "Copy Notes", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFE2E8F0))
+                                if (currentSheet.content.isEmpty()) {
+                                    Text(
+                                        "Start typing your study notes, formulas, or summaries here...",
+                                        fontSize = 14.sp,
+                                        color = NbSlate500
+                                    )
+                                }
                             }
-                        }
-                        Box(modifier = Modifier.fillMaxWidth().heightIn(max = 1.dp).background(Color.White.copy(alpha = 0.08f)))
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color.Black.copy(alpha = 0.40f))
-                                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(16.dp))
-                                .padding(14.dp)
-                        ) {
-                            BasicTextField(
-                                value = currentSheet.content,
-                                onValueChange = { updateSheet(content = it) },
-                                textStyle = ContentQuestionStyle.copy(
-                                    color = Color(0xFFF1F5F9),
-                                    fontSize = 17.sp,
-                                    lineHeight = 26.sp
-                                ),
-                                cursorBrush = SolidColor(Color(0xFF22D3EE)),
-                                modifier = Modifier.fillMaxWidth().heightIn(min = 280.dp)
-                            )
-                            if (currentSheet.content.isEmpty()) {
-                                Text(
-                                    "Start typing your study notes, formulas, or summaries here...",
-                                    fontSize = 14.sp,
-                                    color = Color(0xFF64748B)
-                                )
+                            Box(modifier = Modifier.fillMaxWidth().heightIn(max = 1.dp).background(NbDivider))
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(NbGreen))
+                                    Text("Auto-saved locally", fontSize = 12.sp, color = NbSlate400)
+                                }
+                                Text("${currentSheet.content.length} characters", fontSize = 12.sp, color = NbSlate400)
                             }
-                        }
-
-                        Box(modifier = Modifier.fillMaxWidth().heightIn(max = 1.dp).background(Color.White.copy(alpha = 0.08f)))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                                Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(Color(0xFF34D399)))
-                                Text("Auto-saved locally", fontSize = 12.sp, color = Color(0xFF94A3B8))
+                        } else {
+                            Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                Text("No sheet selected. Click \"Add Sheet\" to begin.", fontSize = 14.sp, color = NbSlate400)
                             }
-                            Text("${currentSheet.content.length} characters", fontSize = 12.sp, color = Color(0xFF94A3B8))
-                        }
-                    } else {
-                        Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                            Text("No sheet selected. Click \"Add Sheet\" to begin.", fontSize = 14.sp, color = Color(0xFF94A3B8))
                         }
                     }
                 }
@@ -502,26 +521,26 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     .widthIn(max = 400.dp)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0x4D0B1528))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)), RoundedCornerShape(24.dp))
+                    .background(NbDialogFill)
+                    .border(BorderStroke(1.dp, NbDialogBorder), RoundedCornerShape(24.dp))
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text("Enter folder title (e.g. Physics):", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Enter folder title (e.g. Physics):", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0x4D020617).copy(alpha = 0.80f))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)), RoundedCornerShape(12.dp))
+                        .background(NbDialogFieldFill)
+                        .border(BorderStroke(1.dp, NbDialogBorder), RoundedCornerShape(12.dp))
                         .padding(horizontal = 14.dp, vertical = 11.dp)
                 ) {
                     BasicTextField(
                         value = newFolderName,
                         onValueChange = { newFolderName = it },
                         singleLine = true,
-                        textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                        cursorBrush = SolidColor(Color(0xFF22D3EE)),
+                        textStyle = TextStyle(color = WisdomInk, fontSize = 14.sp),
+                        cursorBrush = SolidColor(NbCursor),
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
@@ -533,20 +552,20 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), RoundedCornerShape(50))
+                            .border(BorderStroke(1.dp, NbCancelBorder), RoundedCornerShape(50))
                             .clickable { newFolderOpen = false }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFCBD5E1))
+                        Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NbSlate300)
                     }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(Color.White)
+                            .background(NbPrimaryBg)
                             .clickable { addFolder() }
                             .padding(horizontal = 18.dp, vertical = 8.dp)
                     ) {
-                        Text("OK", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF020617))
+                        Text("OK", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NbPrimaryInk)
                     }
                 }
             }
@@ -566,12 +585,12 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     .widthIn(max = 400.dp)
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(24.dp))
-                    .background(Color(0x4D0B1528))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.20f)), RoundedCornerShape(24.dp))
+                    .background(NbDialogFill)
+                    .border(BorderStroke(1.dp, NbDialogBorder), RoundedCornerShape(24.dp))
                     .padding(18.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
-                Text("Delete this folder and all its sheets?", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Delete this folder and all its sheets?", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
@@ -580,16 +599,16 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), RoundedCornerShape(50))
+                            .border(BorderStroke(1.dp, NbCancelBorder), RoundedCornerShape(50))
                             .clickable { deleteFolderId = null }
                             .padding(horizontal = 14.dp, vertical = 8.dp)
                     ) {
-                        Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFCBD5E1))
+                        Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NbSlate300)
                     }
                     Box(
                         modifier = Modifier
                             .clip(RoundedCornerShape(50))
-                            .background(Color(0xFFF43F5E))
+                            .background(NbDanger)
                             .clickable {
                                 deleteFolderId = null
                                 deleteFolder(askDelete)
@@ -603,7 +622,46 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 }
-}
+
+// ---- D6f day / night colours. Night value = the exact old literal; day value = Ivory & Navy token. Getters: read while composing. ----
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+
+private val NbSlate500: Color get() = dayNight(Color(0xFF64748B), WisdomMuted)
+private val NbSlate400: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val NbSlate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomMuted)
+private val NbSlate200: Color get() = dayNight(Color(0xFFE2E8F0), WisdomInk)
+private val NbNoteInk: Color get() = dayNight(Color(0xFFF1F5F9), WisdomInk)
+private val NbAccent: Color get() = dayNight(Color(0xFF38BDF8), WisdomCyan)
+private val NbCursor: Color get() = dayNight(Color(0xFF22D3EE), WisdomCyan)
+private val NbGreen: Color get() = dayNight(Color(0xFF34D399), WisdomAccentEmerald)
+private val NbDanger: Color get() = dayNight(Color(0xFFF43F5E), WisdomAccentRose)
+
+private val NbCardFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFill)
+private val NbCardBorder: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
+private val NbQuietFill: Color get() = dayNight(Color.White.copy(alpha = 0.06f), WisdomGlassFillStrong)
+private val NbEmptyFill: Color get() = dayNight(Color.White.copy(alpha = 0.02f), WisdomGlassFillQuiet)
+private val NbEmptyBorder: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
+private val NbDivider: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
+private val NbEditorFill: Color get() = dayNight(Color.Black.copy(alpha = 0.40f), WisdomGlassFillStrong)
+
+private val NbRowFill: Color get() = dayNight(Color.White.copy(alpha = 0.02f), WisdomGlassFillQuiet)
+private val NbRowBorder: Color get() = dayNight(Color.White.copy(alpha = 0.06f), WisdomGlassBorder)
+private val NbRowOnFill: Color get() = dayNight(Color.White.copy(alpha = 0.12f), WisdomCyan.copy(alpha = 0.14f))
+private val NbRowOnBorder: Color get() = dayNight(Color.White.copy(alpha = 0.30f), WisdomCyan.copy(alpha = 0.50f))
+
+private val NbTabOnFill: Color get() = dayNight(Color.White, WisdomCyan)
+private val NbTabOnInk: Color get() = dayNight(Color(0xFF020617), Color.White)
+private val NbTabOnBadgeFill: Color get() = dayNight(Color(0xFFE2E8F0), Color.White.copy(alpha = 0.25f))
+private val NbTabOnBadgeInk: Color get() = dayNight(Color(0xFF0F172A), Color.White)
+private val NbTabOffBadgeFill: Color get() = dayNight(Color.Black.copy(alpha = 0.40f), WisdomInk.copy(alpha = 0.08f))
+
+private val NbPrimaryBg: Color get() = dayNight(Color.White, WisdomCyan)
+private val NbPrimaryInk: Color get() = dayNight(Color(0xFF020617), Color.White)
+
+private val NbDialogFill: Color get() = dayNight(Color(0x4D0B1528), Color(0xF2F8F5EE))
+private val NbDialogBorder: Color get() = dayNight(Color.White.copy(alpha = 0.20f), WisdomGlassBorder)
+private val NbDialogFieldFill: Color get() = dayNight(Color(0x4D020617).copy(alpha = 0.80f), WisdomGlassFillStrong)
+private val NbCancelBorder: Color get() = dayNight(Color.White.copy(alpha = 0.15f), WisdomGlassBorder)
 
 @Composable
 private fun NbButton(
