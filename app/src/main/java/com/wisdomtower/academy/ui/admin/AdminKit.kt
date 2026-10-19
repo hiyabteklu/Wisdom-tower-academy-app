@@ -34,6 +34,15 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
+import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
+import com.wisdomtower.academy.ui.theme.WisdomAccentFuchsia
+import com.wisdomtower.academy.ui.theme.WisdomAccentIndigo
+import com.wisdomtower.academy.ui.theme.WisdomAccentOrange
+import com.wisdomtower.academy.ui.theme.WisdomAccentPurple
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomAccentSky
+import com.wisdomtower.academy.ui.theme.WisdomAccentViolet
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCard
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -53,15 +62,37 @@ import java.util.TimeZone
 // the kit now runs each tone through adminTone: night returns the tone unchanged, day mixes it 45 percent toward the navy
 // ink so the text, border and filled buttons stay readable. AdminRose is a getter (night FB7185 as before, day BE123C).
 // The white text on a filled button stays white (the day fill is the darkened tone). Night is identical.
+// D7i (2026-10-19): the screens read so far pass the theme TOKENS (WisdomAccentAmber, WisdomAccentEmerald, WisdomCyan,
+// AdminRose), and those already have a darker day value. Mixing them again made every tone a dark brown, green or maroon
+// and the colours hard to tell apart. adminTone now leaves a theme token as it is in day and only darkens a literal colour
+// (for example the default chip tone F59E0B). Night is still identical.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 /** Soft red used for rejected and destructive actions (the website uses rose). Day: a deeper rose. Read while composing. */
 internal val AdminRose: Color
     get() = if (AppThemeMode.isDark) Color(0xFFFB7185) else Color(0xFFBE123C)
 
-/** Night: the tone as given. Day: the tone mixed 45 percent toward the navy ink 0B1B33, so it reads on ivory. */
+/** True when the colour is one of the theme tokens, which already have a day value that reads on ivory. Day only. */
+private fun isDayToken(tone: Color): Boolean =
+    tone == WisdomCyan ||
+        tone == WisdomMuted ||
+        tone == WisdomAccentAmber ||
+        tone == WisdomAccentEmerald ||
+        tone == WisdomAccentRose ||
+        tone == WisdomAccentSky ||
+        tone == WisdomAccentOrange ||
+        tone == WisdomAccentPurple ||
+        tone == WisdomAccentViolet ||
+        tone == WisdomAccentIndigo ||
+        tone == WisdomAccentFuchsia ||
+        tone == AdminRose
+
+/**
+ * Night: the tone as given. Day: a theme token as given (already dark enough); any other (literal, bright) tone is mixed
+ * 45 percent toward the navy ink 0B1B33 so it reads on ivory.
+ */
 internal fun adminTone(tone: Color): Color =
-    if (AppThemeMode.isDark) tone else lerp(tone, Color(0xFF0B1B33), 0.45f)
+    if (AppThemeMode.isDark || isDayToken(tone)) tone else lerp(tone, Color(0xFF0B1B33), 0.45f)
 
 @Composable
 internal fun AdminSearchBox(
