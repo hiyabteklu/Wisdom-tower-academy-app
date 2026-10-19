@@ -52,7 +52,16 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomAccentSky
+import com.wisdomtower.academy.ui.theme.WisdomCardBorderSubtle
+import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
+import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlin.math.roundToInt
 
 /**
@@ -64,6 +73,11 @@ import kotlin.math.roundToInt
  *
  * Differences: starts EMPTY (the website's 3 sample targets are invented, owner rule); a Close button is the way back
  * (full screen); a long target wraps over up to 3 lines instead of being cut to one line (phone width).
+ *
+ * D6a (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Every colour below is a getter or a function, so it follows the switch.
+ * Night keeps the exact old literals (white tints, slate greys, the white Add button). By day the panels and rows are the
+ * frosted ivory glass tokens, the text is deep navy ink or muted slate, the Add button and the done check are the deep teal
+ * with white content, and the sky icon is the darker day sky.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -110,10 +124,10 @@ fun NativeTargetsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = Color(0xFF38BDF8), modifier = Modifier.size(20.dp))
+                    Icon(Icons.Filled.CheckCircle, contentDescription = null, tint = WisdomAccentSky, modifier = Modifier.size(20.dp))
                     Column {
-                        Text("Targets", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        Text("Track and complete your daily study milestones.", fontSize = 11.sp, color = Color(0xFF94A3B8))
+                        Text("Targets", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+                        Text("Track and complete your daily study milestones.", fontSize = 11.sp, color = TgSlate400)
                     }
                 }
             }
@@ -131,188 +145,189 @@ fun NativeTargetsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(24.dp))
+                        .background(TgPanelFill)
+                        .border(BorderStroke(1.dp, TgPanelBorder), RoundedCornerShape(24.dp))
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("$done of ${goals.size} Done", fontSize = 12.sp, color = Color(0xFF94A3B8))
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.06f))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(50))
-                            .padding(horizontal = 14.dp, vertical = 6.dp)
-                    ) {
-                        Text("$percent%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                }
-            }
-
-            // Add target form
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(24.dp))
-                    .background(Color.White.copy(alpha = 0.04f))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(24.dp))
-                    .padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
-                    BasicTextField(
-                        value = newText,
-                        onValueChange = { newText = it },
-                        singleLine = true,
-                        textStyle = TextStyle(color = Color.White, fontSize = 14.sp),
-                        cursorBrush = SolidColor(Color(0xFF22D3EE)),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
-                        keyboardActions = KeyboardActions(onDone = { addGoal() }),
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    if (newText.isEmpty()) {
-                        Text(
-                            "What is your study target? (e.g. Solve 20 Physics questions)",
-                            fontSize = 14.sp,
-                            color = Color(0xFF64748B),
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Box {
-                        Row(
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text("$done of ${goals.size} Done", fontSize = 12.sp, color = TgSlate400)
+                        Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(50))
-                                .background(Color.White.copy(alpha = 0.06f))
-                                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(50))
-                                .clickable { menuOpen = true }
-                                .padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                .background(TgPillFill)
+                                .border(BorderStroke(1.dp, TgPanelBorder), RoundedCornerShape(50))
+                                .padding(horizontal = 14.dp, vertical = 6.dp)
                         ) {
-                            Text(priorityLabel, fontSize = 12.sp, color = Color(0xFFE2E8F0))
-                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = Color(0xFF94A3B8), modifier = Modifier.size(16.dp))
+                            Text("$percent%", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                         }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            priorityOptions.forEach { (value, label) ->
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        newPriority = value
-                                        menuOpen = false
-                                    }
-                                )
-                            }
-                        }
-                    }
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White)
-                            .clickable { addGoal() }
-                            .padding(horizontal = 20.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Icon(Icons.Filled.Add, contentDescription = null, tint = Color(0xFF020617), modifier = Modifier.size(16.dp))
-                        Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF020617))
                     }
                 }
-            }
 
-            // List
-            if (goals.isEmpty()) {
-                Box(
+                // Add target form
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.02f))
-                        .padding(28.dp),
-                    contentAlignment = Alignment.Center
+                        .background(TgPanelFill)
+                        .border(BorderStroke(1.dp, TgPanelBorder), RoundedCornerShape(24.dp))
+                        .padding(horizontal = 14.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        "No targets added yet. Add your first study goal above.",
-                        fontSize = 14.sp,
-                        color = Color(0xFF94A3B8)
-                    )
-                }
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    goals.forEach { goal ->
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .alpha(if (goal.completed) 0.70f else 1f)
-                                .clip(RoundedCornerShape(16.dp))
-                                .background(Color.White.copy(alpha = if (goal.completed) 0.02f else 0.04f))
-                                .border(
-                                    BorderStroke(1.dp, Color.White.copy(alpha = if (goal.completed) 0.04f else 0.08f)),
-                                    RoundedCornerShape(16.dp)
-                                )
-                                .padding(horizontal = 12.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(26.dp)
-                                    .clip(CircleShape)
-                                    .background(if (goal.completed) Color.White else Color.White.copy(alpha = 0.04f))
-                                    .border(
-                                        BorderStroke(1.dp, if (goal.completed) Color.White else Color.White.copy(alpha = 0.30f)),
-                                        CircleShape
-                                    )
-                                    .clickable {
-                                        NativeTargetsState.save(
-                                            goals.map { if (it.id == goal.id) it.copy(completed = !it.completed) else it }
-                                        )
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (goal.completed) {
-                                    Icon(Icons.Filled.Check, contentDescription = "Done", tint = Color(0xFF020617), modifier = Modifier.size(15.dp))
-                                }
-                            }
+                    Box(modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)) {
+                        BasicTextField(
+                            value = newText,
+                            onValueChange = { newText = it },
+                            singleLine = true,
+                            textStyle = TextStyle(color = WisdomInk, fontSize = 14.sp),
+                            cursorBrush = SolidColor(TgCursor),
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                            keyboardActions = KeyboardActions(onDone = { addGoal() }),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        if (newText.isEmpty()) {
                             Text(
-                                goal.text,
+                                "What is your study target? (e.g. Solve 20 Physics questions)",
                                 fontSize = 14.sp,
-                                fontWeight = if (goal.completed) FontWeight.Normal else FontWeight.Medium,
-                                color = if (goal.completed) Color(0xFF94A3B8) else Color.White,
-                                textDecoration = if (goal.completed) TextDecoration.LineThrough else TextDecoration.None,
-                                maxLines = 3,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
+                                color = TgSlate500,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis
                             )
-                            Box(
+                        }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Box {
+                            Row(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(50))
-                                    .background(Color.White.copy(alpha = 0.06f))
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(50))
-                                    .padding(horizontal = 10.dp, vertical = 3.dp)
+                                    .background(TgPillFill)
+                                    .border(BorderStroke(1.dp, TgPanelBorder), RoundedCornerShape(50))
+                                    .clickable { menuOpen = true }
+                                    .padding(horizontal = 14.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(4.dp)
                             ) {
-                                Text(
-                                    goal.priority.uppercase(),
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = Color(0xFFCBD5E1),
-                                    maxLines = 1
-                                )
+                                Text(priorityLabel, fontSize = 12.sp, color = TgSlate200)
+                                Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = TgSlate400, modifier = Modifier.size(16.dp))
                             }
-                            Box(
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                priorityOptions.forEach { (value, label) ->
+                                    DropdownMenuItem(
+                                        text = { Text(label) },
+                                        onClick = {
+                                            newPriority = value
+                                            menuOpen = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(TgActionFill)
+                                .clickable { addGoal() }
+                                .padding(horizontal = 20.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(5.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, tint = TgActionInk, modifier = Modifier.size(16.dp))
+                            Text("Add", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = TgActionInk)
+                        }
+                    }
+                }
+
+                // List
+                if (goals.isEmpty()) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(24.dp))
+                            .border(BorderStroke(1.dp, TgEmptyBorder), RoundedCornerShape(24.dp))
+                            .background(TgEmptyFill)
+                            .padding(28.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            "No targets added yet. Add your first study goal above.",
+                            fontSize = 14.sp,
+                            color = TgSlate400
+                        )
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        goals.forEach { goal ->
+                            Row(
                                 modifier = Modifier
-                                    .padding(start = 6.dp)
-                                    .clip(CircleShape)
-                                    .clickable { NativeTargetsState.save(goals.filter { it.id != goal.id }) }
-                                    .padding(6.dp)
+                                    .fillMaxWidth()
+                                    .alpha(if (goal.completed) 0.70f else 1f)
+                                    .clip(RoundedCornerShape(16.dp))
+                                    .background(if (goal.completed) TgRowDoneFill else TgPanelFill)
+                                    .border(
+                                        BorderStroke(1.dp, if (goal.completed) TgRowDoneBorder else TgPanelBorder),
+                                        RoundedCornerShape(16.dp)
+                                    )
+                                    .padding(horizontal = 12.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(Icons.Filled.Delete, contentDescription = "Delete target", tint = Color(0xFF94A3B8), modifier = Modifier.size(18.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .clip(CircleShape)
+                                        .background(if (goal.completed) TgCheckOn else WisdomInk.copy(alpha = 0.04f))
+                                        .border(
+                                            BorderStroke(1.dp, if (goal.completed) TgCheckOn else WisdomInk.copy(alpha = 0.30f)),
+                                            CircleShape
+                                        )
+                                        .clickable {
+                                            NativeTargetsState.save(
+                                                goals.map { if (it.id == goal.id) it.copy(completed = !it.completed) else it }
+                                            )
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (goal.completed) {
+                                        Icon(Icons.Filled.Check, contentDescription = "Done", tint = TgActionInk, modifier = Modifier.size(15.dp))
+                                    }
+                                }
+                                Text(
+                                    goal.text,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (goal.completed) FontWeight.Normal else FontWeight.Medium,
+                                    color = if (goal.completed) TgSlate400 else WisdomInk,
+                                    textDecoration = if (goal.completed) TextDecoration.LineThrough else TextDecoration.None,
+                                    maxLines = 3,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.weight(1f).padding(horizontal = 12.dp)
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(50))
+                                        .background(TgPillFill)
+                                        .border(BorderStroke(1.dp, TgPanelBorder), RoundedCornerShape(50))
+                                        .padding(horizontal = 10.dp, vertical = 3.dp)
+                                ) {
+                                    Text(
+                                        goal.priority.uppercase(),
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = TgSlate300,
+                                        maxLines = 1
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .padding(start = 6.dp)
+                                        .clip(CircleShape)
+                                        .clickable { NativeTargetsState.save(goals.filter { it.id != goal.id }) }
+                                        .padding(6.dp)
+                                ) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "Delete target", tint = TgSlate400, modifier = Modifier.size(18.dp))
+                                }
                             }
                         }
                     }
@@ -321,4 +336,23 @@ fun NativeTargetsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 }
-}
+
+// ---- D6a day / night colours for this screen. Night value = the exact old literal; day value = Ivory & Navy token. ----
+// Getters, so they are read while composing and follow the switch (never read once at class load).
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+
+private val TgSlate400: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val TgSlate500: Color get() = dayNight(Color(0xFF64748B), WisdomMuted)
+private val TgSlate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomMuted)
+private val TgSlate200: Color get() = dayNight(Color(0xFFE2E8F0), WisdomInk)
+private val TgCursor: Color get() = dayNight(Color(0xFF22D3EE), WisdomCyan)
+private val TgPanelFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFill)
+private val TgPanelBorder: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
+private val TgPillFill: Color get() = dayNight(Color.White.copy(alpha = 0.06f), WisdomGlassFillQuiet)
+private val TgEmptyFill: Color get() = dayNight(Color.White.copy(alpha = 0.02f), WisdomGlassFillQuiet)
+private val TgEmptyBorder: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
+private val TgRowDoneFill: Color get() = dayNight(Color.White.copy(alpha = 0.02f), WisdomGlassFillQuiet)
+private val TgRowDoneBorder: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomCardBorderSubtle)
+private val TgCheckOn: Color get() = dayNight(Color.White, WisdomCyan)
+private val TgActionFill: Color get() = dayNight(Color.White, WisdomCyan)
+private val TgActionInk: Color get() = dayNight(Color(0xFF020617), Color.White)

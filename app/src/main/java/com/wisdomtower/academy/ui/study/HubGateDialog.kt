@@ -25,9 +25,12 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.wisdomCardShadow
 import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
 
 /**
@@ -36,6 +39,10 @@ import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
  * The texts come from `ContentAccess` (copied from the website); there is never a price or a purchase button.
  *
  * M11 slice 7: the card scales in and fades (wisdomDialogEnter, 200 ms); closing stays the platform's instant dismiss.
+ *
+ * D6a (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. By day the card is frosted ivory at 92 percent (overlay rule of the
+ * plan) with the soft navy shadow, the title is deep navy ink, the badge is the premium gold (fill F1DFB4, text 5C3F0A) and
+ * the button text is white on the deep teal. Night keeps every old literal, so night looks exactly as before.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -48,14 +55,16 @@ internal fun HubGateDialog(
     buttonText: String,
     onClose: () -> Unit
 ) {
+    val cardShape = RoundedCornerShape(24.dp)
     Dialog(onDismissRequest = onClose) {
         Column(
             modifier = Modifier
                 .wisdomDialogEnter()
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(Color(0x4D111B2E))
-                .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(24.dp))
+                .wisdomCardShadow(cardShape)
+                .clip(cardShape)
+                .background(dayNight(Color(0x4D111B2E), Color(0xEBF8F5EE)))
+                .border(BorderStroke(1.dp, WisdomBorderWhite), cardShape)
                 .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -64,13 +73,13 @@ internal fun HubGateDialog(
                     text = badge.uppercase(),
                     fontSize = 11.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFFFCD34D),
+                    color = dayNight(Color(0xFFFCD34D), Color(0xFF5C3F0A)),
                     letterSpacing = 1.sp,
                     modifier = Modifier
                         .clip(RoundedCornerShape(50))
-                        .background(Color(0xFFF59E0B).copy(alpha = 0.10f))
+                        .background(dayNight(Color(0xFFF59E0B).copy(alpha = 0.10f), Color(0xFFF1DFB4)))
                         .border(
-                            BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.25f)),
+                            BorderStroke(1.dp, dayNight(Color(0xFFFBBF24).copy(alpha = 0.25f), Color(0xFF5C3F0A).copy(alpha = 0.25f))),
                             RoundedCornerShape(50)
                         )
                         .padding(horizontal = 12.dp, vertical = 4.dp)
@@ -82,7 +91,7 @@ internal fun HubGateDialog(
                 text = title,
                 fontSize = 20.sp,
                 fontWeight = FontWeight.ExtraBold,
-                color = Color.White,
+                color = WisdomInk,
                 textAlign = TextAlign.Center
             )
 
@@ -123,9 +132,12 @@ internal fun HubGateDialog(
                     text = buttonText,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
-                    color = Color(0xFF020617)
+                    color = dayNight(Color(0xFF020617), Color.White)
                 )
             }
         }
     }
 }
+
+// D6a: night value first (exactly the old literal), day value second. A function, so it is read while composing and follows the switch.
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
