@@ -44,8 +44,13 @@ import com.wisdomtower.academy.data.competition.CompetitionSummary
 import com.wisdomtower.academy.data.competition.CountdownKind
 import com.wisdomtower.academy.data.competition.SubmitResult
 import com.wisdomtower.academy.ui.study.ScreenBackButton
+import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMessageCard
+import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -54,10 +59,21 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-private val CyanAccent = Color(0xFF22E0FF)
-private val LiveGreen = Color(0xFF22C55E)
-private val MutedText = Color(0xFF94A3B8)
-private val ErrorRed = Color(0xFFF87171)
+// D7f (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. The private colours were top-level vals (read once at class load, so
+// they would not follow the switch); they are getters now. Night keeps the old values exactly (cyan 22E0FF, green 22C55E,
+// muted 94A3B8, red F87171, detail line E2E8F0). Day: cyan and muted come from the tokens, green 15803D and red B91C1C
+// (the night green and red are too light on ivory), detail line = WisdomTextPrimary. The three white text lines became
+// WisdomInk. Layout, texts and logic unchanged.
+private val CyanAccent: Color
+    get() = WisdomCyan
+private val LiveGreen: Color
+    get() = if (AppThemeMode.isDark) Color(0xFF22C55E) else Color(0xFF15803D)
+private val MutedText: Color
+    get() = if (AppThemeMode.isDark) Color(0xFF94A3B8) else WisdomMuted
+private val ErrorRed: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFF87171) else Color(0xFFB91C1C)
+private val DetailText: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFE2E8F0) else WisdomTextPrimary
 
 // C5 slice 1: the competitions hub opened by the trophy button (list of contests with phase badge,
 // live countdown, start and end time in Ethiopia time). Data comes only from the server through
@@ -209,7 +225,7 @@ fun CompetitionsHubScreen(
             ScreenBackButton(onClick = onBack)
             Text(
                 text = "Competitions",
-                color = Color.White,
+                color = WisdomInk,
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold
             )
@@ -419,7 +435,7 @@ private fun CompetitionCard(
                 }
                 Text(
                     text = summary.title,
-                    color = Color.White,
+                    color = WisdomInk,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -444,7 +460,7 @@ private fun CompetitionCard(
 
             Text(
                 text = summary.questionCount.toString() + " questions  \u2022  " + summary.durationMin.toString() + " min",
-                color = Color(0xFFE2E8F0),
+                color = DetailText,
                 fontSize = 12.sp
             )
 
@@ -541,7 +557,7 @@ private fun CompetitionCard(
             // prize and points arrive from the server only after the window ended; shown exactly as sent
             val prizeTitle = summary.prizeTitle
             if (!prizeTitle.isNullOrBlank()) {
-                Text(text = prizeTitle, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                Text(text = prizeTitle, color = WisdomInk, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                 val prizeDetails = summary.prizeDetails
                 if (!prizeDetails.isNullOrBlank()) {
                     Text(text = prizeDetails, color = MutedText, fontSize = 12.sp)
