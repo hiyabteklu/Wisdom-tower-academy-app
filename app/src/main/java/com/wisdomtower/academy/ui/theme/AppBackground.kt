@@ -44,7 +44,7 @@ private const val PHOTO_MAX_SIDE = 1280
 
 /**
  * DAY MODE IS SWITCHED OFF (owner order 2026-10-19: "I hate the day mode entirely, comment it out, only dark and bg_2").
- * false: Settings > Background offers Dark and Transparent only, and a saved Day choice falls back to Dark. Nothing was
+ * false: Settings offers Dark and Transparent only, and a saved Day choice falls back to Dark. Nothing was
  * deleted: the Day look and the day colours are still in the code, just unreachable. To bring day mode back, change
  * false to true (docs/DAY_MODE_PLAN.md section 7). Nothing else needs to change.
  */
@@ -53,10 +53,12 @@ private const val DAY_MODE_OFFERED = false
 /**
  * The backgrounds the code knows. Offered today: Dark and Transparent (see [AppBackground.options]).
  *
- * RENAME (owner order 2026-10-19): the picture background that used to be called "BG 2" is now called "Transparent", and
- * its picture file is now `backgrounds/transparent.jpg` (it was `bg_2.jpg`). The constant is still named [Photo2] on
- * purpose: the saved choice is the constant NAME, so keeping it means a phone that already saved this choice keeps it.
- * The picture is dark, so it keeps the night colours (light text).
+ * RENAME (owner order 2026-10-19): the picture background that used to be called "BG 2" is now called "Transparent".
+ * Its picture file is STILL `backgrounds/bg_2.jpg` for now (the chat tool cannot rename a picture; the first try pointed
+ * the code at `transparent.jpg`, which did not exist, so the owner saw a flat colour). When the owner renames the file
+ * on GitHub, change the path below to `backgrounds/transparent.jpg` in the same moment.
+ * The constant is still named [Photo2] on purpose: the saved choice is the constant NAME, so keeping it means a phone
+ * that already saved this choice keeps it. The picture is dark, so it keeps the night colours (light text).
  *
  * BG 1, BG 3 and Blue stay here on purpose (nothing is deleted) but are not offered and are never loaded from a saved
  * choice. [Day] is the light look; it is switched off, see [DAY_MODE_OFFERED].
@@ -78,8 +80,8 @@ enum class AppBackgroundOption(
 ) {
     Black("Dark", Color(0xFF000000)),
     Photo1("BG 1", Color(0xFF070C16), photoAsset = "backgrounds/bg_1.jpg"),
-    // Was "BG 2" / backgrounds/bg_2.jpg. Now the "Transparent" look (owner order 2026-10-19).
-    Photo2("Transparent", Color(0xFF070C16), photoAsset = "backgrounds/transparent.jpg"),
+    // Was "BG 2". Now the "Transparent" look (owner order 2026-10-19). File is still bg_2.jpg, see the note above.
+    Photo2("Transparent", Color(0xFF070C16), photoAsset = "backgrounds/bg_2.jpg"),
     Photo3("BG 3", Color(0xFF070C16), photoAsset = "backgrounds/bg_3.jpg"),
     Midnight(
         "Blue", Color(0xFF0A1530),
