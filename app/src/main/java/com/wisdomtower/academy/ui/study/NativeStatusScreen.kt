@@ -57,18 +57,44 @@ import com.wisdomtower.academy.data.content.ProgressFetchResult
 import com.wisdomtower.academy.data.content.ProgressRow
 import com.wisdomtower.academy.data.content.ResourceScopeIndex
 import com.wisdomtower.academy.data.content.StudentProgressReader
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
+import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomAccentSky
+import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
+import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMessageCard
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 
-private val StSky = Color(0xFF38BDF8)
-private val StCyan = Color(0xFF22D3EE)
-private val StEmerald = Color(0xFF34D399)
-private val StAmber = Color(0xFFFBBF24)
-private val StRose = Color(0xFFFB7185)
-private val StMuted = Color(0xFF94A3B8)
-private val StSlate200 = Color(0xFFE2E8F0)
-private val StSlate300 = Color(0xFFCBD5E1)
-private val StPanelBg = Color(0x660B1329)
+// D6h day / night colours (docs/DAY_MODE_PLAN.md, 2026-10-19). Night value = the exact old literal; day value = Ivory & Navy
+// token. They are getters (not vals) so they are read while composing and follow the switch.
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+
+private val StSky: Color get() = dayNight(Color(0xFF38BDF8), WisdomAccentSky)
+private val StSkyText: Color get() = dayNight(Color(0xFF7DD3FC), WisdomAccentSky)
+private val StCyan: Color get() = dayNight(Color(0xFF22D3EE), WisdomCyan)
+private val StCyanText: Color get() = dayNight(Color(0xFF67E8F9), WisdomCyan)
+private val StEmerald: Color get() = dayNight(Color(0xFF34D399), WisdomAccentEmerald)
+private val StAmber: Color get() = dayNight(Color(0xFFFBBF24), WisdomAccentAmber)
+private val StRose: Color get() = dayNight(Color(0xFFFB7185), WisdomAccentRose)
+private val StMuted: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val StSlate200: Color get() = dayNight(Color(0xFFE2E8F0), WisdomInk)
+private val StSlate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomMuted)
+private val StBody: Color get() = dayNight(Color(0xFFF1F5F9), WisdomInk)
+private val StPanelFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFill)
+private val StPanelBorder: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
+private val StQuietFill: Color get() = dayNight(Color.White.copy(alpha = 0.05f), WisdomGlassFillQuiet)
+private val StPillFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFillQuiet)
+private val StInnerFill: Color get() = dayNight(Color.White.copy(alpha = 0.03f), WisdomGlassFillQuiet)
+private val StInnerBorder: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
+private val StTrack: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomInk.copy(alpha = 0.10f))
+private val StHudFill: Color get() = dayNight(Color(0x660B1329).copy(alpha = 0.40f), WisdomGlassFillStrong)
 
 /**
  * Native port of the "Your status" tool (`activeFeature === "analytics"` in `LearningContent.tsx`, component
@@ -89,6 +115,12 @@ private val StPanelBg = Color(0x660B1329)
  * is [ResourceScopeIndex]). [computeStatus] and what is saved to `learning_progress` are unchanged. With no picks at all
  * (Academic Level without a package, or not set) everything is counted and one line says so. If the subject map cannot be
  * loaded (offline, no cache) the screen says so and shows NO totals.
+ *
+ * D6h (2026-10-19): day mode. The `St...` colours above are now `dayNight` getters (night keeps the exact old literals).
+ * By day: panels, track selector, pills and inner cards are the ivory glass; titles and body text are ink, small texts
+ * muted slate; the accents (sky, cyan, emerald, amber, rose) are the deep day accents (they also colour the chips, HUD
+ * numbers and borders); the progress track is a faint navy line; the HUD cards are the strong glass. The drop-down list of
+ * tracks is the Material menu and follows the Material scheme from D1. Layout, texts, data and rules are unchanged.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -182,7 +214,7 @@ fun NativeStatusScreen(
                     horizontalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Icon(Icons.Filled.School, contentDescription = null, tint = StSky, modifier = Modifier.size(16.dp))
-                    Text("YOUR STATUS", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFF7DD3FC), letterSpacing = 0.8.sp)
+                    Text("YOUR STATUS", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = StSkyText, letterSpacing = 0.8.sp)
                 }
             }
 
@@ -197,290 +229,290 @@ fun NativeStatusScreen(
                 // 1. Header: Standing, track selector, summary
                 StPanel(borderColor = StSky.copy(alpha = 0.20f)) {
 
-                if (summary != null) {
-                    Row(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(50))
-                            .background(Color.White.copy(alpha = 0.04f))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(50))
-                            .padding(horizontal = 12.dp, vertical = 6.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Standing: ", fontSize = 12.sp, color = StSlate300)
-                        Text(summary.tier ?: "—", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF67E8F9))
-                    }
-                }
-
-                // Academic track benchmark selector
-                Box {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(14.dp))
-                            .clickable { trackMenuOpen = true }
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Text(
-                            if (track.id == defaultTrack.id) "${track.name} (Enrolled)" else track.name,
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = Color.White,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = StMuted, modifier = Modifier.size(18.dp))
-                    }
-                    DropdownMenu(expanded = trackMenuOpen, onDismissRequest = { trackMenuOpen = false }) {
-                        STATUS_TRACKS.forEach { t ->
-                            DropdownMenuItem(
-                                text = {
-                                    Column {
-                                        Text(if (t.id == defaultTrack.id) "${t.name} (Enrolled)" else t.name, fontSize = 13.sp)
-                                        Text("${t.category} · ${formatStatusNumber(t.weeklyTargetHours)}h / week target", fontSize = 11.sp, color = StMuted)
-                                    }
-                                },
-                                onClick = {
-                                    selectedTrackId = t.id
-                                    trackMenuOpen = false
-                                }
-                            )
+                    if (summary != null) {
+                        Row(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(50))
+                                .background(StPillFill)
+                                .border(BorderStroke(1.dp, StPanelBorder), RoundedCornerShape(50))
+                                .padding(horizontal = 12.dp, vertical = 6.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Standing: ", fontSize = 12.sp, color = StSlate300)
+                            Text(summary.tier ?: "—", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = StCyanText)
                         }
                     }
-                }
 
-                if (summary != null) {
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(StSky.copy(alpha = 0.06f))
-                            .border(BorderStroke(1.dp, StSky.copy(alpha = 0.20f)), RoundedCornerShape(16.dp))
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        Text("STUDY PROGRESS SUMMARY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF7DD3FC), letterSpacing = 0.8.sp)
-                        Text(
-                            "Your cumulative study time is ${formatStatusNumber(summary.totalStudyHours)} hours (${summary.totalStudyMinutes} minutes). Your active streak is ${summary.streakDays} days.",
-                            fontSize = 13.sp,
-                            color = Color(0xFFF1F5F9),
-                            lineHeight = 19.sp
-                        )
-                    }
-                }
-
-                // T8: what is counted (picked subjects), so the totals are never a surprise
-                val counted = countedLine
-                if (counted != null && isLoggedIn && !loading && !failed) {
-                    Text(counted, fontSize = 11.sp, color = StMuted, lineHeight = 16.sp)
-                }
-            }
-
-            // States: signed out, loading, failed
-            if (!isLoggedIn) {
-                WisdomMessageCard( // S6-msgcard-status
-                    message = "Sign in or create an account to sync your study notes, targets, and course progress.",
-                    showSignIn = true
-                )
-            } else if (loading) {
-                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = StCyan, modifier = Modifier.size(28.dp))
-                }
-            } else if (failed || summary == null) {
-                WisdomMessageCard( // S6-msgcard-status
-                    message = errorText ?: "Could not load your study records. Check your internet connection and try again.",
-                    isError = true,
-                    onRetry = { reloadKey += 1 }
-                )
-            } else {
-                // 2. HUD cards
-                val streakAccent = when {
-                    summary.streakDays >= 7 -> StEmerald
-                    summary.streakDays >= 3 -> StAmber
-                    else -> StRose
-                }
-                val accuracy = summary.accuracyPct
-                val accuracyAccent = when {
-                    accuracy == null -> StMuted
-                    accuracy >= 75.0 -> StEmerald
-                    accuracy >= 50.0 -> StAmber
-                    else -> StRose
-                }
-                val accuracyBadge = when {
-                    accuracy == null -> null
-                    accuracy >= 75.0 -> "Mastery Level"
-                    accuracy >= 50.0 -> "Developing"
-                    else -> "Needs Review"
-                }
-                val focus = summary.focusRatioPct
-                val focusAccent = when {
-                    focus == null -> StMuted
-                    focus >= 75 -> StEmerald
-                    focus >= 60 -> StAmber
-                    else -> StRose
-                }
-
-                StHudCard(
-                    icon = Icons.Filled.Schedule,
-                    iconTint = StSky,
-                    title = "Study Time",
-                    badge = null,
-                    accent = StSky,
-                    big = formatStatusNumber(summary.totalStudyHours),
-                    unit = "hrs",
-                    line = "Target: ${formatStatusNumber(track.weeklyTargetHours)} hrs/wk",
-                    footer = null
-                )
-                StHudCard(
-                    icon = Icons.Filled.Speed,
-                    iconTint = StCyan,
-                    title = "Focus",
-                    badge = null,
-                    accent = focusAccent,
-                    big = if (focus != null) "$focus%" else "—",
-                    unit = null,
-                    line = "Focus Dwell Ratio",
-                    footer = null
-                )
-                StHudCard(
-                    icon = Icons.Filled.TrackChanges,
-                    iconTint = StEmerald,
-                    title = "Accuracy",
-                    badge = accuracyBadge,
-                    accent = accuracyAccent,
-                    big = if (accuracy != null) "${formatStatusNumber(accuracy)}%" else "—",
-                    unit = null,
-                    line = "Solved: ${summary.questionsCorrect} of ${summary.questionsAttempted} drills",
-                    footer = if (summary.retentionIndexPct != null) "Retention Index: ${summary.retentionIndexPct}%" else null
-                )
-                StHudCard(
-                    icon = Icons.Filled.LocalFireDepartment,
-                    iconTint = StAmber,
-                    title = "Active Streak",
-                    badge = if (summary.streakDays > 0) (if (summary.streakDays >= 7) "Unbroken" else "Active") else null,
-                    accent = streakAccent,
-                    big = "${summary.streakDays}",
-                    unit = "days",
-                    line = "Daily active learning recorded",
-                    footer = "Daily goal: $dailyGoalMinutes mins / day."
-                )
-
-                // 3. Retention & exam accuracy
-                StPanel(borderColor = Color.White.copy(alpha = 0.10f)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        StChip("Retention & Exam Accuracy", StEmerald)
-                        Text("Derived from drills, chapter checks, and question sets", fontSize = 11.sp, color = StMuted)
-                        Text("Active Recall & Question Precision", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                    }
-                    val rating = summary.retentionRating
-                    if (rating != null) {
-                        StChip(
-                            rating,
-                            when (rating) {
-                                "High Long-Term Retention" -> StEmerald
-                                "Memory Decay Risk" -> StRose
-                                else -> StAmber
-                            }
-                        )
-                    }
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color.White.copy(alpha = 0.03f))
-                            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(16.dp))
-                            .padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
+                    // Academic track benchmark selector
+                    Box {
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(StQuietFill)
+                                .border(BorderStroke(1.dp, StPanelBorder), RoundedCornerShape(14.dp))
+                                .clickable { trackMenuOpen = true }
+                                .padding(horizontal = 14.dp, vertical = 10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            Text("ACCURACY & SOLVED VOLUME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White, letterSpacing = 0.6.sp, modifier = Modifier.weight(1f))
                             Text(
-                                if (accuracy != null) "${formatStatusNumber(accuracy)}%" else "—",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color(0xFF67E8F9)
+                                if (track.id == defaultTrack.id) "${track.name} (Enrolled)" else track.name,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = WisdomInk,
+                                modifier = Modifier.weight(1f)
                             )
+                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = null, tint = StMuted, modifier = Modifier.size(18.dp))
                         }
-                        Box(
+                        DropdownMenu(expanded = trackMenuOpen, onDismissRequest = { trackMenuOpen = false }) {
+                            STATUS_TRACKS.forEach { t ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Column {
+                                            Text(if (t.id == defaultTrack.id) "${t.name} (Enrolled)" else t.name, fontSize = 13.sp)
+                                            Text("${t.category} · ${formatStatusNumber(t.weeklyTargetHours)}h / week target", fontSize = 11.sp, color = StMuted)
+                                        }
+                                    },
+                                    onClick = {
+                                        selectedTrackId = t.id
+                                        trackMenuOpen = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    if (summary != null) {
+                        Column(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(10.dp)
-                                .clip(RoundedCornerShape(50))
-                                .background(Color.White.copy(alpha = 0.10f))
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(StSky.copy(alpha = 0.06f))
+                                .border(BorderStroke(1.dp, StSky.copy(alpha = 0.20f)), RoundedCornerShape(16.dp))
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(((accuracy ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f))
-                                    .height(10.dp)
-                                    .clip(RoundedCornerShape(50))
-                                    .background(accuracyAccent)
+                            Text("STUDY PROGRESS SUMMARY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = StSkyText, letterSpacing = 0.8.sp)
+                            Text(
+                                "Your cumulative study time is ${formatStatusNumber(summary.totalStudyHours)} hours (${summary.totalStudyMinutes} minutes). Your active streak is ${summary.streakDays} days.",
+                                fontSize = 13.sp,
+                                color = StBody,
+                                lineHeight = 19.sp
                             )
                         }
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                            Text("Correct: ${summary.questionsCorrect}", fontSize = 12.sp, color = StSlate300)
-                            Text("Total: ${summary.questionsAttempted}", fontSize = 12.sp, color = StSlate300)
-                        }
-                        val explanation = summary.retentionExplanation
-                        if (explanation != null) {
-                            Text(explanation, fontSize = 12.sp, color = StSlate300, lineHeight = 17.sp)
-                        }
+                    }
+
+                    // T8: what is counted (picked subjects), so the totals are never a surprise
+                    val counted = countedLine
+                    if (counted != null && isLoggedIn && !loading && !failed) {
+                        Text(counted, fontSize = 11.sp, color = StMuted, lineHeight = 16.sp)
                     }
                 }
 
-                // 4. Recommendations
-                StPanel(borderColor = StCyan.copy(alpha = 0.20f)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        StChip("Study Recommendations", StCyan)
-                        Text("Personalized study guidance for $name", fontSize = 11.sp, color = StSlate300)
-                        Text("Recommended Study Routine Adjustments", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        StChip("${summary.recommendations.size} Recommendations", StCyan)
+                // States: signed out, loading, failed
+                if (!isLoggedIn) {
+                    WisdomMessageCard( // S6-msgcard-status
+                        message = "Sign in or create an account to sync your study notes, targets, and course progress.",
+                        showSignIn = true
+                    )
+                } else if (loading) {
+                    Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                        CircularProgressIndicator(color = StCyan, modifier = Modifier.size(28.dp))
                     }
-                    summary.recommendations.forEach { rec ->
-                        StInfoCard(
-                            accent = StCyan,
-                            tag = rec.category,
-                            title = rec.title,
-                            bodyLabel = null,
-                            body = rec.description,
-                            boxLabel = "Actionable Step:",
-                            boxText = rec.actionableStep
-                        )
+                } else if (failed || summary == null) {
+                    WisdomMessageCard( // S6-msgcard-status
+                        message = errorText ?: "Could not load your study records. Check your internet connection and try again.",
+                        isError = true,
+                        onRetry = { reloadKey += 1 }
+                    )
+                } else {
+                    // 2. HUD cards
+                    val streakAccent = when {
+                        summary.streakDays >= 7 -> StEmerald
+                        summary.streakDays >= 3 -> StAmber
+                        else -> StRose
                     }
-                }
+                    val accuracy = summary.accuracyPct
+                    val accuracyAccent = when {
+                        accuracy == null -> StMuted
+                        accuracy >= 75.0 -> StEmerald
+                        accuracy >= 50.0 -> StAmber
+                        else -> StRose
+                    }
+                    val accuracyBadge = when {
+                        accuracy == null -> null
+                        accuracy >= 75.0 -> "Mastery Level"
+                        accuracy >= 50.0 -> "Developing"
+                        else -> "Needs Review"
+                    }
+                    val focus = summary.focusRatioPct
+                    val focusAccent = when {
+                        focus == null -> StMuted
+                        focus >= 75 -> StEmerald
+                        focus >= 60 -> StAmber
+                        else -> StRose
+                    }
 
-                // 5. Study alerts
-                StPanel(borderColor = StRose.copy(alpha = 0.20f)) {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Icon(Icons.Filled.Warning, contentDescription = null, tint = StRose, modifier = Modifier.size(14.dp))
-                            StChip("Study Alerts", StRose)
+                    StHudCard(
+                        icon = Icons.Filled.Schedule,
+                        iconTint = StSky,
+                        title = "Study Time",
+                        badge = null,
+                        accent = StSky,
+                        big = formatStatusNumber(summary.totalStudyHours),
+                        unit = "hrs",
+                        line = "Target: ${formatStatusNumber(track.weeklyTargetHours)} hrs/wk",
+                        footer = null
+                    )
+                    StHudCard(
+                        icon = Icons.Filled.Speed,
+                        iconTint = StCyan,
+                        title = "Focus",
+                        badge = null,
+                        accent = focusAccent,
+                        big = if (focus != null) "$focus%" else "—",
+                        unit = null,
+                        line = "Focus Dwell Ratio",
+                        footer = null
+                    )
+                    StHudCard(
+                        icon = Icons.Filled.TrackChanges,
+                        iconTint = StEmerald,
+                        title = "Accuracy",
+                        badge = accuracyBadge,
+                        accent = accuracyAccent,
+                        big = if (accuracy != null) "${formatStatusNumber(accuracy)}%" else "—",
+                        unit = null,
+                        line = "Solved: ${summary.questionsCorrect} of ${summary.questionsAttempted} drills",
+                        footer = if (summary.retentionIndexPct != null) "Retention Index: ${summary.retentionIndexPct}%" else null
+                    )
+                    StHudCard(
+                        icon = Icons.Filled.LocalFireDepartment,
+                        iconTint = StAmber,
+                        title = "Active Streak",
+                        badge = if (summary.streakDays > 0) (if (summary.streakDays >= 7) "Unbroken" else "Active") else null,
+                        accent = streakAccent,
+                        big = "${summary.streakDays}",
+                        unit = "days",
+                        line = "Daily active learning recorded",
+                        footer = "Daily goal: $dailyGoalMinutes mins / day."
+                    )
+
+                    // 3. Retention & exam accuracy
+                    StPanel(borderColor = StPanelBorder) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StChip("Retention & Exam Accuracy", StEmerald)
+                            Text("Derived from drills, chapter checks, and question sets", fontSize = 11.sp, color = StMuted)
+                            Text("Active Recall & Question Precision", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                         }
-                        Text("Based on your recent study patterns", fontSize = 11.sp, color = StMuted)
-                        Text("Habits & Pacing to Adjust", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
-                        StChip("${summary.alerts.size} Alerts", StRose)
+                        val rating = summary.retentionRating
+                        if (rating != null) {
+                            StChip(
+                                rating,
+                                when (rating) {
+                                    "High Long-Term Retention" -> StEmerald
+                                    "Memory Decay Risk" -> StRose
+                                    else -> StAmber
+                                }
+                            )
+                        }
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(16.dp))
+                                .background(StInnerFill)
+                                .border(BorderStroke(1.dp, StInnerBorder), RoundedCornerShape(16.dp))
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("ACCURACY & SOLVED VOLUME", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WisdomInk, letterSpacing = 0.6.sp, modifier = Modifier.weight(1f))
+                                Text(
+                                    if (accuracy != null) "${formatStatusNumber(accuracy)}%" else "—",
+                                    fontSize = 14.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = StCyanText
+                                )
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(10.dp)
+                                    .clip(RoundedCornerShape(50))
+                                    .background(StTrack)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth(((accuracy ?: 0.0) / 100.0).toFloat().coerceIn(0f, 1f))
+                                        .height(10.dp)
+                                        .clip(RoundedCornerShape(50))
+                                        .background(accuracyAccent)
+                                )
+                            }
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Correct: ${summary.questionsCorrect}", fontSize = 12.sp, color = StSlate300)
+                                Text("Total: ${summary.questionsAttempted}", fontSize = 12.sp, color = StSlate300)
+                            }
+                            val explanation = summary.retentionExplanation
+                            if (explanation != null) {
+                                Text(explanation, fontSize = 12.sp, color = StSlate300, lineHeight = 17.sp)
+                            }
+                        }
                     }
-                    summary.alerts.forEach { sig ->
-                        StInfoCard(
-                            accent = StRose,
-                            tag = "${sig.severity} Alert",
-                            title = sig.signal,
-                            bodyLabel = "Observed Data: ",
-                            body = sig.observedData,
-                            boxLabel = "Immediate Corrective Action:",
-                            boxText = sig.immediateAction
-                        )
+
+                    // 4. Recommendations
+                    StPanel(borderColor = StCyan.copy(alpha = 0.20f)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            StChip("Study Recommendations", StCyan)
+                            Text("Personalized study guidance for $name", fontSize = 11.sp, color = StSlate300)
+                            Text("Recommended Study Routine Adjustments", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+                            StChip("${summary.recommendations.size} Recommendations", StCyan)
+                        }
+                        summary.recommendations.forEach { rec ->
+                            StInfoCard(
+                                accent = StCyan,
+                                tag = rec.category,
+                                title = rec.title,
+                                bodyLabel = null,
+                                body = rec.description,
+                                boxLabel = "Actionable Step:",
+                                boxText = rec.actionableStep
+                            )
+                        }
+                    }
+
+                    // 5. Study alerts
+                    StPanel(borderColor = StRose.copy(alpha = 0.20f)) {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                                Icon(Icons.Filled.Warning, contentDescription = null, tint = StRose, modifier = Modifier.size(14.dp))
+                                StChip("Study Alerts", StRose)
+                            }
+                            Text("Based on your recent study patterns", fontSize = 11.sp, color = StMuted)
+                            Text("Habits & Pacing to Adjust", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+                            StChip("${summary.alerts.size} Alerts", StRose)
+                        }
+                        summary.alerts.forEach { sig ->
+                            StInfoCard(
+                                accent = StRose,
+                                tag = "${sig.severity} Alert",
+                                title = sig.signal,
+                                bodyLabel = "Observed Data: ",
+                                body = sig.observedData,
+                                boxLabel = "Immediate Corrective Action:",
+                                boxText = sig.immediateAction
+                            )
+                        }
                     }
                 }
             }
         }
     }
-}
 }
 
 /** T8: the one line that says what "Your status" is counting (real numbers only). */
@@ -503,7 +535,7 @@ private fun StPanel(borderColor: Color, content: @Composable ColumnScope.() -> U
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
-            .background(Color.White.copy(alpha = 0.04f))
+            .background(StPanelFill)
             .border(BorderStroke(1.dp, borderColor), RoundedCornerShape(24.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -540,7 +572,7 @@ private fun StHudCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(20.dp))
-            .background(StPanelBg.copy(alpha = 0.40f))
+            .background(StHudFill)
             .border(BorderStroke(1.dp, accent.copy(alpha = 0.30f)), RoundedCornerShape(20.dp))
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -581,7 +613,7 @@ private fun StHudCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(1.dp)
-                    .background(Color.White.copy(alpha = 0.08f))
+                    .background(StInnerBorder)
             )
             Text(footer, fontSize = 11.sp, color = StMuted, lineHeight = 15.sp)
         }
@@ -602,16 +634,16 @@ private fun StInfoCard(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
-            .background(Color.White.copy(alpha = 0.03f))
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.08f)), RoundedCornerShape(16.dp))
+            .background(StInnerFill)
+            .border(BorderStroke(1.dp, StInnerBorder), RoundedCornerShape(16.dp))
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         StChip(tag.uppercase(), accent)
-        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, lineHeight = 19.sp)
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WisdomInk, lineHeight = 19.sp)
         val bodyText = buildAnnotatedString {
             if (bodyLabel != null) {
-                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(bodyLabel) }
+                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WisdomInk)) { append(bodyLabel) }
             }
             append(body)
         }
