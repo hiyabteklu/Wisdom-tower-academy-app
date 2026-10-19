@@ -105,3 +105,13 @@ table.study-table th { background: rgba(255,255,255,.07); color: #fff; }
 .katex-display { overflow-x: auto; overflow-y: hidden; padding: 4px 0; }
 .katex { color: #fff; font-size: 1.05em; }
 .math-fallback { color: #fde68a; }
+
+/* D8b (docs/DAY_MODE_PLAN.md, 2026-10-19): DAY backgrounds. Only used by day: the day script in AppBackdrop.kt adds the class
+ * "wt-day" to <html>. Night never gets the class, so nothing below applies at night. The day script already recolours the TEXT and
+ * the whitish hairlines of these elements; these rules give back the soft fills that were white-on-dark (invisible on ivory). */
+html.wt-day code.md-code { background: rgba(11,27,51,.08); }
+html.wt-day table.study-table th { background: rgba(11,27,51,.07); }
+html.wt-day .study-callout { background: rgba(11,114,133,.10); }
+html.wt-day mark.key-term { background: rgba(245,158,11,.22); }
+html.wt-day mark.hl-term { background: rgba(11,114,133,.16); }
+html.wt-day .gauge circle:first-child { stroke: rgba(11,27,51,.12); }
