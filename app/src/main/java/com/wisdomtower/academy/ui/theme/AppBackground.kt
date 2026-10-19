@@ -43,24 +43,23 @@ private const val PHOTO_SCRIM_ALPHA = 0.35f
 private const val PHOTO_MAX_SIDE = 1280
 
 /**
- * PUBLISHING GATE (docs/DAY_MODE_PLAN.md section 7). true: Settings > Background offers Dark, BG 2 and Day. false: it
- * offers Dark and BG 2 only (the look before day mode came back), and a saved Day choice falls back to Dark. Set it to
- * false for a Play Store build that must not carry the unfinished day mode; set it back to true after D9 is signed off.
- * Nothing else needs to change.
+ * DAY MODE IS SWITCHED OFF (owner order 2026-10-19: "I hate the day mode entirely, comment it out, only dark and bg_2").
+ * false: Settings > Background offers Dark and Transparent only, and a saved Day choice falls back to Dark. Nothing was
+ * deleted: the Day look and the day colours are still in the code, just unreachable. To bring day mode back, change
+ * false to true (docs/DAY_MODE_PLAN.md section 7). Nothing else needs to change.
  */
-private const val DAY_MODE_OFFERED = true
+private const val DAY_MODE_OFFERED = false
 
 /**
- * The backgrounds the code knows. Owner order 2026-10-19 (after D1): BG 2 is offered TOGETHER with Day, so the owner can
- * try different backgrounds; see [AppBackground.options] (Dark, BG 2, Day). BG 2 is a dark picture, so it keeps the night
- * colours (light text), exactly as it did before day mode came back. BG 1, BG 3 and Blue stay here on purpose (nothing is
- * deleted) but are not offered and are never loaded from a saved choice.
+ * The backgrounds the code knows. Offered today: Dark and Transparent (see [AppBackground.options]).
  *
- * DAY-SAGE (owner order 2026-10-19): [Day] is the light look again, with ITS OWN colours (ink text, frosted surfaces, see
- * Color.kt and WisdomGlass.kt). The page is no longer white or ivory: it is a soft sage-teal A9C6C1, and the frosted
- * cards are a pale sage tint of the same hue. (An earlier try, DAY-SLATE, made Day a dark slate page with the night colours;
- * the owner did not want that and disliked the colour 52667F. It is reverted.) To try another page colour, change the
- * first colour of [Day] and the three "page" values named in Color.kt.
+ * RENAME (owner order 2026-10-19): the picture background that used to be called "BG 2" is now called "Transparent", and
+ * its picture file is now `backgrounds/transparent.jpg` (it was `bg_2.jpg`). The constant is still named [Photo2] on
+ * purpose: the saved choice is the constant NAME, so keeping it means a phone that already saved this choice keeps it.
+ * The picture is dark, so it keeps the night colours (light text).
+ *
+ * BG 1, BG 3 and Blue stay here on purpose (nothing is deleted) but are not offered and are never loaded from a saved
+ * choice. [Day] is the light look; it is switched off, see [DAY_MODE_OFFERED].
  *
  * The saved choice is the constant NAME. A saved name that is not one of the offered options falls back to the default,
  * Dark.
@@ -79,7 +78,8 @@ enum class AppBackgroundOption(
 ) {
     Black("Dark", Color(0xFF000000)),
     Photo1("BG 1", Color(0xFF070C16), photoAsset = "backgrounds/bg_1.jpg"),
-    Photo2("BG 2", Color(0xFF070C16), photoAsset = "backgrounds/bg_2.jpg"),
+    // Was "BG 2" / backgrounds/bg_2.jpg. Now the "Transparent" look (owner order 2026-10-19).
+    Photo2("Transparent", Color(0xFF070C16), photoAsset = "backgrounds/transparent.jpg"),
     Photo3("BG 3", Color(0xFF070C16), photoAsset = "backgrounds/bg_3.jpg"),
     Midnight(
         "Blue", Color(0xFF0A1530),
@@ -87,12 +87,8 @@ enum class AppBackgroundOption(
     ),
 
     /**
-     * DAY-SAGE day look: sage-teal page A9C6C1 (navy ink 0B1B33 on it about 9.5 to 1 by hand arithmetic, hypothesis until
-     * the D9 audit measures it), a pale sky-white glow at the top and a deeper sage glow at the bottom. [isLight] is true, so
-     * the day tokens apply.
-     *
-     * OLD values: ivory E9E5DC with glows BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFFBFD8EC), 0.38f) and
-     * BackdropGlow(0.5f, 1.05f, 0.95f, Color(0xFFF3DFB6), 0.42f).
+     * DAY-SAGE day look (SWITCHED OFF, see [DAY_MODE_OFFERED]): sage-teal page A9C6C1, a pale sky-white glow at the top and
+     * a deeper sage glow at the bottom. [isLight] is true, so the day tokens apply if it is ever offered again.
      */
     Day(
         "Day", Color(0xFFA9C6C1),
@@ -270,8 +266,8 @@ object AppBackground {
     private const val KEY = "wt_app_background"
 
     /**
-     * The options in display order: Dark, BG 2, then Day (only Dark and BG 2 while [DAY_MODE_OFFERED] is false). BG 2 keeps
-     * the night colours (it is a dark picture); to try another background, add its enum entry here (the Settings pill
+     * The options in display order: Dark, then Transparent. Day mode is switched off (see [DAY_MODE_OFFERED]); if it is
+     * turned back on, Day is added at the end. To try another background, add its enum entry here (the Settings pill
      * grows by itself). Declared BEFORE [state] on purpose.
      */
     val options: List<AppBackgroundOption> =
