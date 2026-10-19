@@ -56,6 +56,7 @@ internal fun adminModuleForTab(raw: String?): AdminModule? {
 /**
  * Modules that already have a NATIVE screen. Every other module still opens its website panel in the WebView
  * (AdminWebSection). Add an id here in the same commit that adds its native screen.
- * N2: inquiries. N3: payments. N4: users. N5: overview. N6: grants.
+ * N2: inquiries. N3: payments. N4: users. N5: overview. N6: grants, locks.
  */
-internal val NATIVE_ADMIN_MODULE_IDS: Set<String> = setOf("inquiries", "payments", "users", "overview", "grants")
+internal val NATIVE_ADMIN_MODULE_IDS: Set<String> =
+    setOf("inquiries", "payments", "users", "overview", "grants", "locks")
