@@ -42,6 +42,7 @@ sealed class GrantsResult {
  * same e-mail and package).
  * The helper code below is a copy of the one in UsersRepository.kt (kept separate so that file was not resent);
  * merge them in the regression slice.
+ * 2026-10-19: the missing-table message no longer tells admins to run the old setup script on the live database.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -74,7 +75,7 @@ object GrantsRepository {
             val msg = reply.errorText()
             val missingTable = msg.contains("relation") || msg.contains("does not exist")
             return GrantsResult.Failure(
-                if (missingTable) "Table missing: run docs/access-grants-setup.sql in Supabase SQL Editor." else msg
+                if (missingTable) "Table missing: tell the database owner. Do not run the old setup scripts." else msg
             )
         }
         return try {
