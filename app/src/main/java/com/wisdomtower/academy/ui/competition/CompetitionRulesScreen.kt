@@ -20,13 +20,27 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 
-private val RulesMuted = Color(0xFF94A3B8)
-private val RulesRed = Color(0xFFF87171)
-private val RulesNavy = Color(0x660A101D)
+// D7d (docs/DAY_MODE_PLAN.md, 2026-10-19): the four private colours below are getters with a night / day pair, because a
+// top-level val is read once at class load and would not follow the day / night switch. Night keeps the old values
+// exactly (muted 94A3B8, red F87171, cover 0A101D at 40 percent). Day: muted 4A5A70 (WisdomMuted), a deeper red B91C1C so the
+// warning stays readable on ivory, and the cover is the ivory page colour E9E5DC at 95 percent so the hub list below
+// cannot show through.
+private val RulesMuted: Color
+    get() = if (AppThemeMode.isDark) Color(0xFF94A3B8) else WisdomMuted
+private val RulesRed: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFF87171) else Color(0xFFB91C1C)
+private val RulesNavy: Color
+    get() = if (AppThemeMode.isDark) Color(0x660A101D) else Color(0xF2E9E5DC)
+private val RulesMeta: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFE2E8F0) else WisdomTextPrimary
 
 // Session U (owner, 2026-10-15): the student must first read a short red warning before a ranked attempt.
 // Two parts live in this file:
@@ -38,7 +52,7 @@ private val RulesNavy = Color(0x660A101D)
 // CompetitionFullScreen is no longer a Dialog (a dialog is its own window and covers the whole phone, bars
 // included). It is now a plain box drawn inside the hub's own place in MainActivity: that place is the area
 // between the top bar and the bottom navigation, so both bars stay visible and nothing is clipped by them.
-// The box has an opaque background and the same zIndex (17) that MainActivity gives the hub, and it takes
+// The box has a background and the same zIndex (17) that MainActivity gives the hub, and it takes
 // all taps so the list below cannot be touched. Hypothesis (not seen on a device): the overlay layering that
 // failed in session W is fixed by this background and zIndex.
 // Session AI (owner, 2026-10-15): the warning is a glass card with a soft red tint instead of a solid box,
@@ -100,14 +114,14 @@ fun CompetitionRulesScreen(
             ) {
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = WisdomInk,
                     fontSize = 22.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.wisdomReveal(key = "comp_rules_title_" + title, index = 0)
                 )
                 Text(
                     text = questionCount.toString() + " questions  \u2022  " + durationMin.toString() + " min",
-                    color = Color(0xFFE2E8F0),
+                    color = RulesMeta,
                     fontSize = 14.sp,
                     modifier = Modifier.wisdomReveal(key = "comp_rules_meta_" + title, index = 1)
                 )
@@ -117,7 +131,7 @@ fun CompetitionRulesScreen(
                         .fillMaxWidth()
                         .wisdomReveal(key = "comp_rules_card_" + title, index = 2),
                     cornerRadius = 24.dp,
-                    fill = RulesRed.copy(alpha = 0.06f),
+                    fill = RulesRed.copy(alpha = if (AppThemeMode.isDark) 0.06f else 0.08f),
                     borderColor = RulesRed.copy(alpha = 0.30f)
                 ) {
                     Column(
