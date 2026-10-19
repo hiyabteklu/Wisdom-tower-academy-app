@@ -1,14 +1,15 @@
 package com.wisdomtower.academy.ui.theme
 
 /**
- * DAY MODE REMOVED (owner order 2026-10-17): the app uses many transparent "glass" cards, which do not work on a light
- * page, so the app is night-only again. [isDark] is always true. It is kept (instead of deleting it and editing every
- * colour token) so Color.kt, WisdomGlass.kt, WisdomFieldTokens.kt, WisdomMessageCard.kt and Theme.kt keep compiling and
- * return exactly the night values they always had. The light branches in those files are dead code; do not bring them back.
- * The student now chooses only a background (see [AppBackground]).
+ * DAY MODE RETURNS (owner order 2026-10-19, docs/DAY_MODE_PLAN.md, slice D1). It replaces the "night only" version of
+ * 2026-10-17 (the glass design needs a dark page; the day look therefore uses frosted ivory cards, see the plan).
+ *
+ * There is NO second saved choice: day / night is simply the chosen background. [isDark] is false only while the Day
+ * background ([AppBackgroundOption.Day]) is selected; every other option is night. [AppBackground.selected] is Compose
+ * state, so everything that reads [isDark] while composing or drawing follows a change at once. Night values are exactly
+ * the ones the app always had.
  */
 object AppThemeMode {
-    /** Always true. */
     val isDark: Boolean
-        get() = true
+        get() = AppBackground.selected != AppBackgroundOption.Day
 }

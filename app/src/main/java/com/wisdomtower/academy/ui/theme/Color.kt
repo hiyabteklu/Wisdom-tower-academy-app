@@ -10,7 +10,12 @@ import androidx.compose.ui.graphics.Color
  * L1 (docs/DAY_NIGHT_PLAN.md, owner order 2026-10-17): every token below is now MODE AWARE. The names did not change, so
  * every screen that already uses them follows the day / night switch ([AppThemeMode]) with no edit. In night mode each
  * token returns exactly the value it always had (the approved look). In day mode it returns the light value from
- * [WisdomLightPalette], chosen so that text has at least 4.5:1 contrast on the day backgrounds and icons at least 3:1.
+ * [WisdomLightPalette].
+ *
+ * D1 (docs/DAY_MODE_PLAN.md, owner order 2026-10-19): the day palette is now "Ivory & Navy" (warm ivory-stone page, frosted
+ * ivory cards, deep navy ink, deep teal-cyan accent), not the old pale white one. Day cards are NOT see-through (about 82
+ * percent ivory): that is what makes the glass design work on a light page. Night values are unchanged. The contrast
+ * figures are hand estimates (ink on card about 15:1, muted about 6:1, cyan about 5:1), to be measured in slice D9.
  *
  * BG-TOKENS (2026-10-17, owner: the chosen background must show literally everywhere): the three NIGHT fill tokens
  * [card], [cardElevated] and [surfaceDeep] and the night [WisdomCardSurfaceGradient] are see-through, so every screen that
@@ -56,22 +61,25 @@ internal object WisdomDarkPalette {
     val fuchsia = Color(0xFFD946EF)
 }
 
-/** Day values. Contrast checked by hand against white and F4F7FB: cyan 5.0, muted 7.1, every accent 5.0 or more. */
+/**
+ * Day values, "Ivory & Navy" (D1). Hand-estimated contrast: ink 0B1B33 on the ivory card about 15:1, muted 4A5A70 about
+ * 6:1, cyan 0B7285 about 5:1; the accents below are the earlier darkened ones (5:1 or more on white). Measure in D9.
+ */
 internal object WisdomLightPalette {
-    val cyan = Color(0xFF0E7490)
-    val cyanDark = Color(0xFF155E75)
-    val background = Color(0xFFF4F7FB)
-    val surfaceDeep = Color(0xFFE8EEF6)
-    val navy = Color(0xFFF4F7FB)
-    val card = Color(0xFFFFFFFF)
-    val cardElevated = Color(0xFFF8FAFC)
-    val cardBorder = Color(0x330E7490)
-    val cardBorderSubtle = Color(0x1A0F172A)
-    val borderWhite = Color(0x240F172A)
-    val muted = Color(0xFF475569)
-    val textPrimary = Color(0xFF0F172A)
+    val cyan = Color(0xFF0B7285)
+    val cyanDark = Color(0xFF095968)
+    val background = Color(0xFFE9E5DC)
+    val surfaceDeep = Color(0xD9E1DCD0)
+    val navy = Color(0xFFE9E5DC)
+    val card = Color(0xD1F8F5EE)
+    val cardElevated = Color(0xD9FCFAF5)
+    val cardBorder = Color(0x330B7285)
+    val cardBorderSubtle = Color(0x1A0B1B33)
+    val borderWhite = Color(0x240B1B33)
+    val muted = Color(0xFF4A5A70)
+    val textPrimary = Color(0xFF0B1B33)
     val onCyan = Color(0xFFFFFFFF)
-    val ink = Color(0xFF0F172A)
+    val ink = Color(0xFF0B1B33)
     val onInk = Color(0xFFFFFFFF)
     val purple = Color(0xFF7E22CE)
     val violet = Color(0xFF6D28D9)
@@ -87,7 +95,7 @@ internal object WisdomLightPalette {
 private fun pick(dark: Color, light: Color): Color = if (AppThemeMode.isDark) dark else light
 
 // Primary Palette
-val WisdomCyan: Color get() = pick(WisdomDarkPalette.cyan, WisdomLightPalette.cyan) // night: --cyan #22e0ff; day: deep cyan for contrast
+val WisdomCyan: Color get() = pick(WisdomDarkPalette.cyan, WisdomLightPalette.cyan) // night: --cyan #22e0ff; day: deep teal-cyan for contrast
 val WisdomCyanDark: Color get() = pick(WisdomDarkPalette.cyanDark, WisdomLightPalette.cyanDark)
 val WisdomBackground: Color get() = pick(WisdomDarkPalette.background, WisdomLightPalette.background) // root canvas (--background: #070c16)
 val WisdomDark: Color get() = pick(WisdomDarkPalette.surfaceDeep, WisdomLightPalette.surfaceDeep) // secondary background (--wt-dark: #0a101c)
@@ -96,7 +104,7 @@ val WisdomCard: Color get() = pick(WisdomDarkPalette.card, WisdomLightPalette.ca
 val WisdomCardElevated: Color get() = pick(WisdomDarkPalette.cardElevated, WisdomLightPalette.cardElevated) // card-modern surface
 val WisdomCardBorder: Color get() = pick(WisdomDarkPalette.cardBorder, WisdomLightPalette.cardBorder) // soft cyan card border
 val WisdomCardBorderSubtle: Color get() = pick(WisdomDarkPalette.cardBorderSubtle, WisdomLightPalette.cardBorderSubtle) // 1px border
-val WisdomBorderWhite: Color get() = pick(WisdomDarkPalette.borderWhite, WisdomLightPalette.borderWhite) // night: white 10%; day: ink 14%
+val WisdomBorderWhite: Color get() = pick(WisdomDarkPalette.borderWhite, WisdomLightPalette.borderWhite) // night: white 10%; day: navy ink 14%
 val WisdomMuted: Color get() = pick(WisdomDarkPalette.muted, WisdomLightPalette.muted) // slate muted text (--wt-muted)
 val WisdomTextPrimary: Color get() = pick(WisdomDarkPalette.textPrimary, WisdomLightPalette.textPrimary) // (--foreground)
 val WisdomDarkOnCyan: Color get() = pick(WisdomDarkPalette.onCyan, WisdomLightPalette.onCyan) // text on a solid cyan button (dark at night, white by day)
@@ -121,21 +129,21 @@ val WisdomHeroGradientBrush: Brush
     get() = if (AppThemeMode.isDark) {
         Brush.horizontalGradient(colors = listOf(Color(0xFF22E0FF), Color(0xFF38BDF8), Color(0xFF818CF8)))
     } else {
-        Brush.horizontalGradient(colors = listOf(Color(0xFF0E7490), Color(0xFF0369A1), Color(0xFF4338CA)))
+        Brush.horizontalGradient(colors = listOf(Color(0xFF0B7285), Color(0xFF0369A1), Color(0xFF4338CA)))
     }
 
 val WisdomCardSurfaceGradient: Brush
     get() = if (AppThemeMode.isDark) {
         Brush.verticalGradient(colors = listOf(Color(0x85162134), Color(0x8F0E1624)))
     } else {
-        Brush.verticalGradient(colors = listOf(Color(0xF2FFFFFF), Color(0xF2F8FAFC)))
+        Brush.verticalGradient(colors = listOf(Color(0xD9FCFAF5), Color(0xD1F4F0E6)))
     }
 
 val WisdomPrimaryBtnGradient: Brush
     get() = if (AppThemeMode.isDark) {
         Brush.horizontalGradient(colors = listOf(Color(0xFF22E0FF), Color(0xFF00C4E6)))
     } else {
-        Brush.horizontalGradient(colors = listOf(Color(0xFF0E7490), Color(0xFF155E75)))
+        Brush.horizontalGradient(colors = listOf(Color(0xFF0B7285), Color(0xFF095968)))
     }
 
 // Material 3 mappings
