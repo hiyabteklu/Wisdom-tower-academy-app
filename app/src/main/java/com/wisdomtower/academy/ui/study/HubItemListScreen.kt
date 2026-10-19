@@ -61,13 +61,17 @@ import com.wisdomtower.academy.data.content.ContentListResult
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningResource
 import com.wisdomtower.academy.data.content.SavedContent
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
 import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomMessageCard
 import com.wisdomtower.academy.ui.theme.wisdomReveal
@@ -83,8 +87,8 @@ private val COUNT_HUBS = setOf("flashcards", "question-banks", "exams")
 /** Progress value meaning "downloading, size not known" (notes, flashcards, questions have no byte count). */
 private const val SIZE_UNKNOWN = -1f
 
-/** Soft red used for "remove" and failure texts. */
-private val RemoveRed = Color(0xFFFDA4AF)
+/** Soft red used for "remove" and failure texts. D6b: a getter (night FDA4AF as before, day deep rose) so it follows the switch. */
+private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRose)
 
 /**
  * Native list of the items inside one learning hub of one course (plan step N2). Replaces the website's
@@ -113,6 +117,11 @@ private val RemoveRed = Color(0xFFFDA4AF)
  *
  * GLASS (2026-10-13, owner request, docs/GLASS_PLAN.md area 1): rows, message cards, the round download button and
  * the round back button use the see-through glass look of the Targets screen (white 4-6% fill, white 8% edge).
+ *
+ * D6b (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Titles, the progress track, the NEW badge, the green / red states of the
+ * round button and the remove dialog now follow the switch (night keeps the exact old literals as `dayNight` pairs; day uses
+ * ink, deep rose, deep emerald and the 95 percent ivory dialog). [ScreenBackButton] tints its arrow with [WisdomInk], which
+ * fixes the back arrow of every study tool that uses it.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -271,7 +280,7 @@ fun HubItemListScreen(
                             text = hubName,
                             fontSize = 20.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
+                            color = WisdomInk,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -355,11 +364,11 @@ fun HubItemListScreen(
             AlertDialog(
                 modifier = Modifier.wisdomDialogEnter(),
                 onDismissRequest = { confirmRemove = null },
-                containerColor = Color(0xF2111B2E),
+                containerColor = dayNight(Color(0xF2111B2E), Color(0xF2F8F5EE)),
                 title = {
                     Text(
                         text = if (toRemove.size == 1) "Remove from this phone?" else "Remove ${toRemove.size} saved items?",
-                        color = Color.White,
+                        color = WisdomInk,
                         fontWeight = FontWeight.Bold
                     )
                 },
@@ -536,7 +545,7 @@ private fun ItemRow(
                         text = item.title,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = WisdomInk,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f, fill = false)
@@ -547,7 +556,7 @@ private fun ItemRow(
                             text = "NEW",
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color(0xFFFECDD3)
+                            color = dayNight(Color(0xFFFECDD3), WisdomAccentRose)
                         )
                     }
                 }
@@ -568,7 +577,7 @@ private fun ItemRow(
                                 .fillMaxWidth()
                                 .height(4.dp)
                                 .clip(RoundedCornerShape(2.dp))
-                                .background(Color.White.copy(alpha = 0.1f))
+                                .background(WisdomInk.copy(alpha = 0.1f))
                         ) {
                             Box(
                                 modifier = Modifier
@@ -621,8 +630,8 @@ private fun DownloadButton(
 ) {
     val enabled = progress == null
     val border = when {
-        isDownloaded -> BorderStroke(1.dp, Color(0xFF34D399).copy(alpha = 0.6f))
-        failed -> BorderStroke(1.dp, Color(0xFFF87171).copy(alpha = 0.6f))
+        isDownloaded -> BorderStroke(1.dp, dayNight(Color(0xFF34D399), WisdomAccentEmerald).copy(alpha = 0.6f))
+        failed -> BorderStroke(1.dp, dayNight(Color(0xFFF87171), WisdomAccentRose).copy(alpha = 0.6f))
         else -> BorderStroke(1.dp, WisdomBorderWhite)
     }
     Box(
@@ -660,7 +669,10 @@ private fun MessageCard(title: String?, message: String, onRetry: (() -> Unit)?)
     WisdomMessageCard(message = message, title = title, onRetry = onRetry) // S6-msgcard
 }
 
-/** The round back button used at the top of the study screens (glass look, same as the Targets screen). */
+/**
+ * The round back button used at the top of the study screens (glass look, same as the Targets screen).
+ * D6b: the arrow is [WisdomInk] (white at night, deep navy by day); the glass fill and edge were already tokens.
+ */
 @Composable
 internal fun ScreenBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
     Box(
@@ -680,8 +692,11 @@ internal fun ScreenBackButton(onClick: () -> Unit, modifier: Modifier = Modifier
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = WisdomInk,
             modifier = Modifier.size(20.dp)
         )
     }
 }
+
+// D6b: night value first (exactly the old literal), day value second. A function, so it is read while composing and follows the switch.
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
