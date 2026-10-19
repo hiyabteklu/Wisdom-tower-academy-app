@@ -86,6 +86,10 @@ import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomPrimaryBtnGradient
+import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlin.math.roundToInt
 
 // ---------------------------------------------------------------------------
@@ -163,7 +167,9 @@ private val GoldMid = Color(0xFFF2C14E)
 private val GoldDeep = Color(0xFFC48A14)
 
 // Text colour on a filled (selected) pill
-private val PillOnAccent = Color(0xFF06101F)
+// D5: day mode. Night keeps the old value, day uses the Ivory & Navy tokens (docs/DAY_MODE_PLAN.md).
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+private val PillOnAccent: Color get() = dayNight(Color(0xFF06101F), WisdomDarkOnCyan)
 
 /**
  * Native Account screen.
@@ -523,7 +529,7 @@ private fun ProfileCompletionGauge(score: Int) {
         label = "my_profile_gauge"
     )
     val shownScore = (progress * 100f).roundToInt()
-    val accent = if (complete) GoldMid else WisdomCyan
+    val accent = if (complete) dayNight(GoldMid, Color(0xFF5C3F0A)) else WisdomCyan
 
     Box(
         modifier = Modifier
@@ -553,7 +559,7 @@ private fun ProfileCompletionGauge(score: Int) {
 
                 // track
                 drawArc(
-                    color = Color.White.copy(alpha = 0.08f),
+                    color = WisdomInk.copy(alpha = 0.08f),
                     startAngle = -90f,
                     sweepAngle = 360f,
                     useCenter = false,
@@ -634,7 +640,7 @@ private fun UniversityPicker(selected: String, onSelect: (String) -> Unit) {
             modifier = Modifier
                 .fillMaxWidth()
                 .clip(shape)
-                .background(Color.White.copy(alpha = 0.06f))
+                .background(WisdomInk.copy(alpha = 0.06f))
                 .border(BorderStroke(1.dp, if (expanded) WisdomCyan else WisdomBorderWhite), shape)
                 .semantics(mergeDescendants = true) {
                     stateDescription = if (expanded) "Expanded" else "Collapsed"
@@ -647,7 +653,7 @@ private fun UniversityPicker(selected: String, onSelect: (String) -> Unit) {
                 text = selected.ifBlank { "Select your university" },
                 fontSize = 13.sp,
                 fontWeight = if (selected.isBlank()) FontWeight.Normal else FontWeight.SemiBold,
-                color = if (selected.isBlank()) WisdomMuted else Color.White,
+                color = if (selected.isBlank()) WisdomMuted else WisdomInk,
                 modifier = Modifier.weight(1f)
             )
             Icon(
@@ -676,7 +682,7 @@ private fun UniversityPicker(selected: String, onSelect: (String) -> Unit) {
                         .fillMaxWidth()
                         .heightIn(max = 260.dp)
                         .clip(shape)
-                        .background(Color.White.copy(alpha = 0.04f))
+                        .background(WisdomInk.copy(alpha = 0.04f))
                         .border(BorderStroke(1.dp, WisdomBorderWhite), shape)
                 ) {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
@@ -721,7 +727,7 @@ private fun UniversityRow(name: String, selected: Boolean, onClick: () -> Unit) 
             text = name,
             fontSize = 12.5.sp,
             fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
-            color = if (selected) WisdomCyan else Color(0xFFE2E8F0),
+            color = if (selected) WisdomCyan else dayNight(Color(0xFFE2E8F0), WisdomTextPrimary),
             modifier = Modifier.weight(1f)
         )
         if (selected) {
@@ -764,12 +770,12 @@ private fun PillOption(label: String, selected: Boolean, accent: Color, onClick:
     val interaction = remember { MutableInteractionSource() }
     val scale = pressScale(interaction, 0.93f)
     val background by animateColorAsState(
-        targetValue = if (selected) accent else Color.White.copy(alpha = 0.06f),
+        targetValue = if (selected) accent else WisdomInk.copy(alpha = 0.06f),
         animationSpec = tween(220),
         label = "pill_background"
     )
     val textColor by animateColorAsState(
-        targetValue = if (selected) PillOnAccent else Color(0xFFE2E8F0),
+        targetValue = if (selected) PillOnAccent else dayNight(Color(0xFFE2E8F0), WisdomTextPrimary),
         animationSpec = tween(220),
         label = "pill_text"
     )
@@ -886,7 +892,7 @@ private fun StepAccordionCard(
                 }
 
                 Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                    Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text(text = title, fontSize = 13.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                     Text(text = subtitle, fontSize = 12.sp, color = WisdomMuted)
                     Box(
                         modifier = Modifier
@@ -922,7 +928,7 @@ private fun StepAccordionCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.02f))
+                        .background(WisdomInk.copy(alpha = 0.02f))
                 ) {
                     content()
                 }
@@ -944,7 +950,7 @@ private fun SaveProfileButton(onClick: () -> Unit) {
                 scaleY = scale
             }
             .clip(shape)
-            .background(Brush.horizontalGradient(listOf(WisdomCyan, Color(0xFF38BDF8))))
+            .background(if (AppThemeMode.isDark) Brush.horizontalGradient(listOf(WisdomCyan, Color(0xFF38BDF8))) else WisdomPrimaryBtnGradient)
             .clickable(interactionSource = interaction, indication = null, role = Role.Button, onClick = onClick)
             .padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -991,10 +997,10 @@ private fun LogOutButton(onClick: () -> Unit) {
 private fun fieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = WisdomCyan,
     unfocusedBorderColor = WisdomBorderWhite,
-    focusedContainerColor = Color.White.copy(alpha = 0.06f),
-    unfocusedContainerColor = Color.White.copy(alpha = 0.06f),
-    focusedTextColor = Color.White,
-    unfocusedTextColor = Color.White,
+    focusedContainerColor = WisdomInk.copy(alpha = 0.06f),
+    unfocusedContainerColor = WisdomInk.copy(alpha = 0.06f),
+    focusedTextColor = WisdomInk,
+    unfocusedTextColor = WisdomInk,
     focusedLabelColor = WisdomCyan,
     unfocusedLabelColor = WisdomMuted
 )

@@ -31,6 +31,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.admin.AdminAccess
+import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomAccentPurple
 
 /**
  * ADMIN-entry: the "Admin Console" button on the Account screen. Draws nothing unless the database confirms
@@ -48,7 +50,7 @@ fun AdminEntryButton(userKey: String?, onOpen: () -> Unit) {
     LaunchedEffect(userKey) { isAdmin = AdminAccess.isAdmin() }
     if (!isAdmin) return
 
-    val accent = Color(0xFFC084FC)
+    val accent = if (AppThemeMode.isDark) Color(0xFFC084FC) else WisdomAccentPurple // D5: day mode
     val shape = RoundedCornerShape(16.dp)
     Row(
         modifier = Modifier

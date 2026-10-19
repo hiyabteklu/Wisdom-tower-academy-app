@@ -69,6 +69,14 @@ import com.wisdomtower.academy.data.auth.SupabasePasswordResetClient
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
+import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
+import com.wisdomtower.academy.ui.theme.WisdomCardSurfaceGradient
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -86,9 +94,11 @@ import kotlinx.coroutines.launch
  */
 private enum class ResetStep { REQUEST, CODE, DONE }
 
-private val ResetSlate300 = Color(0xFFCBD5E1)
-private val ResetSlate400 = Color(0xFF94A3B8)
-private val ResetCyanLight = Color(0xFF67E8F9)
+// D5: day mode. Night keeps the old value, day uses the Ivory & Navy tokens (docs/DAY_MODE_PLAN.md).
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+private val ResetSlate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomTextPrimary)
+private val ResetSlate400: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val ResetCyanLight: Color get() = dayNight(Color(0xFF67E8F9), WisdomCyan)
 
 @Composable
 fun ForgotPasswordScreen(
@@ -259,7 +269,7 @@ fun ForgotPasswordScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
                         text = "Check your email",
-                        color = Color.White,
+                        color = WisdomInk,
                         fontSize = 26.sp,
                         fontWeight = FontWeight.Black,
                         textAlign = TextAlign.Center
@@ -268,7 +278,7 @@ fun ForgotPasswordScreen(
                     Text(
                         text = buildAnnotatedString {
                             append("We sent a password reset email to ")
-                            withStyle(SpanStyle(color = Color.White, fontWeight = FontWeight.Bold)) {
+                            withStyle(SpanStyle(color = WisdomInk, fontWeight = FontWeight.Bold)) {
                                 append(email.trim())
                             }
                             append(". Enter the code from the email below and choose a new password. ")
@@ -378,14 +388,14 @@ fun ForgotPasswordScreen(
                                 Icon(
                                     imageVector = Icons.Filled.CheckCircle,
                                     contentDescription = null,
-                                    tint = Color(0xFF4ADE80),
+                                    tint = dayNight(Color(0xFF4ADE80), WisdomAccentEmerald),
                                     modifier = Modifier.size(32.dp)
                                 )
                             }
                             Spacer(modifier = Modifier.height(16.dp))
                             Text(
                                 text = "Password updated!",
-                                color = Color.White,
+                                color = WisdomInk,
                                 fontSize = 22.sp,
                                 fontWeight = FontWeight.Bold,
                                 textAlign = TextAlign.Center,
@@ -434,7 +444,7 @@ private fun ResetHeader(title: String, subtitle: String?) {
     Spacer(modifier = Modifier.height(12.dp))
     Text(
         text = title,
-        color = Color.White,
+        color = WisdomInk,
         fontSize = 26.sp,
         fontWeight = FontWeight.Black,
         textAlign = TextAlign.Center
@@ -459,11 +469,15 @@ private fun ResetCard(content: @Composable ColumnScope.() -> Unit) {
             .widthIn(max = 448.dp)
             .fillMaxWidth()
             .clip(cardShape)
-            .border(BorderStroke(1.dp, Color(0x33FFFFFF)), cardShape)
+            .border(BorderStroke(1.dp, dayNight(Color(0x33FFFFFF), WisdomBorderWhite)), cardShape)
             .background(
-                Brush.verticalGradient(
-                    listOf(Color.White.copy(alpha = 0.07f), Color.White.copy(alpha = 0.04f), Color.White.copy(alpha = 0.03f))
-                )
+                if (AppThemeMode.isDark) {
+                    Brush.verticalGradient(
+                        listOf(WisdomInk.copy(alpha = 0.07f), WisdomInk.copy(alpha = 0.04f), WisdomInk.copy(alpha = 0.03f))
+                    )
+                } else {
+                    WisdomCardSurfaceGradient
+                }
             )
     ) {
         Box(
@@ -495,7 +509,7 @@ private fun ResetErrorBox(text: String) {
             .semantics { liveRegion = LiveRegionMode.Polite }
             .padding(12.dp)
     ) {
-        Text(text = text, color = Color(0xFFF87171), fontSize = 13.sp)
+        Text(text = text, color = dayNight(Color(0xFFF87171), WisdomAccentRose), fontSize = 13.sp)
     }
 }
 
@@ -561,8 +575,8 @@ private fun ResetSecondaryButton(
     Row(
         modifier = modifier
             .clip(shape)
-            .border(BorderStroke(1.dp, Color(0x1AFFFFFF)), shape)
-            .background(Color(0x0DFFFFFF))
+            .border(BorderStroke(1.dp, dayNight(Color(0x1AFFFFFF), WisdomBorderWhite)), shape)
+            .background(dayNight(Color(0x0DFFFFFF), WisdomInk.copy(alpha = 0.05f)))
             .clickable(role = Role.Button, onClick = onClick)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
