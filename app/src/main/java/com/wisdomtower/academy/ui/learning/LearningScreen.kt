@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.learning
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
@@ -346,7 +347,7 @@ fun LearningScreen(
                                 text = "Scholar Access",
                                 fontSize = 13.5.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White
+                                color = WisdomInk
                             )
                             Text(
                                 text = "Sign in or create an account to sync your study notes, targets, and course progress.",
@@ -365,12 +366,12 @@ fun LearningScreen(
                                         .minimumInteractiveComponentSize()
                                         .clip(RoundedCornerShape(50))
                                         .background(WisdomGlassFillStrong)
-                                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.2f)), RoundedCornerShape(50))
+                                        .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.2f)), RoundedCornerShape(50))
                                         .clickable(role = Role.Button) { onNavigateToUrl("/signup") }
                                         .padding(horizontal = 20.dp, vertical = 9.dp), // S5-signin: same size as the Sign In pill
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(text = "Create Account", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    Text(text = "Create Account", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
                                 }
                             }
                         }
@@ -491,7 +492,7 @@ fun LearningScreen(
                             text = "Curriculum",
                             fontSize = 16.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = WisdomInk
                         )
                     }
 
@@ -543,7 +544,7 @@ fun LearningScreen(
                                 text = "No curriculum packages selected",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.SemiBold,
-                                color = Color.White,
+                                color = WisdomInk,
                                 textAlign = TextAlign.Center
                             )
                             Text(
@@ -557,7 +558,7 @@ fun LearningScreen(
                                 modifier = Modifier
                                     .minimumInteractiveComponentSize()
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.1f))
+                                    .background(WisdomInk.copy(alpha = 0.1f))
                                     .clickable(role = Role.Button) { onNavigateToUrl("/packages") }
                                     .padding(horizontal = 12.dp, vertical = 7.dp)
                             ) {
@@ -565,7 +566,7 @@ fun LearningScreen(
                                     text = "Browse Courses",
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = Color.White
+                                    color = WisdomInk
                                 )
                             }
                         }
@@ -646,7 +647,7 @@ private fun ToolTileButton(
                 text = tile.title,
                 fontSize = 11.sp,
                 fontWeight = FontWeight.SemiBold,
-                color = Color.White,
+                color = WisdomInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

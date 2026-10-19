@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.packages
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -197,7 +198,7 @@ fun GpaCalculatorCard() {
                             text = "GPA calculator",
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = WisdomInk
                         )
                         Text(
                             text = "Estimate your average",
@@ -350,7 +351,7 @@ fun GpaCalculatorCard() {
                                         text = String.format(Locale.US, "%.1f", creditSum),
                                         fontSize = 16.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = WisdomInk
                                     )
                                 }
                                 Column(horizontalAlignment = Alignment.End) {
@@ -399,7 +400,7 @@ private fun GpaScaleTable() {
             Row(modifier = Modifier.fillMaxWidth()) {
                 Text(interval, fontSize = 11.sp, color = WisdomMuted, modifier = Modifier.weight(1.2f))
                 Text(b.letter, fontSize = 11.sp, fontWeight = FontWeight.Bold, color = WisdomAccentPurple, modifier = Modifier.weight(0.6f))
-                Text(gpaTwoDecimals(b.points), fontSize = 11.sp, color = Color.White, modifier = Modifier.weight(0.7f))
+                Text(gpaTwoDecimals(b.points), fontSize = 11.sp, color = WisdomInk, modifier = Modifier.weight(0.7f))
                 Text(b.status, fontSize = 11.sp, color = WisdomMuted, modifier = Modifier.weight(1.5f))
             }
         }
@@ -488,8 +489,8 @@ private fun GpaRowEditor(
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .clip(RoundedCornerShape(8.dp))
-                    .background(Color.White.copy(alpha = 0.04f))
-                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.1f)), RoundedCornerShape(8.dp))
+                    .background(WisdomInk.copy(alpha = 0.04f))
+                    .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.1f)), RoundedCornerShape(8.dp))
                     .clickable(role = Role.Button) { row.mode = (row.mode + 1) % 3 }
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 contentAlignment = Alignment.Center
@@ -537,8 +538,8 @@ private fun GpaDropdown(
                 .fillMaxWidth()
                 .minimumInteractiveComponentSize()
                 .clip(RoundedCornerShape(10.dp))
-                .background(Color.White.copy(alpha = 0.04f))
-                .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), RoundedCornerShape(10.dp))
+                .background(WisdomInk.copy(alpha = 0.04f))
+                .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.15f)), RoundedCornerShape(10.dp))
                 .clickable(role = Role.DropdownList) { open = true }
                 .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
@@ -548,7 +549,7 @@ private fun GpaDropdown(
                 text = label,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Medium,
-                color = Color.White,
+                color = WisdomInk,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f)
@@ -585,8 +586,8 @@ private fun GpaNumberField(
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(10.dp))
-            .background(Color.White.copy(alpha = 0.04f))
-            .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), RoundedCornerShape(10.dp))
+            .background(WisdomInk.copy(alpha = 0.04f))
+            .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.15f)), RoundedCornerShape(10.dp))
             .padding(horizontal = 8.dp, vertical = 10.dp),
         contentAlignment = Alignment.Center
     ) {
@@ -605,7 +606,7 @@ private fun GpaNumberField(
             },
             singleLine = true,
             textStyle = TextStyle(
-                color = Color.White,
+                color = WisdomInk,
                 fontSize = 12.sp,
                 fontWeight = FontWeight.SemiBold,
                 textAlign = TextAlign.Center

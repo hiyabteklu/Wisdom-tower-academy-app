@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.settings
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import android.content.SharedPreferences
 import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
@@ -85,7 +86,7 @@ fun AccountDeletionSection(settingsPrefs: SharedPreferences) {
             .padding(14.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(text = "Delete Account", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+        Text(text = "Delete Account", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
         Text(
             text = "Permanently delete your account and personal data. This cannot be undone.",
             fontSize = 11.sp,
