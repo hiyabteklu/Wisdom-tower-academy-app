@@ -17,7 +17,7 @@ data class GuideTab(
     val accentColor: Color
 )
 
-val GUIDE_TABS = listOf(
+val GUIDE_TABS: List<GuideTab> get() = listOf(
     GuideTab("study-techniques", "Study Techniques", WisdomCyan),
     GuideTab("success-stories", "Success Stories", WisdomAccentAmber),
     GuideTab("campus-life", "Campus Life", WisdomAccentSky),

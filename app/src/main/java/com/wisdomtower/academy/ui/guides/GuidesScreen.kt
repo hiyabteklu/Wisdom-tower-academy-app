@@ -132,6 +132,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.wisdomtower.academy.BrandSplashLoader
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.ContentFontFamily
 import com.wisdomtower.academy.ui.theme.OutfitFontFamily
@@ -145,6 +146,9 @@ import com.wisdomtower.academy.ui.theme.WisdomAccentViolet
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
 import com.wisdomtower.academy.ui.theme.WisdomModernCard
 import kotlinx.coroutines.Dispatchers
@@ -153,11 +157,12 @@ import kotlinx.coroutines.withContext
 
 /* ============================== look and motion tokens ============================== */
 
-private val GuideBodyColor = Color(0xFFE2E8F0)
-private val GuideSoftColor = Color(0xFFCBD5E1)
+private val GuideBodyColor: Color get() = if (AppThemeMode.isDark) Color(0xFFE2E8F0) else WisdomTextPrimary
+private val GuideSoftColor: Color get() = if (AppThemeMode.isDark) Color(0xFFCBD5E1) else WisdomMuted
+private val GuideQuoteColor: Color get() = if (AppThemeMode.isDark) Color(0xFFFDE68A) else WisdomAccentAmber
 
 /** Reading text of every guide page: light slate (high contrast on the dark glass). */
-private val GuideBodyStyle = TextStyle(
+private val GuideBodyStyle: TextStyle get() = TextStyle(
     fontFamily = PlusJakartaSansFontFamily, // S11-guides-type
     fontWeight = FontWeight.Normal,
     fontSize = 14.sp,
@@ -166,16 +171,16 @@ private val GuideBodyStyle = TextStyle(
 )
 
 /** Slightly larger reading text for the Tip landing cards. */
-private val TipBodyStyle = GuideBodyStyle.copy(fontSize = 15.sp, lineHeight = 24.sp)
+private val TipBodyStyle: TextStyle get() = GuideBodyStyle.copy(fontSize = 15.sp, lineHeight = 24.sp)
 
 /** Quotes (success stories, universities closing line): the app's content serif in italic, a little larger. */
-private val GuideQuoteStyle = TextStyle(
+private val GuideQuoteStyle: TextStyle get() = TextStyle(
     fontFamily = ContentFontFamily,
     fontStyle = FontStyle.Italic,
     fontWeight = FontWeight.Medium,
     fontSize = 16.sp,
     lineHeight = 24.sp,
-    color = Color(0xFFFDE68A)
+    color = GuideQuoteColor
 )
 
 // Same family of motion as the login page: soft expand + fade, quicker retract.
@@ -331,7 +336,7 @@ fun GuidesScreen(
                         fontSize = 22.sp,
                         lineHeight = 27.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        color = WisdomInk
                     )
                 }
             }
@@ -385,7 +390,7 @@ private fun GuideBackPill(onBack: () -> Unit) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
-            tint = Color.White,
+            tint = WisdomInk,
             modifier = Modifier.size(24.dp)
         )
     }
@@ -578,7 +583,7 @@ private fun GuideHeaderCard(tag: String, accent: Color, icon: ImageVector, title
             .border(
                 BorderStroke(
                     1.dp,
-                    Brush.verticalGradient(listOf(accent.copy(alpha = 0.55f), Color.White.copy(alpha = 0.06f)))
+                    Brush.verticalGradient(listOf(accent.copy(alpha = 0.55f), WisdomInk.copy(alpha = 0.06f)))
                 ),
                 shape
             )
@@ -595,7 +600,7 @@ private fun GuideHeaderCard(tag: String, accent: Color, icon: ImageVector, title
             fontWeight = FontWeight.Bold,
             fontSize = 24.sp,
             lineHeight = 30.sp,
-            color = Color.White
+            color = WisdomInk
         )
         if (!body.isNullOrBlank()) {
             Paragraphs(text = body)
@@ -623,7 +628,7 @@ private fun SectionTitleRow(icon: ImageVector, accent: Color, title: String) {
             fontWeight = FontWeight.Bold,
             fontSize = 18.sp,
             lineHeight = 23.sp,
-            color = Color.White,
+            color = WisdomInk,
             modifier = Modifier.weight(1f)
         )
     }
@@ -653,7 +658,7 @@ private fun FactBadge(label: String) {
     Box(
         modifier = Modifier
             .clip(CircleShape)
-            .background(Color.White.copy(alpha = 0.07f))
+            .background(WisdomInk.copy(alpha = 0.07f))
             .border(BorderStroke(1.dp, WisdomBorderWhite), CircleShape)
             .padding(horizontal = 14.dp, vertical = 7.dp)
     ) {
@@ -737,7 +742,7 @@ private fun AccordionCard(
         label = "guideChevron"
     )
     val edge by animateColorAsState(
-        targetValue = if (open) accent.copy(alpha = 0.55f) else Color.White.copy(alpha = 0.10f),
+        targetValue = if (open) accent.copy(alpha = 0.55f) else WisdomInk.copy(alpha = 0.10f),
         animationSpec = tween(240),
         label = "guideAccordionEdge"
     )
@@ -772,7 +777,7 @@ private fun AccordionCard(
                 fontWeight = FontWeight.Bold,
                 fontSize = 15.sp,
                 lineHeight = 20.sp,
-                color = Color.White,
+                color = WisdomInk,
                 modifier = Modifier.weight(1f)
             )
             Icon(
@@ -867,7 +872,7 @@ private fun GuideSearchField(value: String, onChange: (String) -> Unit, placehol
             fontFamily = PlusJakartaSansFontFamily,
             fontSize = 14.sp,
             fontWeight = FontWeight.Medium,
-            color = Color.White
+            color = WisdomInk
         ),
         placeholder = { Text(placeholder, fontSize = 13.sp, fontWeight = FontWeight.Normal, color = GuideSoftColor) },
         leadingIcon = {
@@ -892,11 +897,11 @@ private fun GuideSearchField(value: String, onChange: (String) -> Unit, placehol
         colors = OutlinedTextFieldDefaults.colors(
             focusedBorderColor = WisdomCyan,
             unfocusedBorderColor = WisdomBorderWhite,
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
+            focusedTextColor = WisdomInk,
+            unfocusedTextColor = WisdomInk,
             cursorColor = WisdomCyan,
-            focusedContainerColor = Color.White.copy(alpha = 0.06f),
-            unfocusedContainerColor = Color.White.copy(alpha = 0.06f)
+            focusedContainerColor = WisdomInk.copy(alpha = 0.06f),
+            unfocusedContainerColor = WisdomInk.copy(alpha = 0.06f)
         ),
         singleLine = true
     )
@@ -905,7 +910,7 @@ private fun GuideSearchField(value: String, onChange: (String) -> Unit, placehol
 @Composable
 private fun FilterChip(label: String, selected: Boolean, accent: Color, onClick: () -> Unit) {
     val fill by animateColorAsState(
-        targetValue = if (selected) accent.copy(alpha = 0.22f) else Color.White.copy(alpha = 0.06f),
+        targetValue = if (selected) accent.copy(alpha = 0.22f) else WisdomInk.copy(alpha = 0.06f),
         animationSpec = tween(240),
         label = "guideChipFill"
     )
@@ -947,7 +952,7 @@ private fun EmptyNoteCard(title: String?, text: String) {
                 fontWeight = FontWeight.Bold,
                 fontSize = 17.sp,
                 lineHeight = 22.sp,
-                color = Color.White
+                color = WisdomInk
             )
         }
         Text(text = text, style = GuideBodyStyle)
@@ -1034,7 +1039,7 @@ private fun TipHeader(accent: Color) {
             fontWeight = FontWeight.Bold,
             fontSize = 28.sp,
             lineHeight = 34.sp,
-            color = Color.White
+            color = WisdomInk
         )
         Box(
             modifier = Modifier
@@ -1064,7 +1069,7 @@ private fun TipSectionCard(
             .border(
                 BorderStroke(
                     1.dp,
-                    Brush.linearGradient(listOf(accent.copy(alpha = 0.6f), Color.White.copy(alpha = 0.06f)))
+                    Brush.linearGradient(listOf(accent.copy(alpha = 0.6f), WisdomInk.copy(alpha = 0.06f)))
                 ),
                 shape
             )
@@ -1319,7 +1324,7 @@ private fun StudyTechniqueStepCard(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 15.sp,
                 lineHeight = 23.sp,
-                color = Color.White,
+                color = WisdomInk,
                 modifier = Modifier.weight(1f)
             )
         }
@@ -1368,7 +1373,7 @@ private fun StepHeader(step: String, category: String, title: String, accentColo
                 fontSize = 20.sp,
                 lineHeight = 25.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = WisdomInk
             )
         }
     }
@@ -1489,7 +1494,7 @@ private fun SuccessStoryCardItem(story: SuccessStory) {
                             fontSize = 19.sp,
                             lineHeight = 24.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = WisdomInk
                         )
                         val byline = listOf(story.name, story.program, story.year).filter { it.isNotBlank() }.joinToString(" · ")
                         if (byline.isNotEmpty()) {
@@ -1737,7 +1742,7 @@ private fun CampusSectionCard(
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 16.sp,
                 lineHeight = 23.sp,
-                color = Color.White
+                color = WisdomInk
             )
         }
         paragraphs.forEach { p ->
@@ -1927,7 +1932,7 @@ private fun UniversityDetailCard(uni: UniversityDetail) {
                 fontSize = 19.sp,
                 lineHeight = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = WisdomInk
             )
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Icon(Icons.Filled.LocationOn, contentDescription = null, tint = WisdomAccentSky, modifier = Modifier.size(20.dp))
@@ -2152,7 +2157,7 @@ private fun DepartmentDetailCard(dept: DepartmentDetail, categoryLabel: String) 
                 fontSize = 19.sp,
                 lineHeight = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = WisdomInk
             )
 
             // Preview: always visible, so the button does not move when the card opens.
@@ -2321,7 +2326,7 @@ private fun ScholarshipCardItem(sch: ScholarshipOpportunity) {
                 fontSize = 19.sp,
                 lineHeight = 24.sp,
                 fontWeight = FontWeight.Bold,
-                color = Color.White
+                color = WisdomInk
             )
             val providerLine = listOf(sch.provider, sch.amount).filter { it.isNotBlank() }.joinToString(" · ")
             if (providerLine.isNotEmpty()) {
