@@ -65,6 +65,7 @@ import com.wisdomtower.academy.data.content.BookFileStore
 import com.wisdomtower.academy.data.content.LearningProgressRepository
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
@@ -96,6 +97,11 @@ private const val MAX_ZOOM = 3f
  * Zoom (N4 part 3): pinch with two fingers to zoom from 1x to 3x, drag sideways to move across a zoomed page
  * (up and down is the normal scroll), double tap to zoom in to 2x or back to 1x. Pages are drawn at 1.5x the
  * screen width so a zoomed page stays reasonably sharp; at 3x it is softer (hypothesis, not tested).
+ *
+ * D6c (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Only two colours needed a change: the title in the top bar is [WisdomInk]
+ * (white at night) and the grey box shown while a page is still drawing is a [WisdomInk] tint (white 6 percent at night, so
+ * night is identical). The page itself stays white on purpose (it is the book), and the "Page n / m" pill keeps its dark
+ * fill with white text in both modes because it sits on top of a white page.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -149,7 +155,7 @@ fun PdfReaderScreen(
                     text = title,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.SemiBold,
-                    color = Color.White,
+                    color = WisdomInk,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -439,7 +445,7 @@ private fun PdfPageImage(
         Box(
             modifier = modifier
                 .aspectRatio(0.707f)
-                .background(Color.White.copy(alpha = 0.06f)),
+                .background(WisdomInk.copy(alpha = 0.06f)),
             contentAlignment = Alignment.Center
         ) {
             CircularProgressIndicator(color = WisdomCyan, modifier = Modifier.size(24.dp))
