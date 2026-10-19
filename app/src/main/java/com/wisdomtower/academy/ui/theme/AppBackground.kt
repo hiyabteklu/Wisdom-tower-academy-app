@@ -89,14 +89,15 @@ enum class AppBackgroundOption(
     ),
 
     /**
-     * DAY-SAGE day look (ON, see [DAY_MODE_OFFERED]): sage-teal page A9C6C1, a pale sky-white glow at the top and
-     * a deeper sage glow at the bottom. No picture. [isLight] is true, so the day tokens apply everywhere.
+     * DAY-IVORY2 day look (ON, see [DAY_MODE_OFFERED]): light warm ivory page E9E5DC, a pale sky glow at the top (DDEBF3)
+     * and a champagne glow at the bottom (F1E3C4). No picture. [isLight] is true, so the day tokens apply everywhere.
+     * The sage version (page A9C6C1, glows E3F1F5 0.45 and 7FA8A2 0.40) looked muddy and inverse and was replaced.
      */
     Day(
-        "Day", Color(0xFFA9C6C1),
+        "Day", Color(0xFFE9E5DC),
         listOf(
-            BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFFE3F1F5), 0.45f),
-            BackdropGlow(0.5f, 1.05f, 0.95f, Color(0xFF7FA8A2), 0.40f)
+            BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFFDDEBF3), 0.50f),
+            BackdropGlow(0.5f, 1.05f, 0.95f, Color(0xFFF1E3C4), 0.40f)
         ),
         isLight = true
     );

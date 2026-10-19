@@ -33,8 +33,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomDark
+import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.wisdomReveal
@@ -52,6 +54,9 @@ import com.wisdomtower.academy.ui.theme.wisdomReveal
  * decorative and the inner "Open" label is hidden from TalkBack so nothing is read twice. Looks are unchanged.
  *
  * L2 (day / night): the title is [WisdomInk] (white at night, deep navy by day); everything else already used tokens.
+ *
+ * DAY-IVORY2 (owner order 2026-10-19): by day the Open button was teal on a teal tint on a card and washed out. By day it is
+ * now a SOLID deep teal with white text. At night it is exactly as before (cyan 12 percent fill, cyan edge, cyan text).
  */
 @Composable
 fun OpenCard(
@@ -77,6 +82,10 @@ fun OpenCard(
     onClick: () -> Unit
 ) {
     val context = LocalContext.current
+    val night = AppThemeMode.isDark
+    val openFill = if (night) WisdomCyan.copy(alpha = 0.12f) else WisdomCyan
+    val openEdge = if (night) WisdomCyan.copy(alpha = 0.45f) else WisdomCyan
+    val openText = if (night) WisdomCyan else WisdomDarkOnCyan
 
     WisdomGlassCard(
         modifier = modifier.fillMaxWidth(),
@@ -136,14 +145,14 @@ fun OpenCard(
                     modifier = Modifier
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(10.dp))
-                        .background(WisdomCyan.copy(alpha = 0.12f))
+                        .background(openFill)
                         .border(
-                            BorderStroke(1.dp, WisdomCyan.copy(alpha = 0.45f)),
+                            BorderStroke(1.dp, openEdge),
                             RoundedCornerShape(10.dp)
                         )
                         .clickable(
                             interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(color = WisdomCyan.copy(alpha = 0.25f)),
+                            indication = ripple(color = openText.copy(alpha = 0.25f)),
                             onClick = onClick
                         )
                         .padding(vertical = 8.dp, horizontal = 10.dp),
@@ -153,7 +162,7 @@ fun OpenCard(
                         text = "Open",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = WisdomCyan,
+                        color = openText,
                         modifier = Modifier.clearAndSetSemantics { } // S3: the whole card is ONE button named by its title
                     )
                 }
