@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.settings
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomOnInk
 import android.content.Context
 import android.widget.Toast
 import androidx.compose.animation.animateColorAsState
@@ -248,12 +250,12 @@ fun SettingsScreen(
                                             text = displayName,
                                             fontSize = 16.sp,
                                             fontWeight = FontWeight.Black,
-                                            color = Color.White
+                                            color = WisdomInk
                                         )
                                         Box(
                                             modifier = Modifier
                                                 .clip(CircleShape)
-                                                .background(Color.White.copy(alpha = 0.08f))
+                                                .background(WisdomInk.copy(alpha = 0.08f))
                                                 .border(BorderStroke(1.dp, WisdomBorderWhite), CircleShape)
                                                 .padding(horizontal = 6.dp, vertical = 1.dp)
                                         ) {
@@ -261,7 +263,7 @@ fun SettingsScreen(
                                                 text = "VERIFIED",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = Color.White
+                                                color = WisdomInk
                                             )
                                         }
                                     }
@@ -304,16 +306,16 @@ fun SettingsScreen(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(12.dp))
-                                    .background(Color.White.copy(alpha = 0.05f))
+                                    .background(WisdomInk.copy(alpha = 0.05f))
                                     .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
                                     .clickable(role = Role.Button) { onNavigateToUrl("/account") }
                                     .padding(vertical = 8.dp),
                                 contentAlignment = Alignment.Center
                             ) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = Color.White, modifier = Modifier.size(13.dp))
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = null, tint = WisdomInk, modifier = Modifier.size(13.dp))
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Text(text = "Account", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                    Text(text = "Account", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
                                 }
                             }
                         }
@@ -357,8 +359,8 @@ fun SettingsScreen(
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .clip(RoundedCornerShape(10.dp))
-                                                .background(wisdomAnimatedColor(isSelected, Color.White, Color.White.copy(alpha = 0.04f)))
-                                                .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, Color.White, WisdomBorderWhite)), RoundedCornerShape(10.dp))
+                                                .background(wisdomAnimatedColor(isSelected, WisdomInk, WisdomInk.copy(alpha = 0.04f)))
+                                                .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, WisdomInk, WisdomBorderWhite)), RoundedCornerShape(10.dp))
                                                 .semantics { selected = isSelected }
                                                     .clickable(role = Role.RadioButton) {
                                                     dailyGoalMinutes = mins
@@ -371,7 +373,7 @@ fun SettingsScreen(
                                                 text = "$mins min/day",
                                                 fontSize = 11.sp,
                                                 fontWeight = FontWeight.Bold,
-                                                color = wisdomAnimatedColor(isSelected, Color.Black, Color.White)
+                                                color = wisdomAnimatedColor(isSelected, WisdomOnInk, WisdomInk)
                                             )
                                         }
                                     }
@@ -429,8 +431,8 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(wisdomAnimatedColor(isSelected, Color.White.copy(alpha = 0.15f), Color.White.copy(alpha = 0.03f)))
-                                        .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, Color.White.copy(alpha = 0.5f), WisdomBorderWhite)), RoundedCornerShape(10.dp))
+                                        .background(wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.15f), WisdomInk.copy(alpha = 0.03f)))
+                                        .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.5f), WisdomBorderWhite)), RoundedCornerShape(10.dp))
                                         .semantics { selected = isSelected }
                                             .clickable(role = Role.RadioButton) {
                                             studyWindow = id
@@ -439,7 +441,7 @@ fun SettingsScreen(
                                         .padding(10.dp)
                                 ) {
                                     Column {
-                                        Text(text = pair.first, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(text = pair.first, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                                         Text(text = pair.second, fontSize = 12.sp, color = WisdomMuted)
                                     }
                                 }
@@ -453,8 +455,8 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
-                                        .background(wisdomAnimatedColor(isSelected, Color.White.copy(alpha = 0.15f), Color.White.copy(alpha = 0.03f)))
-                                        .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, Color.White.copy(alpha = 0.5f), WisdomBorderWhite)), RoundedCornerShape(10.dp))
+                                        .background(wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.15f), WisdomInk.copy(alpha = 0.03f)))
+                                        .border(BorderStroke(1.dp, wisdomAnimatedColor(isSelected, WisdomInk.copy(alpha = 0.5f), WisdomBorderWhite)), RoundedCornerShape(10.dp))
                                         .semantics { selected = isSelected }
                                             .clickable(role = Role.RadioButton) {
                                             studyWindow = id
@@ -463,7 +465,7 @@ fun SettingsScreen(
                                         .padding(10.dp)
                                 ) {
                                     Column {
-                                        Text(text = pair.first, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                        Text(text = pair.first, fontSize = 11.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                                         Text(text = pair.second, fontSize = 12.sp, color = WisdomMuted)
                                     }
                                 }
@@ -627,7 +629,7 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.03f))
+                                .background(WisdomInk.copy(alpha = 0.03f))
                                 .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
                                 .padding(14.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)
@@ -642,7 +644,7 @@ fun SettingsScreen(
                                         text = "Game Audio Volume ($volumePercent%)",
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Bold,
-                                        color = Color.White
+                                        color = WisdomInk
                                     )
                                     Text(
                                         text = "Master sound level calibrated for study games",
@@ -679,12 +681,12 @@ fun SettingsScreen(
                                     valueRange = 0.05f..1f,
                                     modifier = Modifier.weight(1f).semantics { contentDescription = "Game audio volume" },
                                     colors = SliderDefaults.colors(
-                                        thumbColor = Color.White,
-                                        activeTrackColor = Color.White,
-                                        inactiveTrackColor = Color.White.copy(alpha = 0.15f)
+                                        thumbColor = WisdomInk,
+                                        activeTrackColor = WisdomInk,
+                                        inactiveTrackColor = WisdomInk.copy(alpha = 0.15f)
                                     )
                                 )
-                                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = Color.White, modifier = Modifier.size(16.dp))
+                                Icon(Icons.Default.VolumeUp, contentDescription = null, tint = WisdomInk, modifier = Modifier.size(16.dp))
                             }
                         }
                     }
@@ -735,14 +737,14 @@ fun SettingsScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
-                                .background(Color.White.copy(alpha = 0.03f))
+                                .background(WisdomInk.copy(alpha = 0.03f))
                                 .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
                                 .padding(14.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(text = "Total Cached Offline Data", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                Text(text = "Total Cached Offline Data", fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                                 Text(
                                     text = "PDF textbooks, summaries, question banks, study logs, and offline assets.",
                                     fontSize = 11.sp,
@@ -754,7 +756,7 @@ fun SettingsScreen(
                                 text = storageLabel,
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = WisdomInk,
                                 fontFamily = FontFamily.Monospace,
                                 modifier = Modifier.padding(start = 8.dp)
                             )
@@ -833,7 +835,7 @@ fun SettingsScreen(
                                     Text(
                                         text = "Your password will be updated and your next login will require this new password. Please make sure you record it securely.",
                                         fontSize = 12.sp,
-                                        color = Color.White,
+                                        color = WisdomInk,
                                         lineHeight = 15.sp
                                     )
                                 }
@@ -874,7 +876,7 @@ fun SettingsScreen(
                             com.wisdomtower.academy.ui.auth.SignedOutSignInPill() // UX-CONSISTENCY-2026-10-17
                         }
 
-                        Text(text = "Change Password", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Text(text = "Change Password", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
 
                         OutlinedTextField(
                             value = newPassword,
@@ -1041,7 +1043,7 @@ private fun SettingsAccordionCard(
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
+                            .background(WisdomInk.copy(alpha = 0.05f))
                             .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -1050,12 +1052,12 @@ private fun SettingsAccordionCard(
 
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text(text = title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text(text = title, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                             if (badgeText != null) {
                                 Box(
                                     modifier = Modifier
                                         .clip(CircleShape)
-                                        .background(Color.White.copy(alpha = 0.08f))
+                                        .background(WisdomInk.copy(alpha = 0.08f))
                                         .border(BorderStroke(1.dp, WisdomBorderWhite), CircleShape)
                                         .padding(horizontal = 6.dp, vertical = 1.dp)
                                 ) {
@@ -1079,7 +1081,7 @@ private fun SettingsAccordionCard(
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.02f))
+                        .background(WisdomInk.copy(alpha = 0.02f))
                         .border(BorderStroke(1.dp, WisdomBorderWhite.copy(alpha = 0.4f)))
                 ) {
                     content()
@@ -1100,7 +1102,7 @@ private fun ToggleRow(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.03f))
+            .background(WisdomInk.copy(alpha = 0.03f))
             .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
             .toggleable(
                 value = checked,
@@ -1114,7 +1116,7 @@ private fun ToggleRow(
         horizontalArrangement = Arrangement.SpaceBetween
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Text(text = title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+            Text(text = title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
             Text(text = subtitle, fontSize = 12.sp, color = WisdomMuted, lineHeight = 15.sp)
         }
 
@@ -1122,10 +1124,10 @@ private fun ToggleRow(
             checked = checked,
             onCheckedChange = null,
             colors = SwitchDefaults.colors(
-                checkedThumbColor = Color.Black,
-                checkedTrackColor = Color.White,
-                uncheckedThumbColor = Color.White,
-                uncheckedTrackColor = Color.White.copy(alpha = 0.15f),
+                checkedThumbColor = WisdomOnInk,
+                checkedTrackColor = WisdomInk,
+                uncheckedThumbColor = WisdomInk,
+                uncheckedTrackColor = WisdomInk.copy(alpha = 0.15f),
                 uncheckedBorderColor = Color.Transparent
             )
         )
@@ -1136,10 +1138,10 @@ private fun ToggleRow(
 private fun settingsFieldColors() = OutlinedTextFieldDefaults.colors(
     focusedBorderColor = WisdomCyan,
     unfocusedBorderColor = WisdomBorderWhite,
-    focusedContainerColor = Color.White.copy(alpha = 0.06f),
-    unfocusedContainerColor = Color.White.copy(alpha = 0.06f),
-    focusedTextColor = Color.White,
-    unfocusedTextColor = Color.White,
+    focusedContainerColor = WisdomInk.copy(alpha = 0.06f),
+    unfocusedContainerColor = WisdomInk.copy(alpha = 0.06f),
+    focusedTextColor = WisdomInk,
+    unfocusedTextColor = WisdomInk,
     focusedLabelColor = WisdomCyan,
     unfocusedLabelColor = WisdomMuted
 )

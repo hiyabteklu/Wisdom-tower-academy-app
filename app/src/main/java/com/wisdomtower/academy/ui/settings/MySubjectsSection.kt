@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.settings
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomOnInk
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -96,14 +98,14 @@ fun MySubjectsSection() {
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
+                            .background(WisdomInk.copy(alpha = 0.05f))
                             .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Filled.School, contentDescription = null, tint = WisdomCyan, modifier = Modifier.size(20.dp))
                     }
                     Column {
-                        Text("My Subjects", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text("My Subjects", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                         Text("Choose what you study. Your status counts only these.", fontSize = 11.sp, color = WisdomMuted)
                     }
                 }
@@ -114,7 +116,7 @@ fun MySubjectsSection() {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.02f))
+                        .background(WisdomInk.copy(alpha = 0.02f))
                         .border(BorderStroke(1.dp, WisdomBorderWhite.copy(alpha = 0.4f)))
                         .padding(16.dp),
                     verticalArrangement = Arrangement.spacedBy(14.dp)
@@ -185,7 +187,7 @@ private fun PackagePicker(pkg: MySubjectsPackage, picks: Set<String>, onChange: 
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
-            .background(Color.White.copy(alpha = 0.03f))
+            .background(WisdomInk.copy(alpha = 0.03f))
             .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
             .padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
@@ -196,7 +198,7 @@ private fun PackagePicker(pkg: MySubjectsPackage, picks: Set<String>, onChange: 
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text(pkg.label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(pkg.label, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 Text("$selectedCount selected", fontSize = 11.sp, color = WisdomMuted)
             }
             Text(
@@ -260,13 +262,13 @@ private fun SubjectPill(text: String, selected: Boolean, outlined: Boolean = fal
             .clip(shape)
             .background(
                 when {
-                    selected -> Color.White
+                    selected -> WisdomInk
                     outlined -> WisdomCyan.copy(alpha = 0.10f)
-                    else -> Color.White.copy(alpha = 0.04f)
+                    else -> WisdomInk.copy(alpha = 0.04f)
                 }
             )
             .border(
-                BorderStroke(1.dp, if (selected) Color.White else if (outlined) WisdomCyan.copy(alpha = 0.4f) else WisdomBorderWhite),
+                BorderStroke(1.dp, if (selected) WisdomInk else if (outlined) WisdomCyan.copy(alpha = 0.4f) else WisdomBorderWhite),
                 shape
             )
             .then(tapModifier)
@@ -277,7 +279,7 @@ private fun SubjectPill(text: String, selected: Boolean, outlined: Boolean = fal
             text,
             fontSize = 11.5.sp,
             fontWeight = FontWeight.SemiBold,
-            color = if (selected) Color.Black else if (outlined) WisdomCyan else Color.White
+            color = if (selected) WisdomOnInk else if (outlined) WisdomCyan else WisdomInk
         )
     }
 }

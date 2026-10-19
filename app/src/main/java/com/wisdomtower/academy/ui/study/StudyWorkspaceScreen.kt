@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -421,7 +422,7 @@ fun StudyWorkspaceScreen(
                                 text = title,
                                 fontSize = 20.sp,
                                 fontWeight = FontWeight.ExtraBold,
-                                color = Color.White,
+                                color = WisdomInk,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
