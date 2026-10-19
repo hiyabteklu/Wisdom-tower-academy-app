@@ -41,8 +41,10 @@ import com.wisdomtower.academy.data.competition.CompetitionSession
 import com.wisdomtower.academy.data.competition.ExamLockdown
 import com.wisdomtower.academy.data.competition.SubmitResult
 import com.wisdomtower.academy.ui.theme.AppBackdrop
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -76,6 +78,10 @@ private val examSaveScope = CoroutineScope(SupervisorJob() + Dispatchers.Default
 // by admins, may result in disqualification. The owner decided NOT to pin the phone.
 // Default background picture (owner, 2026-10-17): the screen now draws the app background (AtmosphereBackground)
 // behind the page, the WebView is see-through and the page's own dark page colour is cleared (AppBackdrop).
+// D7e (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. The only native colours here are in the away-warning dialog: its
+// card was fixed dark 0F1829 at 95 percent with a white title. Night keeps exactly that; day uses ivory FBF9F4 at 95
+// percent with the navy ink title (WisdomInk). The body text (WisdomMuted) and the rose button (WisdomAccentRose) were
+// already mode aware. The exam page itself is covered by the D8 script.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 // Receives the calls from the page on a WebView thread and hands them to the main thread.
@@ -359,11 +365,11 @@ fun CompetitionExamScreen(
     if (showAwayWarning && !submittedOk) {
         AlertDialog(
             onDismissRequest = { },
-            containerColor = Color(0xF20F1829),
+            containerColor = if (AppThemeMode.isDark) Color(0xF20F1829) else Color(0xF2FBF9F4),
             title = {
                 Text(
                     text = "You left the exam window",
-                    color = Color.White,
+                    color = WisdomInk,
                     fontWeight = FontWeight.Bold,
                     fontSize = 16.sp
                 )
