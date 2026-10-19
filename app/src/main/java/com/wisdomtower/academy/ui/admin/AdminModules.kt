@@ -58,7 +58,10 @@ internal fun adminModuleForTab(raw: String?): AdminModule? {
  * (AdminWebSection). Add an id here in the same commit that adds its native screen.
  * N2: inquiries. N3: payments. N4: users. N5: overview. N6: grants, locks, catalog. N7: content.
  * N8a: notifications (history and scheduled list; the composer still opens the website panel).
- * N9: competitions.
+ * N9: competitions. N10: free-resources.
  */
 internal val NATIVE_ADMIN_MODULE_IDS: Set<String> =
-    setOf("inquiries", "payments", "users", "overview", "grants", "locks", "catalog", "content", "notifications", "competitions")
+    setOf(
+        "inquiries", "payments", "users", "overview", "grants", "locks", "catalog", "content",
+        "notifications", "competitions", "free-resources"
+    )
