@@ -40,7 +40,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
+import com.wisdomtower.academy.ui.theme.WisdomAccentPurple
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
+import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 import java.math.BigDecimal
 import kotlin.math.PI
 import kotlin.math.abs
@@ -63,6 +74,10 @@ import kotlin.math.tan
  * impossible or infinite result shows "Error". The website runs the text through JavaScript; here a small parser does
  * the same job (no code is executed). Not ported: the website's draggable floating window and full-screen toggle (this is
  * a full screen already).
+ *
+ * D6d (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode, UI part only (the parser is unchanged). Night keeps the exact old
+ * literals as `dayNight` pairs. By day: the card and keys are the frosted ivory glass, text is ink, the cyan / purple / amber /
+ * rose key texts are the darker day accents, the display is the quiet glass, the "=" key is the deep teal with white text.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -123,13 +138,13 @@ fun NativeCalculatorScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         modifier = Modifier
                             .size(30.dp)
                             .clip(RoundedCornerShape(8.dp))
-                            .background(Color(0xFF06B6D4).copy(alpha = 0.20f))
-                            .border(BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.30f)), RoundedCornerShape(8.dp)),
+                            .background(CcAccentBg.copy(alpha = 0.20f))
+                            .border(BorderStroke(1.dp, CcAccentEdge.copy(alpha = 0.30f)), RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Filled.Calculate, contentDescription = null, tint = Color(0xFF67E8F9), modifier = Modifier.size(18.dp))
+                        Icon(Icons.Filled.Calculate, contentDescription = null, tint = CcAccent, modifier = Modifier.size(18.dp))
                     }
-                    Text("Scientific Calculator", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Scientific Calculator", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 }
             }
 
@@ -146,8 +161,8 @@ fun NativeCalculatorScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         .widthIn(max = 520.dp)
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(24.dp))
-                        .background(Color.White.copy(alpha = 0.04f))
-                        .border(BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.30f)), RoundedCornerShape(24.dp))
+                        .background(CcCardFill)
+                        .border(BorderStroke(1.dp, CcAccentEdge.copy(alpha = 0.30f)), RoundedCornerShape(24.dp))
                         .padding(16.dp)
                 ) {
                     // Header inside card
@@ -156,77 +171,78 @@ fun NativeCalculatorScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Natural Input Mode", fontSize = 11.sp, color = Color(0xFF67E8F9), fontFamily = FontFamily.Monospace)
-                        val modeColor = if (isRad) Color(0xFFD8B4FE) else Color(0xFF67E8F9)
-                        val modeBg = if (isRad) Color(0xFFA855F7) else Color(0xFF06B6D4)
+                        Text("Natural Input Mode", fontSize = 11.sp, color = CcAccent, fontFamily = FontFamily.Monospace)
+                        val modeColor = if (isRad) CcPurpleText else CcAccent
+                        val modeBg = if (isRad) CcPurpleBg else CcAccentBg
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(modeBg.copy(alpha = 0.20f))
                                 .border(BorderStroke(1.dp, modeBg.copy(alpha = 0.40f)), RoundedCornerShape(10.dp))
-                            .clickable { isRad = !isRad }
-                            .padding(horizontal = 10.dp, vertical = 6.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(if (isRad) "RAD" else "DEG", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = modeColor)
-                    }
-                }
-
-                Box(
-                    modifier = Modifier
-                        .padding(top = 12.dp)
-                        .fillMaxWidth()
-                        .height(1.dp)
-                        .background(Color.White.copy(alpha = 0.10f))
-                )
-
-                // Display
-                Column(
-                    modifier = Modifier
-                        .padding(vertical = 12.dp)
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(16.dp))
-                        .background(Color(0x4D040813))
-                        .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)), RoundedCornerShape(16.dp))
-                        .heightIn(min = 88.dp)
-                        .padding(14.dp),
-                    verticalArrangement = Arrangement.Bottom,
-                    horizontalAlignment = Alignment.End
-                ) {
-                    Text(
-                        text = if (expression.isEmpty()) "sin(30) = 0.5" else expression,
-                        fontSize = 12.sp,
-                        color = Color(0xFF94A3B8),
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        softWrap = false,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier.horizontalScroll(rememberScrollState(), reverseScrolling = true)
-                    )
-                    Text(
-                        text = displayResult,
-                        fontSize = 30.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color(0xFF67E8F9),
-                        fontFamily = FontFamily.Monospace,
-                        maxLines = 1,
-                        softWrap = false,
-                        textAlign = TextAlign.End,
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .horizontalScroll(rememberScrollState(), reverseScrolling = true)
-                    )
-                }
-
-                // Keypad: 7 rows x 5 keys, same order and colours as the website
-                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    CALC_ROWS.forEach { row ->
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                .clickable { isRad = !isRad }
+                                .padding(horizontal = 10.dp, vertical = 6.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            row.forEach { key ->
-                                CalcKeyButton(key = key, onClick = { onKey(key) }, modifier = Modifier.weight(1f))
+                            Text(if (isRad) "RAD" else "DEG", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = modeColor)
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .padding(top = 12.dp)
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(WisdomInk.copy(alpha = 0.10f))
+                    )
+
+                    // Display
+                    Column(
+                        modifier = Modifier
+                            .padding(vertical = 12.dp)
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(CcDisplayFill)
+                            .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.10f)), RoundedCornerShape(16.dp))
+                            .heightIn(min = 88.dp)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.Bottom,
+                        horizontalAlignment = Alignment.End
+                    ) {
+                        Text(
+                            text = if (expression.isEmpty()) "sin(30) = 0.5" else expression,
+                            fontSize = 12.sp,
+                            color = CcSlate400,
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier.horizontalScroll(rememberScrollState(), reverseScrolling = true)
+                        )
+                        Text(
+                            text = displayResult,
+                            fontSize = 30.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = CcAccent,
+                            fontFamily = FontFamily.Monospace,
+                            maxLines = 1,
+                            softWrap = false,
+                            textAlign = TextAlign.End,
+                            modifier = Modifier
+                                .padding(top = 4.dp)
+                                .horizontalScroll(rememberScrollState(), reverseScrolling = true)
+                        )
+                    }
+
+                    // Keypad: 7 rows x 5 keys, same order and colours as the website
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        CALC_ROWS.forEach { row ->
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
+                                row.forEach { key ->
+                                    CalcKeyButton(key = key, onClick = { onKey(key) }, modifier = Modifier.weight(1f))
+                                }
                             }
                         }
                     }
@@ -235,7 +251,21 @@ fun NativeCalculatorScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         }
     }
 }
-}
+
+// ---- D6d day / night colours. Night value = the exact old literal; day value = Ivory & Navy token. Getters: read while composing. ----
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+
+private val CcAccent: Color get() = dayNight(Color(0xFF67E8F9), WisdomCyan)
+private val CcAccentBg: Color get() = dayNight(Color(0xFF06B6D4), WisdomCyan)
+private val CcAccentEdge: Color get() = dayNight(Color(0xFF22D3EE), WisdomCyan)
+private val CcPurpleText: Color get() = dayNight(Color(0xFFD8B4FE), WisdomAccentPurple)
+private val CcPurpleBg: Color get() = dayNight(Color(0xFFA855F7), WisdomAccentPurple)
+private val CcSlate400: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val CcSlate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomMuted)
+private val CcAmberText: Color get() = dayNight(Color(0xFFFCD34D), WisdomAccentAmber)
+private val CcRoseText: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRose)
+private val CcCardFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFill)
+private val CcDisplayFill: Color get() = dayNight(Color(0x4D040813), WisdomGlassFillQuiet)
 
 private enum class CalcAction { Append, Ans, Back, Clear, Equals }
 
@@ -279,49 +309,41 @@ private val CALC_ROWS: List<List<CalcKey>> = listOf(
 
 @Composable
 private fun CalcKeyButton(key: CalcKey, onClick: () -> Unit, modifier: Modifier = Modifier) {
-    val cyanText = Color(0xFF67E8F9)
-    val purpleText = Color(0xFFD8B4FE)
-    val slateText = Color(0xFFCBD5E1)
-    val amberText = Color(0xFFFCD34D)
-    val roseText = Color(0xFFFDA4AF)
-    val whiteFaint = Color.White.copy(alpha = 0.05f)
-    val whiteBorder = BorderStroke(1.dp, Color.White.copy(alpha = 0.10f))
-
-    var bg = whiteFaint
-    var border = whiteBorder
-    var textColor = Color.White
+    var bg = dayNight(Color.White.copy(alpha = 0.05f), WisdomGlassFillStrong)
+    var border = BorderStroke(1.dp, dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder))
+    var textColor = WisdomInk
     var weight = FontWeight.SemiBold
     when (key.style) {
-        CalcStyle.Fn -> textColor = cyanText
-        CalcStyle.Const -> textColor = purpleText
-        CalcStyle.Paren -> textColor = slateText
-        CalcStyle.Percent -> textColor = slateText
-        CalcStyle.Ans -> textColor = amberText
+        CalcStyle.Fn -> textColor = CcAccent
+        CalcStyle.Const -> textColor = CcPurpleText
+        CalcStyle.Paren -> textColor = CcSlate300
+        CalcStyle.Percent -> textColor = CcSlate300
+        CalcStyle.Ans -> textColor = CcAmberText
         CalcStyle.Digit -> {
-            bg = Color.White.copy(alpha = 0.08f)
+            bg = dayNight(Color.White.copy(alpha = 0.08f), WisdomInk.copy(alpha = 0.07f))
             weight = FontWeight.Bold
         }
         CalcStyle.Op -> {
-            bg = Color(0xFF06B6D4).copy(alpha = 0.20f)
-            border = BorderStroke(1.dp, Color(0xFF22D3EE).copy(alpha = 0.30f))
-            textColor = cyanText
+            bg = CcAccentBg.copy(alpha = 0.20f)
+            border = BorderStroke(1.dp, CcAccentEdge.copy(alpha = 0.30f))
+            textColor = CcAccent
             weight = FontWeight.Bold
         }
         CalcStyle.Back -> {
-            bg = Color(0xFFF59E0B).copy(alpha = 0.20f)
-            border = BorderStroke(1.dp, Color(0xFFFBBF24).copy(alpha = 0.40f))
-            textColor = amberText
+            bg = dayNight(Color(0xFFF59E0B), WisdomAccentAmber).copy(alpha = 0.20f)
+            border = BorderStroke(1.dp, dayNight(Color(0xFFFBBF24), WisdomAccentAmber).copy(alpha = 0.40f))
+            textColor = CcAmberText
         }
         CalcStyle.Clear -> {
-            bg = Color(0xFFF43F5E).copy(alpha = 0.20f)
-            border = BorderStroke(1.dp, Color(0xFFFB7185).copy(alpha = 0.40f))
-            textColor = roseText
+            bg = dayNight(Color(0xFFF43F5E), WisdomAccentRose).copy(alpha = 0.20f)
+            border = BorderStroke(1.dp, dayNight(Color(0xFFFB7185), WisdomAccentRose).copy(alpha = 0.40f))
+            textColor = CcRoseText
             weight = FontWeight.Bold
         }
         CalcStyle.Equals -> {
-            bg = Color(0xFF22D3EE)
-            border = BorderStroke(1.dp, Color(0xFF22D3EE))
-            textColor = Color(0xFF020617)
+            bg = dayNight(Color(0xFF22D3EE), WisdomCyan)
+            border = BorderStroke(1.dp, dayNight(Color(0xFF22D3EE), WisdomCyan))
+            textColor = dayNight(Color(0xFF020617), Color.White)
             weight = FontWeight.Black
         }
     }
