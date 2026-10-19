@@ -4528,6 +4528,8 @@ private fun FuturisticGearRings(
         modifier = modifier.size(size),
         contentAlignment = Alignment.Center
     ) {
+        // D7b: day colours for the loader (marker: D7b: day colours for the loader). Night keeps the old neon literals.
+        val isDark = AppThemeMode.isDark
         val transition = rememberInfiniteTransition(label = "futuristicGear")
         val fastSpin by transition.animateFloat(
             initialValue = 0f,
@@ -4567,7 +4569,7 @@ private fun FuturisticGearRings(
 
             // 1. Futuristic Gear base track circle
             drawCircle(
-                color = Color(0x3300E5FF),
+                color = if (isDark) Color(0x3300E5FF) else Color(0x330B7285),
                 radius = rGearInner,
                 center = centerOffset,
                 style = Stroke(width = 1.dp.toPx())
@@ -4581,7 +4583,11 @@ private fun FuturisticGearRings(
                 val sin = Math.sin(rad).toFloat()
                 val p1 = Offset(centerOffset.x + rGearInner * cos, centerOffset.y + rGearInner * sin)
                 val p2 = Offset(centerOffset.x + rGearOuter * cos, centerOffset.y + rGearOuter * sin)
-                val tickColor = if (i % 2 == 0) Color(0xFF00E5FF) else Color(0xFF38BDF8)
+                val tickColor = if (i % 2 == 0) {
+                    if (isDark) Color(0xFF00E5FF) else Color(0xFF0B7285)
+                } else {
+                    if (isDark) Color(0xFF38BDF8) else Color(0xFF0369A1)
+                }
                 drawLine(
                     color = tickColor,
                     start = p1,
@@ -4594,12 +4600,21 @@ private fun FuturisticGearRings(
             // 3. Outer Neon Cyan Arc spinning fast (clockwise)
             drawArc(
                 brush = Brush.sweepGradient(
-                    listOf(
-                        Color(0x0000E5FF),
-                        Color(0x5500E5FF),
-                        Color(0xFF00E5FF),
-                        Color(0xFF38BDF8)
-                    )
+                    if (isDark) {
+                        listOf(
+                            Color(0x0000E5FF),
+                            Color(0x5500E5FF),
+                            Color(0xFF00E5FF),
+                            Color(0xFF38BDF8)
+                        )
+                    } else {
+                        listOf(
+                            Color(0x000B7285),
+                            Color(0x550B7285),
+                            Color(0xFF0B7285),
+                            Color(0xFF0369A1)
+                        )
+                    }
                 ),
                 startAngle = fastSpin,
                 sweepAngle = 270f,
@@ -4612,12 +4627,21 @@ private fun FuturisticGearRings(
             // 4. Inner Neon Violet Arc spinning fast in opposite direction (counter-clockwise)
             drawArc(
                 brush = Brush.sweepGradient(
-                    listOf(
-                        Color(0x00818CF8),
-                        Color(0x55818CF8),
-                        Color(0xFF818CF8),
-                        Color(0xFF00E5FF)
-                    )
+                    if (isDark) {
+                        listOf(
+                            Color(0x00818CF8),
+                            Color(0x55818CF8),
+                            Color(0xFF818CF8),
+                            Color(0xFF00E5FF)
+                        )
+                    } else {
+                        listOf(
+                            Color(0x004338CA),
+                            Color(0x554338CA),
+                            Color(0xFF4338CA),
+                            Color(0xFF0B7285)
+                        )
+                    }
                 ),
                 startAngle = counterSpin,
                 sweepAngle = 220f,
