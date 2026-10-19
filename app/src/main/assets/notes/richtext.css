@@ -115,3 +115,31 @@ html.wt-day .study-callout { background: rgba(11,114,133,.10); }
 html.wt-day mark.key-term { background: rgba(245,158,11,.22); }
 html.wt-day mark.hl-term { background: rgba(11,114,133,.16); }
 html.wt-day .gauge circle:first-child { stroke: rgba(11,27,51,.12); }
+
+/* D9a (2026-10-19, owner: day mode still shows white and yellow text on the light page in notes). SAFETY NET in this ONE shared
+ * file, so no page file needs an edit. Only day uses it (class "wt-day"). It gives every reading colour above a dark day value
+ * with !important, so the text is readable even if the day script in AppBackdrop.kt misses an element (the script's inline
+ * colours still win where it runs, they are the same family of colours). Values: ink 0B1B33, deep teal 0B7285 / 0B5563,
+ * dark amber 92400E / 78350F, brown 7C2D12. Night is untouched. Not seen on a phone: hand contrast estimates, all above 4.5:1
+ * on the ivory page (hypothesis, D9 measures them). To go back: delete this block. */
+html.wt-day .study-h1 { color: #0b1b33 !important; }
+html.wt-day .study-h2 { color: #0b7285 !important; }
+html.wt-day .study-h2-bar { background: linear-gradient(#0b7285, #0369a1) !important; }
+html.wt-day .study-h3 { color: #92400e !important; }
+html.wt-day .study-callout { color: #0b1b33 !important; border-left-color: #0b7285 !important; }
+html.wt-day .study-hr { border-top-color: rgba(11,27,51,.16) !important; }
+html.wt-day strong { color: #0b1b33 !important; }
+html.wt-day em { color: #0b5563 !important; }
+html.wt-day mark.key-term { color: #78350f !important; }
+html.wt-day mark.hl-term { color: #0b1b33 !important; }
+html.wt-day code.md-code { color: #7c2d12 !important; }
+html.wt-day pre { background: rgba(11,27,51,.06) !important; border-color: rgba(11,27,51,.16) !important; color: #0b1b33 !important; }
+html.wt-day table.study-table th, html.wt-day table.study-table td { border-color: rgba(11,27,51,.16) !important; }
+html.wt-day table.study-table th { color: #0b1b33 !important; }
+html.wt-day .katex { color: #0b1b33 !important; }
+html.wt-day .math-fallback { color: #92400e !important; }
+html.wt-day #sumwrap { border-top-color: rgba(11,27,51,.16) !important; }
+html.wt-day #sumwrap .sumbtn { color: #0b1b33 !important; background: rgba(11,27,51,.06) !important; border-color: rgba(11,27,51,.16) !important; }
+html.wt-day .sumbox { color: #0b1b33 !important; background: rgba(248,245,238,.84) !important; border-color: rgba(11,27,51,.16) !important; }
+html.wt-day .sumbox .lbl { color: #4a5a70 !important; }
+html.wt-day .msg { color: #4a5a70 !important; }
