@@ -1,5 +1,9 @@
 package com.wisdomtower.academy.ui.drawer
 
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomOnInk
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -110,7 +114,7 @@ fun DrawerHeaderBar(
             Icon(
                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                 contentDescription = "Back",
-                tint = Color.White,
+                tint = WisdomInk,
                 modifier = Modifier.size(18.dp)
             )
         }
@@ -119,7 +123,7 @@ fun DrawerHeaderBar(
             text = title,
             fontSize = 17.sp,
             fontWeight = FontWeight.Bold,
-            color = Color.White
+            color = WisdomInk
         )
     }
 }
@@ -143,7 +147,7 @@ private fun Eyebrow(text: String, color: Color = WisdomCyan) {
 private fun AboutSectionHeader(eyebrow: String, title: String, subtitle: String? = null, color: Color = WisdomCyan) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Eyebrow(eyebrow, color)
-        Text(title, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = Color.White, lineHeight = 26.sp)
+        Text(title, fontSize = 20.sp, fontWeight = FontWeight.ExtraBold, color = WisdomInk, lineHeight = 26.sp)
         if (subtitle != null) {
             Text(subtitle, fontSize = 12.sp, color = WisdomMuted, lineHeight = 17.sp)
         }
@@ -177,7 +181,7 @@ private fun AboutTextCard(
                     Text(topRight.orEmpty(), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WisdomMuted)
                 }
             }
-            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White, lineHeight = 19.sp)
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WisdomInk, lineHeight = 19.sp)
             if (body.isNotEmpty()) {
                 Text(body, fontSize = 12.sp, color = WisdomMuted, lineHeight = 17.sp)
             }
@@ -245,7 +249,7 @@ fun AboutScreen(
                             text = "Elevating Ethiopian Education into a World-Class Sphere.",
                             fontSize = 22.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color.White,
+                            color = WisdomInk,
                             lineHeight = 28.sp
                         )
                         Text(
@@ -297,7 +301,7 @@ fun AboutScreen(
                             text = "Ending the Era of Scattered PDFs, Chaotic Groups, and Guesswork.",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
+                            color = WisdomInk,
                             lineHeight = 24.sp
                         )
                         Text(
@@ -355,7 +359,7 @@ fun AboutScreen(
                             text = "Bridging Ethiopian Students Beyond the Classroom.",
                             fontSize = 18.sp,
                             fontWeight = FontWeight.ExtraBold,
-                            color = Color.White,
+                            color = WisdomInk,
                             lineHeight = 24.sp
                         )
                         Text(
@@ -366,7 +370,7 @@ fun AboutScreen(
                             Text(
                                 text = buildAnnotatedString {
                                     append("• ")
-                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(lead) }
+                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WisdomInk)) { append(lead) }
                                     append(" ")
                                     append(text)
                                 },
@@ -400,7 +404,7 @@ fun AboutScreen(
                             text = "Part of the Wisdom Tower Ecosystem",
                             fontSize = 17.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = WisdomInk,
                             textAlign = TextAlign.Center
                         )
                         Text(
@@ -423,7 +427,7 @@ fun AboutScreen(
                 ) {
                     Text(
                         text = "You Belong at the Top of Your Field.",
-                        fontSize = 20.sp, fontWeight = FontWeight.Black, color = Color.White, textAlign = TextAlign.Center
+                        fontSize = 20.sp, fontWeight = FontWeight.Black, color = WisdomInk, textAlign = TextAlign.Center
                     )
                     Text(
                         text = "Stop studying with scattered fragments. Enter a structured, premium ecosystem built to make you thrive.",
@@ -476,10 +480,10 @@ fun ContactScreen(
     val fieldColors = OutlinedTextFieldDefaults.colors(
         focusedBorderColor = WisdomCyan,
         unfocusedBorderColor = WisdomBorderWhite,
-        focusedTextColor = Color.White,
-        unfocusedTextColor = Color.White,
-        focusedContainerColor = Color.White.copy(alpha = 0.06f),
-        unfocusedContainerColor = Color.White.copy(alpha = 0.06f)
+        focusedTextColor = WisdomInk,
+        unfocusedTextColor = WisdomInk,
+        focusedContainerColor = WisdomInk.copy(alpha = 0.06f),
+        unfocusedContainerColor = WisdomInk.copy(alpha = 0.06f)
     )
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -520,7 +524,7 @@ fun ContactScreen(
                                 )
                             }
 
-                            Text("Message received", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                            Text("Message received", fontSize = 20.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                             Text(
                                 text = "Thanks for reaching out. We aim to reply within 24 hours. You can also explore Academy packages while you wait.",
                                 fontSize = 12.sp,
@@ -532,11 +536,11 @@ fun ContactScreen(
                             Box(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
-                                    .border(BorderStroke(1.dp, Color.White.copy(alpha = 0.15f)), RoundedCornerShape(12.dp))
+                                    .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.15f)), RoundedCornerShape(12.dp))
                                     .clickable { status = "idle" }
                                     .padding(horizontal = 20.dp, vertical = 10.dp)
                             ) {
-                                Text("Send another", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                                Text("Send another", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
                             }
                         }
                     }
@@ -547,7 +551,7 @@ fun ContactScreen(
                         modifier = Modifier.wisdomReveal(key = "contact_intro", index = 1),
                         verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
-                        Text("Contact Academy", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = Color.White)
+                        Text("Contact Academy", fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = WisdomInk)
                         Text(
                             "Questions about pathways, packages, or your account? Send a message; we aim to reply within 24 hours.",
                             fontSize = 13.sp,
@@ -563,7 +567,7 @@ fun ContactScreen(
                         verticalArrangement = Arrangement.spacedBy(14.dp)
                     ) {
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Full Name", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                            Text("Full Name", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = WisdomInk)
                             OutlinedTextField(
                                 value = fullName,
                                 onValueChange = { fullName = it },
@@ -576,7 +580,7 @@ fun ContactScreen(
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Email Address", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                            Text("Email Address", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = WisdomInk)
                             OutlinedTextField(
                                 value = email,
                                 onValueChange = { email = it },
@@ -589,7 +593,7 @@ fun ContactScreen(
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Topic (optional)", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                            Text("Topic (optional)", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = WisdomInk)
                             ExposedDropdownMenuBox(
                                 expanded = topicDropdownExpanded,
                                 onExpandedChange = { topicDropdownExpanded = it }
@@ -608,11 +612,11 @@ fun ContactScreen(
                                 ExposedDropdownMenu(
                                     expanded = topicDropdownExpanded,
                                     onDismissRequest = { topicDropdownExpanded = false },
-                                    modifier = Modifier.background(Color(0x4D0F172A))
+                                    modifier = Modifier.background(if (AppThemeMode.isDark) Color(0x4D0F172A) else Color(0xF2FBF9F4))
                                 ) {
                                     topics.forEach { (value, label) ->
                                         DropdownMenuItem(
-                                            text = { Text(label, color = Color.White, fontSize = 12.sp) },
+                                            text = { Text(label, color = WisdomInk, fontSize = 12.sp) },
                                             onClick = {
                                                 serviceValue = value
                                                 serviceLabel = label
@@ -625,7 +629,7 @@ fun ContactScreen(
                         }
 
                         Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("Message", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = Color.White)
+                            Text("Message", fontSize = 12.sp, fontWeight = FontWeight.Medium, color = WisdomInk)
                             OutlinedTextField(
                                 value = message,
                                 onValueChange = { message = it },
@@ -677,11 +681,11 @@ fun ContactScreen(
                                     text = if (status == "sending") "Sending..." else "Send Message",
                                     fontSize = 14.sp,
                                     fontWeight = FontWeight.Medium,
-                                    color = Color.Black
+                                    color = WisdomOnInk
                                 )
                                 if (status != "sending") {
                                     Spacer(modifier = Modifier.width(6.dp))
-                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = Color.Black, modifier = Modifier.size(15.dp))
+                                    Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null, tint = WisdomOnInk, modifier = Modifier.size(15.dp))
                                 }
                             }
                         }
@@ -689,7 +693,7 @@ fun ContactScreen(
                         if (status == "error") {
                             Text(
                                 text = errorMsg.ifEmpty { "Something went wrong. Please try again." },
-                                color = Color(0xFFF87171),
+                                color = if (AppThemeMode.isDark) Color(0xFFF87171) else WisdomAccentRose,
                                 fontSize = 12.sp,
                                 textAlign = TextAlign.Center,
                                 modifier = Modifier.fillMaxWidth()
@@ -755,7 +759,7 @@ fun FaqScreen(
                             "Coming soon",
                             fontSize = 20.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White,
+                            color = WisdomInk,
                             textAlign = TextAlign.Center,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -840,7 +844,7 @@ private fun LegalDocumentScreen(
                     Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Eyebrow(doc.badge, accent)
                         Text(doc.effective, fontSize = 11.sp, color = WisdomMuted)
-                        Text(doc.title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = Color.White, lineHeight = 28.sp)
+                        Text(doc.title, fontSize = 22.sp, fontWeight = FontWeight.Black, color = WisdomInk, lineHeight = 28.sp)
                         Text(doc.intro, fontSize = 12.sp, color = WisdomMuted, lineHeight = 17.sp)
                         Text(doc.meta, fontSize = 12.sp, color = WisdomMuted)
                     }
@@ -861,7 +865,7 @@ private fun LegalDocumentScreen(
                             Text(
                                 text = buildAnnotatedString {
                                     append("• ")
-                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(lead) }
+                                    withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WisdomInk)) { append(lead) }
                                     append(" ")
                                     append(text)
                                 },
@@ -889,7 +893,7 @@ private fun LegalDocumentScreen(
                                 section.title,
                                 fontSize = 14.sp,
                                 fontWeight = FontWeight.Bold,
-                                color = Color.White,
+                                color = WisdomInk,
                                 lineHeight = 19.sp,
                                 modifier = Modifier.weight(1f)
                             )
@@ -914,7 +918,7 @@ private fun LegalBlockView(block: LegalBlock, accent: Color) {
             Text(
                 text = buildAnnotatedString {
                     if (block.lead.isNotEmpty()) {
-                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(block.lead) }
+                        withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WisdomInk)) { append(block.lead) }
                         if (block.text.isNotEmpty()) append(" ")
                     }
                     append(block.text)
@@ -933,7 +937,7 @@ private fun LegalBlockView(block: LegalBlock, accent: Color) {
                         text = buildAnnotatedString {
                             append("• ")
                             if (lead.isNotEmpty()) {
-                                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = Color.White)) { append(lead) }
+                                withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WisdomInk)) { append(lead) }
                                 append(" ")
                             }
                             append(text)
@@ -951,12 +955,12 @@ private fun LegalBlockView(block: LegalBlock, accent: Color) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.03f))
+                    .background(WisdomInk.copy(alpha = 0.03f))
                     .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(block.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(block.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 Text(block.text, fontSize = 11.5.sp, color = WisdomMuted, lineHeight = 16.sp)
             }
         }
@@ -966,12 +970,12 @@ private fun LegalBlockView(block: LegalBlock, accent: Color) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .background(Color.White.copy(alpha = 0.03f))
+                    .background(WisdomInk.copy(alpha = 0.03f))
                     .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
                     .padding(12.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
-                Text(block.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text(block.title, fontSize = 12.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 block.lines.forEach { line ->
                     Text(line, fontSize = 11.5.sp, color = WisdomMuted)
                 }

@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.notifications
 
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -83,7 +84,7 @@ private fun runsToText(runs: List<NotificationRun>): AnnotatedString = buildAnno
                 color = WisdomDarkOnCyan,
                 fontWeight = if (r.bold) FontWeight.ExtraBold else FontWeight.SemiBold
             )
-            r.bold -> SpanStyle(color = Color.White, fontWeight = FontWeight.ExtraBold)
+            r.bold -> SpanStyle(color = WisdomInk, fontWeight = FontWeight.ExtraBold)
             else -> SpanStyle()
         }
         withStyle(style) { append(r.text) }

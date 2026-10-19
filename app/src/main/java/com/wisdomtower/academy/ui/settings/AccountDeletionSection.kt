@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.settings
 
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import android.content.SharedPreferences
 import android.widget.Toast
@@ -118,9 +119,9 @@ fun AccountDeletionSection(settingsPrefs: SharedPreferences) {
         AlertDialog(
             modifier = Modifier.wisdomDialogEnter(),
             onDismissRequest = { if (!busy) showDialog = false },
-            containerColor = Color(0xF20F1829),
+            containerColor = if (AppThemeMode.isDark) Color(0xF20F1829) else Color(0xF2FBF9F4),
             title = {
-                Text(text = "Delete your account?", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(text = "Delete your account?", color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -132,7 +133,7 @@ fun AccountDeletionSection(settingsPrefs: SharedPreferences) {
                         color = WisdomMuted,
                         lineHeight = 16.sp
                     )
-                    Text(text = "Type DELETE to confirm.", fontSize = 12.sp, color = Color.White)
+                    Text(text = "Type DELETE to confirm.", fontSize = 12.sp, color = WisdomInk)
                     OutlinedTextField(
                         value = typed,
                         onValueChange = { typed = it },
@@ -144,8 +145,8 @@ fun AccountDeletionSection(settingsPrefs: SharedPreferences) {
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = WisdomAccentRose,
                             unfocusedBorderColor = WisdomBorderWhite,
-                            focusedTextColor = Color.White,
-                            unfocusedTextColor = Color.White,
+                            focusedTextColor = WisdomInk,
+                            unfocusedTextColor = WisdomInk,
                             disabledTextColor = WisdomMuted,
                             disabledBorderColor = WisdomBorderWhite
                         )
@@ -206,7 +207,7 @@ fun AccountDeletionSection(settingsPrefs: SharedPreferences) {
             },
             dismissButton = {
                 TextButton(enabled = !busy, onClick = { showDialog = false }) {
-                    Text(text = "Cancel", color = Color.White)
+                    Text(text = "Cancel", color = WisdomInk)
                 }
             }
         )
