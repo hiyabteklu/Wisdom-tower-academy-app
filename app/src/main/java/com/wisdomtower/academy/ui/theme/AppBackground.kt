@@ -43,26 +43,27 @@ private const val PHOTO_SCRIM_ALPHA = 0.35f
 private const val PHOTO_MAX_SIDE = 1280
 
 /**
- * DAY MODE IS SWITCHED OFF (owner order 2026-10-19: "I hate the day mode entirely, comment it out, only dark and bg_2").
- * false: Settings offers Dark and Transparent only, and a saved Day choice falls back to Dark. Nothing was
- * deleted: the Day look and the day colours are still in the code, just unreachable. To bring day mode back, change
- * false to true (docs/DAY_MODE_PLAN.md section 7). Nothing else needs to change.
+ * DAY MODE IS SWITCHED ON (owner order 2026-10-19: "the transparent button becomes our day mode button, night mode is
+ * the dark"). true: Settings offers Night (the dark look) and Day. The Transparent picture is no longer offered and a
+ * saved Transparent choice falls back to Night. Nothing was deleted: the Transparent picture option and its file are
+ * still in the code and assets, just unreachable. To switch day mode off again, change true to false (that brings back
+ * Night + Transparent). See docs/DAY_MODE_PLAN.md section 7.
  */
-private const val DAY_MODE_OFFERED = false
+private const val DAY_MODE_OFFERED = true
 
 /**
- * The backgrounds the code knows. Offered today: Dark and Transparent (see [AppBackground.options]).
+ * The backgrounds the code knows. Offered today: Night and Day (see [AppBackground.options]).
  *
- * RENAME (owner order 2026-10-19): the picture background that used to be called "BG 2" is now called "Transparent".
- * Its picture file is `backgrounds/transparent.jpg` (the owner renamed the file on GitHub, so the code now points at it).
- * The constant is still named [Photo2] on purpose: the saved choice is the constant NAME, so keeping it means a phone
- * that already saved this choice keeps it. The picture is dark, so it keeps the night colours (light text).
+ * Night is the old Dark look (the constant is still named [Black] on purpose: the saved choice is the constant NAME, so
+ * keeping it means a phone that already saved Dark keeps it). Day draws no picture: it is only the Day colour plus two
+ * soft glows, so nothing is read from the assets folder for it.
  *
- * BG 1, BG 3 and Blue stay here on purpose (nothing is deleted) but are not offered and are never loaded from a saved
- * choice. [Day] is the light look; it is switched off, see [DAY_MODE_OFFERED].
+ * The picture background that was called "BG 2" and then "Transparent" ([Photo2], file `backgrounds/transparent.jpg`)
+ * stays here on purpose (nothing is deleted) but is not offered while [DAY_MODE_OFFERED] is true, and a saved choice of
+ * it loads as Night. The same is true of BG 1, BG 3 and Blue.
  *
  * The saved choice is the constant NAME. A saved name that is not one of the offered options falls back to the default,
- * Dark.
+ * Night.
  * [base] is the plain colour under the look; it is also what native views that need one solid colour use, and what shows
  * while a picture is still loading.
  * [isLight] is true only for the Day look. It is what switches the whole app to day colours (see [AppThemeMode]).
@@ -76,9 +77,10 @@ enum class AppBackgroundOption(
     /** True for a light look. Only [Day] is light. */
     val isLight: Boolean = false
 ) {
-    Black("Dark", Color(0xFF000000)),
+    // Was "Dark". Now "Night" (owner order 2026-10-19). Same constant name, same look.
+    Black("Night", Color(0xFF000000)),
     Photo1("BG 1", Color(0xFF070C16), photoAsset = "backgrounds/bg_1.jpg"),
-    // Was "BG 2". Now the "Transparent" look (owner order 2026-10-19). File: backgrounds/transparent.jpg.
+    // Was "BG 2". Was the "Transparent" look. Not offered now (the Transparent button became Day). File kept in assets.
     Photo2("Transparent", Color(0xFF070C16), photoAsset = "backgrounds/transparent.jpg"),
     Photo3("BG 3", Color(0xFF070C16), photoAsset = "backgrounds/bg_3.jpg"),
     Midnight(
@@ -87,8 +89,8 @@ enum class AppBackgroundOption(
     ),
 
     /**
-     * DAY-SAGE day look (SWITCHED OFF, see [DAY_MODE_OFFERED]): sage-teal page A9C6C1, a pale sky-white glow at the top and
-     * a deeper sage glow at the bottom. [isLight] is true, so the day tokens apply if it is ever offered again.
+     * DAY-SAGE day look (ON, see [DAY_MODE_OFFERED]): sage-teal page A9C6C1, a pale sky-white glow at the top and
+     * a deeper sage glow at the bottom. No picture. [isLight] is true, so the day tokens apply everywhere.
      */
     Day(
         "Day", Color(0xFFA9C6C1),
@@ -252,7 +254,7 @@ private fun DrawScope.drawBackdrop(opt: AppBackgroundOption, w: Float, h: Float)
  * The ONE holder of the chosen background. The choice is saved in SharedPreferences (key [KEY], the same key as before)
  * and exposed as Compose state, so every [AtmosphereBackground] redraws the moment [select] is used. Since D1 it also
  * decides day or night for the whole app: see [AppThemeMode].
- * Default: Dark. Only the options in [options] can be chosen or loaded.
+ * Default: Night (the old Dark). Only the options in [options] can be chosen or loaded.
  *
  * The saved value is read once when this object is first used (the Application already exists by then), so no state is
  * written while a screen is composing.
@@ -266,13 +268,13 @@ object AppBackground {
     private const val KEY = "wt_app_background"
 
     /**
-     * The options in display order: Dark, then Transparent. Day mode is switched off (see [DAY_MODE_OFFERED]); if it is
-     * turned back on, Day is added at the end. To try another background, add its enum entry here (the Settings pill
-     * grows by itself). Declared BEFORE [state] on purpose.
+     * The options in display order: Night, then Day. If day mode is switched off (see [DAY_MODE_OFFERED]) the list is
+     * Night, then Transparent again. To try another background, add its enum entry here (the Settings pill grows by
+     * itself). Declared BEFORE [state] on purpose.
      */
     val options: List<AppBackgroundOption> =
         if (DAY_MODE_OFFERED) {
-            listOf(AppBackgroundOption.Black, AppBackgroundOption.Photo2, AppBackgroundOption.Day)
+            listOf(AppBackgroundOption.Black, AppBackgroundOption.Day)
         } else {
             listOf(AppBackgroundOption.Black, AppBackgroundOption.Photo2)
         }
