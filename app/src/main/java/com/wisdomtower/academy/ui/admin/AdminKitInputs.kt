@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -22,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
@@ -38,6 +40,7 @@ import java.util.TimeZone
 // AdminKit.kt so that file was not resent: a one-line text field, a message card (empty state or error with an
 // optional retry button) and a date-only formatter. Reuse these; merge both kit files in the regression slice.
 // N6: AdminTextField got an optional keyboardType (default Text, so earlier callers are unchanged).
+// N6c: AdminTextArea (several lines) added.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 /** One-line text input in the same look as AdminSearchBox, without the magnifier. 44 dp high. */
@@ -75,6 +78,49 @@ internal fun AdminTextField(
                         color = WisdomMuted,
                         fontSize = 14.sp,
                         maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                inner()
+            }
+        }
+    )
+}
+
+/** Multi-line text input in the same look as AdminTextField. Grows with the text, never smaller than minHeight. */
+@Composable
+internal fun AdminTextArea(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    minHeight: Dp = 120.dp
+) {
+    val shape = RoundedCornerShape(14.dp)
+    BasicTextField(
+        value = value,
+        onValueChange = onValueChange,
+        singleLine = false,
+        textStyle = TextStyle(color = WisdomTextPrimary, fontSize = 14.sp),
+        cursorBrush = SolidColor(WisdomCyan),
+        modifier = modifier.fillMaxWidth(),
+        decorationBox = { inner ->
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .defaultMinSize(minHeight = minHeight)
+                    .clip(shape)
+                    .background(WisdomCard)
+                    .border(1.dp, WisdomBorderWhite, shape)
+                    .padding(12.dp),
+                contentAlignment = Alignment.TopStart
+            ) {
+                if (value.isEmpty()) {
+                    Text(
+                        text = placeholder,
+                        color = WisdomMuted,
+                        fontSize = 14.sp,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis
                     )
                 }

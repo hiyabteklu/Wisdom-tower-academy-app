@@ -27,7 +27,8 @@ import com.wisdomtower.academy.ui.theme.WisdomBackground
 // website panel in AdminWebSection under a native section bar) -> Back returns to the grid -> Back on the grid closes.
 // Deep links keep working: a url with ?tab=<id or alias> opens that module directly.
 // N2 (2026-10-18): Inquiries is native. N3: Payments is native; the url path /admin/payments also opens it.
-// N4: Scholars and Users is native. N5: Overview is native. N6: Access Grants and Content Locks are native.
+// N4: Scholars and Users is native. N5: Overview is native. N6: Access Grants, Content Locks and Pricing and
+// Catalog are native.
 // To add the next native module: add its id to NATIVE_ADMIN_MODULE_IDS in AdminModules.kt and one branch in the when below.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
@@ -97,6 +98,7 @@ fun AdminConsoleScreen(
                 "users" -> UsersScreen(modifier = Modifier.weight(1f))
                 "grants" -> AccessGrantsScreen(modifier = Modifier.weight(1f))
                 "locks" -> LocksScreen(modifier = Modifier.weight(1f))
+                "catalog" -> CatalogScreen(modifier = Modifier.weight(1f))
                 else -> AdminWebSection(
                     url = "$origin/admin?tab=${module.id}",
                     onClose = { sectionId = null },
