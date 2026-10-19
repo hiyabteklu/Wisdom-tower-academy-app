@@ -42,6 +42,8 @@ class AdminHttpResult(val code: Int, val body: String, val contentRange: String?
  * e-mail and SMS (that route is called exactly as the website panel calls it: JSON body, no key from the app).
  * N5 added: count() for exact row counts (HEAD request with Prefer count=exact, the request supabase-js sends for
  * head: true, count: exact). A count that could not be read is null, never a made-up number.
+ * N6 added: delete(). It asks for the deleted rows back so a silent RLS refusal (HTTP 200 with zero rows) can be
+ * detected by the caller, exactly like patch().
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -78,6 +80,10 @@ object AdminSupabase {
             "POST" -> {
                 if (prefer != null) builder.addHeader("Prefer", prefer)
                 builder.post((jsonBody ?: "{}").toRequestBody(JSON_MEDIA))
+            }
+            "DELETE" -> {
+                builder.addHeader("Prefer", prefer ?: "return=representation")
+                builder.delete()
             }
             "HEAD" -> {
                 builder.addHeader("Prefer", "count=exact")
@@ -127,6 +133,12 @@ object AdminSupabase {
 
     /** path includes the row filter, e.g. inquiries?id=eq.abc ; the body is a JSON object of the columns to change. */
     suspend fun patch(path: String, jsonBody: String): AdminHttpResult = request("PATCH", path, jsonBody, null)
+
+    /**
+     * path MUST include a row filter, e.g. access_grants?id=eq.abc or access_grants?id=in.(a,b). The reply body is the
+     * array of the rows that were deleted: an empty array with HTTP 200 means nothing was removed.
+     */
+    suspend fun delete(path: String): AdminHttpResult = request("DELETE", path, null, null)
 
     /** Insert or upsert. prefer example: resolution=ignore-duplicates,return=minimal */
     suspend fun post(path: String, jsonBody: String, prefer: String): AdminHttpResult =

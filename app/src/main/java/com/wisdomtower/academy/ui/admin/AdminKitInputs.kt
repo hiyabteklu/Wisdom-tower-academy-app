@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -35,6 +37,7 @@ import java.util.TimeZone
 // ADMIN-native N4 (docs/ADMIN_NATIVE_PLAN.md). More shared pieces for the native admin screens, kept next to
 // AdminKit.kt so that file was not resent: a one-line text field, a message card (empty state or error with an
 // optional retry button) and a date-only formatter. Reuse these; merge both kit files in the regression slice.
+// N6: AdminTextField got an optional keyboardType (default Text, so earlier callers are unchanged).
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 /** One-line text input in the same look as AdminSearchBox, without the magnifier. 44 dp high. */
@@ -43,7 +46,8 @@ internal fun AdminTextField(
     value: String,
     onValueChange: (String) -> Unit,
     placeholder: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    keyboardType: KeyboardType = KeyboardType.Text
 ) {
     val shape = RoundedCornerShape(14.dp)
     BasicTextField(
@@ -52,6 +56,7 @@ internal fun AdminTextField(
         singleLine = true,
         textStyle = TextStyle(color = WisdomTextPrimary, fontSize = 14.sp),
         cursorBrush = SolidColor(WisdomCyan),
+        keyboardOptions = KeyboardOptions(keyboardType = keyboardType),
         modifier = modifier.fillMaxWidth(),
         decorationBox = { inner ->
             Box(
