@@ -15,17 +15,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomInk
 
 /**
  * Packages tab, mirrors website src/app/packages/page.tsx + components/PackagesCatalog.tsx:
  * title "Academy packages", headings "Grades 9–12", "Other branches", "Special packages".
  * Every card is the shared [OpenCard] (picture, title, Open button) in a two-column grid.
+ * D3 (day mode): the headings use [WisdomInk] (white at night, deep navy by day) instead of Color.White.
  */
 @Composable
 fun PackagesScreen(
@@ -57,7 +58,7 @@ fun PackagesScreen(
                         text = "Academy packages",
                         fontSize = 28.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color.White,
+                        color = WisdomInk,
                         textAlign = TextAlign.Center
                     )
                 }
@@ -69,7 +70,7 @@ fun PackagesScreen(
                         text = "Grades 9–12",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = WisdomInk,
                         modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)
                     )
                 }
@@ -84,7 +85,7 @@ fun PackagesScreen(
                         text = "Other branches",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = WisdomInk,
                         modifier = Modifier.padding(top = 24.dp, bottom = 4.dp)
                     )
                 }
@@ -99,7 +100,7 @@ fun PackagesScreen(
                         text = "Special packages",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = Color.White,
+                        color = WisdomInk,
                         modifier = Modifier.padding(top = 24.dp, bottom = 4.dp)
                     )
                 }

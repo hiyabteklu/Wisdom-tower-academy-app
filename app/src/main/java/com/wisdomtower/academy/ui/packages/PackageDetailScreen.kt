@@ -35,7 +35,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +44,7 @@ import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
 import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 
 // Electrical & Computer Engineering (website-reference/src/data/special-packages.ts: name "Electrical & Computer
@@ -88,6 +88,7 @@ private val ECE_SEMESTER_ENTRIES = listOf(
  *
  * GLASS (2026-10-13, docs/GLASS_PLAN.md area 3): the round back button uses the glass look of the Targets screen.
  * S3 part 2 (2026-10-17): that back button is a Role.Button with a 48 dp touch target (it still looks 36 dp).
+ * D3 (day mode): the back arrow and the page title use [WisdomInk] (white at night, deep navy by day) instead of Color.White.
  *
  * Clean cards (owner request 2026-10-13): the ECE course cards (and the workspace header they open) show the course
  * TITLE only, without the course code ("ECEg3051 · Electromagnetic Fields" -> "Electromagnetic Fields"). The code is
@@ -183,7 +184,7 @@ fun PackageDetailScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = "Back",
-                            tint = Color.White,
+                            tint = WisdomInk,
                             modifier = Modifier.size(18.dp)
                         )
                     }
@@ -207,7 +208,7 @@ fun PackageDetailScreen(
                         text = pageTitle,
                         fontSize = 26.sp,
                         fontWeight = FontWeight.ExtraBold,
-                        color = Color.White,
+                        color = WisdomInk,
                         maxLines = 2,
                         overflow = TextOverflow.Ellipsis
                     )
