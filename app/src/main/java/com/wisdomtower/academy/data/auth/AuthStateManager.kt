@@ -1,15 +1,22 @@
 package com.wisdomtower.academy.data.auth
 
+import android.app.Activity
 import android.content.Context
 import android.content.SharedPreferences
+import android.net.Uri
+import android.view.View
+import android.view.ViewGroup
 import android.webkit.CookieManager
 import android.webkit.WebView
+import com.wisdomtower.academy.BuildConfig
 import com.wisdomtower.academy.data.model.AuthUser
 import com.wisdomtower.academy.data.model.StudentIdData
 import com.wisdomtower.academy.data.model.StudentIdGenerator
 import com.wisdomtower.academy.data.model.UserProfile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -19,6 +26,7 @@ import kotlinx.coroutines.sync.withLock
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONObject
+import java.lang.ref.WeakReference
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 
@@ -41,8 +49,15 @@ object AuthStateManager {
     private const val KEY_AVATAR_PRESET = "auth_avatar_preset"
     private const val KEY_AVATAR_URL = "auth_avatar_url"
 
-    /** Refresh when fewer than this many seconds are left on the access token. */
-    private const val REFRESH_MARGIN_SECONDS = 120L
+    /**
+     * Refresh when fewer than this many seconds are left on the access token.
+     * 5 minutes (was 2): the keep-fresh timer below ticks every 45 s, so the token is always renewed
+     * long before it can expire, even for a student who reads for hours without leaving a page.
+     */
+    private const val REFRESH_MARGIN_SECONDS = 300L
+
+    /** How often the foreground keep-fresh timer looks at the token (cheap: no network unless it is due). */
+    private const val KEEP_FRESH_TICK_MS = 45_000L
 
     private val _currentUser = MutableStateFlow<AuthUser?>(null)
     val currentUser: StateFlow<AuthUser?> = _currentUser.asStateFlow()
@@ -74,6 +89,13 @@ object AuthStateManager {
     /** User id whose real `profiles` row was read from the server in this run (null = never read). */
     @Volatile
     private var serverProfileUserId: String? = null
+
+    /** The activity that is on screen right now (null while the app is in the background). */
+    @Volatile
+    private var foregroundActivity: WeakReference<Activity>? = null
+
+    /** The foreground keep-fresh timer (see [onAppForeground]). */
+    private var keepFreshJob: Job? = null
 
     /**
      * Deduplicates the "Signed in successfully / Welcome back" toast so it displays
@@ -254,6 +276,7 @@ object AuthStateManager {
     fun applyNativeSession(result: SupabaseAuthResult.Success, webView: WebView? = null) {
         syncAuthSession(result.sessionJson)
         injectSessionIntoWebView(webView)
+        injectIntoAllWebViews(webView)
     }
 
     private fun nowSeconds(): Long = System.currentTimeMillis() / 1000L
@@ -278,11 +301,50 @@ object AuthStateManager {
     }
 
     /**
+     * The app came to the foreground (called from the Application's lifecycle callbacks).
+     * Remembers the visible activity (so refreshed sessions can be pushed into its WebViews) and
+     * starts the keep-fresh timer once. The timer is what keeps a student signed in while they read
+     * for hours inside one WebView page: inside the app the website page is NOT allowed to refresh
+     * the login itself (Supabase refresh tokens are single-use, two refreshers revoke the session),
+     * so this native side renews it ahead of time and pushes it into every open page.
+     */
+    fun onAppForeground(activity: Activity) {
+        foregroundActivity = WeakReference(activity)
+        startKeepFreshTimer()
+    }
+
+    /** The app left the foreground. The timer keeps running but does nothing while no activity is visible. */
+    fun onAppBackground(activity: Activity) {
+        if (foregroundActivity?.get() === activity) {
+            foregroundActivity = null
+        }
+    }
+
+    @Synchronized
+    private fun startKeepFreshTimer() {
+        if (keepFreshJob?.isActive == true) return
+        keepFreshJob = scope.launch {
+            while (true) {
+                delay(KEEP_FRESH_TICK_MS)
+                if (foregroundActivity?.get() == null) continue
+                if (_currentUser.value == null) continue
+                try {
+                    refreshIfNeeded()
+                } catch (_: Exception) {
+                    // never let one failed tick stop the timer; the next tick tries again
+                }
+            }
+        }
+    }
+
+    /**
      * Refreshes the Supabase session when it is about to expire (or when [force] is true).
-     * Safe to call often (app resume, before opening a hub, after a 401). Returns true when the
-     * student still has a usable session afterwards. Always saves the NEW refresh token
-     * (Supabase rotates them). On a refresh that Supabase rejects, signs the student out cleanly.
-     * Network problems keep the current session and return false (try again later).
+     * Safe to call often (app resume, before opening a hub, after a 401, keep-fresh timer). Returns
+     * true when the student still has a usable session afterwards. Always saves the NEW refresh token
+     * (Supabase rotates them) and pushes the new session into EVERY open website WebView, so no page
+     * is ever left holding a token that was already rotated. On a refresh that Supabase rejects,
+     * signs the student out cleanly. Network problems keep the current session and return false
+     * (try again later).
      */
     suspend fun refreshIfNeeded(webView: WebView? = null, force: Boolean = false): Boolean {
         return refreshMutex.withLock {
@@ -296,7 +358,7 @@ object AuthStateManager {
             when (val result = SupabaseAuthClient.refresh(refreshToken)) {
                 is SupabaseAuthResult.Success -> {
                     syncAuthSession(result.sessionJson)
-                    if (webView != null) injectSessionIntoWebView(webView)
+                    injectIntoAllWebViews(webView)
                     true
                 }
                 is SupabaseAuthResult.Failure -> {
@@ -359,6 +421,8 @@ object AuthStateManager {
      * Injects the active native session into the WebView localStorage so handoffs are already signed in.
      * Overwrites a stale or missing web session (different user, no token, or older expires_at) and
      * then fires 'wta-auth-change'. A web session that is newer than ours is left alone.
+     * Also marks the page as running inside the app (window.__wtaNativeApp) so the website knows that
+     * the native side owns token refresh.
      */
     fun injectSessionIntoWebView(webView: WebView?) {
         val json = getAuthSessionJson()
@@ -374,6 +438,7 @@ object AuthStateManager {
         val js = """
             (function(){
               try {
+                window.__wtaNativeApp = true;
                 var ours = JSON.parse($escaped);
                 if (!ours || !ours.access_token || !ours.user) return;
                 var cur = null;
@@ -396,6 +461,56 @@ object AuthStateManager {
         webView?.post {
             webView.evaluateJavascript(js, null)
         }
+    }
+
+    /**
+     * Pushes the current session into every website WebView that is open in the visible activity
+     * (main page, tool overlay, admin console, readers ...), plus [extra] when given. Only pages of
+     * our own website receive it: never a third-party page, a file:// page or a blank page.
+     * Safe to call from any thread and as often as needed (a page that already holds an equal or
+     * newer session is left untouched by the injected script).
+     */
+    fun injectIntoAllWebViews(extra: WebView? = null) {
+        if (extra != null) injectSessionIntoWebView(extra)
+        val activity = foregroundActivity?.get() ?: return
+        activity.runOnUiThread {
+            val views = LinkedHashSet<WebView>()
+            collectWebViews(activity.window?.decorView, views)
+            for (wv in views) {
+                if (wv === extra) continue
+                if (isOurSite(wv.url)) injectSessionIntoWebView(wv)
+            }
+        }
+    }
+
+    private fun collectWebViews(view: View?, out: MutableSet<WebView>) {
+        if (view == null) return
+        if (view is WebView) {
+            out.add(view)
+            return
+        }
+        if (view is ViewGroup) {
+            for (i in 0 until view.childCount) {
+                collectWebViews(view.getChildAt(i), out)
+            }
+        }
+    }
+
+    /** True only for https pages of the Wisdom Tower website (www or not). */
+    private fun isOurSite(url: String?): Boolean {
+        if (url.isNullOrBlank() || !url.startsWith("https://")) return false
+        val host = try {
+            Uri.parse(url).host
+        } catch (_: Exception) {
+            null
+        } ?: return false
+        val siteHost = try {
+            Uri.parse(BuildConfig.NEXT_PUBLIC_SITE_URL.trim()).host
+        } catch (_: Exception) {
+            null
+        } ?: "www.wisdom-tower-academy.live"
+        fun bare(h: String) = h.lowercase().removePrefix("www.")
+        return bare(host) == bare(siteHost)
     }
 
     private fun saveToPrefs(user: AuthUser, profile: UserProfile) {
