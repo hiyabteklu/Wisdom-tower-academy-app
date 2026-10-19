@@ -34,17 +34,18 @@ private const val PHOTO_SCRIM_ALPHA = 0.35f
 private const val PHOTO_MAX_SIDE = 1280
 
 /**
- * PUBLISHING GATE (docs/DAY_MODE_PLAN.md section 7). true: Settings > Background offers Dark and Day. false: it offers Dark
- * only, and a saved Day choice falls back to Dark. Set it to false for a Play Store build that must not carry the
- * unfinished day mode; set it back to true after D9 is signed off. Nothing else needs to change.
+ * PUBLISHING GATE (docs/DAY_MODE_PLAN.md section 7). true: Settings > Background offers Dark, BG 2 and Day. false: it
+ * offers Dark and BG 2 only (the look before day mode came back), and a saved Day choice falls back to Dark. Set it to
+ * false for a Play Store build that must not carry the unfinished day mode; set it back to true after D9 is signed off.
+ * Nothing else needs to change.
  */
 private const val DAY_MODE_OFFERED = true
 
 /**
- * The backgrounds the code knows. D1 (owner order 2026-10-19): the student can choose only TWO of them, Dark ([Black]) and
- * Day ([Day]); see [AppBackground.options]. Day REPLACES BG 2 in the pill (hypothesis, the owner has not answered the
- * question in docs/DAY_MODE_PLAN.md section 8). The other entries, BG 2 included, stay here on purpose (nothing is deleted)
- * but are not offered and are never loaded from a saved choice, so a student who had BG 2 saved gets Dark.
+ * The backgrounds the code knows. Owner order 2026-10-19 (after D1): BG 2 is offered TOGETHER with Day, so the owner can
+ * try different backgrounds; see [AppBackground.options] (Dark, BG 2, Day). BG 2 is a dark picture, so it keeps the night
+ * colours (light text), exactly as it did before day mode came back; only [Day] switches the app to day colours. BG 1,
+ * BG 3 and Blue stay here on purpose (nothing is deleted) but are not offered and are never loaded from a saved choice.
  *
  * The saved choice is the constant NAME. A saved name that is not one of the offered options falls back to the default,
  * Dark.
@@ -215,12 +216,16 @@ object AppBackground {
     private const val PREFS_NAME = "wt_app_background_prefs"
     private const val KEY = "wt_app_background"
 
-    /** The options in display order: Dark, then Day (only Dark while [DAY_MODE_OFFERED] is false). Declared BEFORE [state] on purpose. */
+    /**
+     * The options in display order: Dark, BG 2, then Day (only Dark and BG 2 while [DAY_MODE_OFFERED] is false). BG 2 keeps
+     * the night colours (it is a dark picture); to try another background, add its enum entry here (the Settings pill
+     * grows by itself). Declared BEFORE [state] on purpose.
+     */
     val options: List<AppBackgroundOption> =
         if (DAY_MODE_OFFERED) {
-            listOf(AppBackgroundOption.Black, AppBackgroundOption.Day)
+            listOf(AppBackgroundOption.Black, AppBackgroundOption.Photo2, AppBackgroundOption.Day)
         } else {
-            listOf(AppBackgroundOption.Black)
+            listOf(AppBackgroundOption.Black, AppBackgroundOption.Photo2)
         }
 
     private var state by mutableStateOf(readSaved())
