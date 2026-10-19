@@ -43,20 +43,37 @@ import com.wisdomtower.academy.data.competition.CompetitionRepository
 import com.wisdomtower.academy.data.competition.CompetitionResult
 import com.wisdomtower.academy.data.competition.LeaderboardResult
 import com.wisdomtower.academy.data.competition.LeaderboardRow
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomExpandable
 import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 
-private val LbCyan = Color(0xFF22E0FF)
-private val LbMuted = Color(0xFF94A3B8)
-private val LbRed = Color(0xFFF87171)
+// D7f (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. The private colours were top-level vals (read once at class load, so
+// they would not follow the switch); they are getters now. Night keeps the old values exactly (cyan 22E0FF, muted 94A3B8,
+// red F87171, gold FBBF24, silver CBD5E1, bronze D97706). Day: cyan and muted come from the tokens, red B91C1C, and the
+// medal colours are darker (gold B7791F, silver 7B8794, bronze B45309) because the night gold and silver are almost
+// invisible on ivory. Big numbers and scores use rankTextColor (day: gold 7A4F0A, silver 475569, bronze 9A3412) so they
+// stay readable as text; the trophy ring, icon and card edge use the medal colour. The dark text on the rank chip stays
+// dark in both modes (the chip is a medal-coloured pill). The white text lines became WisdomInk.
+private val LbCyan: Color
+    get() = WisdomCyan
+private val LbMuted: Color
+    get() = if (AppThemeMode.isDark) Color(0xFF94A3B8) else WisdomMuted
+private val LbRed: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFF87171) else Color(0xFFB91C1C)
 private val LbDarkText = Color(0xFF0A101D)
-private val LbGold = Color(0xFFFBBF24)
-private val LbSilver = Color(0xFFCBD5E1)
-private val LbBronze = Color(0xFFD97706)
+private val LbGold: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFFBBF24) else Color(0xFFB7791F)
+private val LbSilver: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFCBD5E1) else Color(0xFF7B8794)
+private val LbBronze: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFD97706) else Color(0xFFB45309)
 
 // C7 slice 1: the leaderboard of one finished contest (owner decisions D, E, F, G).
 // Everything shown is a server value from competition_leaderboard: names, scores, times, prize, points.
@@ -119,7 +136,7 @@ fun CompetitionLeaderboardScreen(
                 Spacer(modifier = Modifier.size(12.dp))
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = WisdomInk,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -269,7 +286,7 @@ private fun LeaderboardBody(competitionId: String, res: LeaderboardResult.Availa
                     verticalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     if (prizeTitle != null) {
-                        Text(text = prizeTitle, color = Color.White, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        Text(text = prizeTitle, color = WisdomInk, fontSize = 14.sp, fontWeight = FontWeight.Bold)
                     }
                     if (prizeDetails != null) {
                         Text(text = prizeDetails, color = LbMuted, fontSize = 13.sp)
@@ -288,6 +305,17 @@ private fun rankColor(rank: Int): Color = when (rank) {
     2 -> LbSilver
     3 -> LbBronze
     else -> LbCyan
+}
+
+// The medal colour used as TEXT (scores). Night: the medal colour itself. Day: a darker shade so it reads on ivory.
+private fun rankTextColor(rank: Int): Color {
+    if (AppThemeMode.isDark) return rankColor(rank)
+    return when (rank) {
+        1 -> Color(0xFF7A4F0A)
+        2 -> Color(0xFF475569)
+        3 -> Color(0xFF9A3412)
+        else -> LbCyan
+    }
 }
 
 private fun ordinal(rank: Int): String = when (rank) {
@@ -371,7 +399,7 @@ private fun HeroTrophyCard(row: LeaderboardRow, highlight: Boolean, modifier: Mo
             RankChip(rank = row.rank)
             Text(
                 text = row.name,
-                color = Color.White,
+                color = WisdomInk,
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
                 maxLines = 2,
@@ -380,7 +408,7 @@ private fun HeroTrophyCard(row: LeaderboardRow, highlight: Boolean, modifier: Mo
             Text(text = "Time " + formatTaken(row.timeTakenMs), color = LbMuted, fontSize = 12.sp)
         }
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(text = row.score.toString(), color = accent, fontSize = 30.sp, fontWeight = FontWeight.Bold)
+            Text(text = row.score.toString(), color = rankTextColor(row.rank), fontSize = 30.sp, fontWeight = FontWeight.Bold)
             Text(text = "of " + row.total.toString(), color = LbMuted, fontSize = 12.sp)
         }
     }
@@ -407,7 +435,7 @@ private fun PodiumTrophyCard(row: LeaderboardRow, highlight: Boolean, modifier: 
         RankChip(rank = row.rank)
         Text(
             text = row.name,
-            color = Color.White,
+            color = WisdomInk,
             fontSize = 14.sp,
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
@@ -416,7 +444,7 @@ private fun PodiumTrophyCard(row: LeaderboardRow, highlight: Boolean, modifier: 
         )
         Text(
             text = row.score.toString() + " of " + row.total.toString(),
-            color = accent,
+            color = rankTextColor(row.rank),
             fontSize = 16.sp,
             fontWeight = FontWeight.Bold
         )
@@ -450,7 +478,7 @@ private fun LbRow(row: LeaderboardRow, highlight: Boolean) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = row.name,
-                    color = Color.White,
+                    color = WisdomInk,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
