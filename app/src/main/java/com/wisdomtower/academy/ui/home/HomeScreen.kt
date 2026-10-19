@@ -72,6 +72,7 @@ import com.wisdomtower.academy.ui.theme.WisdomAccentViolet
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomSecondaryButton
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
@@ -103,113 +104,119 @@ data class ResourceGuide(
 // (path .../sem-1) already shows BOTH semesters, every course and the six hub cards without a connection,
 // so the card opens that. Name and picture (ece.jpg, kept in step with the website by `copySpecialPackageImages`)
 // are unchanged.
-val HOME_PROGRAMS = listOf(
-    ProgramItem(
-        id = "ece",
-        name = "ECE Engineering",
-        path = "/academy/special-packages/electrical-computer-engineering/sem-1",
-        assetImage = "file:///android_asset/images/special-packages/ece.jpg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
-        accentColor = WisdomAccentViolet
-    ),
-    ProgramItem(
-        id = "freshman",
-        name = "Freshman",
-        path = "/academy/freshman",
-        assetImage = "file:///android_asset/images/packages/freshman_00241b.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/freshman_00241b.jpeg",
-        accentColor = WisdomAccentPurple
-    ),
-    ProgramItem(
-        id = "grade-9",
-        name = "Grade 9",
-        path = "/academy/grades/9",
-        assetImage = "file:///android_asset/images/packages/grade-9_67df27.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-9_67df27.jpeg",
-        accentColor = WisdomAccentSky
-    ),
-    ProgramItem(
-        id = "grade-10",
-        name = "Grade 10",
-        path = "/academy/grades/10",
-        assetImage = "file:///android_asset/images/packages/grade-10_156767.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-10_156767.jpeg",
-        accentColor = WisdomAccentViolet
-    ),
-    ProgramItem(
-        id = "grade-11",
-        name = "Grade 11",
-        path = "/academy/grades/11",
-        assetImage = "file:///android_asset/images/packages/grade-11_6309fc.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-11_6309fc.jpeg",
-        accentColor = WisdomAccentAmber
-    ),
-    ProgramItem(
-        id = "grade-12",
-        name = "Grade 12",
-        path = "/academy/grades/12",
-        assetImage = "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-12_f1ddef.jpeg",
-        accentColor = WisdomAccentEmerald
-    ),
-    ProgramItem(
-        id = "entrance-questions",
-        name = "Entrance Questions",
-        path = ENTRANCE_BASE_PATH,
-        assetImage = ENTRANCE_IMAGE_ASSET,
-        webImageFallback = "https://wisdom-tower-academy.live/images/Entrance%20questions.jpeg",
-        accentColor = WisdomCyan
-    ),
-    ProgramItem(
-        id = "coc",
-        name = "COC",
-        path = "/academy/coc",
-        assetImage = "file:///android_asset/images/packages/coc_e44a09.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/coc_e44a09.jpeg",
-        accentColor = WisdomAccentIndigo
-    ),
-    ProgramItem(
-        id = "uat",
-        name = "UAT",
-        path = "/academy/uat",
-        assetImage = "file:///android_asset/images/packages/uat_56b257.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/uat_56b257.jpeg",
-        accentColor = WisdomAccentEmerald
-    ),
-    ProgramItem(
-        id = "gat",
-        name = "GAT",
-        path = "/academy/gat",
-        assetImage = "file:///android_asset/images/packages/gat_46ddb1.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/gat_46ddb1.jpeg",
-        accentColor = WisdomAccentRose
-    ),
-    ProgramItem(
-        id = "exit-exam",
-        name = "Exit Exam",
-        path = "/academy/exit-exam",
-        assetImage = "file:///android_asset/images/packages/exit-exam_c32a43.jpeg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/exit-exam_c32a43.jpeg",
-        accentColor = WisdomAccentFuchsia
-    ),
-    ProgramItem(
-        id = "remedial",
-        name = "Remedial",
-        path = "/academy/remedial",
-        assetImage = "file:///android_asset/images/packages/remedial.jpg",
-        webImageFallback = "https://wisdom-tower-academy.live/images/packages/remedial.jpg",
-        accentColor = WisdomAccentAmber
+//
+// D3 (day mode): HOME_PROGRAMS and OTHER_RESOURCES are now GETTERS (`get() = listOf(...)`), not values built once at class
+// load. The accent colours are mode-aware tokens, and a list built once would keep the colours of the mode the app started
+// in, so switching Dark / Day would not recolour the tiles until a restart. Same items, same order, same callers.
+val HOME_PROGRAMS: List<ProgramItem>
+    get() = listOf(
+        ProgramItem(
+            id = "ece",
+            name = "ECE Engineering",
+            path = "/academy/special-packages/electrical-computer-engineering/sem-1",
+            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
+            accentColor = WisdomAccentViolet
+        ),
+        ProgramItem(
+            id = "freshman",
+            name = "Freshman",
+            path = "/academy/freshman",
+            assetImage = "file:///android_asset/images/packages/freshman_00241b.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/freshman_00241b.jpeg",
+            accentColor = WisdomAccentPurple
+        ),
+        ProgramItem(
+            id = "grade-9",
+            name = "Grade 9",
+            path = "/academy/grades/9",
+            assetImage = "file:///android_asset/images/packages/grade-9_67df27.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-9_67df27.jpeg",
+            accentColor = WisdomAccentSky
+        ),
+        ProgramItem(
+            id = "grade-10",
+            name = "Grade 10",
+            path = "/academy/grades/10",
+            assetImage = "file:///android_asset/images/packages/grade-10_156767.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-10_156767.jpeg",
+            accentColor = WisdomAccentViolet
+        ),
+        ProgramItem(
+            id = "grade-11",
+            name = "Grade 11",
+            path = "/academy/grades/11",
+            assetImage = "file:///android_asset/images/packages/grade-11_6309fc.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-11_6309fc.jpeg",
+            accentColor = WisdomAccentAmber
+        ),
+        ProgramItem(
+            id = "grade-12",
+            name = "Grade 12",
+            path = "/academy/grades/12",
+            assetImage = "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-12_f1ddef.jpeg",
+            accentColor = WisdomAccentEmerald
+        ),
+        ProgramItem(
+            id = "entrance-questions",
+            name = "Entrance Questions",
+            path = ENTRANCE_BASE_PATH,
+            assetImage = ENTRANCE_IMAGE_ASSET,
+            webImageFallback = "https://wisdom-tower-academy.live/images/Entrance%20questions.jpeg",
+            accentColor = WisdomCyan
+        ),
+        ProgramItem(
+            id = "coc",
+            name = "COC",
+            path = "/academy/coc",
+            assetImage = "file:///android_asset/images/packages/coc_e44a09.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/coc_e44a09.jpeg",
+            accentColor = WisdomAccentIndigo
+        ),
+        ProgramItem(
+            id = "uat",
+            name = "UAT",
+            path = "/academy/uat",
+            assetImage = "file:///android_asset/images/packages/uat_56b257.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/uat_56b257.jpeg",
+            accentColor = WisdomAccentEmerald
+        ),
+        ProgramItem(
+            id = "gat",
+            name = "GAT",
+            path = "/academy/gat",
+            assetImage = "file:///android_asset/images/packages/gat_46ddb1.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/gat_46ddb1.jpeg",
+            accentColor = WisdomAccentRose
+        ),
+        ProgramItem(
+            id = "exit-exam",
+            name = "Exit Exam",
+            path = "/academy/exit-exam",
+            assetImage = "file:///android_asset/images/packages/exit-exam_c32a43.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/exit-exam_c32a43.jpeg",
+            accentColor = WisdomAccentFuchsia
+        ),
+        ProgramItem(
+            id = "remedial",
+            name = "Remedial",
+            path = "/academy/remedial",
+            assetImage = "file:///android_asset/images/packages/remedial.jpg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/remedial.jpg",
+            accentColor = WisdomAccentAmber
+        )
     )
-)
 
-val OTHER_RESOURCES = listOf(
-    ResourceGuide("Success Stories", "/academy/success-stories", Icons.Default.EmojiEvents, WisdomAccentAmber),
-    ResourceGuide("Study Techniques", "/academy/study-techniques", Icons.Default.Lightbulb, WisdomCyan),
-    ResourceGuide("Campus Life", "/academy/campus-life", Icons.Default.Park, WisdomAccentSky),
-    ResourceGuide("Universities Directory", "/academy/universities", Icons.Default.Apartment, WisdomAccentViolet),
-    ResourceGuide("Departments Guide", "/academy/departments", Icons.AutoMirrored.Filled.MenuBook, WisdomAccentOrange),
-    ResourceGuide("Scholarships Guide", "/academy/scholarships", Icons.Default.School, WisdomAccentRose)
-)
+val OTHER_RESOURCES: List<ResourceGuide>
+    get() = listOf(
+        ResourceGuide("Success Stories", "/academy/success-stories", Icons.Default.EmojiEvents, WisdomAccentAmber),
+        ResourceGuide("Study Techniques", "/academy/study-techniques", Icons.Default.Lightbulb, WisdomCyan),
+        ResourceGuide("Campus Life", "/academy/campus-life", Icons.Default.Park, WisdomAccentSky),
+        ResourceGuide("Universities Directory", "/academy/universities", Icons.Default.Apartment, WisdomAccentViolet),
+        ResourceGuide("Departments Guide", "/academy/departments", Icons.AutoMirrored.Filled.MenuBook, WisdomAccentOrange),
+        ResourceGuide("Scholarships Guide", "/academy/scholarships", Icons.Default.School, WisdomAccentRose)
+    )
 
 @Composable
 fun HomeScreen(
@@ -218,6 +225,10 @@ fun HomeScreen(
     userName: String? = null,
     onNavigateToUrl: (String) -> Unit
 ) {
+    // D3: the resource list is read once per composition (it is a getter now), so both tiles of a row come from one list.
+    val resources = OTHER_RESOURCES
+    val programs = HOME_PROGRAMS
+
     Box(modifier = modifier.fillMaxSize()) {
         // Atmospheric radial background
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
@@ -253,7 +264,7 @@ fun HomeScreen(
             }
 
             // 3. Program cards: the shared OpenCard, two per row (each row already rises in through openGrid)
-            openGrid("programs", HOME_PROGRAMS) { program ->
+            openGrid("programs", programs) { program ->
                 OpenCard(program.name, program.assetImage) { onNavigateToUrl(program.path) }
             }
 
@@ -273,11 +284,11 @@ fun HomeScreen(
             }
 
             items(
-                count = (OTHER_RESOURCES.size + 1) / 2,
+                count = (resources.size + 1) / 2,
                 key = { rowIndex -> "resource_row_$rowIndex" }
             ) { rowIndex ->
-                val first = OTHER_RESOURCES[rowIndex * 2]
-                val second = OTHER_RESOURCES.getOrNull(rowIndex * 2 + 1)
+                val first = resources[rowIndex * 2]
+                val second = resources.getOrNull(rowIndex * 2 + 1)
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -398,6 +409,8 @@ private fun HeroSection(
  * softly when it first appears and presses in like the login button. Titles are the website's, unchanged.
  * S3 part 2: the tile is ONE button for TalkBack (role Button); the icons are decorative, so it is read as
  * "<title>, button".
+ * D3 (day mode): the title, the arrow and the arrow circle use [WisdomInk] (white at night, deep navy by day) instead of
+ * Color.White, so night is unchanged.
  */
 @Composable
 private fun ResourceTile(
@@ -471,14 +484,14 @@ private fun ResourceTile(
                 modifier = Modifier
                     .size(34.dp)
                     .clip(CircleShape)
-                    .background(Color.White.copy(alpha = 0.06f))
+                    .background(WisdomInk.copy(alpha = 0.06f))
                     .border(BorderStroke(1.dp, WisdomBorderWhite), CircleShape),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                     contentDescription = null,
-                    tint = Color.White,
+                    tint = WisdomInk,
                     modifier = Modifier.size(18.dp)
                 )
             }
@@ -487,7 +500,7 @@ private fun ResourceTile(
         Text(
             text = resource.name,
             fontFamily = OutfitFontFamily,
-            color = Color.White,
+            color = WisdomInk,
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
             lineHeight = 22.sp,
