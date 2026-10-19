@@ -5,14 +5,17 @@ import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 /**
- * ADMIN-native N8a (docs/ADMIN_NATIVE_PLAN.md). Calls to the WEBSITE API routes that need the admin's own login
+ * ADMIN-native N8a/N8b (docs/ADMIN_NATIVE_PLAN.md). Calls to the WEBSITE API routes that need the admin's own login
  * (Authorization: Bearer access token), exactly like the website panel does with supabase.auth.getSession().
- * Used for the broadcast history list and delete (api/notifications with admin=true). Same token handling as
+ * N8a: get and delete (broadcast history). N8b: post (send a notification now: the route pushes through Firebase and
+ * can take up to a minute for a big audience, so POST waits up to 70 seconds). Same token handling as
  * AdminSupabase.kt: refresh first, one retry on 401. No secret key, ever. Replies use AdminHttpResult
  * (code -1 = could not reach the server, -2 = not signed in).
  *
@@ -22,32 +25,43 @@ import java.util.concurrent.TimeUnit
 object AdminWebApi {
     private const val TAG = "AdminWebApi"
 
+    private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(25, TimeUnit.SECONDS)
         .build()
 
-    private fun execute(method: String, absoluteUrl: String, token: String): AdminHttpResult {
+    private val postHttp = http.newBuilder()
+        .readTimeout(70, TimeUnit.SECONDS)
+        .build()
+
+    private fun execute(method: String, absoluteUrl: String, token: String, jsonBody: String?): AdminHttpResult {
         val builder = Request.Builder()
             .url(absoluteUrl)
             .addHeader("Authorization", "Bearer $token")
             .addHeader("Accept", "application/json")
-        if (method == "DELETE") builder.delete() else builder.get()
-        http.newCall(builder.build()).execute().use { resp ->
+        when (method) {
+            "DELETE" -> builder.delete()
+            "POST" -> builder.post((jsonBody ?: "{}").toRequestBody(JSON_MEDIA))
+            else -> builder.get()
+        }
+        val client = if (method == "POST") postHttp else http
+        client.newCall(builder.build()).execute().use { resp ->
             return AdminHttpResult(resp.code, resp.body?.string().orEmpty())
         }
     }
 
-    private suspend fun request(method: String, absoluteUrl: String): AdminHttpResult =
+    private suspend fun request(method: String, absoluteUrl: String, jsonBody: String?): AdminHttpResult =
         withContext(Dispatchers.IO) {
             try {
                 AuthStateManager.refreshIfNeeded()
                 val token = AuthStateManager.currentUser.value?.accessToken
                 if (token.isNullOrBlank()) return@withContext AdminHttpResult(-2, "")
-                var reply = execute(method, absoluteUrl, token)
+                var reply = execute(method, absoluteUrl, token, jsonBody)
                 if (reply.code == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
                     val token2 = AuthStateManager.currentUser.value?.accessToken
-                    if (!token2.isNullOrBlank()) reply = execute(method, absoluteUrl, token2)
+                    if (!token2.isNullOrBlank()) reply = execute(method, absoluteUrl, token2, jsonBody)
                 }
                 reply
             } catch (e: CancellationException) {
@@ -59,7 +73,10 @@ object AdminWebApi {
         }
 
     /** absoluteUrl is the full website url, for example the origin plus /api/notifications?admin=true */
-    suspend fun get(absoluteUrl: String): AdminHttpResult = request("GET", absoluteUrl)
+    suspend fun get(absoluteUrl: String): AdminHttpResult = request("GET", absoluteUrl, null)
 
-    suspend fun delete(absoluteUrl: String): AdminHttpResult = request("DELETE", absoluteUrl)
+    suspend fun delete(absoluteUrl: String): AdminHttpResult = request("DELETE", absoluteUrl, null)
+
+    /** JSON body, admin Bearer token. Used by the composer to send a notification now. */
+    suspend fun post(absoluteUrl: String, jsonBody: String): AdminHttpResult = request("POST", absoluteUrl, jsonBody)
 }

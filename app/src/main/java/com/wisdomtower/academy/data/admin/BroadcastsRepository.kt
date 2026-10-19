@@ -19,7 +19,10 @@ data class BroadcastItem(
     val createdAt: String
 )
 
-/** One row of admin_list_scheduled_notifications_v2 (website ScheduledRowV2, the columns the list shows). */
+/**
+ * One row of admin_list_scheduled_notifications_v2 (website ScheduledRowV2, the columns the list shows).
+ * N8b: content is the rich content object as JSON text (null when the row has none), used to edit a waiting row.
+ */
 data class ScheduledItem(
     val id: String,
     val title: String,
@@ -28,6 +31,7 @@ data class ScheduledItem(
     val sendAt: String,
     val status: String,
     val category: String?,
+    val content: String?,
     val audiences: List<String>,
     val audienceScope: String?,
     val packageId: String?,
@@ -50,7 +54,7 @@ sealed class ScheduledResult {
  *  - delete one: DELETE api/notifications?id=... with the admin token
  *  - scheduled list: database function admin_list_scheduled_notifications_v2 (p_limit 50), admin's own login
  *  - cancel a waiting one: database function admin_cancel_scheduled_notification (p_id)
- * Writing and sending a new notification (composer) is NOT here yet (slice N8b).
+ * The composer calls are in ComposerRepository.kt (N8b).
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  * Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
@@ -73,8 +77,9 @@ object BroadcastsRepository {
         return if (message.isBlank()) "Something went wrong." else message
     }
 
-    private fun apiError(reply: AdminHttpResult, fallback: String): String {
-        if (reply.code == -2) return "Not signed in"
+    /** Short message for a failed website API call (the route's own error text first). */
+    internal fun apiError(reply: AdminHttpResult, fallback: String): String {
+        if (reply.code == -2) return "Your admin session has expired. Please sign in again."
         if (reply.code == -1) return "Could not reach the server"
         val fromServer = try {
             JSONObject(reply.body).optString("error", "")
@@ -137,6 +142,7 @@ object BroadcastsRepository {
                         if (entry.isNotEmpty()) audiences.add(entry)
                     }
                 }
+                val contentObj = o.optJSONObject("content")
                 out.add(
                     ScheduledItem(
                         id = o.text("id") ?: continue,
@@ -146,6 +152,7 @@ object BroadcastsRepository {
                         sendAt = o.text("send_at") ?: "",
                         status = o.text("status") ?: "pending",
                         category = o.text("category"),
+                        content = contentObj?.toString(),
                         audiences = audiences,
                         audienceScope = o.text("audience_scope"),
                         packageId = o.text("package_id"),
@@ -185,6 +192,16 @@ object BroadcastsRepository {
         val out = SimpleDateFormat("dd MMM yyyy, HH:mm", Locale.US)
         out.timeZone = TimeZone.getTimeZone("Africa/Addis_Ababa")
         return out.format(date) + " EAT"
+    }
+
+    /** Date (yyyy-MM-dd) and time (HH:mm) of an instant in Ethiopia time, to fill the composer when editing. Null if unreadable. */
+    fun eatDateTime(iso: String): Pair<String, String>? {
+        val date = parseInstant(iso) ?: return null
+        val day = SimpleDateFormat("yyyy-MM-dd", Locale.US)
+        val clock = SimpleDateFormat("HH:mm", Locale.US)
+        day.timeZone = TimeZone.getTimeZone("Africa/Addis_Ababa")
+        clock.timeZone = TimeZone.getTimeZone("Africa/Addis_Ababa")
+        return Pair(day.format(date), clock.format(date))
     }
 
     /** Same rule as audienceText on the website. */
