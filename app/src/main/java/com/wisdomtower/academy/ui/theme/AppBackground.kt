@@ -34,22 +34,32 @@ private const val PHOTO_SCRIM_ALPHA = 0.35f
 private const val PHOTO_MAX_SIDE = 1280
 
 /**
- * The backgrounds the code knows. BG-PICKER (owner order 2026-10-17): the student can now choose only TWO of them,
- * Dark ([Black]) and BG 2 ([Photo2]); see [AppBackground.options]. The other entries stay here on purpose (nothing is
- * deleted) but are not offered and are never loaded from a saved choice.
+ * PUBLISHING GATE (docs/DAY_MODE_PLAN.md section 7). true: Settings > Background offers Dark and Day. false: it offers Dark
+ * only, and a saved Day choice falls back to Dark. Set it to false for a Play Store build that must not carry the
+ * unfinished day mode; set it back to true after D9 is signed off. Nothing else needs to change.
+ */
+private const val DAY_MODE_OFFERED = true
+
+/**
+ * The backgrounds the code knows. D1 (owner order 2026-10-19): the student can choose only TWO of them, Dark ([Black]) and
+ * Day ([Day]); see [AppBackground.options]. Day REPLACES BG 2 in the pill (hypothesis, the owner has not answered the
+ * question in docs/DAY_MODE_PLAN.md section 8). The other entries, BG 2 included, stay here on purpose (nothing is deleted)
+ * but are not offered and are never loaded from a saved choice, so a student who had BG 2 saved gets Dark.
  *
- * Day mode was removed (owner order 2026-10-17), so there are no light looks any more.
- * The saved choice is the constant NAME. A saved name that is not one of the two offered options falls back to the
- * default, Dark.
+ * The saved choice is the constant NAME. A saved name that is not one of the offered options falls back to the default,
+ * Dark.
  * [base] is the plain colour under the look; it is also what native views that need one solid colour use, and what shows
  * while a picture is still loading.
+ * [isLight] is true only for the Day look. It is what switches the whole app to day colours (see [AppThemeMode]).
  */
 enum class AppBackgroundOption(
     val label: String,
     val base: Color,
     val glows: List<BackdropGlow> = emptyList(),
     /** Path of the picture inside the app's assets folder, or null for a plain / glow look. */
-    val photoAsset: String? = null
+    val photoAsset: String? = null,
+    /** True for a light look. Only [Day] is light. */
+    val isLight: Boolean = false
 ) {
     Black("Dark", Color(0xFF000000)),
     Photo1("BG 1", Color(0xFF070C16), photoAsset = "backgrounds/bg_1.jpg"),
@@ -58,6 +68,19 @@ enum class AppBackgroundOption(
     Midnight(
         "Blue", Color(0xFF0A1530),
         listOf(BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFF2F6BFF), 0.20f))
+    ),
+
+    /**
+     * D1 "Ivory & Navy" day look: the ivory-stone page E9E5DC with two very soft glows (pale sky at the top, champagne at the
+     * bottom), low alpha. The glow colours and strengths are a starting point the owner judges on a phone.
+     */
+    Day(
+        "Day", Color(0xFFE9E5DC),
+        listOf(
+            BackdropGlow(0.5f, -0.05f, 0.95f, Color(0xFFBFD8EC), 0.38f),
+            BackdropGlow(0.5f, 1.05f, 0.95f, Color(0xFFF3DFB6), 0.42f)
+        ),
+        isLight = true
     );
 
     /** The plain colour (same as [base]). */
@@ -143,6 +166,7 @@ private object BackdropPhotos {
  * Draws a background: the plain colour, then the picture covering the screen with a dark shade over it, then
  * the soft glows. With no [option] it draws the one the student chose and follows later changes at once (the
  * choice is Compose state read while drawing). Settings passes each option to draw its preview.
+ * Day (D1) has no picture, so it draws the ivory colour and its two soft glows (no dark shade).
  */
 fun Modifier.appBackdrop(option: AppBackgroundOption? = null): Modifier = this.drawBehind {
     val opt = option ?: AppBackground.selected
@@ -176,8 +200,9 @@ fun Modifier.appBackdrop(option: AppBackgroundOption? = null): Modifier = this.d
 
 /**
  * The ONE holder of the chosen background. The choice is saved in SharedPreferences (key [KEY], the same key as before)
- * and exposed as Compose state, so every [AtmosphereBackground] redraws the moment [select] is used.
- * Default: Dark. Only the two options in [options] can be chosen or loaded (BG-PICKER, owner order 2026-10-17).
+ * and exposed as Compose state, so every [AtmosphereBackground] redraws the moment [select] is used. Since D1 it also
+ * decides day or night for the whole app: see [AppThemeMode].
+ * Default: Dark. Only the options in [options] can be chosen or loaded.
  *
  * The saved value is read once when this object is first used (the Application already exists by then), so no state is
  * written while a screen is composing.
@@ -190,11 +215,13 @@ object AppBackground {
     private const val PREFS_NAME = "wt_app_background_prefs"
     private const val KEY = "wt_app_background"
 
-    /** The 2 options in display order: Dark, BG 2. Declared BEFORE [state] on purpose. */
-    val options: List<AppBackgroundOption> = listOf(
-        AppBackgroundOption.Black,
-        AppBackgroundOption.Photo2
-    )
+    /** The options in display order: Dark, then Day (only Dark while [DAY_MODE_OFFERED] is false). Declared BEFORE [state] on purpose. */
+    val options: List<AppBackgroundOption> =
+        if (DAY_MODE_OFFERED) {
+            listOf(AppBackgroundOption.Black, AppBackgroundOption.Day)
+        } else {
+            listOf(AppBackgroundOption.Black)
+        }
 
     private var state by mutableStateOf(readSaved())
 

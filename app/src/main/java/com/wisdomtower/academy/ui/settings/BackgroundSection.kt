@@ -23,6 +23,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.DarkMode
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -35,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.Role
@@ -50,19 +50,23 @@ import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomExpandable
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.wisdomAnimatedColor
 
 /**
- * "Background" card for the Settings screen. BG-PICKER (owner order 2026-10-17): only two choices are left, Dark and
- * BG 2, shown as two icon buttons inside one smooth pill; the highlight slides from one icon to the other. Tapping
- * applies it to the whole app at once and saves it ([AppBackground.select]). Same glass card, header and smooth expand
- * as the other Settings sections. The subtitle shows the chosen name; the icon buttons carry the names for screen readers.
+ * "Background" card for the Settings screen. D1 (owner order 2026-10-19): the choices are Dark (moon icon) and Day (sun
+ * icon), shown as icon buttons inside one smooth pill; the highlight slides from one icon to the other. Tapping applies it
+ * to the whole app at once and saves it ([AppBackground.select]); Day also switches the whole app to the day colours (see
+ * AppThemeMode). Same glass card, header and smooth expand as the other Settings sections. The subtitle shows the chosen
+ * name; the icon buttons carry the names for screen readers.
+ *
+ * Text and tints use the ink tokens (white at night, navy by day) instead of Color.White, so night looks exactly as before.
  *
  * It is a separate file because SettingsScreen.kt is too big to resend; one line in SettingsScreen.kt calls it
  * (added by scripts/patch_b3_background_section.py).
  *
- * STATUS: written, NOT compiled, NOT tested on a device.
+ * STATUS: written, NOT compiled by the agent (CI decides), NOT tested on a device.
  */
 @Composable
 fun BackgroundSection() {
@@ -110,14 +114,14 @@ fun BackgroundSection() {
                         modifier = Modifier
                             .size(38.dp)
                             .clip(RoundedCornerShape(10.dp))
-                            .background(Color.White.copy(alpha = 0.05f))
+                            .background(WisdomInk.copy(alpha = 0.05f))
                             .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(10.dp)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(Icons.Filled.Palette, contentDescription = null, tint = WisdomCyan, modifier = Modifier.size(20.dp))
                     }
                     Column {
-                        Text(text = "Background", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(text = "Background", fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                         Text(text = chosen.label, fontSize = 11.sp, color = WisdomMuted)
                     }
                 }
@@ -133,7 +137,7 @@ fun BackgroundSection() {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.02f))
+                        .background(WisdomInk.copy(alpha = 0.02f))
                         .border(BorderStroke(1.dp, WisdomBorderWhite.copy(alpha = 0.4f)))
                         .padding(vertical = 14.dp),
                     contentAlignment = Alignment.Center
@@ -148,8 +152,12 @@ fun BackgroundSection() {
     }
 }
 
-private fun iconFor(option: AppBackgroundOption): ImageVector =
-    if (option == AppBackgroundOption.Black) Icons.Filled.DarkMode else Icons.Filled.Image
+/** Moon for Dark, sun for any light look (Day), a picture icon for the picture looks the code still knows but does not offer. */
+private fun iconFor(option: AppBackgroundOption): ImageVector = when {
+    option == AppBackgroundOption.Black -> Icons.Filled.DarkMode
+    option.isLight -> Icons.Filled.LightMode
+    else -> Icons.Filled.Image
+}
 
 /** One rounded pill holding the icon buttons; a highlight pill slides under the chosen one. */
 @Composable
@@ -168,7 +176,7 @@ private fun BackgroundPill(chosen: AppBackgroundOption, onPick: (AppBackgroundOp
     Box(
         modifier = Modifier
             .clip(pillShape)
-            .background(Color.White.copy(alpha = 0.08f))
+            .background(WisdomInk.copy(alpha = 0.08f))
             .border(BorderStroke(1.dp, WisdomBorderWhite), pillShape)
             .padding(4.dp)
     ) {
