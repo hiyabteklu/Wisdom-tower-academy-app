@@ -73,6 +73,19 @@ import com.wisdomtower.academy.ui.drawer.FaqScreen
 import com.wisdomtower.academy.ui.drawer.PrivacyScreen
 import com.wisdomtower.academy.ui.drawer.TermsScreen
 import com.wisdomtower.academy.ui.theme.WisdomNavy
+import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
+import com.wisdomtower.academy.ui.theme.WisdomCard
+import com.wisdomtower.academy.ui.theme.WisdomCardBorder
+import com.wisdomtower.academy.ui.theme.WisdomCardBorderSubtle
+import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomCyanDark
+import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import com.wisdomtower.academy.ui.theme.appBackdrop
 import com.wisdomtower.academy.ui.theme.WisdomTabLayer
 import com.wisdomtower.academy.data.auth.AuthStateManager
@@ -255,16 +268,22 @@ import androidx.compose.ui.draw.shadow
 import kotlinx.coroutines.delay
 
 // Unified native tokens mirroring the live website (wisdom.* palette)
-private val BarBg = Color(0xFF060B15) // Deep navy, exactly matching website page background
-private val Accent = Color(0xFF22E0FF) // Website source of truth cyan
-private val AccentDark = Color(0xFF00C4E6)
-private val CardSurface = Color(0x660C1424) // Glass-like card surface
-private val CardBorder = Color(0x3322E0FF) // Soft 1px cyan border
-private val CardBorderSubtle = Color(0x1F22E0FF) // Hairline quiet divider
-private val SurfaceColor = CardSurface
-private val Muted = Color(0xFF94A3B8)
-private val TextPrimary = Color(0xFFF8FAFC)
-private val DarkOnCyan = Color(0xFF070D17) // Dark text on solid cyan pills
+// D4: day mode shell. These are GETTERS now (they were read once at class load and never followed the day / night
+// switch). Night values are exactly the old literals; day values come from the Ivory & Navy tokens.
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+private val ShellOverlayIvory = Color(0xEBF8F5EE) // day overlays (bars, nav, drawer, dialogs): 92 percent frosted ivory
+private val BarBg: Color get() = WisdomNavy // night 060B15, same as before
+private val Accent: Color get() = WisdomCyan // night 22E0FF, day deep teal-cyan
+private val AccentDark: Color get() = WisdomCyanDark // night 00C4E6
+private val CardSurface: Color get() = dayNight(Color(0x660C1424), WisdomCard) // night: the old glass-like card surface
+private val CardBorder: Color get() = WisdomCardBorder // night 3322E0FF, same as before
+private val CardBorderSubtle: Color get() = dayNight(Color(0x1F22E0FF), WisdomCardBorderSubtle) // hairline quiet divider
+private val SurfaceColor: Color get() = CardSurface
+private val Muted: Color get() = dayNight(Color(0xFF94A3B8), WisdomMuted)
+private val TextPrimary: Color get() = dayNight(Color(0xFFF8FAFC), WisdomTextPrimary)
+private val DarkOnCyan: Color get() = WisdomDarkOnCyan // night 070D17, day white on the teal pills
+private val BarGlass: Color get() = dayNight(Color.White.copy(alpha = 0.04f), ShellOverlayIvory)
+private val BarDivider: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomBorderWhite)
 
 private const val OFFLINE_ASSET = "file:///android_asset/offline.html"
 // Direct 200 URL (eliminates 308 redirect round-trip delay)
@@ -2005,7 +2024,7 @@ fun MainScreen(
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .background(Color.White.copy(alpha = 0.04f))
+                        .background(BarGlass)
                 ) {
                     // Top App Bar Row
                     Row(
@@ -2080,7 +2099,7 @@ fun MainScreen(
                             ) { inStudy ->
                                 Text(
                                     text = if (inStudy) "Study Workspace" else "Wisdom Tower Academy",
-                                    color = Color.White,
+                                    color = WisdomInk,
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = 0.2.sp,
@@ -2106,9 +2125,9 @@ fun MainScreen(
                                 val formatted = String.format("%02d:%02d", mins, secs)
 
                                 Surface(
-                                    color = if (isTimerRunning) Color(0x2422E0FF) else Color(0x24F59E0B),
+                                    color = if (isTimerRunning) dayNight(Color(0x2422E0FF), Accent.copy(alpha = 0.14f)) else dayNight(Color(0x24F59E0B), WisdomAccentAmber.copy(alpha = 0.14f)),
                                     shape = RoundedCornerShape(999.dp),
-                                    border = BorderStroke(1.dp, if (isTimerRunning) Accent.copy(alpha = 0.6f) else Color(0x66F59E0B)),
+                                    border = BorderStroke(1.dp, if (isTimerRunning) Accent.copy(alpha = 0.6f) else dayNight(Color(0x66F59E0B), WisdomAccentAmber.copy(alpha = 0.5f))),
                                     modifier = Modifier
                                         .padding(end = 4.dp)
                                         .clickable(role = androidx.compose.ui.semantics.Role.Button) { // S3-a11y
@@ -2124,12 +2143,12 @@ fun MainScreen(
                                         Icon(
                                             imageVector = Icons.Filled.Timer,
                                             contentDescription = "Study Timer",
-                                            tint = if (isTimerRunning) Accent else Color(0xFFF59E0B),
+                                            tint = if (isTimerRunning) Accent else WisdomAccentAmber,
                                             modifier = Modifier.size(13.dp)
                                         )
                                         Text(
                                             text = formatted,
-                                            color = Color.White,
+                                            color = WisdomInk,
                                             fontSize = 11.5.sp,
                                             fontWeight = FontWeight.Bold
                                         )
@@ -2198,7 +2217,7 @@ fun MainScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
-                            .background(Color.White.copy(alpha = 0.08f))
+                            .background(BarDivider)
                     )
                 }
             },
@@ -3578,7 +3597,7 @@ fun MainScreen(
             ) {
                 // Dedicated Thin Native Header Bar with Back / Title / Done button
                 Surface(
-                    color = Color(0xFF070D18),
+                    color = dayNight(Color(0xFF070D18), ShellOverlayIvory),
                     tonalElevation = 6.dp,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -3611,7 +3630,7 @@ fun MainScreen(
                             }
                             Text(
                                 text = activeToolOverlayTitle,
-                                color = Color.White,
+                                color = WisdomInk,
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold,
                                 maxLines = 1
@@ -3622,8 +3641,8 @@ fun MainScreen(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(Color(0x26EF4444))
-                                .border(BorderStroke(1.dp, Color(0x66EF4444)), RoundedCornerShape(8.dp))
+                                .background(dayNight(Color(0x26EF4444), WisdomAccentRose.copy(alpha = 0.10f)))
+                                .border(BorderStroke(1.dp, dayNight(Color(0x66EF4444), WisdomAccentRose.copy(alpha = 0.40f))), RoundedCornerShape(8.dp))
                                 .clickable {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     closeToolOverlay()
@@ -3633,7 +3652,7 @@ fun MainScreen(
                         ) {
                             Text(
                                 text = "Close",
-                                color = Color(0xFFF87171),
+                                color = dayNight(Color(0xFFF87171), WisdomAccentRose),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -3976,7 +3995,7 @@ fun MainScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Color(0x8C030812)) // BG-READ: slightly stronger dim behind the drawer
+                    .background(dayNight(Color(0x8C030812), Color(0x660B1B33))) // BG-READ: slightly stronger dim behind the drawer; D4: day = navy 40 percent
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -3993,11 +4012,11 @@ fun MainScreen(
                         )
                         .background(
                             Brush.verticalGradient(
-                                listOf(Color(0xD9152238), Color(0xD90D1829)) // BG-READ: 85 percent so text does not mix with what is behind
+                                listOf(dayNight(Color(0xD9152238), ShellOverlayIvory), dayNight(Color(0xD90D1829), Color(0xEBF4F0E6))) // BG-READ: 85 percent so text does not mix with what is behind; D4: day = frosted ivory 92 percent
                             )
                         )
                         .border(
-                            BorderStroke(1.dp, Color.White.copy(alpha = 0.10f)),
+                            BorderStroke(1.dp, dayNight(Color.White.copy(alpha = 0.10f), WisdomBorderWhite)),
                             RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp)
                         )
                         .clip(RoundedCornerShape(topEnd = 16.dp, bottomEnd = 16.dp))
@@ -4035,7 +4054,7 @@ fun MainScreen(
                                 }
                                 Text(
                                     text = "Wisdom Tower",
-                                    color = Color.White,
+                                    color = WisdomInk,
                                     fontSize = 16.sp,
                                     fontWeight = FontWeight.Bold,
                                     letterSpacing = (-0.2).sp
@@ -4200,7 +4219,7 @@ fun MainScreen(
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "Wisdom Tower Academy • Native Shell",
-                            color = Muted.copy(alpha = 0.45f),
+                            color = Muted.copy(alpha = if (AppThemeMode.isDark) 0.45f else 0.85f),
                             fontSize = 12.sp,
                             fontWeight = FontWeight.Normal,
                             modifier = Modifier.fillMaxWidth(),
@@ -4278,7 +4297,7 @@ fun MainScreen(
  */
 // FloatingPillNav v2
 private val NavTrackTop = Color(0xFF101C30)
-private val NavTrackBottom = CardSurface
+private val NavTrackBottom: Color get() = CardSurface
 
 /** Extra width (in tab units) the selected tab gets so its label fits. 1.35 = same as v1 (2.35 : 1). */
 private const val NAV_EXTRA_WEIGHT = 1.35f
@@ -4321,7 +4340,8 @@ private fun AliveBottomNav(
                 .fillMaxWidth()
                 .height(52.dp)
                 .clip(trackShape)
-                .background(Color.White.copy(alpha = 0.09f)) // BG-NAV: glass track, no outline, no glow (BG-READ: 9 percent)
+                .background(dayNight(Color.White.copy(alpha = 0.09f), ShellOverlayIvory)) // BG-NAV: glass track, no outline, no glow (BG-READ: 9 percent); D4: day = ivory track
+                .then(if (AppThemeMode.isDark) Modifier else Modifier.border(1.dp, WisdomBorderWhite, trackShape)) // D4: day gets a hairline, night stays without outline
         ) {
             Layout(
                 modifier = Modifier.fillMaxSize(),
@@ -4630,7 +4650,7 @@ private fun DrawerCompactRow(
             .wisdomStaggerIn(index)
             .fillMaxWidth()
             .clip(RoundedCornerShape(8.dp))
-            .background(if (isPressed) Color(0x2222E0FF) else Color.Transparent)
+            .background(if (isPressed) dayNight(Color(0x2222E0FF), Accent.copy(alpha = 0.14f)) else Color.Transparent)
             .clickable(
                 interactionSource = interactionSource,
                 indication = ripple(color = Accent.copy(alpha = 0.2f))
@@ -4650,7 +4670,7 @@ private fun DrawerCompactRow(
                 modifier = Modifier
                     .size(26.dp)
                     .clip(RoundedCornerShape(6.dp))
-                    .background(Color(0x1F22E0FF)),
+                    .background(dayNight(Color(0x1F22E0FF), Accent.copy(alpha = 0.12f))),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -4662,7 +4682,7 @@ private fun DrawerCompactRow(
             }
             Text(
                 text = label,
-                color = Color(0xFFF1F5F9),
+                color = dayNight(Color(0xFFF1F5F9), WisdomTextPrimary),
                 fontSize = 13.sp,
                 fontWeight = FontWeight.Medium
             )
@@ -4692,7 +4712,7 @@ private fun TimerControlDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            color = CardSurface,
+            color = dayNight(CardSurface, ShellOverlayIvory),
             shape = RoundedCornerShape(20.dp),
             border = BorderStroke(1.dp, CardBorder),
             shadowElevation = 24.dp,
@@ -4714,7 +4734,7 @@ private fun TimerControlDialog(
                 ) {
                     Text(
                         text = "Focus Session",
-                        color = Color.White,
+                        color = WisdomInk,
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold
                     )
@@ -4747,20 +4767,20 @@ private fun TimerControlDialog(
                 ) {
                     Button(
                         onClick = onTogglePlayPause,
-                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) Color(0x3322E0FF) else Accent),
+                        colors = ButtonDefaults.buttonColors(containerColor = if (isRunning) dayNight(Color(0x3322E0FF), Accent.copy(alpha = 0.20f)) else Accent),
                         shape = RoundedCornerShape(12.dp),
                         modifier = Modifier.weight(1f).height(40.dp)
                     ) {
                         Icon(
                             imageVector = if (isRunning) Icons.Filled.Pause else Icons.Filled.PlayArrow,
                             contentDescription = null,
-                            tint = if (isRunning) Accent else Color(0xFF04101A),
+                            tint = if (isRunning) Accent else dayNight(Color(0xFF04101A), WisdomDarkOnCyan),
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = if (isRunning) "Pause" else "Resume",
-                            color = if (isRunning) Accent else Color(0xFF04101A),
+                            color = if (isRunning) Accent else dayNight(Color(0xFF04101A), WisdomDarkOnCyan),
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
@@ -4774,7 +4794,7 @@ private fun TimerControlDialog(
                     ) {
                         Text(
                             text = "Stop",
-                            color = Color(0xFFEF4444),
+                            color = dayNight(Color(0xFFEF4444), WisdomAccentRose),
                             fontWeight = FontWeight.Bold,
                             fontSize = 13.sp
                         )
