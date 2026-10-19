@@ -32,15 +32,26 @@ import com.wisdomtower.academy.data.competition.ExamLockdown
 import com.wisdomtower.academy.data.competition.ReviewQuestion
 import com.wisdomtower.academy.data.competition.ReviewResult
 import com.wisdomtower.academy.data.content.AiExplainRepository
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
 
-private val RvCyan = Color(0xFF22E0FF)
-private val RvMuted = Color(0xFF94A3B8)
-private val RvRed = Color(0xFFF87171)
+// D7e (docs/DAY_MODE_PLAN.md, 2026-10-19): the three private colours were top-level vals (read once at class load, so they
+// would not follow the day / night switch). They are getters now. Night keeps the old values exactly (cyan 22E0FF, muted
+// 94A3B8, red F87171); day uses WisdomCyan (deep teal 0B7285), WisdomMuted (4A5A70) and a deeper red B91C1C. The two white
+// text lines became WisdomInk.
+private val RvCyan: Color
+    get() = WisdomCyan
+private val RvMuted: Color
+    get() = if (AppThemeMode.isDark) Color(0xFF94A3B8) else WisdomMuted
+private val RvRed: Color
+    get() = if (AppThemeMode.isDark) Color(0xFFF87171) else Color(0xFFB91C1C)
 
 // C7 slice 3: review of the student's own ranked attempt after the window closed. Loads
 // CompetitionRepository.review (the server refuses it earlier, the plain message is shown), then shows one
@@ -101,7 +112,7 @@ fun CompetitionReviewScreen(
                 Spacer(modifier = Modifier.size(12.dp))
                 Text(
                     text = title,
-                    color = Color.White,
+                    color = WisdomInk,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.weight(1f)
@@ -139,7 +150,7 @@ fun CompetitionReviewScreen(
                 }
                 Text(
                     text = "Question " + (position + 1).toString() + " of " + questions.size.toString(),
-                    color = Color.White,
+                    color = WisdomInk,
                     fontSize = 13.sp
                 )
                 CompetitionReviewView(
