@@ -81,11 +81,14 @@ import com.wisdomtower.academy.data.content.TutorMessage
 import com.wisdomtower.academy.data.content.TutorSession
 import com.wisdomtower.academy.data.content.TutorSessionStore
 import com.wisdomtower.academy.ui.theme.AppBackdrop
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
+import com.wisdomtower.academy.ui.theme.WisdomAccentRose
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -100,9 +103,20 @@ private const val CALM_BUSY =
 private const val STOPPED = "Response stopped. What would you like to explore instead?"
 private const val CUT_NOTICE = "\n\n*(Response stopped due to high server demand. You can ask to continue.)*"
 
-/** Glass tints of the floating controls (translucent so the chat shows through). */
-private val FloatFill = Color(0x66050A14)
-private val FloatEdge = Color(0x26FFFFFF)
+// ---- D6j day / night colours. Night value = the exact old literal; day value = Ivory & Navy token. Getters: read while composing. ----
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+
+/** Glass tints of the floating controls. Night: translucent so the chat shows through. Day: ivory at about 92 percent (overlay rule). */
+private val FloatFill: Color get() = dayNight(Color(0x66050A14), Color(0xEBF8F5EE))
+private val FloatEdge: Color get() = dayNight(Color(0x26FFFFFF), WisdomGlassBorder)
+private val TuCyanText: Color get() = dayNight(Color(0xFFA5F3FC), WisdomCyan)
+private val TuSlate300: Color get() = dayNight(Color(0xFFCBD5E1), WisdomMuted)
+private val TuSlate200: Color get() = dayNight(Color(0xFFE2E8F0), WisdomInk)
+private val TuStopInk: Color get() = dayNight(Color(0xFFFDE68A), WisdomInk)
+private val TuRose: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRose)
+private val TuRoseEdge: Color get() = dayNight(Color(0xFFF43F5E).copy(alpha = 0.25f), WisdomAccentRose.copy(alpha = 0.40f))
+private val TuOnCyanInk: Color get() = dayNight(Color(0xFF020617), Color.White)
+private val TuDialogFill: Color get() = dayNight(Color(0xF20E172A), Color(0xF2F8F5EE))
 
 /** Marks a failed stream (thrown inside the collector, caught by the sender). */
 private class TutorStreamFailure : Exception()
@@ -144,6 +158,15 @@ private class TutorStreamHolder {
  * The page gets matching top and bottom padding through JavaScript (see [applyInsets]) so the first and the last
  * message are never hidden under the controls, but everything scrolls underneath them. `tutor.html` is unchanged.
  * The app's own header and bottom bar belong to the shell (MainActivity) and are not touched here.
+ *
+ * D6j (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode for the NATIVE parts of this screen only. Night keeps the exact old
+ * literals as `dayNight` pairs. By day: the floating menu bar and message pill are ivory at about 92 percent (they float
+ * over scrolling text, so they must be nearly opaque); icons, the typed text and titles are ink; the "cyan" light texts
+ * (A5F3FC) are the deep teal; the Send button's arrow is white on the teal (teal outline when the box is empty); Stop
+ * is the amber tint with ink text; the chats side panel and the "Clear this chat?" dialog are ivory (95 percent); delete
+ * and clear-all use the day rose. NOT done here: the chat page itself (`assets/notes/tutor.html`: bubbles, text, math,
+ * code) is a local WebView page and belongs to D8. Until D8 the page keeps its night colours by day, so the messages may
+ * be hard to read by day; test the controls in this slice, the messages after D8.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -475,18 +498,18 @@ fun NativeTutorScreen(
                     Icon(
                         imageVector = Icons.Default.Menu,
                         contentDescription = "Chats",
-                        tint = if (showHistory) Color(0xFFA5F3FC) else Color.White,
+                        tint = if (showHistory) TuCyanText else WisdomInk,
                         modifier = Modifier.size(20.dp)
                     )
                     Text(
                         text = "${sessions.size}",
                         fontSize = 13.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (showHistory) Color(0xFFA5F3FC) else Color.White
+                        color = if (showHistory) TuCyanText else WisdomInk
                     )
                 }
-                MenuIcon(Icons.Default.Add, "New chat", Color(0xFFA5F3FC)) { newChat() }
-                MenuIcon(Icons.Default.Delete, "Clear chat", Color(0xFFCBD5E1)) { showClearConfirm = true }
+                MenuIcon(Icons.Default.Add, "New chat", TuCyanText) { newChat() }
+                MenuIcon(Icons.Default.Delete, "Clear chat", TuSlate300) { showClearConfirm = true }
             }
 
             // Bottom: slim translucent message pill + round send / stop button, floating over the chat.
@@ -522,7 +545,7 @@ fun NativeTutorScreen(
                         value = input,
                         onValueChange = { input = it },
                         modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(color = Color.White, fontSize = 14.sp, lineHeight = 20.sp),
+                        textStyle = TextStyle(color = WisdomInk, fontSize = 14.sp, lineHeight = 20.sp),
                         cursorBrush = SolidColor(WisdomCyan),
                         maxLines = 4,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
@@ -540,7 +563,7 @@ fun NativeTutorScreen(
                             .padding(horizontal = 18.dp),
                         contentAlignment = Alignment.Center
                     ) {
-                        Text("Stop", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFFFDE68A))
+                        Text("Stop", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TuStopInk)
                     }
                 } else {
                     Box(
@@ -555,7 +578,7 @@ fun NativeTutorScreen(
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.Send,
                             contentDescription = "Send question",
-                            tint = Color.White,
+                            tint = if (AppThemeMode.isDark || input.isNotBlank()) Color.White else WisdomCyan,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -574,6 +597,11 @@ fun NativeTutorScreen(
                         indication = null
                     ) { showHistory = false }
             )
+            val panelBrush = if (AppThemeMode.isDark) {
+                Brush.verticalGradient(listOf(Color(0x66152238), Color(0x660D1829)))
+            } else {
+                Brush.verticalGradient(listOf(Color(0xF5F8F5EE), Color(0xF5EFEADF)))
+            }
             HistoryPanel(
                 sessions = sessions,
                 activeId = activeId,
@@ -587,7 +615,7 @@ fun NativeTutorScreen(
                     .fillMaxHeight()
                     .fillMaxWidth(0.88f)
                     .clip(RoundedCornerShape(topStart = 24.dp, bottomStart = 24.dp))
-                    .background(Brush.verticalGradient(listOf(Color(0x66152238), Color(0x660D1829))))
+                    .background(panelBrush)
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = null
@@ -600,9 +628,9 @@ fun NativeTutorScreen(
             AlertDialog(
                 modifier = Modifier.wisdomDialogEnter(),
                 onDismissRequest = { showClearConfirm = false },
-                containerColor = Color(0xF20E172A),
-                titleContentColor = Color.White,
-                textContentColor = Color(0xFFCBD5E1),
+                containerColor = TuDialogFill,
+                titleContentColor = WisdomInk,
+                textContentColor = TuSlate300,
                 title = { Text("Clear this chat?", fontWeight = FontWeight.Bold) },
                 text = { Text("All messages in this chat will be removed.") },
                 confirmButton = {
@@ -610,12 +638,12 @@ fun NativeTutorScreen(
                         showClearConfirm = false
                         clearChat()
                     }) {
-                        Text("Clear", color = Color(0xFFFDA4AF), fontWeight = FontWeight.Bold)
+                        Text("Clear", color = TuRose, fontWeight = FontWeight.Bold)
                     }
                 },
                 dismissButton = {
                     TextButton(onClick = { showClearConfirm = false }) {
-                        Text("Cancel", color = Color(0xFFA5F3FC))
+                        Text("Cancel", color = TuCyanText)
                     }
                 }
             )
@@ -643,7 +671,7 @@ private fun applyInsets(web: WebView?, topDp: Float, bottomDp: Float) {
 
 /** Small round icon button of the floating menu bar. */
 @Composable
-private fun MenuIcon(icon: ImageVector, description: String, tint: Color = Color.White, onClick: () -> Unit) {
+private fun MenuIcon(icon: ImageVector, description: String, tint: Color = WisdomInk, onClick: () -> Unit) {
     Box(
         modifier = Modifier
             .size(38.dp)
@@ -741,14 +769,14 @@ private fun HistoryPanel(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Study Chats", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                Text("Study Chats", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
                 Box(
                     modifier = Modifier
                         .clip(RoundedCornerShape(10.dp))
                         .background(WisdomCyan.copy(alpha = 0.2f))
                         .padding(horizontal = 8.dp, vertical = 2.dp)
                 ) {
-                    Text("${sessions.size}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFA5F3FC))
+                    Text("${sessions.size}", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TuCyanText)
                 }
             }
             Box(
@@ -776,7 +804,7 @@ private fun HistoryPanel(
                 .padding(vertical = 11.dp),
             contentAlignment = Alignment.Center
         ) {
-            Text("+ Start New Chat", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color(0xFF020617))
+            Text("+ Start New Chat", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = TuOnCyanInk)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -806,7 +834,7 @@ private fun HistoryPanel(
                             text = s.title,
                             fontSize = 12.sp,
                             fontWeight = FontWeight.SemiBold,
-                            color = if (isActive) Color(0xFFA5F3FC) else Color(0xFFE2E8F0),
+                            color = if (isActive) TuCyanText else TuSlate200,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -844,12 +872,12 @@ private fun HistoryPanel(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
-                    .border(BorderStroke(1.dp, Color(0xFFF43F5E).copy(alpha = 0.25f)), RoundedCornerShape(12.dp))
+                    .border(BorderStroke(1.dp, TuRoseEdge), RoundedCornerShape(12.dp))
                     .clickable { onClearAll() }
                     .padding(vertical = 9.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text("Clear All Past Chats", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = Color(0xFFFDA4AF))
+                Text("Clear All Past Chats", fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = TuRose)
             }
             Spacer(modifier = Modifier.height(10.dp))
         }
