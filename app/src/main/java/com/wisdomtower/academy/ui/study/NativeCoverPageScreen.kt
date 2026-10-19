@@ -65,11 +65,14 @@ import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
+import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
+import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -94,6 +97,14 @@ import java.util.Locale
  * the student chooses (CreateDocument, the system "Save as" screen).
  *
  * What is typed stays in [CoverForm] until the app is closed (so Back and reopen keep it). The Clear button empties it.
+ *
+ * D6i (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Most colours here were already tokens (glass cards, muted text,
+ * cyan accent). What was left: `Color.White` text and field text become `WisdomInk`; the selected-colour ring is white at
+ * night and ink by day; the logo box is the quiet glass by day; the filled pill text (`04121F` on the cyan) is white by
+ * day (the day cyan is the deep teal); the gold "premium" template label is dark gold `5C3F0A` by day. Night keeps the
+ * exact old literals as `dayNight` pairs. NOT changed on purpose: the white paper of the preview and of the template
+ * thumbnails (a cover page is a white sheet in both modes) and `CoverPageRenderer.kt` (the cover art and the PDF).
+ *
  * Status: written, NOT compiled by the author, not seen on a device.
  */
 object CoverForm {
@@ -129,6 +140,14 @@ object CoverForm {
 }
 
 private const val MAX_MEMBERS = 20
+
+// ---- D6i day / night colours. Night value = the exact old literal; day value = Ivory & Navy token. Getters: read while composing. ----
+private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
+
+private val CvRing: Color get() = dayNight(Color.White, WisdomInk)
+private val CvLogoBoxFill: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassFillQuiet)
+private val CvPremiumInk: Color get() = dayNight(Color(0xFFE8C766), Color(0xFF5C3F0A))
+private val CvPillOnInk: Color get() = dayNight(Color(0xFF04121F), Color.White)
 
 private fun todayText(): String = SimpleDateFormat("d MMMM yyyy", Locale.ENGLISH).format(Date())
 
@@ -304,7 +323,7 @@ fun NativeCoverPageScreen(
                                         .clip(CircleShape)
                                         .background(Color(a.color))
                                         .border(
-                                            BorderStroke(if (selected) 2.5.dp else 1.dp, if (selected) Color.White else WisdomGlassBorder),
+                                            BorderStroke(if (selected) 2.5.dp else 1.dp, if (selected) CvRing else WisdomGlassBorder),
                                             CircleShape
                                         )
                                         .clickable { CoverForm.accentIndex = index }
@@ -333,7 +352,7 @@ fun NativeCoverPageScreen(
                 }
             }
 
-            // 2. Live preview (sized to the free screen height)
+            // 2. Live preview (sized to the free screen height). The paper stays white in both modes.
             item(key = "cover_preview") {
                 Box(
                     modifier = Modifier.fillMaxWidth(),
@@ -371,7 +390,7 @@ fun NativeCoverPageScreen(
                             modifier = Modifier
                                 .size(64.dp)
                                 .clip(RoundedCornerShape(14.dp))
-                                .background(Color.White.copy(alpha = 0.08f))
+                                .background(CvLogoBoxFill)
                                 .border(BorderStroke(1.dp, WisdomGlassBorder), RoundedCornerShape(14.dp)),
                             contentAlignment = Alignment.Center
                         ) {
@@ -445,7 +464,7 @@ fun NativeCoverPageScreen(
                     }
                     if (CoverForm.isGroup) {
                         CoverField(CoverForm.groupName, { CoverForm.groupName = it }, "Group name or number")
-                        Text(text = "Group members", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = Color.White)
+                        Text(text = "Group members", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
                         CoverForm.members.forEachIndexed { index, m ->
                             Row(
                                 modifier = Modifier.fillMaxWidth(),
@@ -612,7 +631,7 @@ private fun TemplateThumb(name: String, premium: Boolean, bmp: Bitmap?, selected
             fontSize = 12.sp,
             fontWeight = FontWeight.SemiBold,
             maxLines = 1,
-            color = if (selected) WisdomCyan else if (premium) Color(0xFFE8C766) else Color.White
+            color = if (selected) WisdomCyan else if (premium) CvPremiumInk else WisdomInk
         )
     }
 }
@@ -639,7 +658,7 @@ private fun CoverPill(
             text = text,
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
-            color = if (filled) Color(0xFF04121F) else Color.White,
+            color = if (filled) CvPillOnInk else WisdomInk,
             maxLines = 1
         )
     }
@@ -660,14 +679,14 @@ private fun CoverField(
         label = { Text(text = label, fontSize = 12.sp, maxLines = 1) },
         singleLine = true,
         shape = RoundedCornerShape(14.dp),
-        textStyle = TextStyle(fontSize = 14.sp, color = Color.White),
+        textStyle = TextStyle(fontSize = 14.sp, color = WisdomInk),
         keyboardOptions = KeyboardOptions(
             capitalization = if (capitalize) KeyboardCapitalization.Words else KeyboardCapitalization.None
         ),
         trailingIcon = trailing,
         colors = OutlinedTextFieldDefaults.colors(
-            focusedTextColor = Color.White,
-            unfocusedTextColor = Color.White,
+            focusedTextColor = WisdomInk,
+            unfocusedTextColor = WisdomInk,
             focusedBorderColor = WisdomCyan,
             unfocusedBorderColor = WisdomGlassBorder,
             focusedLabelColor = WisdomCyan,
