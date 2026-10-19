@@ -23,6 +23,7 @@ import coil.compose.AsyncImage
 import coil.compose.AsyncImagePainter
 import coil.decode.GifDecoder
 import coil.request.ImageRequest
+import com.wisdomtower.academy.ui.theme.AppThemeMode
 import java.io.IOException
 
 /**
@@ -142,6 +143,10 @@ fun BrandLogo(
  * Animated brand loader. Soft card only appears after the GIF is decoded
  * so the empty card never flashes before the animation.
  * Pass showCard = false when the parent already provides a card surface.
+ *
+ * D7a (docs/DAY_MODE_PLAN.md, 2026-10-19): the soft card was a dark see-through panel (111827 at 40 percent). By day it is
+ * frosted ivory (F8F5EE at 82 percent, the day card token) so it does not look like a grey stain on the ivory page. Night
+ * keeps the old literal.
  */
 @Composable
 fun BrandLoader(
@@ -164,13 +169,14 @@ fun BrandLoader(
     var ready by remember { mutableStateOf(true) }
     val pad = if (size > 100.dp) 28.dp else 16.dp
     val radius = if (size > 100.dp) 28.dp else 20.dp
+    val cardColor = if (AppThemeMode.isDark) Color(0x66111827) else Color(0xD1F8F5EE)
 
     Box(
         modifier = modifier.then(
             if (showCard && ready) {
                 Modifier
                     .clip(RoundedCornerShape(radius))
-                    .background(Color(0x66111827))
+                    .background(cardColor)
                     .padding(pad)
             } else {
                 Modifier
