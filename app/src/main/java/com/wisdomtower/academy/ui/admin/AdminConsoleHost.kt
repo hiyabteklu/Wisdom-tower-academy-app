@@ -29,6 +29,8 @@ import com.wisdomtower.academy.ui.theme.WisdomBackground
 // N2 (2026-10-18): Inquiries is native. N3: Payments is native; the url path /admin/payments also opens it.
 // N4: Scholars and Users is native. N5: Overview is native. N6: Access Grants, Content Locks and Pricing and
 // Catalog are native. N7: Course Content is native.
+// N8a (2026-10-19): Push Broadcasts is native for the history and the scheduled list. Its composer is still the
+// website panel: the screen asks this host to show it (composerOpen), and Back returns to the native list.
 // To add the next native module: add its id to NATIVE_ADMIN_MODULE_IDS in AdminModules.kt and one branch in the when below.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
@@ -56,6 +58,7 @@ fun AdminConsoleScreen(
         else null
     }
     var sectionId by rememberSaveable(url) { mutableStateOf<String?>(startId) }
+    var composerOpen by remember(sectionId) { mutableStateOf(false) }
     var counts by remember { mutableStateOf<AdminCounts?>(null) }
     var loading by remember { mutableStateOf(false) }
     var reloadKey by remember { mutableIntStateOf(0) }
@@ -67,8 +70,9 @@ fun AdminConsoleScreen(
 
     // On the grid, Back closes the admin. In a native module, Back returns to the grid.
     // A website module (AdminWebSection) has its own Back handler that goes back inside the page first.
+    // While the website composer is open inside Push Broadcasts, only its own handler runs.
     BackHandler(enabled = currentId == null) { onClose() }
-    BackHandler(enabled = isNative) { sectionId = null }
+    BackHandler(enabled = isNative && !composerOpen) { sectionId = null }
 
     // Fresh counts every time the grid is shown (first open, after returning from a module, after Refresh).
     LaunchedEffect(sectionId, reloadKey) {
@@ -100,6 +104,20 @@ fun AdminConsoleScreen(
                 "locks" -> LocksScreen(modifier = Modifier.weight(1f))
                 "catalog" -> CatalogScreen(modifier = Modifier.weight(1f))
                 "content" -> CourseContentScreen(modifier = Modifier.weight(1f))
+                "notifications" -> if (composerOpen) {
+                    AdminWebSection(
+                        url = "$origin/admin?tab=notifications",
+                        onClose = { composerOpen = false },
+                        onLeaveToApp = onLeaveToApp,
+                        modifier = Modifier.weight(1f)
+                    )
+                } else {
+                    BroadcastsScreen(
+                        origin = origin,
+                        onWriteOnWebsite = { composerOpen = true },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
                 else -> AdminWebSection(
                     url = "$origin/admin?tab=${module.id}",
                     onClose = { sectionId = null },
