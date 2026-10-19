@@ -44,6 +44,8 @@ class AdminHttpResult(val code: Int, val body: String, val contentRange: String?
  * head: true, count: exact). A count that could not be read is null, never a made-up number.
  * N6 added: delete(). It asks for the deleted rows back so a silent RLS refusal (HTTP 200 with zero rows) can be
  * detected by the caller, exactly like patch().
+ * N10b added: headCount(). Same HEAD request as count(), but it returns the whole reply so the read-only Database
+ * status screen can tell a missing table (404) from a refusal (401 or 403) from an unreachable server.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -130,6 +132,12 @@ object AdminSupabase {
         if (!reply.ok) return null
         return reply.contentRange?.substringAfter('/', "")?.trim()?.toIntOrNull()
     }
+
+    /**
+     * Same request as count(), but the whole reply comes back (code and Content-Range). A HEAD request reads no rows
+     * and changes nothing. Use select=* when the table may have no id column.
+     */
+    suspend fun headCount(path: String): AdminHttpResult = request("HEAD", path, null, null)
 
     /** path includes the row filter, e.g. inquiries?id=eq.abc ; the body is a JSON object of the columns to change. */
     suspend fun patch(path: String, jsonBody: String): AdminHttpResult = request("PATCH", path, jsonBody, null)

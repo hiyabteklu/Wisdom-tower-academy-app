@@ -34,6 +34,9 @@ import com.wisdomtower.academy.ui.theme.WisdomBackground
 // N9 (2026-10-19): Competitions is native (the deep link /admin?tab=competitions opens it).
 // N10 (2026-10-19): Free Resources is native (photo upload with the phone's own file chooser; the Open live page
 // button hands a student app address to onLeaveToApp, like the Live Academy pill on the grid).
+// N10b (2026-10-19): the Database module is a native READ-ONLY status screen. The website Database and SQL Hub
+// is never opened from the app any more (owner order: only the owner works on the database, other admins only
+// see its health).
 // To add the next native module: add its id to NATIVE_ADMIN_MODULE_IDS in AdminModules.kt and one branch in the when below.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
@@ -113,6 +116,7 @@ fun AdminConsoleScreen(
                     onLeaveToApp = onLeaveToApp,
                     modifier = Modifier.weight(1f)
                 )
+                "database" -> DatabaseStatusScreen(modifier = Modifier.weight(1f))
                 "notifications" -> if (composerOpen) {
                     AdminWebSection(
                         url = "$origin/admin?tab=notifications",

@@ -22,6 +22,7 @@ internal enum class AdminCountKind { NONE, SCHOLARS, PAYMENTS, INQUIRIES }
  * One admin module. ids, labels and aliases are copied from website-reference/src/app/admin/page.tsx
  * (academyTabs, TAB_ALIASES) so deep links such as /admin?tab=competitions keep working.
  * Icons are Material equivalents of the website's lucide icons (BUILD_PITFALLS rule d).
+ * N10b: the label of the database tile is now Database Status (the id stays database so old links still open it).
  */
 internal data class AdminModule(
     val id: String,
@@ -43,7 +44,7 @@ internal val ADMIN_MODULES: List<AdminModule> = listOf(
     AdminModule("catalog", "Pricing & Catalog", Icons.Filled.Inventory2, aliases = listOf("pricing")),
     AdminModule("free-resources", "Free Resources", Icons.Filled.LocalLibrary, aliases = listOf("free-resource", "free")),
     AdminModule("inquiries", "Inquiries", Icons.Filled.Inbox, AdminCountKind.INQUIRIES, listOf("inquiry")),
-    AdminModule("database", "Database & SQL Hub", Icons.Filled.Storage, aliases = listOf("db"))
+    AdminModule("database", "Database Status", Icons.Filled.Storage, aliases = listOf("db"))
 )
 
 /** Same lookup as parseTab() on the website: id or alias, case-insensitive. Null when unknown. */
@@ -58,10 +59,10 @@ internal fun adminModuleForTab(raw: String?): AdminModule? {
  * (AdminWebSection). Add an id here in the same commit that adds its native screen.
  * N2: inquiries. N3: payments. N4: users. N5: overview. N6: grants, locks, catalog. N7: content.
  * N8a: notifications (history and scheduled list; the composer still opens the website panel).
- * N9: competitions. N10: free-resources.
+ * N9: competitions. N10: free-resources. N10b: database (read-only status, so no website panel is opened for it).
  */
 internal val NATIVE_ADMIN_MODULE_IDS: Set<String> =
     setOf(
         "inquiries", "payments", "users", "overview", "grants", "locks", "catalog", "content",
-        "notifications", "competitions", "free-resources"
+        "notifications", "competitions", "free-resources", "database"
     )
