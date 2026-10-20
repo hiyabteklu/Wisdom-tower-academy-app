@@ -85,7 +85,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-/** Hubs whose list rows show a count (cards / questions), so their list needs the `meta` JSON too. */
+/** Hubs whose list rows show a count (cards / questions). Since hardening stage 1 the count comes from `item_count`, not from `meta`. */
 private val COUNT_HUBS = setOf("flashcards", "question-banks", "exams")
 
 /** Progress value meaning "downloading, size not known" (notes, flashcards, questions have no byte count). */
@@ -133,6 +133,10 @@ private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRos
  * tap shows the same pop-up as a closed hub card instead of opening; its Download button is hidden and "Download all"
  * skips it. A row that is already saved on the phone is blocked the same way (the lock is checked on every tap).
  * `locks = null` (any other caller) means no extra lock.
+ *
+ * HARDENING STAGE 1 (2026-10-20): the list never reads `meta` any more; the card / question count of a row comes from
+ * the light column `item_count` ([LearningResource.itemCount]). The content itself is only returned by the database
+ * check (`open_resource`) when a student opens or downloads a material.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -561,7 +565,7 @@ private fun ItemRow(
     onRemove: () -> Unit,
     onClick: () -> Unit
 ) {
-    val count = remember(item.id, item.metaJson) { itemCount(item) }
+    val count = remember(item.id, item.itemCount, item.metaJson) { itemCount(item) }
     val countText = when {
         count == null -> null
         hubId == "flashcards" -> "$count ${if (count == 1) "card" else "cards"}"
@@ -727,8 +731,11 @@ private fun DownloadButton(
     }
 }
 
-/** Number of flashcards or questions inside the row's `meta`, or null when it has neither. */
-private fun itemCount(item: LearningResource): Int? = runCatching {
+/**
+ * Number of flashcards or questions of a row: the light column `item_count` (hardening stage 1), else the arrays
+ * inside the row's `meta` (a row loaded in full, or a copy saved by an older version of the app), else null.
+ */
+private fun itemCount(item: LearningResource): Int? = item.itemCount ?: runCatching {
     val meta = JSONObject(item.metaJson)
     (meta.optJSONArray("cards") ?: meta.optJSONArray("questions"))?.length()
 }.getOrNull()
