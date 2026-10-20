@@ -3,6 +3,7 @@ package com.wisdomtower.academy.data.content
 import android.content.Context
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -10,8 +11,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -42,12 +45,26 @@ import java.util.concurrent.TimeUnit
  *
  * The sign-in check (real content needs a signed-in student) belongs to the screen that calls this.
  *
- * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`).
+ * SECURITY S1 (2026-10-20, `docs/SECURITY_PLAN_CONTENT_ACCESS.md`): a single material (note text, cards, questions)
+ * is now asked from the database's CHECKED DOOR, `rpc/open_resource`, with the student's own login token. The
+ * server applies the lock rows, the Paid mode switch and the student's purchases / grants and refuses a locked
+ * material. While [LEGACY_DIRECT_READ] is true the old direct read is still used as a fallback (signed-out token,
+ * missing function, server error) so nothing breaks before plan slice S4. S4 sets it to false and revokes the
+ * direct read in the database. A locked answer also deletes the saved copy of that item.
+ *
+ * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1 not compiled).
  */
 object LearningContentRepository {
     private const val TAG = "LearningContent"
     private const val NO_INTERNET = "Check your internet connection and try again."
     private const val LOAD_FAILED = "Unable to load materials right now. Please try again."
+    private const val LOCKED_MESSAGE = "This material is locked. Unlock it with your package or ask the admin."
+
+    /**
+     * Slice S1 keeps the old direct read as a fallback. Slice S4 (after S1 and S2 are released and tested) sets this
+     * to false, together with the database change that removes the direct read of the content columns.
+     */
+    private const val LEGACY_DIRECT_READ = true
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -63,6 +80,7 @@ object LearningContentRepository {
     /** Quiet background refreshes of saved items (never tied to a screen). */
     private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
+    private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     private val ECE_SCOPE = Regex("^ece/(sem-[12])/([^/]+)$")
     private val UUID_REGEX = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     private val APPWRITE_ID_REGEX = Regex("^[A-Za-z0-9._-]{1,64}$")
@@ -73,6 +91,13 @@ object LearningContentRepository {
     /** Columns of a light list (no note text, no quiz/flashcard JSON). */
     private const val LIGHT_COLUMNS =
         "id,package_id,scope_path,hub,title,chapter,sort_order,content_type,storage_path,published"
+
+    /** What the checked door answered for one material. */
+    private sealed class Door {
+        class Row(val row: JSONObject) : Door()
+        object Gone : Door()
+        object Locked : Door()
+    }
 
     /**
      * Lists the published resources of one course/subject ([scopePath], for example `ece/sem-2/eceg3082`,
@@ -110,6 +135,8 @@ object LearningContentRepository {
      * Cache-first: a saved copy is returned at once (`fromCache = false`, it is not necessarily offline) and
      * refreshed quietly in the background. With [refresh] = true the server is asked first (a Download button):
      * the result has `fromCache = true` only when the server could not be reached and the old copy was used.
+     * A material the server reports as locked gives [ContentItemResult.Failure] with a plain message and its saved
+     * copy is deleted (a locked material is therefore refused at the latest on the next open).
      */
     suspend fun getResource(context: Context, id: String, refresh: Boolean = false): ContentItemResult =
         withContext(Dispatchers.IO) {
@@ -131,8 +158,11 @@ object LearningContentRepository {
                 }
             }
             try {
-                val row = fetchItem(id, cacheFile, http) ?: return@withContext ContentItemResult.NotFound
-                ContentItemResult.Found(rowToResource(row), false)
+                when (val door = fetchItem(id, cacheFile, http)) {
+                    is Door.Row -> ContentItemResult.Found(rowToResource(door.row), false)
+                    is Door.Gone -> ContentItemResult.NotFound
+                    is Door.Locked -> ContentItemResult.Failure(LOCKED_MESSAGE)
+                }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -223,10 +253,69 @@ object LearningContentRepository {
     // ---------- internals ----------
 
     /**
-     * Asks the server for one published item and saves it in [cacheFile]. Returns the row, or null when the
-     * item no longer exists or is no longer published (the saved copy is then deleted).
+     * Asks the checked door ([askDoor]) for one item and keeps [cacheFile] in step: the row is saved when the
+     * door opens, the saved copy is deleted when the item is gone (no longer published) or locked.
      */
-    private fun fetchItem(id: String, cacheFile: File, client: OkHttpClient): JSONObject? {
+    private suspend fun fetchItem(id: String, cacheFile: File, client: OkHttpClient): Door {
+        val door = askDoor(id, client)
+        when (door) {
+            is Door.Row -> writeCache(cacheFile, door.row.toString())
+            else -> runCatching { cacheFile.delete() }
+        }
+        return door
+    }
+
+    /**
+     * Security slice S1: `rpc/open_resource` with the student's own token. The server answers
+     * `{status: ok|locked|not_found|not_signed_in, row?}`. Without a token, or on an unexpected answer or HTTP error,
+     * the old direct read is used while [LEGACY_DIRECT_READ] is true; afterwards such a case is refused.
+     * Network trouble throws IOException (the caller falls back to the saved copy, as before).
+     */
+    private suspend fun askDoor(id: String, client: OkHttpClient): Door {
+        AuthStateManager.refreshIfNeeded()
+        val token = AuthStateManager.currentUser.value?.accessToken
+        if (token.isNullOrBlank()) return legacyOrRefuse(id, client)
+
+        var reply = callOpenResource(id, token, client)
+        if (reply.first == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
+            val fresh = AuthStateManager.currentUser.value?.accessToken
+            if (!fresh.isNullOrBlank()) reply = callOpenResource(id, fresh, client)
+        }
+        if (reply.first !in 200..299) {
+            Log.w(TAG, "open_resource failed: HTTP ${reply.first}")
+            return legacyOrRefuse(id, client)
+        }
+        val answer = try {
+            JSONObject(reply.second)
+        } catch (e: Exception) {
+            return legacyOrRefuse(id, client)
+        }
+        return when (answer.optString("status")) {
+            "ok" -> answer.optJSONObject("row")?.let { Door.Row(it) } ?: Door.Gone
+            "not_found" -> Door.Gone
+            "locked" -> Door.Locked
+            else -> legacyOrRefuse(id, client)
+        }
+    }
+
+    /** One POST to `rpc/open_resource`. Returns the HTTP code and the body text. */
+    private fun callOpenResource(id: String, token: String, client: OkHttpClient): Pair<Int, String> {
+        val body = JSONObject().put("p_id", id).toString().toRequestBody(JSON_MEDIA)
+        val request = Request.Builder()
+            .url("$supabaseUrl/rest/v1/rpc/open_resource")
+            .addHeader("apikey", anonKey)
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Accept", "application/json")
+            .post(body)
+            .build()
+        return client.newCall(request).execute().use { resp ->
+            resp.code to resp.body?.string().orEmpty()
+        }
+    }
+
+    /** The old direct read (public key), only while [LEGACY_DIRECT_READ] is true; otherwise the item is refused. */
+    private fun legacyOrRefuse(id: String, client: OkHttpClient): Door {
+        if (!LEGACY_DIRECT_READ) return Door.Locked
         val url = "$supabaseUrl/rest/v1/learning_resources".toHttpUrl().newBuilder()
             .addQueryParameter("select", "*")
             .addQueryParameter("id", "eq.$id")
@@ -234,13 +323,7 @@ object LearningContentRepository {
             .addQueryParameter("limit", "1")
             .build().toString()
         val rows = JSONArray(get(url, client))
-        if (rows.length() == 0) {
-            runCatching { cacheFile.delete() }
-            return null
-        }
-        val row = rows.getJSONObject(0)
-        writeCache(cacheFile, row.toString())
-        return row
+        return if (rows.length() == 0) Door.Gone else Door.Row(rows.getJSONObject(0))
     }
 
     private fun fetchRows(scopePath: String, hub: String, full: Boolean, client: OkHttpClient): JSONArray {
