@@ -67,10 +67,18 @@ sealed class AdminContentResult {
  * Writes still go to the table; save and delete ask only `select=id` back, because the default "return the whole row"
  * would need SELECT on `body_md` and `meta`.
  *
+ * SECURITY S5c (2026-10-20): Life Savers are PAID PDFs and live in the PRIVATE Appwrite bucket `paid-pdfs`. The editor
+ * still hands over `appwrite:<FILE_ID>` (the Appwrite File ID field), but [save] turns it into `appwrite-paid:<FILE_ID>`
+ * for the hub `life-savers` ([paidIfNeeded]), so the app asks the Edge Function `book-url` for a short-lived address
+ * ([com.wisdomtower.academy.data.content.LearningContentRepository.paidBookUrl]) instead of a public one. Free books keep
+ * `appwrite:<FILE_ID>`. [appwriteIdOf] and [isAppwritePath] understand both prefixes, so an existing paid item shows its
+ * File ID again in the editor.
+ *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
 object AdminContentRepository {
     private const val APPWRITE_PREFIX = "appwrite:"
+    private const val APPWRITE_PAID_PREFIX = "appwrite-paid:"
     private val ECE_SCOPE = Regex("^ece/(sem-[12])/([^/]+)\$")
 
     private fun JSONObject.text(key: String): String? =
@@ -96,8 +104,12 @@ object AdminContentRepository {
 
     /** The website's own hint for the hub, except where it talks about choosing a file (the app has no file chooser yet). */
     fun hubHint(hub: String): String = when (hub) {
-        "books", "life-savers" ->
+        "books" ->
             "Paste the Appwrite File ID of the PDF (upload it in Appwrite Console > Storage). " +
+                "Choosing a file on the phone is not in the app yet."
+        "life-savers" ->
+            "Life Savers are PAID. Upload the PDF into the PRIVATE bucket paid-pdfs (Appwrite Console > Storage > paid-pdfs), " +
+                "never into the public books bucket, then paste its File ID. The app saves it as appwrite-paid automatically. " +
                 "Choosing a file on the phone is not in the app yet."
         "short-notes" ->
             "Markdown notes in the text box (Amharic OK). Images: paste image URLs in markdown. No file upload required."
@@ -157,12 +169,30 @@ object AdminContentRepository {
         raw
     }
 
-    fun appwriteIdOf(storagePath: String?): String =
-        if (storagePath != null && storagePath.startsWith(APPWRITE_PREFIX)) storagePath.substring(APPWRITE_PREFIX.length) else ""
+    /** The File ID inside a free (`appwrite:`) or paid (`appwrite-paid:`) storage path, or "" for any other path. */
+    fun appwriteIdOf(storagePath: String?): String = when {
+        storagePath == null -> ""
+        storagePath.startsWith(APPWRITE_PAID_PREFIX) -> storagePath.substring(APPWRITE_PAID_PREFIX.length)
+        storagePath.startsWith(APPWRITE_PREFIX) -> storagePath.substring(APPWRITE_PREFIX.length)
+        else -> ""
+    }
 
     fun appwritePath(fileId: String): String = APPWRITE_PREFIX + fileId
 
-    fun isAppwritePath(storagePath: String?): Boolean = storagePath != null && storagePath.startsWith(APPWRITE_PREFIX)
+    fun isAppwritePath(storagePath: String?): Boolean =
+        storagePath != null && (storagePath.startsWith(APPWRITE_PREFIX) || storagePath.startsWith(APPWRITE_PAID_PREFIX))
+
+    /**
+     * Security slice S5c: the hub `life-savers` holds PAID PDFs, which live in the private bucket. A free-style path
+     * `appwrite:<id>` coming from the editor becomes `appwrite-paid:<id>` there; every other hub and every other kind of
+     * path is left exactly as it is.
+     */
+    private fun paidIfNeeded(hub: String, storage: String): String =
+        if (hub == "life-savers" && storage.startsWith(APPWRITE_PREFIX)) {
+            APPWRITE_PAID_PREFIX + storage.substring(APPWRITE_PREFIX.length)
+        } else {
+            storage
+        }
 
     // ---- reading ----
 
@@ -264,7 +294,8 @@ object AdminContentRepository {
     suspend fun save(itemId: String, input: AdminContentInput): GrantOutcome {
         val meta: JSONObject = parseMeta(input.metaText) ?: return GrantOutcome(false, "Meta JSON is invalid")
 
-        val storage = input.storagePath?.trim().orEmpty()
+        // Security S5c: a Life Savers file id is stored as appwrite-paid:<id> (private bucket), see paidIfNeeded.
+        val storage = paidIfNeeded(input.hub, input.storagePath?.trim().orEmpty())
         val bodyMd = input.bodyMd.orEmpty()
         val body = JSONObject()
         body.put("package_id", input.packageId)
