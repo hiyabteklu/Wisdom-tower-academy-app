@@ -19,4 +19,5 @@
   went 1 to 2; admin pushes a plan = the phone shows it after reopening the planner; airplane mode = the planner still opens with the last copy.
 - A3 PUSHED, `[~]` not compiled / not tested: plain wording on the admin Locks screen (who is affected per mode, "what happens now" line, warning when Owners only
   is set but Paid mode is OFF, "Remove this lock") and on the Grants screen ("<email> now has access to <package>", note while Paid mode is OFF). See docs/ADMIN_DASHBOARD_NEXT.md.
-- NEXT: read the CI result for the warmUp, planner and A3 commits; phone test of A2 with two accounts (no purchase / granted, Paid mode ON); then A4 test matrix, B1 (detail opens on top), C1 (looks audit).
+- A4 WRITTEN: docs/A4_TEST_MATRIX.md (21 rows with expected results, built from the real lock rows read from the database today; Paid mode is ON).
+- NEXT: read the CI result for the warmUp, planner and A3 commits; run the A4 matrix on the phone (record in docs/A4_RESULTS.md); then B1 (detail opens on top), C1 (looks audit).
