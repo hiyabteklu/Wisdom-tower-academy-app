@@ -55,6 +55,53 @@ data class CourseAccess(
 }
 
 /**
+ * GRANULAR LOCKS (owner order 2026-10-20: "lock and unlock materials at chapter level and material list level,
+ * without a code change or a release"). Every lock is ONE row of `public.content_locks`; a new lock is a new row,
+ * never new code. Keys (admin dashboard / SQL writes them, the app only reads them):
+ *
+ *  - `package:<package id>`                         whole package          (already existed)
+ *  - `scope:<scope path>`                           one course / subject   (already existed)
+ *  - `hub:<scope path>:<hub id>`                    ONE hub of a course, e.g. `hub:freshman/physics:books`
+ *  - `chapter:<scope path>:<hub id>:<chapter no>`   one chapter in one hub, e.g. `chapter:freshman/physics:books:3`
+ *  - `item:<learning_resources.id>`                 one material (book, note, deck, bank, exam)
+ *
+ * Modes: `open`, `require_purchase`, `coming_soon`, `locked` (shown as coming soon). The MOST SPECIFIC row wins:
+ * item, then chapter, then hub, then scope, then package, then the static rule. So "course coming soon, except
+ * Books open" is one `scope:` row plus one `hub:` row set to `open`, and "everything open except chapter 4 of
+ * Books" is one `chapter:` row. No row = the level above decides. Clearing a lock = deleting its row.
+ *
+ * [hubGate] is what a hub card tap checks; [itemGate] is what a row tap in a hub list checks.
+ */
+class CourseLocks internal constructor(
+    private val scope: String?,
+    private val signedIn: Boolean,
+    private val owned: Boolean,
+    private val courseMode: HubLockMode,
+    private val rows: Map<String, HubLockMode>
+) {
+    private fun gateOf(mode: HubLockMode): HubGate = CourseAccess(mode, signedIn, owned).gate
+
+    /** Mode of one hub: its own `hub:` row, else the course / package / static mode. */
+    fun hubMode(hubId: String): HubLockMode =
+        scope?.let { rows["hub:$it:$hubId"] } ?: courseMode
+
+    /** What a tap on the hub card does. */
+    fun hubGate(hubId: String): HubGate = gateOf(hubMode(hubId))
+
+    /**
+     * The gate of ONE material when an `item:` or `chapter:` row exists for it, else null (null = no extra
+     * lock: the hub gate, already checked on the hub card, is the only rule). Item row beats chapter row.
+     */
+    fun itemGate(hubId: String, chapter: Int?, itemId: String): HubGate? {
+        rows["item:$itemId"]?.let { return gateOf(it) }
+        if (scope != null && chapter != null) {
+            rows["chapter:$scope:$hubId:$chapter"]?.let { return gateOf(it) }
+        }
+        return null
+    }
+}
+
+/**
  * Plan step N9 (`docs/NATIVE_CONTENT_PLAN.md`): decides whether the hubs of a course can be opened.
  * Ports, from the website:
  *  - `data/content-availability.ts` (static rules per path, package ids per path, the two texts);
@@ -69,6 +116,9 @@ data class CourseAccess(
  *
  * Offline or server trouble: the last answer is reused, else the static rule applies (never a crash, never a
  * silent lock-out because of a network error).
+ *
+ * 2026-10-20: hub, chapter and item locks added ([CourseLocks], [resolveLocks], [staticLocks]). [resolve],
+ * [staticAccess] and [isUnlocked] are unchanged (course level).
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -110,6 +160,9 @@ object ContentAccess {
 
     private val cache = HashMap<String, Pair<Long, HubLockMode?>>()
 
+    /** Granular lock rows of one course, cached 30 s (key = package + scope). */
+    private val courseRowsCache = HashMap<String, Pair<Long, Map<String, HubLockMode>>>()
+
     /**
      * The access state of the course at [basePath] (a website route such as `/academy/freshman/physics`;
      * a trailing hub id is ignored). Reads the admin locks from Supabase (cached 30 s).
@@ -136,6 +189,30 @@ object ContentAccess {
     /** `isUnlocked(package)` of the plan: true when the hubs of the course at [basePath] may be opened now. */
     suspend fun isUnlocked(basePath: String, signedIn: Boolean): Boolean =
         resolve(basePath, signedIn).isUnlocked
+
+    /**
+     * All locks that matter inside the course at [basePath]: course / package / hub / chapter / item (see
+     * [CourseLocks]). One small request (cached 30 s). Offline or server trouble: the last answer is reused,
+     * else only the static rule applies, so a network error never locks a student out.
+     */
+    suspend fun resolveLocks(basePath: String, signedIn: Boolean): CourseLocks {
+        val base = normalize(basePath)
+        val unlockIds = unlockPackageIds(base)
+        val (pkg, scope) = inferPackageAndScope(base, unlockIds)
+        val rows = courseRows(pkg, scope)
+        val courseMode = scope?.let { rows?.get("scope:$it") }
+            ?: pkg?.let { rows?.get("package:$it") }
+            ?: staticLockMode(base)
+        return CourseLocks(scope, signedIn, ownsAny(signedIn, unlockIds), courseMode, rows ?: emptyMap())
+    }
+
+    /** Same as [resolveLocks] without the network: the static rule only (used until the first answer arrives). */
+    fun staticLocks(basePath: String, signedIn: Boolean): CourseLocks {
+        val base = normalize(basePath)
+        val unlockIds = unlockPackageIds(base)
+        val (_, scope) = inferPackageAndScope(base, unlockIds)
+        return CourseLocks(scope, signedIn, ownsAny(signedIn, unlockIds), staticLockMode(base), emptyMap())
+    }
 
     // ---------- ownership ----------
 
@@ -272,6 +349,46 @@ object ContentAccess {
             .addQueryParameter("select", "lock_key,mode")
             .addQueryParameter("lock_key", inList)
             .build().toString()
+        return readModes(url)
+    }
+
+    /**
+     * Every lock row that can matter inside one course: its package row, its scope row, all its `hub:` and
+     * `chapter:` rows (key prefix) and every `item:` row (item keys carry only the material id; there are only as
+     * many as the admin locked one by one). Null when nothing could be read and nothing is cached.
+     */
+    private suspend fun courseRows(pkg: String?, scope: String?): Map<String, HubLockMode>? =
+        withContext(Dispatchers.IO) {
+            val cacheKey = "${pkg.orEmpty()}|${scope.orEmpty()}"
+            val now = System.currentTimeMillis()
+            val hit = synchronized(courseRowsCache) { courseRowsCache[cacheKey] }
+            if (hit != null && now - hit.first < CACHE_MS) return@withContext hit.second
+            try {
+                val parts = ArrayList<String>()
+                pkg?.let { parts.add("lock_key.eq.\"package:$it\"") }
+                scope?.let {
+                    parts.add("lock_key.eq.\"scope:$it\"")
+                    parts.add("lock_key.like.\"hub:$it:*\"")
+                    parts.add("lock_key.like.\"chapter:$it:*\"")
+                }
+                parts.add("lock_key.like.\"item:*\"")
+                val url = "$supabaseUrl/rest/v1/content_locks".toHttpUrl().newBuilder()
+                    .addQueryParameter("select", "lock_key,mode")
+                    .addQueryParameter("or", parts.joinToString(",", prefix = "(", postfix = ")"))
+                    .build().toString()
+                val rows = readModes(url)
+                synchronized(courseRowsCache) { courseRowsCache[cacheKey] = Pair(now, rows) }
+                rows
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "course locks read failed: ${e.javaClass.simpleName}")
+                hit?.second
+            }
+        }
+
+    /** GET a `content_locks` query and turn the rows into key to mode (rows with an unknown mode are ignored). */
+    private fun readModes(url: String): Map<String, HubLockMode> {
         val request = Request.Builder()
             .url(url)
             .addHeader("apikey", anonKey)

@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Lock
 import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
@@ -56,8 +57,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.BookFileStore
+import com.wisdomtower.academy.data.content.ContentAccess
 import com.wisdomtower.academy.data.content.ContentItemResult
 import com.wisdomtower.academy.data.content.ContentListResult
+import com.wisdomtower.academy.data.content.CourseLocks
+import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningResource
 import com.wisdomtower.academy.data.content.SavedContent
@@ -123,6 +127,13 @@ private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRos
  * ink, deep rose, deep emerald and the 95 percent ivory dialog). [ScreenBackButton] tints its arrow with [WisdomInk], which
  * fixes the back arrow of every study tool that uses it.
  *
+ * GRANULAR LOCKS (2026-10-20, owner order: lock single chapters / materials without a release): [locks] carries the
+ * admin lock rows of this course (`content_locks`, keys `chapter:<scope>:<hub>:<n>` and `item:<id>`, see
+ * [CourseLocks]). A locked row stays visible with a lock icon and "Coming soon" / "Package required" under the title; a
+ * tap shows the same pop-up as a closed hub card instead of opening; its Download button is hidden and "Download all"
+ * skips it. A row that is already saved on the phone is blocked the same way (the lock is checked on every tap).
+ * `locks = null` (any other caller) means no extra lock.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -133,7 +144,8 @@ fun HubItemListScreen(
     courseTitle: String,
     onBack: () -> Unit,
     onOpenItem: (LearningResource) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    locks: CourseLocks? = null
 ) {
     val context = LocalContext.current
     val loggedIn by AuthStateManager.isLoggedIn.collectAsState()
@@ -155,6 +167,13 @@ fun HubItemListScreen(
     // F4b: "Download all" progress (items done, items in total) and the items waiting for a "Remove" answer
     var bulk by remember { mutableStateOf<Pair<Int, Int>?>(null) }
     var confirmRemove by remember { mutableStateOf<List<LearningResource>?>(null) }
+
+    // GRANULAR LOCKS: the pop-up for a tapped locked row (gate + the row's title)
+    var lockedPopup by remember { mutableStateOf<Pair<HubGate, String>?>(null) }
+
+    /** The extra lock (chapter or item row) on one material, or null when it is open. */
+    fun lockOf(item: LearningResource): HubGate? =
+        locks?.itemGate(hubId, item.chapter, item.id)?.takeIf { it != HubGate.Open }
 
     /** Saves one item. The caller has already put the item into [busy]; this removes it again at the end. */
     suspend fun runDownload(item: LearningResource) {
@@ -180,13 +199,14 @@ fun HubItemListScreen(
 
     fun startDownload(item: LearningResource) {
         if (item.id in busy) return
+        if (lockOf(item) != null) return
         busy = busy + (item.id to SIZE_UNKNOWN)
         downloadScope.launch { runDownload(item) }
     }
 
     fun downloadAll(all: List<LearningResource>) {
         if (bulk != null) return
-        val todo = all.filter { it.id !in downloaded && it.id !in busy }
+        val todo = all.filter { it.id !in downloaded && it.id !in busy && lockOf(it) == null }
         if (todo.isEmpty()) return
         bulk = 0 to todo.size
         downloadScope.launch {
@@ -325,7 +345,7 @@ fun HubItemListScreen(
                 current is ContentListResult.Success -> {
                     item(key = "hub_list_tools") {
                         DownloadTools(
-                            todo = current.items.count { it.id !in downloaded },
+                            todo = current.items.count { it.id !in downloaded && lockOf(it) == null },
                             saved = current.items.count { it.id in downloaded },
                             bulk = bulk,
                             onDownloadAll = { downloadAll(current.items) },
@@ -335,21 +355,27 @@ fun HubItemListScreen(
                     items(current.items, key = { it.id }) { item ->
                         val isNew = item.id !in seen
                         val rowIndex = current.items.indexOf(item)
+                        val rowLock = lockOf(item)
                         Box(modifier = Modifier.wisdomReveal("hub_${hubId}_${item.id}", rowIndex)) {
                         ItemRow(
                             item = item,
                             hubId = hubId,
-                            isNew = isNew,
+                            isNew = isNew && rowLock == null,
                             isDownloaded = item.id in downloaded,
                             knownSize = if (hubId == "books") fileSizeMap[item.id] else null,
                             progress = busy[item.id],
                             hasFailed = item.id in failed,
+                            lockedGate = rowLock,
                             onDownload = { startDownload(item) },
                             onRemove = { confirmRemove = listOf(item) }
                         ) {
-                            seen = seen + item.id
-                            seenPrefs.edit().putStringSet("ids", seen.toSet()).apply()
-                            onOpenItem(item)
+                            if (rowLock != null) {
+                                lockedPopup = rowLock to item.title
+                            } else {
+                                seen = seen + item.id
+                                seenPrefs.edit().putStringSet("ids", seen.toSet()).apply()
+                                onOpenItem(item)
+                            }
                         }
                         }
                     }
@@ -396,6 +422,30 @@ fun HubItemListScreen(
                     }
                 }
             )
+        }
+
+        // GRANULAR LOCKS: same pop-up as a closed hub card, titled with the tapped row.
+        val popup = lockedPopup
+        if (popup != null) {
+            if (popup.first == HubGate.ComingSoon) {
+                HubGateDialog(
+                    badge = ContentAccess.COMING_SOON_TITLE,
+                    title = ContentAccess.COMING_SOON_TITLE,
+                    hubName = popup.second,
+                    message = ContentAccess.COMING_SOON_BODY,
+                    buttonText = ContentAccess.COMING_SOON_BUTTON,
+                    onClose = { lockedPopup = null }
+                )
+            } else {
+                HubGateDialog(
+                    badge = null,
+                    title = ContentAccess.PURCHASE_TITLE,
+                    hubName = popup.second,
+                    message = ContentAccess.PURCHASE_BODY,
+                    buttonText = ContentAccess.PURCHASE_BUTTON,
+                    onClose = { lockedPopup = null }
+                )
+            }
         }
     }
 }
@@ -506,6 +556,7 @@ private fun ItemRow(
     knownSize: Long?,
     progress: Float?,
     hasFailed: Boolean,
+    lockedGate: HubGate?,
     onDownload: () -> Unit,
     onRemove: () -> Unit,
     onClick: () -> Unit
@@ -521,11 +572,17 @@ private fun ItemRow(
         knownSize != null && knownSize > 0L -> BookFileStore.formatBytes(knownSize)
         else -> null
     }
+    val lockText = when (lockedGate) {
+        HubGate.ComingSoon -> "Coming soon"
+        HubGate.PackageRequired -> "Package required"
+        else -> null
+    }
     val subline = listOfNotNull(
         item.chapter?.let { "Chapter $it" },
         sizeText,
         countText,
-        if (isDownloaded) "Saved offline" else null
+        lockText,
+        if (isDownloaded && lockedGate == null) "Saved offline" else null
     ).joinToString(" \u00B7 ")
 
     WisdomGlassCard(
@@ -599,18 +656,30 @@ private fun ItemRow(
                 }
             }
             Spacer(modifier = Modifier.width(8.dp))
-            DownloadButton(
-                isDownloaded = isDownloaded,
-                progress = progress,
-                failed = hasFailed,
-                onClick = if (isDownloaded) onRemove else onDownload
-            )
-            Icon(
-                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = null,
-                tint = WisdomMuted,
-                modifier = Modifier.size(22.dp)
-            )
+            if (lockedGate != null) {
+                // Locked by the admin: no download button, a lock instead of the arrow.
+                Icon(
+                    imageVector = Icons.Filled.Lock,
+                    contentDescription = "Locked",
+                    tint = WisdomMuted,
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(20.dp)
+                )
+            } else {
+                DownloadButton(
+                    isDownloaded = isDownloaded,
+                    progress = progress,
+                    failed = hasFailed,
+                    onClick = if (isDownloaded) onRemove else onDownload
+                )
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = WisdomMuted,
+                    modifier = Modifier.size(22.dp)
+                )
+            }
         }
     }
 }

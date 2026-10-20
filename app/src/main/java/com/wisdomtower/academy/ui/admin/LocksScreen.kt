@@ -55,10 +55,13 @@ import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.admin.ADMIN_CONTENT_TREE
 import com.wisdomtower.academy.data.admin.ADMIN_HUB_IDS
 import com.wisdomtower.academy.data.admin.AdminNavNode
+import com.wisdomtower.academy.data.admin.HubItemsResult
 import com.wisdomtower.academy.data.admin.LockItem
 import com.wisdomtower.academy.data.admin.LocksRepository
 import com.wisdomtower.academy.data.admin.LocksResult
+import com.wisdomtower.academy.data.admin.chapterLockKey
 import com.wisdomtower.academy.data.admin.hubLockKey
+import com.wisdomtower.academy.data.admin.itemLockKey
 import com.wisdomtower.academy.data.admin.packageLockKey
 import com.wisdomtower.academy.data.admin.scopeLockKey
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
@@ -79,6 +82,9 @@ import kotlinx.coroutines.launch
 // D7j (docs/DAY_MODE_PLAN.md, 2026-10-19): RoseTone is now the kit's AdminRose (night FB7185 as before, day BE123C; the
 // literal pink was too light as the lock icon on ivory), and the shortcut block tint is WisdomInk at 4 percent (night:
 // white 4 percent as before; day: a faint navy tint, white 4 percent was invisible on ivory). Night is identical.
+// GRANULAR LOCKS (2026-10-20, owner order): inside a hub the screen now lists its chapters and its materials (read from
+// learning_resources, published or not) and every chapter / material gets the same four lock modes. Keys:
+// chapter:<scope>:<hub>:<n> and item:<resource id> (see LocksRepository). The student app reads them live, no release.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private class LockMode(val id: String, val label: String, val hint: String)
@@ -135,6 +141,10 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
     var busyKey by remember { mutableStateOf("") }
     var crumbs by remember { mutableStateOf<List<AdminNavNode>>(emptyList()) }
     var openShortcut by remember { mutableStateOf("") }
+    // GRANULAR LOCKS: the chapter / material block that is open, the materials of the open hub, and a retry counter
+    var openKey by remember { mutableStateOf("") }
+    var hubItems by remember { mutableStateOf<HubItemsResult?>(null) }
+    var itemsReload by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -186,6 +196,18 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
     val pathText = (listOf("Academy") + crumbs.map { it.label }).joinToString(" \u203A ")
     val cardShape = RoundedCornerShape(16.dp)
 
+    // Load the chapters and materials of the hub that is open (only when the hub or the retry counter changes;
+    // saving a lock does not reload them, so the open block stays open).
+    val hubScopeToLoad: String? = if (isHub) node?.scopePath else null
+    val hubIdToLoad: String? = if (isHub) node?.id else null
+    LaunchedEffect(hubScopeToLoad, hubIdToLoad, itemsReload) {
+        hubItems = null
+        openKey = ""
+        if (hubScopeToLoad != null && hubIdToLoad != null) {
+            hubItems = LocksRepository.listHubItems(hubScopeToLoad, hubIdToLoad)
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
             state = listState,
@@ -206,8 +228,9 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                             fontWeight = FontWeight.Bold
                         )
                         Text(
-                            text = "Lock or unlock packages, subjects, and hubs (books, exams, etc.). " +
-                                "Specific exams stay controlled by the Published checkbox in Content.",
+                            text = "Lock or unlock packages, subjects, hubs, chapters, and single materials. " +
+                                "The most specific lock wins. Changes reach students within about 30 seconds, " +
+                                "no app update needed.",
                             color = WisdomMuted,
                             fontSize = 12.sp
                         )
@@ -348,8 +371,8 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                                 onReset = { resetToDefault(activeKey) }
                             )
                             Text(
-                                text = "Hub-level locks override subject locks; subject locks override package locks. " +
-                                    "Individual exams: use Published in the Content tab.",
+                                text = "Material lock beats chapter lock, chapter beats hub, hub beats subject, " +
+                                    "subject beats package. A chapter or material lock only matters while its hub is open.",
                                 color = WisdomMuted,
                                 fontSize = 12.sp
                             )
@@ -358,14 +381,93 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                 }
 
                 if (isHub) {
-                    item(key = "hubNote") {
-                        AdminMessageCard(
-                            title = "This is a hub",
-                            body = "Use the buttons above to lock/unlock the whole hub. Open the Content tab to " +
-                                "publish or unpublish individual exams and items.",
-                            actionLabel = null,
-                            onAction = {}
+                    val hubScope = node?.scopePath
+                    val hubId = node?.id
+                    val loaded = hubItems
+                    item(key = "itemsHead") {
+                        Text(
+                            text = "CHAPTERS AND MATERIALS",
+                            color = WisdomMuted,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold
                         )
+                    }
+                    when {
+                        hubScope == null || hubId == null -> Unit
+
+                        loaded == null -> item(key = "itemsLoading") {
+                            Text(
+                                text = "Loading materials...",
+                                color = WisdomMuted,
+                                fontSize = 14.sp,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(vertical = 24.dp)
+                            )
+                        }
+
+                        loaded is HubItemsResult.Failure -> item(key = "itemsError") {
+                            AdminMessageCard(
+                                title = "Could not load materials",
+                                body = loaded.message,
+                                actionLabel = "Try again",
+                                onAction = { itemsReload += 1 }
+                            )
+                        }
+
+                        loaded is HubItemsResult.Success && loaded.items.isEmpty() -> item(key = "itemsEmpty") {
+                            AdminMessageCard(
+                                title = "No materials in this hub yet",
+                                body = "Add materials in the Content tab. They appear here and can be locked one by one.",
+                                actionLabel = null,
+                                onAction = {}
+                            )
+                        }
+
+                        loaded is HubItemsResult.Success -> {
+                            val groups = loaded.items.groupBy { it.chapter }
+                            for ((chapter, rows) in groups) {
+                                if (chapter != null) {
+                                    val chapterKey = chapterLockKey(hubScope, hubId, chapter)
+                                    item(key = "ch-$chapter") {
+                                        ShortcutBlock(
+                                            title = "Chapter $chapter \u00B7 all ${rows.size} " +
+                                                if (rows.size == 1) "material" else "materials",
+                                            lock = lockMap[chapterKey],
+                                            expanded = openKey == chapterKey,
+                                            busy = busyKey == chapterKey,
+                                            onToggle = { openKey = if (openKey == chapterKey) "" else chapterKey },
+                                            onMode = { mode -> applyMode(chapterKey, mode, "Chapter $chapter") },
+                                            onReset = { resetToDefault(chapterKey) }
+                                        )
+                                    }
+                                } else {
+                                    item(key = "ch-none") {
+                                        Text(
+                                            text = "NO CHAPTER NUMBER",
+                                            color = WisdomMuted,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                                items(rows, key = { "it-" + it.id }) { row ->
+                                    val rowKey = itemLockKey(row.id)
+                                    Box(modifier = Modifier.padding(start = if (chapter != null) 14.dp else 0.dp)) {
+                                        ShortcutBlock(
+                                            title = row.title + if (row.published) "" else " \u00B7 unpublished",
+                                            lock = lockMap[rowKey],
+                                            expanded = openKey == rowKey,
+                                            busy = busyKey == rowKey,
+                                            onToggle = { openKey = if (openKey == rowKey) "" else rowKey },
+                                            onMode = { mode -> applyMode(rowKey, mode, row.title) },
+                                            onReset = { resetToDefault(rowKey) }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
                 } else {
                     items(listNodes, key = { it.id }) { child ->
