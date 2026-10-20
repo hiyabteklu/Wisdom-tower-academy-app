@@ -236,7 +236,8 @@ object CompetitionsRepository {
         }
         val examsJob = async {
             AdminSupabase.get(
-                "learning_resources?select=id,title,package_id,durationMin:meta->>durationMin" +
+                // Security S4: meta is hidden from the public columns, so the admin-only view is read instead.
+                "learning_resources_admin?select=id,title,package_id,durationMin:meta->>durationMin" +
                     "&hub=eq.exams&content_type=eq.exam&order=title.asc"
             )
         }
