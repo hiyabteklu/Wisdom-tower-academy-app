@@ -4,18 +4,22 @@ import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -58,10 +62,17 @@ import java.text.NumberFormat
 import java.util.Locale
 
 // ADMIN-native N3 (docs/ADMIN_NATIVE_PLAN.md). Native version of the website PaymentsPanel: totals, search, status and
-// payment-method filters, order cards, receipt, approve and reject. Texts copied from the website where it has them.
+// payment-method filters, order list, receipt, approve and reject. Texts copied from the website where it has them.
 // Differences on purpose: approve asks for confirmation (one mistaken tap on a phone would unlock content and send an
 // SMS), the receipt opens in the phone's viewer (image or PDF), no CSV export yet (needs a file save).
 // One LazyColumn, filters share the width, no horizontal scrolling.
+// B3e (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): each order is a compact row (package, student, amount, date, status,
+// arrow). A tap opens the order panel (AdminDetailPanel, subtitle Order) with all the facts and View Receipt; for a
+// pending order Approve and Reject are the bar fixed at the bottom. Money related: LAYOUT CHANGE ONLY. doApprove,
+// doReject, both confirm dialogs and every OrdersRepository call are unchanged. The panel finds the order by id in the
+// reloaded list. After a successful approve or reject the panel closes (the order leaves the Pending list) and the toast
+// shows the result; after an error the panel stays open. The list stays composed underneath, so the scroll position, the
+// search text and the chips survive.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val STATUS_FILTERS: List<Pair<String, String>> = listOf(
@@ -113,6 +124,7 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
     var query by rememberSaveable { mutableStateOf("") }
     var approveTarget by remember { mutableStateOf<OrderItem?>(null) }
     var rejectTarget by remember { mutableStateOf<OrderItem?>(null) }
+    var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(reloadKey) {
@@ -133,6 +145,7 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
     val verified = all.filter { it.status == "verified" }
     val pendingAmount = pending.sumOf { it.amountEtb }
     val verifiedAmount = verified.sumOf { it.amountEtb }
+    val detailOrder = all.firstOrNull { it.id == detailId }
 
     val filtered = remember(all, statusFilter, methodFilter, query) {
         val q = query.trim().lowercase()
@@ -168,6 +181,7 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
                 busyId = null
                 val warning = outcome.enrollWarning
                 toast = if (warning != null) "$notice \u00B7 $warning" else notice
+                detailId = null
                 reloadKey += 1
             }
         }
@@ -184,6 +198,7 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
                 val notice = OrdersRepository.notify(origin, order.id, false)
                 busyId = null
                 toast = notice
+                detailId = null
                 reloadKey += 1
             }
         }
@@ -344,13 +359,45 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
             }
 
             items(filtered, key = { it.id }) { order ->
-                OrderCard(
+                OrderRow(
                     order = order,
-                    busy = busyId == order.id,
-                    onReceipt = { url -> openReceipt(url) },
-                    onApprove = { approveTarget = order },
-                    onReject = { rejectTarget = order }
+                    onClick = { detailId = order.id }
                 )
+            }
+        }
+
+        // B3e: the order panel. Drawn after the list, so it covers it; the list stays composed underneath.
+        // A pending order gets Approve and Reject fixed at the bottom; any other order has no bottom bar.
+        if (detailOrder != null) {
+            if (detailOrder.status == "pending_verification") {
+                AdminDetailPanel(
+                    title = detailOrder.studentName,
+                    subtitle = "Order",
+                    onBack = { detailId = null },
+                    actions = {
+                        OrderActionButtons(
+                            busy = busyId == detailOrder.id,
+                            onApprove = { approveTarget = detailOrder },
+                            onReject = { rejectTarget = detailOrder }
+                        )
+                    }
+                ) {
+                    OrderDetailBody(
+                        order = detailOrder,
+                        onReceipt = { url -> openReceipt(url) }
+                    )
+                }
+            } else {
+                AdminDetailPanel(
+                    title = detailOrder.studentName,
+                    subtitle = "Order",
+                    onBack = { detailId = null }
+                ) {
+                    OrderDetailBody(
+                        order = detailOrder,
+                        onReceipt = { url -> openReceipt(url) }
+                    )
+                }
             }
         }
 
@@ -359,7 +406,11 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
                 text = toast,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = if (detailOrder != null && detailOrder.status == "pending_verification") 88.dp else 16.dp
+                    )
             )
         }
     }
@@ -440,137 +491,193 @@ private fun TotalTile(
     }
 }
 
+/** B3e: the compact list row of one order: package, student, amount, date, status badge, arrow. */
 @Composable
-private fun OrderCard(
+private fun OrderRow(
     order: OrderItem,
-    busy: Boolean,
-    onReceipt: (String) -> Unit,
-    onApprove: () -> Unit,
-    onReject: () -> Unit
+    onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(16.dp)
     val isPending = order.status == "pending_verification"
     val borderColor = if (isPending) WisdomAccentAmber.copy(alpha = 0.4f) else WisdomBorderWhite
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .alpha(if (order.status == "rejected") 0.85f else 1f)
             .clip(shape)
             .background(WisdomCard)
             .border(1.dp, borderColor, shape)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Text(
-                text = order.id,
-                color = WisdomTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                fontFamily = FontFamily.Monospace,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            AdminToneBadge(text = statusText(order.status), tone = statusTone(order.status))
-        }
-        Column {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
             Text(
                 text = order.packageName,
                 color = WisdomTextPrimary,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = order.studentName,
+                color = WisdomMuted,
+                fontSize = 13.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = etb(order.amountEtb),
                     color = WisdomAccentAmber,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.ExtraBold
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    maxLines = 1
                 )
+                Spacer(modifier = Modifier.weight(1f))
                 Text(
-                    text = "  via ${(order.paymentMethod ?: "Bank").uppercase()}",
+                    text = adminFormatWhen(order.createdAt),
                     color = WisdomMuted,
-                    fontSize = 12.sp
-                )
-            }
-        }
-        Column {
-            Text(
-                text = order.studentName,
-                color = WisdomTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold
-            )
-            Text(text = order.phone, color = WisdomMuted, fontSize = 13.sp)
-            if (order.email != null) {
-                Text(
-                    text = order.email,
-                    color = WisdomMuted,
-                    fontSize = 13.sp,
+                    fontSize = 12.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
             }
+            AdminToneBadge(text = statusText(order.status), tone = statusTone(order.status))
         }
-        Column {
-            Row {
-                Text(text = "Ref: ", color = WisdomMuted, fontSize = 13.sp)
-                Text(
-                    text = order.transactionRef,
-                    color = WisdomCyan,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    fontFamily = FontFamily.Monospace
-                )
-            }
-            if (order.note != null) {
-                Text(
-                    text = "(${order.note})",
-                    color = WisdomMuted,
-                    fontSize = 12.sp,
-                    fontStyle = FontStyle.Italic
-                )
-            }
+        Spacer(modifier = Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = WisdomMuted
+        )
+    }
+}
+
+/** B3e: the content of the order panel. Same facts and wording as the old order card, in the same order. */
+@Composable
+private fun OrderDetailBody(
+    order: OrderItem,
+    onReceipt: (String) -> Unit
+) {
+    val email = order.email
+    val note = order.note
+    val receiptUrl = order.receiptUrl
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        AdminToneBadge(text = statusText(order.status), tone = statusTone(order.status))
+        Text(
+            text = "Placed ${adminFormatWhen(order.createdAt)}",
+            color = WisdomMuted,
+            fontSize = 12.sp
+        )
+        Text(
+            text = order.id,
+            color = WisdomTextPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            fontFamily = FontFamily.Monospace
+        )
+    }
+    Column {
+        Text(
+            text = order.packageName,
+            color = WisdomTextPrimary,
+            fontSize = 16.sp,
+            fontWeight = FontWeight.Bold
+        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                text = "Placed ${adminFormatWhen(order.createdAt)}",
+                text = etb(order.amountEtb),
+                color = WisdomAccentAmber,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+            Text(
+                text = "  via ${(order.paymentMethod ?: "Bank").uppercase()}",
                 color = WisdomMuted,
                 fontSize = 12.sp
             )
         }
-        if (order.receiptUrl != null) {
-            AdminActionButton(
-                label = "View Receipt",
-                tone = WisdomCyan,
-                filled = false,
-                enabled = true,
-                onClick = { onReceipt(order.receiptUrl) },
-                modifier = Modifier.fillMaxWidth()
+    }
+    Column {
+        Text(
+            text = order.studentName,
+            color = WisdomTextPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold
+        )
+        Text(text = order.phone, color = WisdomMuted, fontSize = 13.sp)
+        if (email != null) {
+            Text(
+                text = email,
+                color = WisdomMuted,
+                fontSize = 13.sp
             )
         }
-        if (isPending) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                AdminActionButton(
-                    label = if (busy) "Working..." else "Approve & Unlock",
-                    tone = WisdomAccentEmerald,
-                    filled = true,
-                    enabled = !busy,
-                    onClick = onApprove,
-                    modifier = Modifier.weight(1.6f)
-                )
-                AdminActionButton(
-                    label = "Reject",
-                    tone = AdminRose,
-                    filled = false,
-                    enabled = !busy,
-                    onClick = onReject,
-                    modifier = Modifier.weight(1f)
-                )
-            }
+    }
+    Column {
+        Row {
+            Text(text = "Ref: ", color = WisdomMuted, fontSize = 13.sp)
+            Text(
+                text = order.transactionRef,
+                color = WisdomCyan,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                fontFamily = FontFamily.Monospace
+            )
         }
+        if (note != null) {
+            Text(
+                text = "($note)",
+                color = WisdomMuted,
+                fontSize = 12.sp,
+                fontStyle = FontStyle.Italic
+            )
+        }
+    }
+    if (receiptUrl != null) {
+        AdminActionButton(
+            label = "View Receipt",
+            tone = WisdomCyan,
+            filled = false,
+            enabled = true,
+            onClick = { onReceipt(receiptUrl) },
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+/** B3e: Approve and Reject, the bar fixed at the bottom of the order panel (pending orders only). */
+@Composable
+private fun OrderActionButtons(
+    busy: Boolean,
+    onApprove: () -> Unit,
+    onReject: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AdminActionButton(
+            label = if (busy) "Working..." else "Approve & Unlock",
+            tone = WisdomAccentEmerald,
+            filled = true,
+            enabled = !busy,
+            onClick = onApprove,
+            modifier = Modifier.weight(1.6f)
+        )
+        AdminActionButton(
+            label = "Reject",
+            tone = AdminRose,
+            filled = false,
+            enabled = !busy,
+            onClick = onReject,
+            modifier = Modifier.weight(1f)
+        )
     }
 }
 

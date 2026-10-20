@@ -44,11 +44,7 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   `New competition` button. A tap opens the panel "New competition" (12 fields, `Create competition` fixed at the bottom). The exam field opens a
   second panel "Choose an exam" (search + rows); picking one closes only the picker. Back closes the picker first, then the form.
   Helper `CompFieldBlock`; toast lifted to 88 dp while a panel with a bottom bar is open. Phone test: `docs/SESSION_2026-10-20_ADMIN_B3A_COMPETITIONS.md`.
-- B3b + B3c PUSHED (commit starts "Admin B3b/B3c (Competitions)"), `[~]` CI result not read yet / not tested on a phone, same file:
-  - CI: the owner's Actions screenshot (3:06 pm) showed #857 (this commit) and #858 (docs) still In progress. Result not seen. A code read in the
-    B3d chat found no problem in the three risk spots below (code read only, not a build): `EntryItem.name` is used as a plain String in
-    `Text(text = entry.name)`; `EntriesBody` gets `result` as a parameter, so its smart casts are stable; the multi-child composables sit inside the
-    panel's composable Column lambda.
+- B3b + B3c PUSHED, CI #857 GREEN and docs run #858 GREEN (compiled; owner's Actions screenshot, 3:12 pm), `[~]` not tested on a phone, same file:
   - Each contest is a compact row (`CompetitionRow`: state badge, visible/hidden badge, title, start + minutes, arrow). A tap opens the contest panel
     (`CompetitionDetailBody`: badges, when / ends / points, audience, prize, actions two to a row: Show/Hide, Pause/Resume, Start now, Reschedule,
     Cancel contest, Entries). The panel finds the contest by id in the reloaded list, so it shows the new state after an action.
@@ -57,9 +53,7 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - Unchanged: every `CompetitionsRepository` call, Start now / Cancel / Show-to-students confirm dialogs, Ethiopia time, texts. Removed (replaced):
     `CompetitionCard`, `RescheduleEditor`, `EntriesPanel`.
   - Phone test (6 steps): `docs/SESSION_2026-10-20_ADMIN_B3B_B3C_COMPETITIONS.md`.
-  - Compile risks to check first if red: `EntriesBody` uses `it.name.contains(...)` (assumes `EntryItem.name` is a non-null String); the new
-    `KeyboardArrowRight` import; the plain composables that emit several children into the panel Column.
-- B3d PUSHED (commit starts "Admin B3d (Inquiries)"), `[~]` CI not seen / not tested on a phone: `InquiriesScreen.kt`.
+- B3d PUSHED (commit 64e215c, starts "Admin B3d (Inquiries)"), `[~]` CI #859 was In progress at 3:12 pm (result not seen) / not tested on a phone: `InquiriesScreen.kt`.
   - Each inquiry is a compact row (`InquiryRow`: name, e-mail, status badge, two lines of the message, date, arrow). A tap opens the inquiry panel
     (`InquiryDetailBody`: status and date, e-mail, interest, the whole message; `StatusButtons`, the four statuses two to a row, fixed at the bottom).
     The panel stays open after a status change. New search box under the filter chips (name, e-mail, interest, message), combined with the status chips.
@@ -68,12 +62,19 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - Phone test (5 steps): `docs/SESSION_2026-10-20_ADMIN_B3D_INQUIRIES.md`.
   - Compile risks to check first if red: the new `KeyboardArrowRight` import; `InquiriesRepository.STATUSES.chunked(2)` inside `StatusButtons`;
     the local `val service = it.service` in the search filter.
+- B3e PUSHED (commit starts "Admin B3e (Payments)"), `[~]` not compiled / not tested on a phone: `PaymentsScreen.kt`. LAYOUT ONLY, money logic untouched.
+  - Each order is a compact row (`OrderRow`: package, student, amount, date, status badge, arrow; pending rows keep the amber border). A tap opens the
+    order panel (`OrderDetailBody`: status, placed date, order id, package, amount and method, student, phone, e-mail, Ref and note, `View Receipt`).
+    For a PENDING order `Approve & Unlock` and `Reject` are the bar fixed at the bottom (`OrderActionButtons`); verified / rejected orders have no bottom bar.
+  - Unchanged: `doApprove`, `doReject`, both confirm dialogs (still ask first), every `OrdersRepository` call, totals, search and chips, texts.
+    After a SUCCESSFUL approve / reject the panel closes and the toast shows the result; after an error the panel stays open. Removed (replaced): `OrderCard`.
+  - Phone test (5 steps; use a test order, do not approve a real student's payment): `docs/SESSION_2026-10-20_ADMIN_B3E_PAYMENTS.md`.
+  - Compile risks to check first if red: the two `AdminDetailPanel` call sites (with and without `actions`); smart casts of `detailOrder` in lambdas; the new imports.
 
 ## Next slices, in this order (one per chat)
-1. First: read the CI result of B3b/B3c (#857) and B3d (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
+1. First: read the CI result of B3d (#859) and of B3e (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
 2. A4 run on the phone: one device, one admin, one test student, rows in `docs/A4_TEST_MATRIX.md`; record in `docs/A4_RESULTS.md`.
-3. B3e Payments (Approve / Reject fixed at the bottom, logic unchanged), B3f Catalog (editor in the panel,
-   fixed pink to `AdminRose`), B3g Users (order in `docs/ADMIN_AUDIT.md`). Reuse `AdminDetailPanel`, never write another one.
+3. B3f Catalog (editor in the panel, fixed pink to `AdminRose`, list scroll position kept), B3g Users (order in `docs/ADMIN_AUDIT.md`). Reuse `AdminDetailPanel`, never write another one.
    `AdminToast` and `AdminStatusBadge` live in `InquiriesScreen.kt`: never delete them (other screens use them).
 4. B2b audit of the 7 files not read yet (add them to `docs/ADMIN_AUDIT.md`).
 5. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
@@ -81,4 +82,4 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
    The panel uses `WisdomBackground`, which is the page colour of the admin host, so it should follow Day / Night; check it in Transparent in C1.
 
 ## Not in scope
-Payments, prices, anything that weakens the server rules.
+Payment logic, prices, anything that weakens the server rules (B3e changed the Payments LAYOUT only).
