@@ -27,7 +27,7 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - To test on the phone: Content locks > tap a package shortcut far down the list = panel opens at the top; tap a mode = badge in the
     panel changes, toast shows; Back = back to the list at the SAME scroll position; open a hub, tap a chapter and a material = same
     panel; System Back closes the panel first, the second Back goes up one step.
-- B1b PUSHED, `[~]` not compiled yet (read the CI result) / not tested on a phone:
+- B1b PUSHED, `[~]` CI result not read yet / not tested on a phone:
   - `AccessGrantsScreen.kt` uses the same `AdminDetailPanel`. The Package field in the form is a button with an arrow; a tap opens a
     "Choose a package" panel (All packages + every package, tap one = it is selected and the panel closes). Nothing opens inline.
   - Each grant is a compact row (email, package, arrow). A tap opens the grant detail panel: package, package id, note, granted by,
@@ -36,15 +36,19 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - The form and list stay underneath, so typed e-mail / note and the scroll position are kept.
   - To test on the phone: Access grants > type an e-mail, tap Package = list opens on top, pick one = back to the form with the e-mail
     still typed; tap a grant row far down the list = detail opens at the top, Back = same scroll position; Revoke asks first.
+- B2 DONE for 5 modules (read-only audit): `docs/ADMIN_AUDIT.md`. Worst: Competitions (create form, exam picker, reschedule and ALL entries open
+  inline inside a card), then Inquiries (status buttons expand inside the card, no search), Payments (tall cards, Approve at the bottom of the card),
+  Catalog (editor replaces the list but Save is at the end of a long form and the list scroll position is lost), Users (already replaces the list).
+  NOT read yet: Broadcasts, Broadcast composer, Course content, Free resources, Overview, Database status, Admin home (B2b).
 
 ## Next slices, in this order (one per chat)
 1. A4 run on the phone: one device, one admin, one test student, rows in `docs/A4_TEST_MATRIX.md`; record in `docs/A4_RESULTS.md`.
-2. B2 audit of all modules for "expands below" and long lists without search; result written to `docs/ADMIN_AUDIT.md`.
-   Modules not audited yet: Users, Payments, Inquiries, Broadcasts, Competitions, Catalog, Free resources, Course content.
-3. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
-   Already seen: `AccessGrantsScreen.kt` used a fixed pink (fixed in A3). Others unchecked. The panel uses `WisdomBackground`,
-   which is the page colour of the admin host, so it should follow Day / Night; check it in Transparent in C1.
-4. B3 / C2 module by module (reuse `AdminDetailPanel`, never write another one): Orders (Payments), Users, Inquiries.
+2. B3a Competitions: Create and the exam picker as panels (see `docs/ADMIN_AUDIT.md` for the whole order B3a to B3g: Competitions, Inquiries,
+   Payments, Catalog, Users). Reuse `AdminDetailPanel`, never write another one.
+3. B2b audit of the 7 files not read yet (add them to `docs/ADMIN_AUDIT.md`).
+4. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
+   Already seen: `AccessGrantsScreen.kt` used a fixed pink (fixed in A3); `CatalogScreen.kt` RoseTone FB7185; `CompetitionsScreen.kt` CompOrange FB923C.
+   The panel uses `WisdomBackground`, which is the page colour of the admin host, so it should follow Day / Night; check it in Transparent in C1.
 
 ## Not in scope
 Payments, prices, anything that weakens the server rules.

@@ -22,5 +22,6 @@
 - A4 WRITTEN: docs/A4_TEST_MATRIX.md (21 rows with expected results, built from the real lock rows read from the database today; Paid mode is ON).
 - B1a PUSHED, CI #849 and #850 GREEN (compiled), `[~]` not tested on a phone: `AdminDetailPanel` in `AdminKit.kt` (detail opens ON TOP: Back arrow, content from the top, main action fixed at the bottom, System Back closes it first)
   and the Locks screen uses it for package shortcuts, chapters and materials (nothing expands below a row any more).
-- B1b PUSHED, `[~]` not compiled yet: the Grants screen uses the same panel (package picker panel, grant detail panel with Revoke / Revoke all fixed at the bottom, both still confirm). See docs/ADMIN_DASHBOARD_NEXT.md for the phone test.
-- NEXT: read the CI result for B1b (fix any red build first, log it in docs/BUILD_PITFALLS.md); run the A4 matrix on the phone (record in docs/A4_RESULTS.md) and the B1a / B1b phone tests; then B2 (audit of all modules), C1 (looks audit).
+- B1b PUSHED, `[~]` CI result not read yet: the Grants screen uses the same panel (package picker panel, grant detail panel with Revoke / Revoke all fixed at the bottom, both still confirm). See docs/ADMIN_DASHBOARD_NEXT.md for the phone test.
+- B2 AUDIT WRITTEN (read-only, no code): docs/ADMIN_AUDIT.md covers Competitions, Inquiries, Payments, Catalog, Users; 7 files still to read (B2b). Order of conversion B3a to B3g is in that file; Competitions first.
+- NEXT: read the CI result for B1b (fix any red build first, log it in docs/BUILD_PITFALLS.md); run the A4 matrix on the phone (record in docs/A4_RESULTS.md) and the B1a / B1b phone tests; then B3a (Competitions create + exam picker panels), B2b, C1.
