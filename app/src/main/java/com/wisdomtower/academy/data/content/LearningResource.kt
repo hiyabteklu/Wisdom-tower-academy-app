@@ -11,6 +11,9 @@ package com.wisdomtower.academy.data.content
  * [metaJson]: the `meta` JSON text. For flashcards `{"cards":[{"front","back"}]}`, for quiz/exam
  * `{"questions":[{"prompt","choices","correct","solution"}], "durationMin"?}`. "{}" in light lists.
  * [storagePath]: for books `appwrite:<FILE_ID>`; use [LearningContentRepository.appwriteViewUrl].
+ * [itemCount]: number of flashcards / questions, read from the database column `item_count` (security slice S2,
+ * `docs/SECURITY_PLAN_CONTENT_ACCESS.md`): lists show counts without downloading the heavy `meta` of every row.
+ * Null when the row has none or an old saved list has no such column.
  */
 data class LearningResource(
     val id: String,
@@ -23,7 +26,8 @@ data class LearningResource(
     val contentType: String,
     val storagePath: String?,
     val bodyMd: String?,
-    val metaJson: String
+    val metaJson: String,
+    val itemCount: Int? = null
 )
 
 /** Result of loading a list of resources. [fromCache] is true when the phone could not reach the server. */
