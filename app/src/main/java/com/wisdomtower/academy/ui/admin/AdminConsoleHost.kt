@@ -2,7 +2,6 @@ package com.wisdomtower.academy.ui.admin
 
 import android.net.Uri
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -16,7 +15,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import com.wisdomtower.academy.data.admin.AdminCounts
 import com.wisdomtower.academy.data.admin.AdminCountsRepository
-import com.wisdomtower.academy.ui.theme.WisdomBackground
+import com.wisdomtower.academy.ui.theme.appBackdrop
 
 // ADMIN-native N1 (docs/ADMIN_NATIVE_PLAN.md). THE entry point the app already calls from MainActivity.kt
 // (patch ADMIN-host): AdminConsoleScreen(url, onClose, onLeaveToApp, modifier). The signature did not change, so
@@ -37,6 +36,8 @@ import com.wisdomtower.academy.ui.theme.WisdomBackground
 // N10b (2026-10-19): the Database module is a native READ-ONLY status screen. The website Database and SQL Hub
 // is never opened from the app any more (owner order: only the owner works on the database, other admins only
 // see its health).
+// C1 (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): solid WisdomBackground was covering the shared app backdrop, so
+// Night looked flat and Transparent never showed the photo. Host now uses appBackdrop() like the rest of the app.
 // To add the next native module: add its id to NATIVE_ADMIN_MODULE_IDS in AdminModules.kt and one branch in the when below.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
@@ -89,7 +90,7 @@ fun AdminConsoleScreen(
         }
     }
 
-    Column(modifier = modifier.fillMaxSize().background(WisdomBackground)) {
+    Column(modifier = modifier.fillMaxSize().appBackdrop()) {
         if (module == null) {
             AdminHomeScreen(
                 counts = counts,

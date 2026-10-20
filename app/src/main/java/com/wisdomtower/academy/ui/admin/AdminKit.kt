@@ -55,13 +55,13 @@ import com.wisdomtower.academy.ui.theme.WisdomAccentPurple
 import com.wisdomtower.academy.ui.theme.WisdomAccentRose
 import com.wisdomtower.academy.ui.theme.WisdomAccentSky
 import com.wisdomtower.academy.ui.theme.WisdomAccentViolet
-import com.wisdomtower.academy.ui.theme.WisdomBackground
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCard
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomNavy
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
+import com.wisdomtower.academy.ui.theme.appBackdrop
 import java.text.DateFormat
 import java.text.SimpleDateFormat
 import java.util.Locale
@@ -83,6 +83,8 @@ import java.util.TimeZone
 // panel (Back arrow, title, content that starts at the top and scrolls, main action fixed at the bottom) drawn over the
 // list. The list stays composed underneath, so it keeps its scroll position. System Back closes the panel first. Used by
 // LocksScreen first; Grants and the other modules follow in later slices.
+// C1 (2026-10-20): AdminDetailPanel used solid WisdomBackground, which hid Transparent and flattened Night. Panel and
+// action bar now use appBackdrop() so all three looks match the rest of the app.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 /** Soft red used for rejected and destructive actions (the website uses rose). Day: a deeper rose. Read while composing. */
@@ -250,6 +252,7 @@ internal fun AdminActionButton(
  * a header (Back arrow, small subtitle, title), a thin line, the content (starts at the top, scrolls on its own), and,
  * when [actions] is given, a bar fixed at the bottom for the main action. System Back calls [onBack] first because this
  * BackHandler is registered after the screen's own. The panel swallows taps so nothing reaches the list underneath.
+ * C1: panel and action bar use appBackdrop() (not solid WisdomBackground) so Night and Transparent match the app.
  */
 @Composable
 internal fun AdminDetailPanel(
@@ -264,7 +267,7 @@ internal fun AdminDetailPanel(
     Column(
         modifier = modifier
             .fillMaxSize()
-            .background(WisdomBackground)
+            .appBackdrop()
             .pointerInput(Unit) { detectTapGestures { } }
     ) {
         Row(
@@ -317,7 +320,7 @@ internal fun AdminDetailPanel(
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .background(WisdomBackground)
+                    .appBackdrop()
                     .padding(horizontal = 16.dp, vertical = 10.dp)
             ) {
                 actions()
