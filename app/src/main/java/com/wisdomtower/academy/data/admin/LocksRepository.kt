@@ -140,7 +140,7 @@ object LocksRepository {
         return HubItemsResult.Success(rows)
     }
 
-    private suspend fun queryHubItems(scopeFilter: String, hubFilter: String): AdminReply =
+    private suspend fun queryHubItems(scopeFilter: String, hubFilter: String): AdminHttpResult =
         AdminSupabase.get(
             "learning_resources?select=id,title,chapter,sort_order,published" +
                 "&scope_path=$scopeFilter&hub=$hubFilter" +
