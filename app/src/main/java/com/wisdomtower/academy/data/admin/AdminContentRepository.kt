@@ -62,6 +62,11 @@ sealed class AdminContentResult {
  * Difference, on purpose: delete and update report an error when no row was changed (a silent refusal).
  * 2026-10-19: the missing-table message no longer tells admins to run the old setup script on the live database.
  *
+ * SECURITY S4 (2026-10-20): the database no longer lets any login read `body_md` and `meta` straight from the table.
+ * The admin LIST therefore reads the admin-only view `learning_resources_admin` (all columns, rows only for an admin).
+ * Writes still go to the table; save and delete ask only `select=id` back, because the default "return the whole row"
+ * would need SELECT on `body_md` and `meta`.
+ *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
 object AdminContentRepository {
@@ -131,7 +136,7 @@ object AdminContentRepository {
             "        \"D\"\n" +
             "      ],\n" +
             "      \"correct\": 0,\n" +
-            "      \"solution\": \"Explanation\u2026\"\n" +
+            "      \"solution\": \"Explanation…\"\n" +
             "    }\n" +
             "  ]\n" +
             "}"
@@ -215,7 +220,9 @@ object AdminContentRepository {
 
     suspend fun list(scopePath: String, hub: String): AdminContentResult {
         val hubFilter = if (hub == "short-notes") "in.(short-notes,references)" else "eq." + Uri.encode(hub)
-        val base = "learning_resources?select=*&order=sort_order.asc&hub=" + hubFilter
+        // Security S4: body_md and meta are hidden from the public columns of learning_resources, so the admin reads
+        // the full rows through the admin-only view learning_resources_admin (empty for non-admins).
+        val base = "learning_resources_admin?select=*&order=sort_order.asc&hub=" + hubFilter
         val reply = AdminSupabase.get(base + "&scope_path=" + scopeFilter(scopePath))
         if (!reply.ok) return failure(reply)
         var items: List<AdminContentItem> =
@@ -278,7 +285,9 @@ object AdminContentRepository {
             if (!reply.ok) return GrantOutcome(false, reply.errorText())
             return GrantOutcome(true, "Saved")
         }
-        val reply = AdminSupabase.patch("learning_resources?id=eq." + Uri.encode(itemId), body.toString())
+        // Security S4: ask for the id column only back (select=id). The default "give me the whole row back" would
+        // need SELECT on body_md and meta, which the database no longer grants.
+        val reply = AdminSupabase.patch("learning_resources?id=eq." + Uri.encode(itemId) + "&select=id", body.toString())
         if (!reply.ok) return GrantOutcome(false, reply.errorText())
         val changed = try {
             JSONArray(reply.body).length()
@@ -290,7 +299,8 @@ object AdminContentRepository {
     }
 
     suspend fun delete(itemId: String): GrantOutcome {
-        val reply = AdminSupabase.delete("learning_resources?id=eq." + Uri.encode(itemId))
+        // Security S4: id column only back, same reason as in save().
+        val reply = AdminSupabase.delete("learning_resources?id=eq." + Uri.encode(itemId) + "&select=id")
         if (!reply.ok) return GrantOutcome(false, reply.errorText())
         val removed = try {
             JSONArray(reply.body).length()
