@@ -1,13 +1,19 @@
-# NEXT AGENT: START HERE (updated 2026-10-20 ~11:45; S5a DONE, S5b is next)
+# NEXT AGENT: START HERE (updated 2026-10-20 ~11:55; S5a DONE, S5b is next)
 
 Read `docs/SECURITY_PLAN_CONTENT_ACCESS.md` first (standing owner decisions at the top: books free, Life Savers PAID, never ask about leaked-password protection / FLAG_SECURE / leaderboard). This file only adds what happened AFTER the last plan push, because the owner had little usage left to resend the whole plan. When you next edit the plan, copy these results into it (tick S5a, add the change-log lines) and delete this file.
+
+## SECRET NAME (CONFIRMED BY THE OWNER, do not confuse)
+- The ONLY Appwrite secret in Supabase (Edge Functions > Secrets) is **`APPWRITE_PAID_TOKEN_KEY`**. It is an Appwrite API key named `paid-pdf-tokens` with ONLY the `tokens.write` scope, created by the owner 2026-10-20 11:30.
+- `book-url` reads `APPWRITE_PAID_TOKEN_KEY` (the fallback to `APPWRITE_API_KEY` in the code is only a safety net; that secret does NOT exist). Do not create a second Appwrite secret, do not rename this one, do not use the old Appwrite key `Wisdom-Tower-Main`.
+- The free books never use any key: their bucket is public (role "Any"), the app builds the plain address from ids. That is why the Supabase Secrets page has no other Appwrite key.
+- The value never goes into chat or git. The connector cannot list or read secrets; if `book-url` logs `missing configuration` or an Appwrite 401, ask the owner to re-save the secret under exactly this name.
 
 ## Results since the last plan push
 - **S4 phone test PASSED (10:37, owner):** note not saved offline downloads and opens; admin save and delete work; all hubs work. S4 is finished and verified.
 - **S5 prerequisite done (10:54, owner):** SECOND, PRIVATE Appwrite bucket `paid-pdfs` (bucket id `6ad71e3d00318c09972f`, project id `6aa9363c000f7ad5ebf7`, endpoint `https://fra.cloud.appwrite.io/v1`). NO roles, file level security OFF (leave it off), encryption on. The public bucket "Wisdom tower academy Resources" (free MoE/MoSHE textbooks) must NOT be touched.
 - **S5 token test PASSED (11:00, owner):** a console-made file token opened the PDF on the owner's phone with `...&token=<jwt>`; the same address without `token` was refused. The token parameter is `token`; it works in a bucket with no "Any" role.
 - **Owner test file in `paid-pdfs`: file id `6ad71eef0008554eae9f`** (not secret). Its old console token has expired.
-- **Appwrite API key DONE (11:32, owner):** new key with ONLY the `tokens.write` scope, saved by the owner as an Edge Function secret in the Supabase dashboard (never in chat or git). The function reads `APPWRITE_PAID_TOKEN_KEY` first and falls back to `APPWRITE_API_KEY`. The secret name was not confirmed by the owner in chat and the connector cannot list secrets: if `book-url` logs `missing configuration` or an Appwrite 401, check the secret name and scope first.
+- **Appwrite API key + secret DONE (11:32, owner):** see "SECRET NAME" above.
 
 ## S5a DONE (2026-10-20, Supabase live; app untouched)
 - Migration `s5a_open_book_rpc`: `public.open_book(p_id uuid)` returns `{status: ok|locked|not_found|not_signed_in, storage_path?, gate?}`. Same checks as `open_resource` (published row, admin or `content_guard.resource_visible`). Execute: `authenticated` and `service_role` only (verified: anon cannot run it).
@@ -27,4 +33,4 @@ Read `docs/SECURITY_PLAN_CONTENT_ACCESS.md` first (standing owner decisions at t
 - Do not paste any token or API key into git or chat.
 
 ## Live Supabase change log lines to copy into the plan
-- 2026-10-20 (S5a agent): `s5a_open_book_rpc`, `s5a_has_file_column`, Edge Function `book-url` v1 (verify_jwt true).
+- 2026-10-20 (S5a agent): `s5a_open_book_rpc`, `s5a_has_file_column`, Edge Function `book-url` v1 (verify_jwt true). Secret `APPWRITE_PAID_TOKEN_KEY` set by the owner in the dashboard.
