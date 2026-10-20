@@ -18,6 +18,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
@@ -69,10 +70,11 @@ import kotlinx.coroutines.launch
 // flags, and disqualify an entry. One LazyColumn, no sideways scrolling. Every typed time is Ethiopia time.
 // Reuses the admin kit (AdminToneBadge, AdminActionButton, AdminConfirmDialog, AdminMessageCard, AdminTextField,
 // AdminTextArea, AdminSearchBox, AdminToast). Sentences are copied from the website panel.
-// B3a (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): the create form and the exam picker no longer expand inside the card.
-// The card keeps its intro and the New competition button; a tap opens the AdminDetailPanel New competition (12 fields,
-// Create competition fixed at the bottom) and the exam picker is a second panel drawn over it. The list and the typed
-// form stay composed underneath. Contest actions, reschedule and entries are unchanged (B3b and B3c).
+// B3a (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): the create form and the exam picker are AdminDetailPanels.
+// B3b and B3c (2026-10-20): every contest is a compact row (badges, title, start, arrow). A tap opens the contest panel
+// (details plus all the actions). Reschedule is a small panel over it with Save fixed at the bottom. Entries is a panel
+// over it with a count and a search box; the flag details stay inside the entry. The list stays composed underneath.
+// Logic, texts, confirm dialogs and every CompetitionsRepository call are unchanged. Layout change only.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val CompOrange: Color = Color(0xFFFB923C)
@@ -94,6 +96,12 @@ private fun examLabel(x: ExamOption): String {
     if (pkg != null) text += " (" + pkg + ")"
     if (minutes != null) text += " - " + minutes + " min"
     return text
+}
+
+private fun compStateKey(c: CompetitionItem, nowMs: Long): String {
+    if (c.countdownState == "cancelled") return "cancelled"
+    if (c.countdownState == "paused") return "paused"
+    return CompetitionsRepository.phaseOf(c, nowMs)
 }
 
 @Composable
@@ -122,17 +130,21 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
     var pickerQuery by remember { mutableStateOf("") }
     var confirmCreate by remember { mutableStateOf(false) }
 
-    // Reschedule (one row at a time)
-    var editId by remember { mutableStateOf<String?>(null) }
+    // The contest panel (one contest at a time)
+    var detailId by remember { mutableStateOf<String?>(null) }
+
+    // Reschedule panel (over the contest panel)
+    var rescheduleId by remember { mutableStateOf<String?>(null) }
     var editDate by remember { mutableStateOf("") }
     var editTime by remember { mutableStateOf("") }
     var editDuration by remember { mutableStateOf("") }
 
-    // Entries (one contest at a time)
+    // Entries panel (over the contest panel)
     var entriesFor by remember { mutableStateOf<String?>(null) }
     var entriesResult by remember { mutableStateOf<EntriesResult?>(null) }
     var entriesLoading by remember { mutableStateOf(false) }
     var entriesKey by remember { mutableIntStateOf(0) }
+    var entriesQuery by remember { mutableStateOf("") }
     var flagsOpenId by remember { mutableStateOf<String?>(null) }
 
     // Confirmations
@@ -275,7 +287,7 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
             return
         }
         val duration: Int? = if (d.isEmpty()) null else d.toInt()
-        editId = null
+        rescheduleId = null
         runAction("resched-" + c.id, "Rescheduled.") {
             CompetitionsRepository.reschedule(c.id, iso, duration)
         }
@@ -380,6 +392,10 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
     val pickerMatches = exams.filter {
         pickerQuery.isBlank() || examLabel(it).contains(pickerQuery.trim(), ignoreCase = true)
     }
+    val allItems: List<CompetitionItem> = if (current is CompetitionsResult.Success) current.items else emptyList()
+    val detailItem = allItems.firstOrNull { it.id == detailId }
+    val rescheduleItem = allItems.firstOrNull { it.id == rescheduleId }
+    val entriesItem = allItems.firstOrNull { it.id == entriesFor }
 
     Box(modifier = modifier.fillMaxSize()) {
         LazyColumn(
@@ -491,78 +507,10 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
                     }
                 } else {
                     items(current.items, key = { it.id }) { c ->
-                        CompetitionCard(
+                        CompetitionRow(
                             c = c,
                             nowMs = nowMs,
-                            busy = anyBusy,
-                            editing = editId == c.id,
-                            entriesOpen = entriesFor == c.id,
-                            onTogglePublished = {
-                                runAction(
-                                    "pub-" + c.id,
-                                    if (c.published) "Hidden from students." else "Now visible to students."
-                                ) { CompetitionsRepository.setPublished(c.id, !c.published) }
-                            },
-                            onPause = {
-                                runAction("pause-" + c.id, "Countdown paused (students see it as postponed).") {
-                                    CompetitionsRepository.setCountdown(c.id, "paused")
-                                }
-                            },
-                            onResume = {
-                                runAction("resume-" + c.id, "Countdown running again.") {
-                                    CompetitionsRepository.setCountdown(c.id, "running")
-                                }
-                            },
-                            onStartNow = { startTarget = c },
-                            onCancel = { cancelTarget = c },
-                            onToggleReschedule = {
-                                if (editId == c.id) {
-                                    editId = null
-                                } else {
-                                    editId = c.id
-                                    editDate = ""
-                                    editTime = ""
-                                    editDuration = c.durationMin.toString()
-                                }
-                            },
-                            onToggleEntries = {
-                                if (entriesFor == c.id) {
-                                    entriesFor = null
-                                } else {
-                                    entriesFor = c.id
-                                    entriesResult = null
-                                    flagsOpenId = null
-                                }
-                            },
-                            extra = {
-                                if (editId == c.id) {
-                                    RescheduleEditor(
-                                        date = editDate,
-                                        time = editTime,
-                                        duration = editDuration,
-                                        onDate = { editDate = it },
-                                        onTime = { editTime = it },
-                                        onDuration = { editDuration = it },
-                                        busy = anyBusy,
-                                        onSave = { submitReschedule(c) }
-                                    )
-                                }
-                                if (entriesFor == c.id) {
-                                    EntriesPanel(
-                                        result = entriesResult,
-                                        loading = entriesLoading,
-                                        flagsOpenId = flagsOpenId,
-                                        busy = anyBusy,
-                                        onToggleFlags = { id ->
-                                            flagsOpenId = if (flagsOpenId == id) null else id
-                                        },
-                                        onDisqualify = { entry ->
-                                            dqReason = ""
-                                            dqTarget = entry
-                                        }
-                                    )
-                                }
-                            }
+                            onClick = { detailId = c.id }
                         )
                     }
                 }
@@ -734,7 +682,130 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
             }
         }
 
+        // B3b: the contest panel. Details and all the actions of one contest.
+        if (detailItem != null) {
+            AdminDetailPanel(
+                title = detailItem.title,
+                subtitle = "Competition",
+                onBack = { detailId = null }
+            ) {
+                CompetitionDetailBody(
+                    c = detailItem,
+                    nowMs = nowMs,
+                    busy = anyBusy,
+                    onTogglePublished = {
+                        runAction(
+                            "pub-" + detailItem.id,
+                            if (detailItem.published) "Hidden from students." else "Now visible to students."
+                        ) { CompetitionsRepository.setPublished(detailItem.id, !detailItem.published) }
+                    },
+                    onPause = {
+                        runAction("pause-" + detailItem.id, "Countdown paused (students see it as postponed).") {
+                            CompetitionsRepository.setCountdown(detailItem.id, "paused")
+                        }
+                    },
+                    onResume = {
+                        runAction("resume-" + detailItem.id, "Countdown running again.") {
+                            CompetitionsRepository.setCountdown(detailItem.id, "running")
+                        }
+                    },
+                    onStartNow = { startTarget = detailItem },
+                    onCancel = { cancelTarget = detailItem },
+                    onReschedule = {
+                        editDate = ""
+                        editTime = ""
+                        editDuration = detailItem.durationMin.toString()
+                        rescheduleId = detailItem.id
+                    },
+                    onEntries = {
+                        entriesResult = null
+                        flagsOpenId = null
+                        entriesQuery = ""
+                        entriesFor = detailItem.id
+                    }
+                )
+            }
+        }
+
+        // B3c: reschedule, a small panel over the contest panel with Save fixed at the bottom.
+        if (rescheduleItem != null) {
+            AdminDetailPanel(
+                title = rescheduleItem.title,
+                subtitle = "Reschedule",
+                onBack = { rescheduleId = null },
+                actions = {
+                    AdminActionButton(
+                        label = "Save new time",
+                        tone = WisdomAccentAmber,
+                        filled = true,
+                        enabled = !anyBusy,
+                        onClick = { submitReschedule(rescheduleItem) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            ) {
+                CompFieldBlock("New start, Ethiopia time") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AdminTextField(
+                            value = editDate,
+                            onValueChange = { editDate = it },
+                            placeholder = "Date 2026-10-25",
+                            modifier = Modifier.weight(1f)
+                        )
+                        AdminTextField(
+                            value = editTime,
+                            onValueChange = { editTime = it },
+                            placeholder = "Time 14:30",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Text(
+                        text = "Type the date as year-month-day and the time in 24-hour format.",
+                        color = WisdomMuted,
+                        fontSize = 12.sp
+                    )
+                }
+                CompFieldBlock("Duration (minutes)") {
+                    AdminTextField(
+                        value = editDuration,
+                        onValueChange = { editDuration = it },
+                        placeholder = "Minutes",
+                        keyboardType = KeyboardType.Number
+                    )
+                }
+            }
+        }
+
+        // B3c: entries, a panel over the contest panel with a count and a search box. Flag details stay inside the entry.
+        if (entriesFor != null) {
+            AdminDetailPanel(
+                title = "Entries",
+                subtitle = entriesItem?.title ?: "Competition",
+                onBack = { entriesFor = null; entriesQuery = "" }
+            ) {
+                EntriesBody(
+                    result = entriesResult,
+                    loading = entriesLoading,
+                    query = entriesQuery,
+                    onQuery = { entriesQuery = it },
+                    flagsOpenId = flagsOpenId,
+                    busy = anyBusy,
+                    onToggleFlags = { id ->
+                        flagsOpenId = if (flagsOpenId == id) null else id
+                    },
+                    onDisqualify = { entry ->
+                        dqReason = ""
+                        dqTarget = entry
+                    }
+                )
+            }
+        }
+
         if (toast.isNotEmpty()) {
+            val barOpen = (createOpen && !pickerOpen) || rescheduleItem != null
             AdminToast(
                 text = toast,
                 modifier = Modifier
@@ -742,7 +813,7 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
                     .padding(
                         start = 16.dp,
                         end = 16.dp,
-                        bottom = if (createOpen && !pickerOpen) 88.dp else 16.dp
+                        bottom = if (barOpen) 88.dp else 16.dp
                     )
             )
         }
@@ -811,28 +882,84 @@ private fun CompToggleRow(label: String, checked: Boolean, onChange: (Boolean) -
     }
 }
 
+/** B3b: the compact list row of one contest: state and visibility badges, title, start and length, arrow. */
 @Composable
-private fun CompetitionCard(
+private fun CompetitionRow(
+    c: CompetitionItem,
+    nowMs: Long,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(16.dp)
+    val stateKey = compStateKey(c, nowMs)
+    val startText = BroadcastsRepository.formatEat(c.startsAt) + " - " + c.durationMin + " min"
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(WisdomCard)
+            .border(1.dp, WisdomBorderWhite, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                AdminToneBadge(text = stateKey, tone = phaseTone(stateKey))
+                AdminToneBadge(
+                    text = if (c.published) "visible" else "hidden",
+                    tone = if (c.published) WisdomAccentEmerald else WisdomMuted
+                )
+            }
+            Text(
+                text = c.title,
+                color = WisdomTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = startText,
+                color = WisdomMuted,
+                fontSize = 12.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = WisdomMuted
+        )
+    }
+}
+
+/** B3b: the content of the contest panel: badges, the details, and the actions two to a row. */
+@Composable
+private fun CompetitionDetailBody(
     c: CompetitionItem,
     nowMs: Long,
     busy: Boolean,
-    editing: Boolean,
-    entriesOpen: Boolean,
     onTogglePublished: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
     onStartNow: () -> Unit,
     onCancel: () -> Unit,
-    onToggleReschedule: () -> Unit,
-    onToggleEntries: () -> Unit,
-    extra: @Composable () -> Unit
+    onReschedule: () -> Unit,
+    onEntries: () -> Unit
 ) {
-    val shape = RoundedCornerShape(16.dp)
     val cancelled = c.countdownState == "cancelled"
     val paused = c.countdownState == "paused"
     val phase = CompetitionsRepository.phaseOf(c, nowMs)
     val upcoming = phase == "upcoming" && !cancelled
-    val stateKey = if (cancelled) "cancelled" else if (paused) "paused" else phase
+    val stateKey = compStateKey(c, nowMs)
     val endsAt = c.endsAt
     val prize = c.prizeTitle
 
@@ -848,161 +975,97 @@ private fun CompetitionCard(
     if (upcoming && !paused) actions.add(CompAction("Pause", WisdomAccentAmber, onPause))
     if (paused && !cancelled) actions.add(CompAction("Resume", WisdomAccentEmerald, onResume))
     if (upcoming) actions.add(CompAction("Start now", WisdomAccentEmerald, onStartNow))
-    if (upcoming) {
-        actions.add(CompAction(if (editing) "Close reschedule" else "Reschedule", WisdomCyan, onToggleReschedule))
-    }
+    if (upcoming) actions.add(CompAction("Reschedule", WisdomCyan, onReschedule))
     if (!cancelled && phase != "ended") actions.add(CompAction("Cancel contest", AdminRose, onCancel))
-    actions.add(CompAction(if (entriesOpen) "Hide entries" else "Entries", CompOrange, onToggleEntries))
+    actions.add(CompAction("Entries", CompOrange, onEntries))
 
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .background(WisdomCard)
-            .border(1.dp, WisdomBorderWhite, shape)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
-        ) {
-            AdminToneBadge(text = stateKey, tone = phaseTone(stateKey))
-            AdminToneBadge(
-                text = if (c.published) "visible" else "hidden",
-                tone = if (c.published) WisdomAccentEmerald else WisdomMuted
-            )
-        }
-        Text(
-            text = c.title,
-            color = WisdomTextPrimary,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.SemiBold
+        AdminToneBadge(text = stateKey, tone = phaseTone(stateKey))
+        AdminToneBadge(
+            text = if (c.published) "visible" else "hidden",
+            tone = if (c.published) WisdomAccentEmerald else WisdomMuted
         )
-        Text(text = whenText, color = WisdomMuted, fontSize = 12.sp)
-        Text(text = audienceText, color = WisdomMuted, fontSize = 12.sp)
-        if (prize != null) {
-            Text(text = "Prize: " + prize, color = WisdomMuted, fontSize = 12.sp)
-        }
-
-        for (pair in actions.chunked(2)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                for (action in pair) {
-                    AdminActionButton(
-                        label = action.label,
-                        tone = action.tone,
-                        filled = false,
-                        enabled = !busy,
-                        onClick = action.onClick,
-                        modifier = Modifier.weight(1f)
-                    )
-                }
-                if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
-            }
-        }
-
-        extra()
     }
-}
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(text = whenText, color = WisdomMuted, fontSize = 13.sp)
+        Text(text = audienceText, color = WisdomMuted, fontSize = 13.sp)
+        if (prize != null) {
+            Text(text = "Prize: " + prize, color = WisdomMuted, fontSize = 13.sp)
+        }
+    }
 
-@Composable
-private fun RescheduleEditor(
-    date: String,
-    time: String,
-    duration: String,
-    onDate: (String) -> Unit,
-    onTime: (String) -> Unit,
-    onDuration: (String) -> Unit,
-    busy: Boolean,
-    onSave: () -> Unit
-) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .border(1.dp, WisdomBorderWhite, shape)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        CompFieldLabel("New start, Ethiopia time")
+    for (pair in actions.chunked(2)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            AdminTextField(
-                value = date,
-                onValueChange = onDate,
-                placeholder = "Date 2026-10-25",
-                modifier = Modifier.weight(1f)
-            )
-            AdminTextField(
-                value = time,
-                onValueChange = onTime,
-                placeholder = "Time 14:30",
-                modifier = Modifier.weight(1f)
-            )
+            for (action in pair) {
+                AdminActionButton(
+                    label = action.label,
+                    tone = action.tone,
+                    filled = false,
+                    enabled = !busy,
+                    onClick = action.onClick,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            if (pair.size == 1) Spacer(modifier = Modifier.weight(1f))
         }
-        CompFieldLabel("Duration (minutes)")
-        AdminTextField(
-            value = duration,
-            onValueChange = onDuration,
-            placeholder = "Minutes",
-            keyboardType = KeyboardType.Number
-        )
-        AdminActionButton(
-            label = "Save new time",
-            tone = WisdomAccentAmber,
-            filled = true,
-            enabled = !busy,
-            onClick = onSave,
-            modifier = Modifier.fillMaxWidth()
-        )
     }
 }
 
+/** B3c: the content of the entries panel: a count, a search box, then the ranked entries. */
 @Composable
-private fun EntriesPanel(
+private fun EntriesBody(
     result: EntriesResult?,
     loading: Boolean,
+    query: String,
+    onQuery: (String) -> Unit,
     flagsOpenId: String?,
     busy: Boolean,
     onToggleFlags: (String) -> Unit,
     onDisqualify: (EntryItem) -> Unit
 ) {
-    val shape = RoundedCornerShape(14.dp)
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(shape)
-            .border(1.dp, WisdomBorderWhite, shape)
-            .padding(12.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp)
-    ) {
-        if (loading || result == null) {
-            Text(text = "Loading entries...", color = WisdomMuted, fontSize = 14.sp)
-        } else if (result is EntriesResult.Failure) {
-            Text(text = result.message, color = AdminRose, fontSize = 14.sp)
-        } else if (result is EntriesResult.Success) {
-            val flagsError = result.flagsError
-            if (result.entries.isEmpty()) {
-                Text(text = "No ranked entries yet.", color = WisdomMuted, fontSize = 14.sp)
-            } else {
-                if (flagsError != null) {
-                    Text(text = "Flags could not be loaded: " + flagsError, color = AdminRose, fontSize = 13.sp)
-                }
-                for (entry in result.entries) {
-                    EntryRow(
-                        entry = entry,
-                        flagsOpen = flagsOpenId == entry.id,
-                        busy = busy,
-                        onToggleFlags = { onToggleFlags(entry.id) },
-                        onDisqualify = { onDisqualify(entry) }
-                    )
-                }
+    if (loading || result == null) {
+        Text(text = "Loading entries...", color = WisdomMuted, fontSize = 14.sp)
+    } else if (result is EntriesResult.Failure) {
+        Text(text = result.message, color = AdminRose, fontSize = 14.sp)
+    } else if (result is EntriesResult.Success) {
+        val flagsError = result.flagsError
+        if (result.entries.isEmpty()) {
+            Text(text = "No ranked entries yet.", color = WisdomMuted, fontSize = 14.sp)
+        } else {
+            val matches = result.entries.filter {
+                query.isBlank() || it.name.contains(query.trim(), ignoreCase = true)
+            }
+            Text(
+                text = "Entries (" + result.entries.size + ")",
+                color = WisdomTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+            AdminSearchBox(
+                query = query,
+                onQueryChange = onQuery,
+                placeholder = "Search entries by name"
+            )
+            if (flagsError != null) {
+                Text(text = "Flags could not be loaded: " + flagsError, color = AdminRose, fontSize = 13.sp)
+            }
+            if (matches.isEmpty()) {
+                Text(text = "No entry matches your search.", color = WisdomMuted, fontSize = 13.sp)
+            }
+            for (entry in matches) {
+                EntryRow(
+                    entry = entry,
+                    flagsOpen = flagsOpenId == entry.id,
+                    busy = busy,
+                    onToggleFlags = { onToggleFlags(entry.id) },
+                    onDisqualify = { onDisqualify(entry) }
+                )
             }
         }
     }
