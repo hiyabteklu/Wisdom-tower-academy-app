@@ -14,6 +14,8 @@ nothing may weaken security.
   bucket only; see docs/S5d-phone-upload.md). App side (PaidPdfUploader, PaidPdfPicker, editor button) is pushed,
   NOT compiled, NOT tested. Next for S5d: read the CI result, then one real upload.
 - The test row "S5 test" (Life Savers, ece/sem-1/eceg3071) is still published; switch it to Draft or delete it.
+- A1 DONE (2026-10-20, database): `public.my_package_access()` exists. Checked: signed out gives `not_signed_in`; the anon key
+  cannot run it; a signed-in user can. Not yet used by the app (that is A2).
 
 ## FINDINGS (read from the code and the live database today, not guesses)
 1. The DATABASE already knows four lock modes: `open`, `locked` (shown as coming soon), `coming_soon`, `require_purchase`.
@@ -37,10 +39,13 @@ nothing may weaken security.
 ## THE PLAN (each slice small, pushed alone, tested alone)
 
 ### A. Ownership and grants really work (highest value, security related)
-- A1 (server, additive, safe): new database function `public.my_package_access()` for signed-in users. Answer:
-  `{ enforced: boolean, packages: text[] }`, using the SAME rule as `resource_visible` (enrollments + access grants, by user id or
-  e-mail, `__all__`, ECE semesters). No new table, nobody can read anybody else's rows. Not callable when signed out.
-- A2 (app): `ContentAccess.ownsAny()` stops using `IS_FREE_MODE`. It uses the A1 answer (cached, refreshed at sign-in and when the
+- A1 DONE (server, additive, safe): database function `public.my_package_access()` for signed-in users. Answer:
+  `{ status: "ok", enforced: boolean, packages: text[] }` (or `{ status: "not_signed_in" }`), using the SAME rule as
+  `resource_visible` (enrollments + access grants, by user id or e-mail). No new table; nobody can read anybody else's rows.
+  Call it with the student's own token: POST `/rest/v1/rpc/my_package_access` with body `{}`.
+  The app must treat a package id `__all__` as owning everything, and `ece-y3-sem-1` / `ece-y3-sem-2` as one package
+  (same as the server).
+- A2 (app, NEXT): `ContentAccess.ownsAny()` stops using `IS_FREE_MODE`. It uses the A1 answer (cached, refreshed at sign-in and when the
   app comes to the front). Offline: reuse the last answer; never invent ownership (a paid package stays closed rather than opening).
   `enforced = false` means everything open, exactly like the server.
 - A3 (app, admin): Locks screen explains each mode in one plain line ("Open", "Coming soon / locked", "Package required: only students
@@ -64,7 +69,7 @@ nothing may weaken security.
 - C3: screenshot check of Locks, Grants, Content, Orders in all three looks.
 
 ## ORDER
-A1, A2, A3, A4 first (security and correctness), then B1, then C1, then B3 / C2 module by module. One slice per chat.
+A1 (done), A2, A3, A4 first (security and correctness), then B1, then C1, then B3 / C2 module by module. One slice per chat.
 
 ## OPEN POINTS (decisions the owner may change)
 - Default chosen: server rules win (see finding 3). If the owner wants "free for registered students" for some packages, that has to
