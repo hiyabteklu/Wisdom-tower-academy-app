@@ -19,9 +19,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -40,6 +39,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -64,13 +64,16 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // ADMIN-native N6 (docs/ADMIN_NATIVE_PLAN.md). Native version of the website AccessGrantsPanel: grant form (e-mail,
-// package, note), filter, and the list of grants with Revoke and Revoke all. The package list opens inline (no
-// pop-up menu). Revoke, Revoke all and Grant all packages ask for confirmation first; the website used a browser
-// confirm for the two revokes and none for grant-all.
+// package, note), filter, and the list of grants with Revoke and Revoke all. Revoke, Revoke all and Grant all packages
+// ask for confirmation first; the website used a browser confirm for the two revokes and none for grant-all.
 // A3 (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): after a grant the message says who now has access to which package and
 // when the student sees it; a yellow note appears while Paid mode is OFF (then a grant changes nothing, everybody
 // signed-in already opens everything); RoseTone is the kit's AdminRose (the fixed pink was too light by day).
-// Texts copied from the website where it has them.
+// B1b (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): nothing opens inline any more. The package picker is now a panel on top
+// (AdminDetailPanel, AdminKit.kt) with the package list, and a grant row is a compact tappable row that opens a detail
+// panel with the full facts and Revoke / Revoke all fixed at the bottom. The form and the list underneath stay composed
+// (typed text and scroll position are kept); System Back closes the panel first. Grant, revoke and the confirm dialogs
+// are unchanged. Texts copied from the website where it has them.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val RoseTone: Color get() = AdminRose
@@ -88,7 +91,9 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
     var packageId by rememberSaveable { mutableStateOf(ALL_PACKAGES_ID) }
     var note by rememberSaveable { mutableStateOf("Beta access") }
     var filter by rememberSaveable { mutableStateOf("") }
+    // B1b: the package picker panel and the grant detail panel (each drawn on top of the list; null / false = closed)
     var pickerOpen by remember { mutableStateOf(false) }
+    var grantDetail by remember { mutableStateOf<AccessGrantItem?>(null) }
     var confirmAll by remember { mutableStateOf(false) }
     var revokeTarget by remember { mutableStateOf<AccessGrantItem?>(null) }
     var revokeAllEmail by remember { mutableStateOf<String?>(null) }
@@ -262,31 +267,8 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
                     Text(text = "Package", color = WisdomMuted, fontSize = 12.sp)
                     PickerHeader(
                         label = selectedLabel,
-                        open = pickerOpen,
-                        onClick = { pickerOpen = !pickerOpen }
+                        onClick = { pickerOpen = true }
                     )
-                    if (pickerOpen) {
-                        PickRow(
-                            label = "All packages (full access)",
-                            selected = packageId == ALL_PACKAGES_ID,
-                            tone = WisdomAccentAmber,
-                            onClick = {
-                                packageId = ALL_PACKAGES_ID
-                                pickerOpen = false
-                            }
-                        )
-                        for (pkg in ADMIN_PACKAGES) {
-                            PickRow(
-                                label = pkg.name,
-                                selected = packageId == pkg.id,
-                                tone = WisdomCyan,
-                                onClick = {
-                                    packageId = pkg.id
-                                    pickerOpen = false
-                                }
-                            )
-                        }
-                    }
                     Text(text = "Note (optional)", color = WisdomMuted, fontSize = 12.sp)
                     AdminTextField(
                         value = note,
@@ -358,11 +340,93 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
             }
 
             items(filtered, key = { it.id }) { grant ->
-                GrantCard(
-                    grant = grant,
-                    busy = busy,
-                    onRevoke = { revokeTarget = grant },
-                    onRevokeAll = { revokeAllEmail = grant.email }
+                GrantRow(grant = grant, onClick = { grantDetail = grant })
+            }
+        }
+
+        // B1b: the package picker panel, drawn over the list and the form (which stay composed, so typed text is kept).
+        if (pickerOpen) {
+            AdminDetailPanel(
+                title = "Choose a package",
+                subtitle = "Package",
+                onBack = { pickerOpen = false }
+            ) {
+                PickRow(
+                    label = "All packages (full access)",
+                    selected = packageId == ALL_PACKAGES_ID,
+                    tone = WisdomAccentAmber,
+                    onClick = {
+                        packageId = ALL_PACKAGES_ID
+                        pickerOpen = false
+                    }
+                )
+                for (pkg in ADMIN_PACKAGES) {
+                    PickRow(
+                        label = pkg.name,
+                        selected = packageId == pkg.id,
+                        tone = WisdomCyan,
+                        onClick = {
+                            packageId = pkg.id
+                            pickerOpen = false
+                        }
+                    )
+                }
+            }
+        }
+
+        // B1b: the detail panel of one grant, with Revoke and Revoke all fixed at the bottom (both still ask first).
+        val detailGrant = grantDetail
+        if (detailGrant != null) {
+            val isAllPackages = detailGrant.packageId == ALL_PACKAGES_ID
+            AdminDetailPanel(
+                title = detailGrant.email,
+                subtitle = "Access grant",
+                onBack = { grantDetail = null },
+                actions = {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AdminActionButton(
+                            label = "Revoke",
+                            tone = RoseTone,
+                            filled = true,
+                            enabled = !busy,
+                            onClick = { revokeTarget = detailGrant },
+                            modifier = Modifier.weight(1f)
+                        )
+                        AdminActionButton(
+                            label = "Revoke all",
+                            tone = WisdomMuted,
+                            filled = false,
+                            enabled = !busy,
+                            onClick = { revokeAllEmail = detailGrant.email },
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
+            ) {
+                DetailLine(
+                    label = "PACKAGE",
+                    value = detailGrant.packageName ?: detailGrant.packageId,
+                    valueTone = if (isAllPackages) WisdomAccentAmber else WisdomCyan
+                )
+                DetailLine(label = "PACKAGE ID", value = detailGrant.packageId, mono = true)
+                if (!detailGrant.note.isNullOrEmpty()) {
+                    DetailLine(label = "NOTE", value = detailGrant.note)
+                }
+                if (!detailGrant.grantedBy.isNullOrEmpty()) {
+                    DetailLine(label = "GRANTED BY", value = detailGrant.grantedBy)
+                }
+                DetailLine(
+                    label = "ACCOUNT",
+                    value = if (detailGrant.userId != null) "Linked account" else "Email only (before sign-up)"
+                )
+                Text(
+                    text = "Revoke removes this one package. Revoke all removes every grant for this email. " +
+                        "Both ask you to confirm first.",
+                    color = WisdomMuted,
+                    fontSize = 12.sp
                 )
             }
         }
@@ -372,7 +436,7 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
                 text = toast,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = if (grantDetail != null) 88.dp else 16.dp)
             )
         }
     }
@@ -400,6 +464,7 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
             confirmTone = RoseTone,
             onConfirm = {
                 revokeTarget = null
+                grantDetail = null
                 doRevoke(oneRevoke)
             },
             onDismiss = { revokeTarget = null }
@@ -415,6 +480,7 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
             confirmTone = RoseTone,
             onConfirm = {
                 revokeAllEmail = null
+                grantDetail = null
                 doRevokeAll(allRevoke)
             },
             onDismiss = { revokeAllEmail = null }
@@ -422,8 +488,9 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
     }
 }
 
+/** The package field of the form. A tap opens the package panel (B1b); nothing expands inline. */
 @Composable
-private fun PickerHeader(label: String, open: Boolean, onClick: () -> Unit) {
+private fun PickerHeader(label: String, onClick: () -> Unit) {
     val shape = RoundedCornerShape(14.dp)
     Row(
         modifier = Modifier
@@ -445,8 +512,8 @@ private fun PickerHeader(label: String, open: Boolean, onClick: () -> Unit) {
             modifier = Modifier.weight(1f)
         )
         Icon(
-            imageVector = if (open) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-            contentDescription = if (open) "Close package list" else "Open package list",
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = "Choose a package",
             tint = WisdomMuted
         )
     }
@@ -458,7 +525,7 @@ private fun PickRow(label: String, selected: Boolean, tone: Color, onClick: () -
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp)
+            .height(48.dp)
             .clip(shape)
             .background(if (selected) tone.copy(alpha = 0.15f) else WisdomCard)
             .border(1.dp, if (selected) tone.copy(alpha = 0.5f) else WisdomBorderWhite, shape)
@@ -486,70 +553,58 @@ private fun PickRow(label: String, selected: Boolean, tone: Color, onClick: () -
     }
 }
 
+/** B1b: one grant as a compact tappable row (email, package, arrow). A tap opens the detail panel. */
 @Composable
-private fun GrantCard(
-    grant: AccessGrantItem,
-    busy: Boolean,
-    onRevoke: () -> Unit,
-    onRevokeAll: () -> Unit
-) {
+private fun GrantRow(grant: AccessGrantItem, onClick: () -> Unit) {
     val shape = RoundedCornerShape(16.dp)
     val isAll = grant.packageId == ALL_PACKAGES_ID
-    val details = buildString {
-        if (!grant.note.isNullOrEmpty()) append(grant.note)
-        if (!grant.grantedBy.isNullOrEmpty()) {
-            if (isNotEmpty()) append(" \u00B7 ")
-            append("by ").append(grant.grantedBy)
-        }
-        if (isNotEmpty()) append(" \u00B7 ")
-        append(if (grant.userId != null) "linked account" else "email only (pre-signup)")
-    }
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(WisdomCard)
             .border(1.dp, WisdomBorderWhite, shape)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Text(
-            text = grant.email,
-            color = WisdomTextPrimary,
-            fontSize = 16.sp,
-            fontWeight = FontWeight.Bold,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(
-            text = grant.packageName ?: grant.packageId,
-            color = if (isAll) WisdomAccentAmber else WisdomCyan,
-            fontSize = 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis
-        )
-        Text(text = details, color = WisdomMuted, fontSize = 12.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AdminActionButton(
-                label = "Revoke",
-                tone = RoseTone,
-                filled = false,
-                enabled = !busy,
-                onClick = onRevoke,
-                modifier = Modifier.weight(1f)
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                text = grant.email,
+                color = WisdomTextPrimary,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            AdminActionButton(
-                label = "Revoke all",
-                tone = WisdomMuted,
-                filled = false,
-                enabled = !busy,
-                onClick = onRevokeAll,
-                modifier = Modifier.weight(1f)
+            Text(
+                text = grant.packageName ?: grant.packageId,
+                color = if (isAll) WisdomAccentAmber else WisdomCyan,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
         }
+        Spacer(modifier = Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = "Open",
+            tint = WisdomMuted
+        )
+    }
+}
+
+/** A small label above a value, used in the grant detail panel. */
+@Composable
+private fun DetailLine(label: String, value: String, valueTone: Color = WisdomTextPrimary, mono: Boolean = false) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(text = label, color = WisdomMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        Text(
+            text = value,
+            color = valueTone,
+            fontSize = 14.sp,
+            fontFamily = if (mono) FontFamily.Monospace else FontFamily.Default
+        )
     }
 }
