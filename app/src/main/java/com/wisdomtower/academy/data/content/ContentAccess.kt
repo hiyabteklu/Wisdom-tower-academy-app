@@ -2,13 +2,17 @@ package com.wisdomtower.academy.data.content
 
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /** The three lock modes of the website (`HubLockMode` in `data/content-availability.ts`). */
@@ -107,18 +111,21 @@ class CourseLocks internal constructor(
  *  - `data/content-availability.ts` (static rules per path, package ids per path, the two texts);
  *  - `lib/content-locks.ts` `resolveEffectiveLock` (admin locks in `public.content_locks`, public read with the
  *    anon key; priority scope lock, then package lock, then the static rule; the website grid passes no hub,
- *    so neither does this);
- *  - `lib/ownership.ts` (free mode and the free-for-registered package list).
+ *    so neither does this).
  *
- * Free mode (owner, 2026-10-11): `IS_FREE_MODE` is true on the website, so every signed-in student owns every
- * package. [IS_FREE_MODE] below MUST be kept equal to the website value. The app never shows a price or a
- * purchase button; when the website later records purchases, only [ownsAny] has to change.
- *
- * Offline or server trouble: the last answer is reused, else the static rule applies (never a crash, never a
- * silent lock-out because of a network error).
+ * OWNERSHIP (S-A2, 2026-10-20): the DATABASE is the only source of truth. The app asks the function
+ * `public.my_package_access()` (signed-in student's own token) which packages the student owns or was granted
+ * (enrollments and access grants) and whether enforcement is on (`system:enforce` lock). Same rule as the server
+ * function `content_guard.resource_visible`, which also guards the downloads:
+ *  - not signed in: owns nothing (a signed-out student on a paid course sees the native "Sign in" message);
+ *  - enforcement off: everything is owned (exactly like the server);
+ *  - enforcement on: owned only if the answer lists the package, or `__all__`; the two ECE semesters count as one.
+ * The old "free mode" switch and the "free for registered" list are gone from the decision. Offline or server
+ * trouble: the last answer for the same student is reused, else NOTHING is owned (a paid package stays closed rather
+ * than opening by mistake). Lock rows are read separately and a read error never closes an open course.
  *
  * 2026-10-20: hub, chapter and item locks added ([CourseLocks], [resolveLocks], [staticLocks]). [resolve],
- * [staticAccess] and [isUnlocked] are unchanged (course level).
+ * [staticAccess] and [isUnlocked] are unchanged in shape (course level).
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -126,8 +133,11 @@ object ContentAccess {
     private const val TAG = "ContentAccess"
     private const val CACHE_MS = 30_000L
 
-    /** Mirror of `IS_FREE_MODE` in `website-reference/src/lib/ownership.ts`. */
-    val IS_FREE_MODE: Boolean = true
+    /**
+     * No longer used for any decision (S-A2). Kept only so other files that still mention it keep compiling;
+     * the server answer of `my_package_access()` decides ownership now.
+     */
+    val IS_FREE_MODE: Boolean = false
 
     /** Texts copied from `data/content-availability.ts`. */
     const val COMING_SOON_TITLE = "Coming soon"
@@ -137,12 +147,8 @@ object ContentAccess {
     const val PURCHASE_BODY = "Unlock this pathway with the matching package to access study materials."
     const val PURCHASE_BUTTON = "Keep exploring"
 
-    /** `FREE_FOR_REGISTERED_PACKAGE_IDS` of `lib/ownership.ts` (used only when free mode is off). */
-    private val FREE_FOR_REGISTERED = setOf(
-        "ece-y3-sem-1", "ece-y3-sem-2", "freshman",
-        "grade-9", "grade-10", "grade-11", "grade-12",
-        "entrance-questions"
-    )
+    /** Package id that means "everything" in `enrollments` / `access_grants` (same as the server). */
+    private const val ALL_PACKAGES = "__all__"
 
     private val HUB_IDS = setOf(
         "books", "short-notes", "references", "flashcards",
@@ -158,10 +164,19 @@ object ContentAccess {
         .callTimeout(10, TimeUnit.SECONDS)
         .build()
 
+    private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+
     private val cache = HashMap<String, Pair<Long, HubLockMode?>>()
 
     /** Granular lock rows of one course, cached 30 s (key = package + scope). */
     private val courseRowsCache = HashMap<String, Pair<Long, Map<String, HubLockMode>>>()
+
+    /** What `my_package_access()` said: is enforcement on, and which package ids the student owns or was granted. */
+    private class PackageAccess(val enforced: Boolean, val packages: Set<String>)
+
+    /** Last ownership answer: (student id, time read, answer). Used for one student only. */
+    @Volatile
+    private var ownership: Triple<String, Long, PackageAccess>? = null
 
     /**
      * The access state of the course at [basePath] (a website route such as `/academy/freshman/physics`;
@@ -177,13 +192,17 @@ object ContentAccess {
         )
         val dynamic = if (keys.isEmpty()) null else dynamicMode(keys)
         val mode = dynamic ?: staticLockMode(base)
-        return CourseAccess(mode, signedIn, ownsAny(signedIn, unlockIds))
+        return CourseAccess(mode, signedIn, ownsFrom(liveAccess(signedIn), signedIn, unlockIds))
     }
 
     /** Same as [resolve] without the network: the static rule only (used until the first answer arrives). */
     fun staticAccess(basePath: String, signedIn: Boolean): CourseAccess {
         val base = normalize(basePath)
-        return CourseAccess(staticLockMode(base), signedIn, ownsAny(signedIn, unlockPackageIds(base)))
+        return CourseAccess(
+            staticLockMode(base),
+            signedIn,
+            ownsFrom(cachedAccess(), signedIn, unlockPackageIds(base))
+        )
     }
 
     /** `isUnlocked(package)` of the plan: true when the hubs of the course at [basePath] may be opened now. */
@@ -193,7 +212,7 @@ object ContentAccess {
     /**
      * All locks that matter inside the course at [basePath]: course / package / hub / chapter / item (see
      * [CourseLocks]). One small request (cached 30 s). Offline or server trouble: the last answer is reused,
-     * else only the static rule applies, so a network error never locks a student out.
+     * else only the static rule applies, so a network error never locks a student out of an open course.
      */
     suspend fun resolveLocks(basePath: String, signedIn: Boolean): CourseLocks {
         val base = normalize(basePath)
@@ -203,7 +222,13 @@ object ContentAccess {
         val courseMode = scope?.let { rows?.get("scope:$it") }
             ?: pkg?.let { rows?.get("package:$it") }
             ?: staticLockMode(base)
-        return CourseLocks(scope, signedIn, ownsAny(signedIn, unlockIds), courseMode, rows ?: emptyMap())
+        return CourseLocks(
+            scope,
+            signedIn,
+            ownsFrom(liveAccess(signedIn), signedIn, unlockIds),
+            courseMode,
+            rows ?: emptyMap()
+        )
     }
 
     /** Same as [resolveLocks] without the network: the static rule only (used until the first answer arrives). */
@@ -211,21 +236,101 @@ object ContentAccess {
         val base = normalize(basePath)
         val unlockIds = unlockPackageIds(base)
         val (_, scope) = inferPackageAndScope(base, unlockIds)
-        return CourseLocks(scope, signedIn, ownsAny(signedIn, unlockIds), staticLockMode(base), emptyMap())
+        return CourseLocks(
+            scope,
+            signedIn,
+            ownsFrom(cachedAccess(), signedIn, unlockIds),
+            staticLockMode(base),
+            emptyMap()
+        )
+    }
+
+    /**
+     * Reads the ownership answer now (for example right after sign-in or when the app comes to the front), so the
+     * first course screen already knows it. Safe to call often (cached 30 s). Does nothing when signed out.
+     */
+    suspend fun warmUp() {
+        liveAccess(AuthStateManager.currentUser.value != null)
     }
 
     // ---------- ownership ----------
 
     /**
-     * Does the student own one of [unlockIds]? Free mode: every signed-in student owns everything.
-     * Paid mode (NOT finished): only the free-for-registered packages; enrollments, verified orders and
-     * access grants of the website (`lib/orders.ts`, `lib/access-grants.ts`) are not read yet, so a paid
-     * package stays closed in the app rather than opening by mistake (plan step N9b).
+     * Does the student own one of [unlockIds]? Same rule as `content_guard.resource_visible` in the database
+     * (see the class comment). [access] null = no answer for this student yet: nothing is owned.
      */
-    private fun ownsAny(signedIn: Boolean, unlockIds: List<String>): Boolean {
-        if (!signedIn) return false
-        if (IS_FREE_MODE) return true
-        return unlockIds.any { it in FREE_FOR_REGISTERED }
+    private fun ownsFrom(access: PackageAccess?, signedIn: Boolean, unlockIds: List<String>): Boolean {
+        if (!signedIn || access == null) return false
+        if (!access.enforced) return true
+        if (ALL_PACKAGES in access.packages) return true
+        return unlockIds.any { id ->
+            id in access.packages ||
+                (id.startsWith("ece-y3-sem-") && access.packages.any { it.startsWith("ece-y3-sem-") })
+        }
+    }
+
+    /** The last answer for the student who is signed in now, without any network call. */
+    private fun cachedAccess(): PackageAccess? {
+        val userId = AuthStateManager.currentUser.value?.id ?: return null
+        val hit = ownership
+        return if (hit != null && hit.first == userId) hit.third else null
+    }
+
+    /** The answer for the signed-in student: cached 30 s, else asked from the server, else the last answer. */
+    private suspend fun liveAccess(signedIn: Boolean): PackageAccess? {
+        if (!signedIn) return null
+        val userId = AuthStateManager.currentUser.value?.id ?: return null
+        val now = System.currentTimeMillis()
+        val hit = ownership
+        if (hit != null && hit.first == userId && now - hit.second < CACHE_MS) return hit.third
+        val fetched = fetchPackageAccess()
+        if (fetched != null) {
+            ownership = Triple(userId, now, fetched)
+            return fetched
+        }
+        return if (hit != null && hit.first == userId) hit.third else null
+    }
+
+    private suspend fun fetchPackageAccess(): PackageAccess? = withContext(Dispatchers.IO) {
+        try {
+            AuthStateManager.refreshIfNeeded()
+            val token = AuthStateManager.currentUser.value?.accessToken
+            if (token.isNullOrBlank()) return@withContext null
+            var reply = postPackageAccess(token)
+            if (reply.first == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
+                val fresh = AuthStateManager.currentUser.value?.accessToken
+                if (!fresh.isNullOrBlank()) reply = postPackageAccess(fresh)
+            }
+            if (reply.first !in 200..299) return@withContext null
+            val json = JSONObject(reply.second)
+            if (json.optString("status") != "ok") return@withContext null
+            val arr = json.optJSONArray("packages") ?: JSONArray()
+            val ids = HashSet<String>()
+            for (i in 0 until arr.length()) {
+                val id = arr.optString(i, "")
+                if (id.isNotEmpty()) ids.add(id)
+            }
+            PackageAccess(json.optBoolean("enforced", true), ids)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "ownership read failed: ${e.javaClass.simpleName}")
+            null
+        }
+    }
+
+    /** POST `rpc/my_package_access` with the student's OWN token (never the anon key as the login). */
+    private fun postPackageAccess(token: String): Pair<Int, String> {
+        val request = Request.Builder()
+            .url("$supabaseUrl/rest/v1/rpc/my_package_access")
+            .addHeader("apikey", anonKey)
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Accept", "application/json")
+            .post("{}".toRequestBody(JSON_MEDIA))
+            .build()
+        http.newCall(request).execute().use { resp ->
+            return Pair(resp.code, resp.body?.string().orEmpty())
+        }
     }
 
     // ---------- static rules (website `data/content-availability.ts`) ----------
