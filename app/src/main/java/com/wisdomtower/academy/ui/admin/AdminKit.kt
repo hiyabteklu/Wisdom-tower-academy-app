@@ -1,22 +1,33 @@
 package com.wisdomtower.academy.ui.admin
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -27,6 +38,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -43,6 +55,7 @@ import com.wisdomtower.academy.ui.theme.WisdomAccentPurple
 import com.wisdomtower.academy.ui.theme.WisdomAccentRose
 import com.wisdomtower.academy.ui.theme.WisdomAccentSky
 import com.wisdomtower.academy.ui.theme.WisdomAccentViolet
+import com.wisdomtower.academy.ui.theme.WisdomBackground
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCard
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -66,6 +79,10 @@ import java.util.TimeZone
 // AdminRose), and those already have a darker day value. Mixing them again made every tone a dark brown, green or maroon
 // and the colours hard to tell apart. adminTone now leaves a theme token as it is in day and only darkens a literal colour
 // (for example the default chip tone F59E0B). Night is still identical.
+// B1a (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): AdminDetailPanel, the shared "detail opens on top" pattern. A full-screen
+// panel (Back arrow, title, content that starts at the top and scrolls, main action fixed at the bottom) drawn over the
+// list. The list stays composed underneath, so it keeps its scroll position. System Back closes the panel first. Used by
+// LocksScreen first; Grants and the other modules follow in later slices.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 /** Soft red used for rejected and destructive actions (the website uses rose). Day: a deeper rose. Read while composing. */
@@ -224,6 +241,88 @@ internal fun AdminActionButton(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
+    }
+}
+
+/**
+ * B1a: the shared "detail opens on top" panel. Draw it as the LAST child of a Box that holds the list, so it covers the
+ * list; keep the list composed underneath (do not remove it) so its scroll position survives. Layout, top to bottom:
+ * a header (Back arrow, small subtitle, title), a thin line, the content (starts at the top, scrolls on its own), and,
+ * when [actions] is given, a bar fixed at the bottom for the main action. System Back calls [onBack] first because this
+ * BackHandler is registered after the screen's own. The panel swallows taps so nothing reaches the list underneath.
+ */
+@Composable
+internal fun AdminDetailPanel(
+    title: String,
+    onBack: () -> Unit,
+    modifier: Modifier = Modifier,
+    subtitle: String? = null,
+    actions: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    BackHandler(onBack = onBack)
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .background(WisdomBackground)
+            .pointerInput(Unit) { detectTapGestures { } }
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .defaultMinSize(minHeight = 56.dp)
+                .padding(horizontal = 4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(
+                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                    contentDescription = "Back",
+                    tint = WisdomTextPrimary
+                )
+            }
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                if (subtitle != null) {
+                    Text(
+                        text = subtitle.uppercase(),
+                        color = WisdomMuted,
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Text(
+                    text = title,
+                    color = WisdomTextPrimary,
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+        Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WisdomBorderWhite))
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+            content = content
+        )
+        if (actions != null) {
+            Box(modifier = Modifier.fillMaxWidth().height(1.dp).background(WisdomBorderWhite))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(WisdomBackground)
+                    .padding(horizontal = 16.dp, vertical = 10.dp)
+            ) {
+                actions()
+            }
+        }
     }
 }
 
