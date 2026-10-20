@@ -44,6 +44,12 @@ class WisdomTowerApplication : Application(), ImageLoaderFactory {
         super.onCreate()
         instance = this
 
+        // Slice S3: release builds close themselves when opened up for inspection (see IntegrityGuard).
+        if (IntegrityGuard.isTampered(this)) {
+            android.os.Process.killProcess(android.os.Process.myPid())
+            return
+        }
+
         val imageLoader = newImageLoader()
         Coil.setImageLoader(imageLoader)
 

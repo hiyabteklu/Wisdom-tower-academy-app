@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Slice S3 (docs/SECURITY_PLAN_CONTENT_ACCESS.md).
+  Release builds: HTTPS only, and only the certificates built into the phone are trusted. A certificate that
+  somebody installed by hand on the phone (the way traffic-sniffing tools such as Charles or mitmproxy work)
+  is NOT trusted, so the app's traffic cannot be read that way. Debug builds (the owner's test phone, our own
+  developer tools) still accept user-installed certificates so testing keeps working.
+  Honest limit: someone with a rooted phone and a patched copy of the app can still get around this. The real
+  protection is that locked content stays on the server (slices S1, S2, S4).
+-->
+<network-security-config>
+    <base-config cleartextTrafficPermitted="false">
+        <trust-anchors>
+            <certificates src="system" />
+        </trust-anchors>
+    </base-config>
+    <debug-overrides>
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </debug-overrides>
+</network-security-config>
