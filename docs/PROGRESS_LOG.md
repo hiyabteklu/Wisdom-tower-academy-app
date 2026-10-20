@@ -20,4 +20,6 @@
 - A3 PUSHED, `[~]` not compiled / not tested: plain wording on the admin Locks screen (who is affected per mode, "what happens now" line, warning when Owners only
   is set but Paid mode is OFF, "Remove this lock") and on the Grants screen ("<email> now has access to <package>", note while Paid mode is OFF). See docs/ADMIN_DASHBOARD_NEXT.md.
 - A4 WRITTEN: docs/A4_TEST_MATRIX.md (21 rows with expected results, built from the real lock rows read from the database today; Paid mode is ON).
-- NEXT: read the CI result for the warmUp, planner and A3 commits; run the A4 matrix on the phone (record in docs/A4_RESULTS.md); then B1 (detail opens on top), C1 (looks audit).
+- B1a PUSHED, `[~]` not compiled / not tested: `AdminDetailPanel` in `AdminKit.kt` (detail opens ON TOP: Back arrow, content from the top, main action fixed at the bottom, System Back closes it first)
+  and the Locks screen uses it for package shortcuts, chapters and materials (nothing expands below a row any more). Grants is B1b. See docs/ADMIN_DASHBOARD_NEXT.md for the phone test.
+- NEXT: read the CI result for the warmUp, planner, A3 and B1a commits (fix any red build first, log it in docs/BUILD_PITFALLS.md); run the A4 matrix on the phone (record in docs/A4_RESULTS.md); then B1b (Grants on the panel), C1 (looks audit).

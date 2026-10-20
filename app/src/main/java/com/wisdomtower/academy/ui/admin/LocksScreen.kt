@@ -25,8 +25,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Folder
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Refresh
@@ -78,7 +76,7 @@ import kotlinx.coroutines.launch
 // ADMIN-native N6b (docs/ADMIN_NATIVE_PLAN.md). Native version of the website LocksPanel (Content locks): package
 // shortcuts, then a step-by-step tree (Academy > package > subject > hub) with the four lock modes for the
 // selected step, and the list of all active overrides at the top level. Each mode is a full-width row with its hint
-// (no tiny buttons); shortcuts open on tap. System Back and the arrow go up one step. Texts copied from the website.
+// (no tiny buttons). System Back and the arrow go up one step. Texts copied from the website.
 // D7j (docs/DAY_MODE_PLAN.md, 2026-10-19): RoseTone is now the kit's AdminRose (night FB7185 as before, day BE123C; the
 // literal pink was too light as the lock icon on ivory), and the shortcut block tint is WisdomInk at 4 percent (night:
 // white 4 percent as before; day: a faint navy tint, white 4 percent was invisible on ivory). Night is identical.
@@ -92,9 +90,16 @@ import kotlinx.coroutines.launch
 // A3 (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): plain wording. Every mode hint says WHO is affected; the open step shows a
 // "what happens now" line (and warns when Owners only is set but Paid mode is OFF, because then nothing is enforced);
 // "Reset to code default" is now "Remove this lock". Layout and behaviour unchanged.
+// B1a (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): package shortcuts, chapters and materials no longer expand below the
+// tapped row. A tap opens AdminDetailPanel (AdminKit.kt) on top of the list: Back arrow, the four modes starting at the
+// top, "Remove this lock" fixed at the bottom. The list stays underneath and keeps its scroll position; System Back closes
+// the panel first. The top step card (active) is unchanged. Lock rules and saving are unchanged.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private class LockMode(val id: String, val label: String, val hint: String)
+
+/** What the open detail panel edits: the lock key, the name shown in the panel header, and a small kind label above it. */
+private class LockTarget(val key: String, val label: String, val kind: String)
 
 private val MODES: List<LockMode> = listOf(
     LockMode(
@@ -197,9 +202,9 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
     var toast by remember { mutableStateOf("") }
     var busyKey by remember { mutableStateOf("") }
     var crumbs by remember { mutableStateOf<List<AdminNavNode>>(emptyList()) }
-    var openShortcut by remember { mutableStateOf("") }
-    // GRANULAR LOCKS: the chapter / material block that is open, the materials of the open hub, and a retry counter
-    var openKey by remember { mutableStateOf("") }
+    // B1a: the package shortcut, chapter or material whose detail panel is open on top of the list (null = none)
+    var detail by remember { mutableStateOf<LockTarget?>(null) }
+    // GRANULAR LOCKS: the materials of the open hub and a retry counter
     var hubItems by remember { mutableStateOf<HubItemsResult?>(null) }
     var itemsReload by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
@@ -219,6 +224,7 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
     LaunchedEffect(crumbs.size) { listState.scrollToItem(0) }
 
     // Registered after the one in AdminConsoleHost, so it runs first: up one step, and only at the top level the host takes over.
+    // The detail panel (AdminDetailPanel) registers its own handler later still, so System Back closes the panel before this runs.
     BackHandler(enabled = crumbs.isNotEmpty()) { crumbs = crumbs.dropLast(1) }
 
     val current = result
@@ -255,12 +261,12 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
     val cardShape = RoundedCornerShape(16.dp)
 
     // Load the chapters and materials of the hub that is open (only when the hub or the retry counter changes;
-    // saving a lock does not reload them, so the open block stays open).
+    // saving a lock does not reload them, so an open detail panel stays open).
     val hubScopeToLoad: String? = if (isHub) node?.scopePath else null
     val hubIdToLoad: String? = if (isHub) node?.id else null
     LaunchedEffect(hubScopeToLoad, hubIdToLoad, itemsReload) {
         hubItems = null
-        openKey = ""
+        detail = null
         if (hubScopeToLoad != null && hubIdToLoad != null) {
             hubItems = LocksRepository.listHubItems(hubScopeToLoad, hubIdToLoad)
         }
@@ -393,15 +399,10 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                         )
                         for (entry in SHORTCUTS) {
                             val key = packageLockKey(entry.first)
-                            val lock = lockMap[key]
-                            ShortcutBlock(
+                            LockRow(
                                 title = entry.second,
-                                lock = lock,
-                                expanded = openShortcut == entry.first,
-                                busy = busyKey == key,
-                                onToggle = { openShortcut = if (openShortcut == entry.first) "" else entry.first },
-                                onMode = { mode -> applyMode(key, mode, entry.second) },
-                                onReset = { resetToDefault(key) }
+                                lock = lockMap[key],
+                                onClick = { detail = LockTarget(key, entry.second, "Package") }
                             )
                         }
                     }
@@ -475,6 +476,7 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                             LockControls(
                                 lock = activeLock,
                                 busy = busyKey == activeKey,
+                                showReset = true,
                                 onMode = { mode -> applyMode(activeKey, mode, node.label) },
                                 onReset = { resetToDefault(activeKey) }
                             )
@@ -539,15 +541,11 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                                 if (chapter != null) {
                                     val chapterKey = chapterLockKey(hubScope, hubId, chapter)
                                     item(key = "ch-$chapter") {
-                                        ShortcutBlock(
+                                        LockRow(
                                             title = "Chapter $chapter \u00B7 all ${rows.size} " +
                                                 if (rows.size == 1) "material" else "materials",
                                             lock = lockMap[chapterKey],
-                                            expanded = openKey == chapterKey,
-                                            busy = busyKey == chapterKey,
-                                            onToggle = { openKey = if (openKey == chapterKey) "" else chapterKey },
-                                            onMode = { mode -> applyMode(chapterKey, mode, "Chapter $chapter") },
-                                            onReset = { resetToDefault(chapterKey) }
+                                            onClick = { detail = LockTarget(chapterKey, "Chapter $chapter", "Chapter") }
                                         )
                                     }
                                 } else {
@@ -563,14 +561,10 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                                 items(rows, key = { "it-" + it.id }) { row ->
                                     val rowKey = itemLockKey(row.id)
                                     Box(modifier = Modifier.padding(start = if (chapter != null) 14.dp else 0.dp)) {
-                                        ShortcutBlock(
+                                        LockRow(
                                             title = row.title + if (row.published) "" else " \u00B7 unpublished",
                                             lock = lockMap[rowKey],
-                                            expanded = openKey == rowKey,
-                                            busy = busyKey == rowKey,
-                                            onToggle = { openKey = if (openKey == rowKey) "" else rowKey },
-                                            onMode = { mode -> applyMode(rowKey, mode, row.title) },
-                                            onReset = { resetToDefault(rowKey) }
+                                            onClick = { detail = LockTarget(rowKey, row.title, "Material") }
                                         )
                                     }
                                 }
@@ -601,12 +595,66 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
             }
         }
 
+        // B1a: the detail panel is drawn over the list. The list above stays composed, so its scroll position is kept.
+        val target = detail
+        if (target != null) {
+            val targetLock: LockItem? = lockMap[target.key]
+            val targetBusy = busyKey == target.key
+            AdminDetailPanel(
+                title = target.label,
+                subtitle = target.kind,
+                onBack = { detail = null },
+                actions = {
+                    AdminActionButton(
+                        label = if (targetBusy) "Saving..." else "Remove this lock (the level above decides)",
+                        tone = WisdomMuted,
+                        filled = false,
+                        enabled = !targetBusy && targetLock != null,
+                        onClick = { resetToDefault(target.key) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = target.key,
+                        color = WisdomMuted,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        maxLines = 3,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    AdminToneBadge(text = modeText(targetLock?.mode), tone = modeTone(targetLock?.mode))
+                }
+                Text(
+                    text = effectText(targetLock?.mode, paidOnNow),
+                    color = WisdomTextPrimary,
+                    fontSize = 13.sp
+                )
+                LockControls(
+                    lock = targetLock,
+                    busy = targetBusy,
+                    showReset = false,
+                    onMode = { mode -> applyMode(target.key, mode, target.label) },
+                    onReset = { resetToDefault(target.key) }
+                )
+                Text(
+                    text = "Material lock beats chapter lock, chapter beats hub, hub beats subject, " +
+                        "subject beats package. Example: package = Owners only, Chapter 1 = Free for signed-in.",
+                    color = WisdomMuted,
+                    fontSize = 12.sp
+                )
+            }
+        }
+
         if (toast.isNotEmpty()) {
             AdminToast(
                 text = toast,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = if (detail != null) 88.dp else 16.dp)
             )
         }
     }
@@ -640,8 +688,15 @@ private fun ModeRow(mode: LockMode, selected: Boolean, enabled: Boolean, onClick
     }
 }
 
+/** The four mode rows. showReset = false when the caller puts the Remove button somewhere else (the detail panel does). */
 @Composable
-private fun LockControls(lock: LockItem?, busy: Boolean, onMode: (String) -> Unit, onReset: () -> Unit) {
+private fun LockControls(
+    lock: LockItem?,
+    busy: Boolean,
+    showReset: Boolean,
+    onMode: (String) -> Unit,
+    onReset: () -> Unit
+) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
         for (mode in MODES) {
             ModeRow(
@@ -651,65 +706,50 @@ private fun LockControls(lock: LockItem?, busy: Boolean, onMode: (String) -> Uni
                 onClick = { onMode(mode.id) }
             )
         }
-        AdminActionButton(
-            label = if (busy) "Saving..." else "Remove this lock (the level above decides)",
-            tone = WisdomMuted,
-            filled = false,
-            enabled = !busy && lock != null,
-            onClick = onReset,
-            modifier = Modifier.fillMaxWidth()
-        )
+        if (showReset) {
+            AdminActionButton(
+                label = if (busy) "Saving..." else "Remove this lock (the level above decides)",
+                tone = WisdomMuted,
+                filled = false,
+                enabled = !busy && lock != null,
+                onClick = onReset,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 
+/** B1a: one tappable row (name, current mode badge, arrow). A tap opens the detail panel; nothing expands below it. */
 @Composable
-private fun ShortcutBlock(
-    title: String,
-    lock: LockItem?,
-    expanded: Boolean,
-    busy: Boolean,
-    onToggle: () -> Unit,
-    onMode: (String) -> Unit,
-    onReset: () -> Unit
-) {
+private fun LockRow(title: String, lock: LockItem?, onClick: () -> Unit) {
     val shape = RoundedCornerShape(12.dp)
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
+            .defaultMinSize(minHeight = 48.dp)
             .clip(shape)
             .background(WisdomInk.copy(alpha = 0.04f))
             .border(1.dp, WisdomBorderWhite, shape)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .defaultMinSize(minHeight = 48.dp)
-                .clickable(onClick = onToggle)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                color = WisdomTextPrimary,
-                fontSize = 14.sp,
-                fontWeight = FontWeight.SemiBold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
-            )
-            Spacer(modifier = Modifier.width(8.dp))
-            AdminToneBadge(text = modeText(lock?.mode), tone = modeTone(lock?.mode))
-            Icon(
-                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                contentDescription = if (expanded) "Close" else "Open",
-                tint = WisdomMuted
-            )
-        }
-        if (expanded) {
-            Column(modifier = Modifier.padding(start = 12.dp, end = 12.dp, bottom = 12.dp)) {
-                LockControls(lock = lock, busy = busy, onMode = onMode, onReset = onReset)
-            }
-        }
+        Text(
+            text = title,
+            color = WisdomTextPrimary,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.SemiBold,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        AdminToneBadge(text = modeText(lock?.mode), tone = modeTone(lock?.mode))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = "Open",
+            tint = WisdomMuted
+        )
     }
 }
 
