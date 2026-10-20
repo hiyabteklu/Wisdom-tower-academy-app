@@ -53,16 +53,14 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - Unchanged: every `CompetitionsRepository` call, Start now / Cancel / Show-to-students confirm dialogs, Ethiopia time, texts. Removed (replaced):
     `CompetitionCard`, `RescheduleEditor`, `EntriesPanel`.
   - Phone test (6 steps): `docs/SESSION_2026-10-20_ADMIN_B3B_B3C_COMPETITIONS.md`.
-- B3d PUSHED (commit 64e215c, starts "Admin B3d (Inquiries)"), `[~]` CI #859 was In progress at 3:12 pm (result not seen) / not tested on a phone: `InquiriesScreen.kt`.
+- B3d PUSHED (commit 64e215c, starts "Admin B3d (Inquiries)"), CI #859 GREEN (compiled; owner's Actions screenshot, 3:18 pm), `[~]` not tested on a phone: `InquiriesScreen.kt`.
   - Each inquiry is a compact row (`InquiryRow`: name, e-mail, status badge, two lines of the message, date, arrow). A tap opens the inquiry panel
     (`InquiryDetailBody`: status and date, e-mail, interest, the whole message; `StatusButtons`, the four statuses two to a row, fixed at the bottom).
     The panel stays open after a status change. New search box under the filter chips (name, e-mail, interest, message), combined with the status chips.
   - Unchanged: `InquiriesRepository` calls, status logic, toast and empty-state texts. Removed (replaced): `InquiryCard`, `expandedId`.
     `AdminToast` and `AdminStatusBadge` stay in `InquiriesScreen.kt` untouched (other screens use them); NOT moved to `AdminKit.kt`.
   - Phone test (5 steps): `docs/SESSION_2026-10-20_ADMIN_B3D_INQUIRIES.md`.
-  - Compile risks to check first if red: the new `KeyboardArrowRight` import; `InquiriesRepository.STATUSES.chunked(2)` inside `StatusButtons`;
-    the local `val service = it.service` in the search filter.
-- B3e PUSHED (commit starts "Admin B3e (Payments)"), `[~]` not compiled / not tested on a phone: `PaymentsScreen.kt`. LAYOUT ONLY, money logic untouched.
+- B3e PUSHED (commit c485bd6, starts "Admin B3e (Payments)"), CI #860 was In progress at 3:18 pm (result not seen), `[~]` not tested on a phone: `PaymentsScreen.kt`. LAYOUT ONLY, money logic untouched.
   - Each order is a compact row (`OrderRow`: package, student, amount, date, status badge, arrow; pending rows keep the amber border). A tap opens the
     order panel (`OrderDetailBody`: status, placed date, order id, package, amount and method, student, phone, e-mail, Ref and note, `View Receipt`).
     For a PENDING order `Approve & Unlock` and `Reject` are the bar fixed at the bottom (`OrderActionButtons`); verified / rejected orders have no bottom bar.
@@ -70,16 +68,24 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
     After a SUCCESSFUL approve / reject the panel closes and the toast shows the result; after an error the panel stays open. Removed (replaced): `OrderCard`.
   - Phone test (5 steps; use a test order, do not approve a real student's payment): `docs/SESSION_2026-10-20_ADMIN_B3E_PAYMENTS.md`.
   - Compile risks to check first if red: the two `AdminDetailPanel` call sites (with and without `actions`); smart casts of `detailOrder` in lambdas; the new imports.
+- B3f PUSHED (commit starts "Admin B3f (Catalog)"), `[~]` not compiled / not tested on a phone: `CatalogScreen.kt`. LAYOUT ONLY, save / delete logic untouched.
+  - Each package is a compact row (`CatalogRow`: name, id, price, Inactive badge, arrow). A tap opens the editor panel (`CatalogEditor` = `AdminDetailPanel`,
+    same 12 fields and labels, helper `CatalogField`); `Cancel` and `Save package` are the bar fixed at the bottom; `Delete package` is the last item in the
+    panel and still asks first. The list stays composed underneath, so its scroll position is kept. `RoseTone` became `AdminRose`.
+  - Unchanged: every `CatalogRepository` call, `newItem()`, `isBuiltIn()`, the built-in note, texts. After a successful save or delete the panel closes and the list
+    reloads; after an error the panel stays open and the toast shows it. Removed (replaced): `CatalogCard`, the old full-screen editor.
+  - Phone test (5 steps; use a test package, do not delete a real one): `docs/SESSION_2026-10-20_ADMIN_B3F_CATALOG.md`.
+  - Compile risks to check first if red: `AdminDetailPanel` named arguments plus trailing content lambda; smart cast of `editTarget` in the `onDelete` lambda; the new imports.
 
 ## Next slices, in this order (one per chat)
-1. First: read the CI result of B3d (#859) and of B3e (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
+1. First: read the CI result of B3e (#860) and of B3f (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
 2. A4 run on the phone: one device, one admin, one test student, rows in `docs/A4_TEST_MATRIX.md`; record in `docs/A4_RESULTS.md`.
-3. B3f Catalog (editor in the panel, fixed pink to `AdminRose`, list scroll position kept), B3g Users (order in `docs/ADMIN_AUDIT.md`). Reuse `AdminDetailPanel`, never write another one.
+3. B3g Users (order in `docs/ADMIN_AUDIT.md`). Reuse `AdminDetailPanel`, never write another one.
    `AdminToast` and `AdminStatusBadge` live in `InquiriesScreen.kt`: never delete them (other screens use them).
 4. B2b audit of the 7 files not read yet (add them to `docs/ADMIN_AUDIT.md`).
 5. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
-   Already seen: `AccessGrantsScreen.kt` used a fixed pink (fixed in A3); `CatalogScreen.kt` RoseTone FB7185; `CompetitionsScreen.kt` CompOrange FB923C.
+   Already seen: `AccessGrantsScreen.kt` used a fixed pink (fixed in A3); `CatalogScreen.kt` RoseTone (fixed in B3f); `CompetitionsScreen.kt` CompOrange FB923C.
    The panel uses `WisdomBackground`, which is the page colour of the admin host, so it should follow Day / Night; check it in Transparent in C1.
 
 ## Not in scope
-Payment logic, prices, anything that weakens the server rules (B3e changed the Payments LAYOUT only).
+Payment logic, prices, anything that weakens the server rules (B3e changed the Payments LAYOUT only; B3f changed the Catalog LAYOUT only).

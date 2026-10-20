@@ -1,21 +1,23 @@
 package com.wisdomtower.academy.ui.admin
 
-import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -33,7 +35,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -56,15 +57,17 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 // ADMIN-native N6c (docs/ADMIN_NATIVE_PLAN.md). Native version of the website CatalogPanel (Package catalog): list of
-// catalog rows with price, Edit and Delete, Add package, and the editor with every field of the website form.
-// The editor replaces the list inside this screen (no pop-up window), with its own back arrow and Back handling.
+// catalog rows with price, Add package, and the editor with every field of the website form.
+// B3f (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): the detail opens on top. Each catalog row is a compact row (name, id, price,
+// Inactive badge, arrow). A tap opens the editor as an AdminDetailPanel drawn over the list (the list stays composed, so its
+// scroll position is kept); Save package is the bar fixed at the bottom, Delete package sits at the end of the panel and still
+// asks first. The fixed pink RoseTone became the kit's AdminRose. Save, delete, every CatalogRepository call, the fields, the
+// confirm text and all other texts are unchanged. Layout change only.
 // Not carried over: Seed from static (needs the website's full static texts). Delete asks for confirmation in the
 // app's own dialog (the website used a browser confirm). Texts copied from the website where it has them.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val GROUPS: List<String> = listOf("grades", "branch", "special", "custom")
-
-private val RoseTone = Color(0xFFFB7185)
 
 /** Ids of the packages that are defined in the website code (static list). For these the website shows its own price, description and includes. */
 private fun isBuiltIn(id: String): Boolean =
@@ -110,9 +113,6 @@ internal fun CatalogScreen(modifier: Modifier = Modifier) {
         }
     }
 
-    // Registered after the one in AdminConsoleHost, so it runs first.
-    BackHandler(enabled = editing != null) { if (!saving) editing = null }
-
     fun doSave(input: CatalogItem) {
         scope.launch {
             saving = true
@@ -132,7 +132,10 @@ internal fun CatalogScreen(modifier: Modifier = Modifier) {
             val outcome = CatalogRepository.delete(item.id)
             busyId = ""
             toast = outcome.message
-            if (outcome.ok) reloadKey += 1
+            if (outcome.ok) {
+                editing = null
+                reloadKey += 1
+            }
         }
     }
 
@@ -140,132 +143,133 @@ internal fun CatalogScreen(modifier: Modifier = Modifier) {
     val editTarget = editing
 
     Box(modifier = modifier.fillMaxSize()) {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 72.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item(key = "header") {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Package catalog",
+                            color = WisdomTextPrimary,
+                            fontSize = 17.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        Text(
+                            text = "Prices and About text shown on /packages and offer banners. Default new price: 250 ETB.",
+                            color = WisdomMuted,
+                            fontSize = 12.sp
+                        )
+                    }
+                    IconButton(onClick = { reloadKey += 1 }) {
+                        Icon(
+                            imageVector = Icons.Filled.Refresh,
+                            contentDescription = "Refresh",
+                            tint = WisdomMuted,
+                            modifier = Modifier.alpha(if (loading) 0.4f else 1f)
+                        )
+                    }
+                }
+            }
+
+            item(key = "add") {
+                AdminActionButton(
+                    label = "Add package",
+                    tone = WisdomAccentEmerald,
+                    filled = true,
+                    enabled = true,
+                    onClick = {
+                        isNew = true
+                        editing = newItem()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            item(key = "note") {
+                val noteShape = RoundedCornerShape(14.dp)
+                Text(
+                    text = "Note: for the packages that exist in the website code (grade-9 to ece-y3-sem-2), students see " +
+                        "the price, description and includes from the website code, so changing those here does not " +
+                        "change what they see. Rows you add here use their own values.",
+                    color = WisdomAccentAmber,
+                    fontSize = 12.sp,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(noteShape)
+                        .background(WisdomAccentAmber.copy(alpha = 0.08f))
+                        .border(1.dp, WisdomAccentAmber.copy(alpha = 0.25f), noteShape)
+                        .padding(12.dp)
+                )
+            }
+
+            if (current == null) {
+                item(key = "loading") {
+                    Text(
+                        text = "Loading catalog...",
+                        color = WisdomMuted,
+                        fontSize = 14.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 32.dp)
+                    )
+                }
+            } else if (current is CatalogResult.Failure) {
+                item(key = "error") {
+                    AdminMessageCard(
+                        title = "Could not load the catalog",
+                        body = current.message,
+                        actionLabel = "Try again",
+                        onAction = { reloadKey += 1 }
+                    )
+                }
+            } else if (current is CatalogResult.Success) {
+                if (current.items.isEmpty()) {
+                    item(key = "empty") {
+                        AdminMessageCard(
+                            title = "No catalog rows",
+                            body = "No catalog rows yet. Seed from static packages (on the website) or add one.",
+                            actionLabel = null,
+                            onAction = {}
+                        )
+                    }
+                }
+                items(current.items, key = { it.id }) { row ->
+                    CatalogRow(
+                        row = row,
+                        onOpen = {
+                            isNew = false
+                            editing = row
+                        }
+                    )
+                }
+                item(key = "footnote") {
+                    Text(
+                        text = "Static fallback list has ${ADMIN_PACKAGES.size} packages in this app's copy.",
+                        color = WisdomMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
+        // The editor panel is drawn after the list, so it covers it. Its own BackHandler runs before the host's.
         if (editTarget != null) {
             CatalogEditor(
                 initial = editTarget,
                 isNew = isNew,
                 saving = saving,
+                busy = busyId == editTarget.id,
                 onBack = { if (!saving) editing = null },
-                onSave = { doSave(it) }
+                onSave = { doSave(it) },
+                onDelete = { deleteTarget = editTarget }
             )
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 72.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item(key = "header") {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Package catalog",
-                                color = WisdomTextPrimary,
-                                fontSize = 17.sp,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Prices and About text shown on /packages and offer banners. Default new price: 250 ETB.",
-                                color = WisdomMuted,
-                                fontSize = 12.sp
-                            )
-                        }
-                        IconButton(onClick = { reloadKey += 1 }) {
-                            Icon(
-                                imageVector = Icons.Filled.Refresh,
-                                contentDescription = "Refresh",
-                                tint = WisdomMuted,
-                                modifier = Modifier.alpha(if (loading) 0.4f else 1f)
-                            )
-                        }
-                    }
-                }
-
-                item(key = "add") {
-                    AdminActionButton(
-                        label = "Add package",
-                        tone = WisdomAccentEmerald,
-                        filled = true,
-                        enabled = true,
-                        onClick = {
-                            isNew = true
-                            editing = newItem()
-                        },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
-                item(key = "note") {
-                    val noteShape = RoundedCornerShape(14.dp)
-                    Text(
-                        text = "Note: for the packages that exist in the website code (grade-9 to ece-y3-sem-2), students see " +
-                            "the price, description and includes from the website code, so changing those here does not " +
-                            "change what they see. Rows you add here use their own values.",
-                        color = WisdomAccentAmber,
-                        fontSize = 12.sp,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(noteShape)
-                            .background(WisdomAccentAmber.copy(alpha = 0.08f))
-                            .border(1.dp, WisdomAccentAmber.copy(alpha = 0.25f), noteShape)
-                            .padding(12.dp)
-                    )
-                }
-
-                if (current == null) {
-                    item(key = "loading") {
-                        Text(
-                            text = "Loading catalog...",
-                            color = WisdomMuted,
-                            fontSize = 14.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 32.dp)
-                        )
-                    }
-                } else if (current is CatalogResult.Failure) {
-                    item(key = "error") {
-                        AdminMessageCard(
-                            title = "Could not load the catalog",
-                            body = current.message,
-                            actionLabel = "Try again",
-                            onAction = { reloadKey += 1 }
-                        )
-                    }
-                } else if (current is CatalogResult.Success) {
-                    if (current.items.isEmpty()) {
-                        item(key = "empty") {
-                            AdminMessageCard(
-                                title = "No catalog rows",
-                                body = "No catalog rows yet. Seed from static packages (on the website) or add one.",
-                                actionLabel = null,
-                                onAction = {}
-                            )
-                        }
-                    }
-                    items(current.items, key = { it.id }) { row ->
-                        CatalogCard(
-                            row = row,
-                            busy = busyId == row.id,
-                            onEdit = {
-                                isNew = false
-                                editing = row
-                            },
-                            onDelete = { deleteTarget = row }
-                        )
-                    }
-                    item(key = "footnote") {
-                        Text(
-                            text = "Static fallback list has ${ADMIN_PACKAGES.size} packages in this app's copy.",
-                            color = WisdomMuted,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            }
         }
 
         if (toast.isNotEmpty()) {
@@ -273,7 +277,7 @@ internal fun CatalogScreen(modifier: Modifier = Modifier) {
                 text = toast,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .padding(start = 16.dp, end = 16.dp, bottom = if (editTarget != null) 88.dp else 16.dp)
             )
         }
     }
@@ -284,7 +288,7 @@ internal fun CatalogScreen(modifier: Modifier = Modifier) {
             title = "Delete package?",
             text = "Delete package ${toDelete.id}?",
             confirmLabel = "Delete",
-            confirmTone = RoseTone,
+            confirmTone = AdminRose,
             onConfirm = {
                 deleteTarget = null
                 doDelete(toDelete)
@@ -294,69 +298,54 @@ internal fun CatalogScreen(modifier: Modifier = Modifier) {
     }
 }
 
+/** One catalog row: name, id, price, Inactive badge, arrow. A tap opens the editor panel. */
 @Composable
-private fun CatalogCard(row: CatalogItem, busy: Boolean, onEdit: () -> Unit, onDelete: () -> Unit) {
-    val shape = RoundedCornerShape(16.dp)
-    Column(
+private fun CatalogRow(row: CatalogItem, onOpen: () -> Unit) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(WisdomCard)
             .border(1.dp, WisdomBorderWhite, shape)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
                 text = row.name.ifEmpty { row.id },
                 color = WisdomTextPrimary,
-                fontSize = 16.sp,
+                fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f)
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
-            if (!row.active) {
-                AdminToneBadge(text = "Inactive", tone = WisdomMuted)
-            }
-        }
-        Text(text = "(${row.id})", color = WisdomMuted, fontSize = 12.sp)
-        Text(
-            text = OverviewRepository.etb(row.priceEtb),
-            color = WisdomAccentAmber,
-            fontSize = 15.sp,
-            fontWeight = FontWeight.Bold
-        )
-        if (row.description.isNotEmpty()) {
             Text(
-                text = row.description,
+                text = "(${row.id})",
                 color = WisdomMuted,
-                fontSize = 13.sp,
-                maxLines = 2,
+                fontSize = 12.sp,
+                maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            AdminActionButton(
-                label = "Edit",
-                tone = WisdomCyan,
-                filled = false,
-                enabled = !busy,
-                onClick = onEdit,
-                modifier = Modifier.weight(1f)
-            )
-            AdminActionButton(
-                label = "Delete",
-                tone = RoseTone,
-                filled = false,
-                enabled = !busy,
-                onClick = onDelete,
-                modifier = Modifier.weight(1f)
-            )
+        Spacer(modifier = Modifier.width(8.dp))
+        if (!row.active) {
+            AdminToneBadge(text = "Inactive", tone = WisdomMuted)
+            Spacer(modifier = Modifier.width(8.dp))
         }
+        Text(
+            text = OverviewRepository.etb(row.priceEtb),
+            color = WisdomAccentAmber,
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold,
+            maxLines = 1
+        )
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = WisdomMuted
+        )
     }
 }
 
@@ -365,13 +354,24 @@ private fun FieldLabel(text: String) {
     Text(text = text, color = WisdomMuted, fontSize = 12.sp)
 }
 
+/** A label with its field right under it (4 dp apart), so the panel's 12 dp spacing separates whole fields. */
+@Composable
+private fun CatalogField(label: String, content: @Composable () -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        FieldLabel(label)
+        content()
+    }
+}
+
 @Composable
 private fun CatalogEditor(
     initial: CatalogItem,
     isNew: Boolean,
     saving: Boolean,
+    busy: Boolean,
     onBack: () -> Unit,
-    onSave: (CatalogItem) -> Unit
+    onSave: (CatalogItem) -> Unit,
+    onDelete: () -> Unit
 ) {
     var id by rememberSaveable(initial.id) { mutableStateOf(initial.id) }
     var priceText by rememberSaveable(initial.id) { mutableStateOf(OverviewRepository.plainNumber(initial.priceEtb)) }
@@ -386,160 +386,13 @@ private fun CatalogEditor(
     var sortText by rememberSaveable(initial.id) { mutableStateOf(initial.sortOrder.toString()) }
     var active by rememberSaveable(initial.id) { mutableStateOf(initial.active) }
 
-    LazyColumn(
-        modifier = Modifier.fillMaxSize(),
-        contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 72.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        item(key = "header") {
+    AdminDetailPanel(
+        title = if (isNew) "New package" else initial.name.ifEmpty { initial.id },
+        subtitle = if (isNew) "Catalog" else "Edit package",
+        onBack = onBack,
+        actions = {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Back",
-                        tint = WisdomMuted
-                    )
-                }
-                Text(
-                    text = if (isNew) "New package" else "Edit package",
-                    color = WisdomTextPrimary,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        }
-        if (!isNew && isBuiltIn(id)) {
-            item(key = "builtIn") {
-                Text(
-                    text = "This id is a built-in package: the price, description and includes students see come from the " +
-                        "website code, not from this row.",
-                    color = WisdomAccentAmber,
-                    fontSize = 12.sp
-                )
-            }
-        }
-        item(key = "idLabel") { FieldLabel("ID") }
-        item(key = "id") {
-            Box(modifier = Modifier.alpha(if (isNew) 1f else 0.6f)) {
-                if (isNew) {
-                    AdminTextField(value = id, onValueChange = { id = it }, placeholder = "custom-id")
-                } else {
-                    AdminTextField(value = id, onValueChange = {}, placeholder = "")
-                }
-            }
-        }
-        item(key = "priceLabel") { FieldLabel("Price (ETB)") }
-        item(key = "price") {
-            AdminTextField(
-                value = priceText,
-                onValueChange = { priceText = it },
-                placeholder = "250",
-                keyboardType = KeyboardType.Decimal
-            )
-        }
-        item(key = "nameLabel") { FieldLabel("Name") }
-        item(key = "name") {
-            AdminTextField(value = name, onValueChange = { name = it }, placeholder = "Package name")
-        }
-        item(key = "shortLabel") { FieldLabel("Short name") }
-        item(key = "short") {
-            AdminTextField(value = shortName, onValueChange = { shortName = it }, placeholder = "Short name")
-        }
-        item(key = "groupLabel") { FieldLabel("Group") }
-        item(key = "group") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                for (g in GROUPS) {
-                    AdminChoiceChip(
-                        label = g,
-                        selected = group == g,
-                        onClick = { group = g },
-                        modifier = Modifier.weight(1f),
-                        tone = WisdomCyan
-                    )
-                }
-            }
-        }
-        item(key = "descLabel") { FieldLabel("About this package (shown to buyers)") }
-        item(key = "desc") {
-            AdminTextArea(
-                value = description,
-                onValueChange = { description = it },
-                placeholder = "What students get, who it is for, and what is included...",
-                minHeight = 140.dp
-            )
-        }
-        item(key = "hrefLabel") { FieldLabel("Preview href") }
-        item(key = "href") {
-            AdminTextField(value = href, onValueChange = { href = it }, placeholder = "/academy/freshman")
-        }
-        item(key = "imageLabel") { FieldLabel("Image URL") }
-        item(key = "image") {
-            AdminTextField(
-                value = image,
-                onValueChange = { image = it },
-                placeholder = "https://...",
-                keyboardType = KeyboardType.Uri
-            )
-        }
-        item(key = "includesLabel") { FieldLabel("Includes (one per line)") }
-        item(key = "includes") {
-            AdminTextArea(
-                value = includesText,
-                onValueChange = { includesText = it },
-                placeholder = "One item per line",
-                minHeight = 100.dp
-            )
-        }
-        item(key = "enrolledLabelLabel") { FieldLabel("Enrolled label") }
-        item(key = "enrolled") {
-            AdminTextField(
-                value = enrolledLabel,
-                onValueChange = { enrolledLabel = it },
-                placeholder = "e.g. 320+ students"
-            )
-        }
-        item(key = "sortLabel") { FieldLabel("Sort order") }
-        item(key = "sort") {
-            AdminTextField(
-                value = sortText,
-                onValueChange = { sortText = it },
-                placeholder = "200",
-                keyboardType = KeyboardType.Number
-            )
-        }
-        item(key = "activeLabel") { FieldLabel("Active (sellable)") }
-        item(key = "active") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                AdminChoiceChip(
-                    label = "Active",
-                    selected = active,
-                    onClick = { active = true },
-                    modifier = Modifier.weight(1f),
-                    tone = WisdomAccentEmerald
-                )
-                AdminChoiceChip(
-                    label = "Inactive",
-                    selected = !active,
-                    onClick = { active = false },
-                    modifier = Modifier.weight(1f),
-                    tone = WisdomMuted
-                )
-            }
-        }
-        item(key = "actions") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 AdminActionButton(
@@ -576,6 +429,127 @@ private fun CatalogEditor(
                     modifier = Modifier.weight(1.6f)
                 )
             }
+        }
+    ) {
+        if (!isNew && isBuiltIn(id)) {
+            Text(
+                text = "This id is a built-in package: the price, description and includes students see come from the " +
+                    "website code, not from this row.",
+                color = WisdomAccentAmber,
+                fontSize = 12.sp
+            )
+        }
+        CatalogField("ID") {
+            Box(modifier = Modifier.alpha(if (isNew) 1f else 0.6f)) {
+                if (isNew) {
+                    AdminTextField(value = id, onValueChange = { id = it }, placeholder = "custom-id")
+                } else {
+                    AdminTextField(value = id, onValueChange = {}, placeholder = "")
+                }
+            }
+        }
+        CatalogField("Price (ETB)") {
+            AdminTextField(
+                value = priceText,
+                onValueChange = { priceText = it },
+                placeholder = "250",
+                keyboardType = KeyboardType.Decimal
+            )
+        }
+        CatalogField("Name") {
+            AdminTextField(value = name, onValueChange = { name = it }, placeholder = "Package name")
+        }
+        CatalogField("Short name") {
+            AdminTextField(value = shortName, onValueChange = { shortName = it }, placeholder = "Short name")
+        }
+        CatalogField("Group") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                for (g in GROUPS) {
+                    AdminChoiceChip(
+                        label = g,
+                        selected = group == g,
+                        onClick = { group = g },
+                        modifier = Modifier.weight(1f),
+                        tone = WisdomCyan
+                    )
+                }
+            }
+        }
+        CatalogField("About this package (shown to buyers)") {
+            AdminTextArea(
+                value = description,
+                onValueChange = { description = it },
+                placeholder = "What students get, who it is for, and what is included...",
+                minHeight = 140.dp
+            )
+        }
+        CatalogField("Preview href") {
+            AdminTextField(value = href, onValueChange = { href = it }, placeholder = "/academy/freshman")
+        }
+        CatalogField("Image URL") {
+            AdminTextField(
+                value = image,
+                onValueChange = { image = it },
+                placeholder = "https://...",
+                keyboardType = KeyboardType.Uri
+            )
+        }
+        CatalogField("Includes (one per line)") {
+            AdminTextArea(
+                value = includesText,
+                onValueChange = { includesText = it },
+                placeholder = "One item per line",
+                minHeight = 100.dp
+            )
+        }
+        CatalogField("Enrolled label") {
+            AdminTextField(
+                value = enrolledLabel,
+                onValueChange = { enrolledLabel = it },
+                placeholder = "e.g. 320+ students"
+            )
+        }
+        CatalogField("Sort order") {
+            AdminTextField(
+                value = sortText,
+                onValueChange = { sortText = it },
+                placeholder = "200",
+                keyboardType = KeyboardType.Number
+            )
+        }
+        CatalogField("Active (sellable)") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                AdminChoiceChip(
+                    label = "Active",
+                    selected = active,
+                    onClick = { active = true },
+                    modifier = Modifier.weight(1f),
+                    tone = WisdomAccentEmerald
+                )
+                AdminChoiceChip(
+                    label = "Inactive",
+                    selected = !active,
+                    onClick = { active = false },
+                    modifier = Modifier.weight(1f),
+                    tone = WisdomMuted
+                )
+            }
+        }
+        if (!isNew) {
+            AdminActionButton(
+                label = "Delete package",
+                tone = AdminRose,
+                filled = false,
+                enabled = !saving && !busy,
+                onClick = onDelete,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 }
