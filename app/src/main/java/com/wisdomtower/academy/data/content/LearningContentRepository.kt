@@ -3,6 +3,7 @@ package com.wisdomtower.academy.data.content
 import android.content.Context
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
+import com.wisdomtower.academy.data.admin.AdminSupabase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,9 +21,19 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Reads the learning content (books, notes, flashcards, question banks, exams) straight from the SAME
- * Supabase table as the website, `public.learning_resources`, with the public anon key from BuildConfig.
- * Published rows are readable by everyone (policy `lr_public_select_published`, see
- * `docs/SUPABASE_NOTES.md`), so no secret and no website page is involved.
+ * Supabase table as the website, `public.learning_resources`.
+ *
+ * HARDENING STAGE 1 (2026-10-20, owner order: locks must be enforced by the database, not only drawn by the app):
+ *  - LISTS ([list]) read only the light columns (title, chapter, type, `item_count`...) with the public key. Every
+ *    published material is always listed. A list never asks for `body_md` or `meta` any more.
+ *  - OPENING one material ([getResource], [fetchItem]) goes through the database function `open_resource(id)` with
+ *    the student's own login. The database applies the lock rows, the Paid mode switch and the student's purchases
+ *    or grants, and returns the full row (note text, cards, questions) or a refusal. A refused material is never
+ *    saved on the phone, and a saved copy of a material that is locked now is deleted at the next refresh.
+ *  - If the function is not reachable for a reason other than being offline (for example an old database), the
+ *    old direct read is used, so a missing function never blanks the app. STAGE 2 (not done yet, after this
+ *    version is installed by the students): take `body_md` and `meta` away from the public key so the direct
+ *    read stops working for everybody.
  *
  * Query rules copied from `listResources` in `website-reference/src/lib/content.ts`:
  *  - hub `short-notes` also matches the old hub name `references`;
@@ -48,6 +59,10 @@ object LearningContentRepository {
     private const val TAG = "LearningContent"
     private const val NO_INTERNET = "Check your internet connection and try again."
     private const val LOAD_FAILED = "Unable to load materials right now. Please try again."
+    private const val LOCKED_MESSAGE = "This material is locked right now."
+
+    /** The database refused to open one material (locked, or the package is not owned). */
+    private class ResourceLockedException : Exception(LOCKED_MESSAGE)
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -70,26 +85,27 @@ object LearningContentRepository {
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
 
-    /** Columns of a light list (no note text, no quiz/flashcard JSON). */
+    /** Columns of a light list (no note text, no quiz/flashcard JSON; `item_count` = number of cards / questions). */
     private const val LIGHT_COLUMNS =
-        "id,package_id,scope_path,hub,title,chapter,sort_order,content_type,storage_path,published"
+        "id,package_id,scope_path,hub,title,chapter,sort_order,content_type,storage_path,published,item_count"
 
     /**
      * Lists the published resources of one course/subject ([scopePath], for example `ece/sem-2/eceg3082`,
      * `freshman/physics`, `grade/9/biology`) in one hub ([hub], for example `short-notes`).
-     * [full] = false returns light rows (fast, for the hub list); true also returns `body_md` and `meta`
-     * (use it to prefetch a whole subject's notes for offline reading).
+     * HARDENING STAGE 1: [full] is kept so old callers still compile, but a list is ALWAYS light now; the heavy
+     * columns are only returned by [getResource] through the database check.
      */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun list(
         context: Context,
         scopePath: String,
         hub: String,
         full: Boolean = false
     ): ContentListResult = withContext(Dispatchers.IO) {
-        val cacheFile = cacheFile(context, "list_${scopePath}_${hub}_${if (full) "full" else "light"}")
+        val cacheFile = cacheFile(context, "list_${scopePath}_${hub}_light")
         try {
             val client = if (cacheFile.exists()) fastHttp else http
-            val rows = fetchRows(scopePath, hub, full, client)
+            val rows = fetchRows(scopePath, hub, client)
             writeCache(cacheFile, rows.toString())
             ContentListResult.Success(rows.objects().map(::rowToResource), false)
         } catch (e: CancellationException) {
@@ -106,10 +122,12 @@ object LearningContentRepository {
     }
 
     /**
-     * Loads one resource with its full body and meta (note text, flashcards, questions).
+     * Loads one resource with its full body and meta (note text, flashcards, questions), through the database
+     * check ([fetchItem]).
      * Cache-first: a saved copy is returned at once (`fromCache = false`, it is not necessarily offline) and
      * refreshed quietly in the background. With [refresh] = true the server is asked first (a Download button):
      * the result has `fromCache = true` only when the server could not be reached and the old copy was used.
+     * A material the database refuses is a Failure with a plain message and is never saved.
      */
     suspend fun getResource(context: Context, id: String, refresh: Boolean = false): ContentItemResult =
         withContext(Dispatchers.IO) {
@@ -135,6 +153,8 @@ object LearningContentRepository {
                 ContentItemResult.Found(rowToResource(row), false)
             } catch (e: CancellationException) {
                 throw e
+            } catch (e: ResourceLockedException) {
+                ContentItemResult.Failure(LOCKED_MESSAGE)
             } catch (e: Exception) {
                 Log.w(TAG, "getResource failed: ${e.javaClass.simpleName}")
                 val cached = readCache(cacheFile)?.let { runCatching { JSONObject(it) }.getOrNull() }
@@ -223,10 +243,45 @@ object LearningContentRepository {
     // ---------- internals ----------
 
     /**
-     * Asks the server for one published item and saves it in [cacheFile]. Returns the row, or null when the
-     * item no longer exists or is no longer published (the saved copy is then deleted).
+     * Asks the DATABASE to open one published item (`open_resource`, with the student's own login) and saves the
+     * row in [cacheFile]. Returns the row, or null when the item no longer exists or is no longer published (the
+     * saved copy is then deleted). Throws [ResourceLockedException] when the database refuses it (the saved copy is
+     * deleted too). Offline throws IOException. When the function cannot be used for another reason (not signed in,
+     * function missing, server error), the old direct read is used.
      */
-    private fun fetchItem(id: String, cacheFile: File, client: OkHttpClient): JSONObject? {
+    private suspend fun fetchItem(id: String, cacheFile: File, client: OkHttpClient): JSONObject? {
+        val door = AdminSupabase.post(
+            "rpc/open_resource",
+            JSONObject().put("p_id", id).toString(),
+            "return=representation"
+        )
+        if (door.code == -1) throw IOException("Offline")
+        if (door.ok) {
+            val reply = runCatching { JSONObject(door.body) }.getOrNull()
+            when (reply?.optString("status")) {
+                "ok" -> {
+                    val row = reply.getJSONObject("row")
+                    writeCache(cacheFile, row.toString())
+                    return row
+                }
+                "locked" -> {
+                    runCatching { cacheFile.delete() }
+                    throw ResourceLockedException()
+                }
+                "not_found" -> {
+                    runCatching { cacheFile.delete() }
+                    return null
+                }
+                else -> Log.w(TAG, "open_resource: status ${reply?.optString("status")}, using direct read")
+            }
+        } else {
+            Log.w(TAG, "open_resource: HTTP ${door.code}, using direct read")
+        }
+        return fetchItemDirect(id, cacheFile, client)
+    }
+
+    /** The old direct read with the public key (stage 1 only; stage 2 removes the heavy columns from the public key). */
+    private fun fetchItemDirect(id: String, cacheFile: File, client: OkHttpClient): JSONObject? {
         val url = "$supabaseUrl/rest/v1/learning_resources".toHttpUrl().newBuilder()
             .addQueryParameter("select", "*")
             .addQueryParameter("id", "eq.$id")
@@ -243,12 +298,12 @@ object LearningContentRepository {
         return row
     }
 
-    private fun fetchRows(scopePath: String, hub: String, full: Boolean, client: OkHttpClient): JSONArray {
+    private fun fetchRows(scopePath: String, hub: String, client: OkHttpClient): JSONArray {
         val hubFilter = if (hub == "short-notes") "in.(\"short-notes\",\"references\")" else "eq.$hub"
-        var rows = queryRows(scopeFilter(scopePath), hubFilter, full, client)
+        var rows = queryRows(scopeFilter(scopePath), hubFilter, client)
         val ece = ECE_SCOPE.matchEntire(scopePath)
         if (rows.length() == 0 && ece != null) {
-            rows = queryRows("ilike.*${ece.groupValues[2]}*", hubFilter, full, client)
+            rows = queryRows("ilike.*${ece.groupValues[2]}*", hubFilter, client)
         }
         return rows
     }
@@ -267,9 +322,9 @@ object LearningContentRepository {
         }
     }
 
-    private fun queryRows(scopeFilter: String, hubFilter: String, full: Boolean, client: OkHttpClient): JSONArray {
+    private fun queryRows(scopeFilter: String, hubFilter: String, client: OkHttpClient): JSONArray {
         val url = "$supabaseUrl/rest/v1/learning_resources".toHttpUrl().newBuilder()
-            .addQueryParameter("select", if (full) "*" else LIGHT_COLUMNS)
+            .addQueryParameter("select", LIGHT_COLUMNS)
             .addQueryParameter("scope_path", scopeFilter)
             .addQueryParameter("hub", hubFilter)
             .addQueryParameter("published", "eq.true")
@@ -307,7 +362,8 @@ object LearningContentRepository {
             contentType = row.optString("content_type"),
             storagePath = row.nstr("storage_path"),
             bodyMd = row.nstr("body_md"),
-            metaJson = row.optJSONObject("meta")?.toString() ?: "{}"
+            metaJson = row.optJSONObject("meta")?.toString() ?: "{}",
+            itemCount = if (row.has("item_count") && !row.isNull("item_count")) row.optInt("item_count") else null
         )
     }
 
