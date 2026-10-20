@@ -75,8 +75,8 @@ import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-// ADMIN-native N6b (docs/ADMIN_NATIVE_PLAN.md). Native version of the website LocksPanel (Content locks): three
-// package shortcuts, then a step-by-step tree (Academy > package > subject > hub) with the four lock modes for the
+// ADMIN-native N6b (docs/ADMIN_NATIVE_PLAN.md). Native version of the website LocksPanel (Content locks): package
+// shortcuts, then a step-by-step tree (Academy > package > subject > hub) with the four lock modes for the
 // selected step, and the list of all active overrides at the top level. Each mode is a full-width row with its hint
 // (no tiny buttons); shortcuts open on tap. System Back and the arrow go up one step. Texts copied from the website.
 // D7j (docs/DAY_MODE_PLAN.md, 2026-10-19): RoseTone is now the kit's AdminRose (night FB7185 as before, day BE123C; the
@@ -85,25 +85,45 @@ import kotlinx.coroutines.launch
 // GRANULAR LOCKS (2026-10-20, owner order): inside a hub the screen now lists its chapters and its materials (read from
 // learning_resources, published or not) and every chapter / material gets the same four lock modes. Keys:
 // chapter:<scope>:<hub>:<n> and item:<resource id> (see LocksRepository). The student app reads them live, no release.
+// ACCESS CONTROL (2026-10-20, owner order, docs/SESSION_2026-10-20_ACCESS_CONTROL_DB.md): the database now enforces the
+// locks itself. Mode names are shown in plain words: open = Free for signed-in, require_purchase = Owners only,
+// coming_soon / locked = closed for everybody. New PAID MODE card at the top (row system:enforce, locked = ON,
+// open = OFF); all packages have a shortcut. Locked material stays visible in the student lists, with a lock.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private class LockMode(val id: String, val label: String, val hint: String)
 
 private val MODES: List<LockMode> = listOf(
-    LockMode("open", "Open", "Anyone can access (no purchase gate)"),
+    LockMode("open", "Free for signed-in", "Any signed-in student can open it (free trial material)"),
     LockMode(
         "require_purchase",
-        "Require sign-in / purchase",
-        "Locked until user owns the package (or free-for-registered)"
+        "Owners only",
+        "Locked (but visible) until the student owns the package by purchase or grant"
     ),
-    LockMode("coming_soon", "Coming soon", "Shown as uploading / not ready"),
-    LockMode("locked", "Hard locked", "Fully closed (same UI as coming soon)")
+    LockMode("coming_soon", "Coming soon", "Visible with a lock for everybody, owners too"),
+    LockMode("locked", "Hard locked", "Closed for everybody, owners too (same look as coming soon)")
 )
+
+private const val PAID_KEY = "system:enforce"
+private const val PAID_LABEL =
+    "Paid mode switch: LOCKED = ON (Require-purchase content needs an enrollment or grant) / OPEN = OFF (free for every signed-in student)"
+
+private val PAID_ON = LockMode("locked", "Paid mode ON", "Owners-only content is locked for students who do not own the package")
+private val PAID_OFF = LockMode("open", "Paid mode OFF", "Everything is free for every signed-in student (nothing is locked)")
 
 private val SHORTCUTS: List<Pair<String, String>> = listOf(
     "freshman" to "Freshman package",
     "ece-y3-sem-1" to "ECE Year 3 \u00B7 Semester 1",
-    "ece-y3-sem-2" to "ECE Year 3 \u00B7 Semester 2"
+    "ece-y3-sem-2" to "ECE Year 3 \u00B7 Semester 2",
+    "grade-9" to "Grade 9 package",
+    "grade-10" to "Grade 10 package",
+    "grade-11" to "Grade 11 package",
+    "grade-12" to "Grade 12 package",
+    "remedial" to "Remedial package",
+    "coc" to "COC package",
+    "uat" to "UAT package",
+    "gat" to "GAT package",
+    "exit-exam" to "Exit Exam package"
 )
 
 private val RoseTone: Color get() = AdminRose
@@ -116,7 +136,14 @@ private fun modeTone(mode: String?): Color = when (mode) {
     else -> WisdomMuted
 }
 
-private fun modeText(mode: String?): String = if (mode == null) "default" else mode.replace('_', ' ')
+private fun modeText(mode: String?): String = when (mode) {
+    null -> "default"
+    "open" -> "free (signed-in)"
+    "require_purchase" -> "owners only"
+    "coming_soon" -> "coming soon"
+    "locked" -> "hard locked"
+    else -> mode.replace('_', ' ')
+}
 
 private fun keyFor(node: AdminNavNode): String? {
     val scope = node.scopePath
@@ -229,8 +256,8 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                         )
                         Text(
                             text = "Lock or unlock packages, subjects, hubs, chapters, and single materials. " +
-                                "The most specific lock wins. Changes reach students within about 30 seconds, " +
-                                "no app update needed.",
+                                "The most specific lock wins. Locked material stays visible with a lock. " +
+                                "Changes reach students within about 30 seconds, no app update needed.",
                             color = WisdomMuted,
                             fontSize = 12.sp
                         )
@@ -272,6 +299,51 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
             }
 
             if (current is LocksResult.Success) {
+                item(key = "paidMode") {
+                    val paidOn = lockMap[PAID_KEY]?.mode == "locked"
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(cardShape)
+                            .background(WisdomCard)
+                            .border(1.dp, WisdomBorderWhite, cardShape)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "PAID MODE",
+                                color = WisdomMuted,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
+                            AdminToneBadge(
+                                text = if (paidOn) "ON" else "OFF",
+                                tone = if (paidOn) WisdomAccentAmber else WisdomAccentEmerald
+                            )
+                        }
+                        Text(
+                            text = "Master switch. While it is OFF, every signed-in student opens everything, even locked packages. " +
+                                "Turn it ON only after the locks below are set.",
+                            color = WisdomMuted,
+                            fontSize = 12.sp
+                        )
+                        ModeRow(
+                            mode = PAID_ON,
+                            selected = paidOn,
+                            enabled = busyKey != PAID_KEY,
+                            onClick = { applyMode(PAID_KEY, PAID_ON.id, PAID_LABEL) }
+                        )
+                        ModeRow(
+                            mode = PAID_OFF,
+                            selected = !paidOn,
+                            enabled = busyKey != PAID_KEY,
+                            onClick = { applyMode(PAID_KEY, PAID_OFF.id, PAID_LABEL) }
+                        )
+                    }
+                }
+
                 item(key = "shortcuts") {
                     Column(
                         modifier = Modifier
@@ -372,7 +444,7 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                             )
                             Text(
                                 text = "Material lock beats chapter lock, chapter beats hub, hub beats subject, " +
-                                    "subject beats package. A chapter or material lock only matters while its hub is open.",
+                                    "subject beats package. Example: package = Owners only, Chapter 1 = Free for signed-in.",
                                 color = WisdomMuted,
                                 fontSize = 12.sp
                             )
@@ -650,6 +722,7 @@ private fun NodeRow(node: AdminNavNode, lock: LockItem?, onClick: () -> Unit) {
 @Composable
 private fun OverrideLine(lock: LockItem) {
     val shape = RoundedCornerShape(12.dp)
+    val isPaid = lock.lockKey == PAID_KEY
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -669,6 +742,9 @@ private fun OverrideLine(lock: LockItem) {
             modifier = Modifier.weight(1f)
         )
         Spacer(modifier = Modifier.width(8.dp))
-        AdminToneBadge(text = modeText(lock.mode), tone = modeTone(lock.mode))
+        AdminToneBadge(
+            text = if (isPaid) (if (lock.mode == "locked") "paid mode ON" else "paid mode OFF") else modeText(lock.mode),
+            tone = modeTone(lock.mode)
+        )
     }
 }
