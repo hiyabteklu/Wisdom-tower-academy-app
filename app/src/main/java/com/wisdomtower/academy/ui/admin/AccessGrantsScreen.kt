@@ -51,6 +51,8 @@ import com.wisdomtower.academy.data.admin.ALL_PACKAGES_ID
 import com.wisdomtower.academy.data.admin.AccessGrantItem
 import com.wisdomtower.academy.data.admin.GrantsRepository
 import com.wisdomtower.academy.data.admin.GrantsResult
+import com.wisdomtower.academy.data.admin.LocksRepository
+import com.wisdomtower.academy.data.admin.LocksResult
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
@@ -65,10 +67,15 @@ import kotlinx.coroutines.launch
 // package, note), filter, and the list of grants with Revoke and Revoke all. The package list opens inline (no
 // pop-up menu). Revoke, Revoke all and Grant all packages ask for confirmation first; the website used a browser
 // confirm for the two revokes and none for grant-all.
+// A3 (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): after a grant the message says who now has access to which package and
+// when the student sees it; a yellow note appears while Paid mode is OFF (then a grant changes nothing, everybody
+// signed-in already opens everything); RoseTone is the kit's AdminRose (the fixed pink was too light by day).
 // Texts copied from the website where it has them.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
-private val RoseTone = Color(0xFFFB7185)
+private val RoseTone: Color get() = AdminRose
+
+private const val PAID_MODE_KEY = "system:enforce"
 
 @Composable
 internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
@@ -85,16 +92,24 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
     var confirmAll by remember { mutableStateOf(false) }
     var revokeTarget by remember { mutableStateOf<AccessGrantItem?>(null) }
     var revokeAllEmail by remember { mutableStateOf<String?>(null) }
+    // null = not known (could not be read); false = Paid mode OFF; true = ON
+    var paidMode by remember { mutableStateOf<Boolean?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(reloadKey) {
         loading = true
         result = GrantsRepository.list()
+        val locksNow = LocksRepository.list()
+        paidMode = if (locksNow is LocksResult.Success) {
+            locksNow.items.firstOrNull { it.lockKey == PAID_MODE_KEY }?.mode == "locked"
+        } else {
+            null
+        }
         loading = false
     }
     LaunchedEffect(toast) {
         if (toast.isNotEmpty()) {
-            delay(4500L)
+            delay(5500L)
             toast = ""
         }
     }
@@ -125,11 +140,17 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
         }
 
     fun doGrant() {
+        val mail = email.trim().lowercase()
+        val label = selectedLabel
         scope.launch {
             busy = true
             val outcome = GrantsRepository.grant(email, packageId, note)
             busy = false
-            toast = outcome.message
+            toast = if (outcome.ok) {
+                "$mail now has access to $label. The student sees it within about 30 seconds of opening the app."
+            } else {
+                outcome.message
+            }
             if (outcome.ok) {
                 email = ""
             }
@@ -200,6 +221,18 @@ internal fun AccessGrantsScreen(modifier: Modifier = Modifier) {
                             modifier = Modifier.alpha(if (loading) 0.4f else 1f)
                         )
                     }
+                }
+            }
+
+            if (paidMode == false) {
+                item(key = "paidOff") {
+                    AdminMessageCard(
+                        title = "Paid mode is OFF",
+                        body = "While Paid mode is OFF, every signed-in student already opens everything, so a grant " +
+                            "changes nothing yet. Turn Paid mode ON in the Locks screen when the locks are set.",
+                        actionLabel = null,
+                        onAction = {}
+                    )
                 }
             }
 

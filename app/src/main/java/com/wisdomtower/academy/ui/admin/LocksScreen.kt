@@ -89,19 +89,34 @@ import kotlinx.coroutines.launch
 // locks itself. Mode names are shown in plain words: open = Free for signed-in, require_purchase = Owners only,
 // coming_soon / locked = closed for everybody. New PAID MODE card at the top (row system:enforce, locked = ON,
 // open = OFF); all packages have a shortcut. Locked material stays visible in the student lists, with a lock.
+// A3 (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): plain wording. Every mode hint says WHO is affected; the open step shows a
+// "what happens now" line (and warns when Owners only is set but Paid mode is OFF, because then nothing is enforced);
+// "Reset to code default" is now "Remove this lock". Layout and behaviour unchanged.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private class LockMode(val id: String, val label: String, val hint: String)
 
 private val MODES: List<LockMode> = listOf(
-    LockMode("open", "Free for signed-in", "Any signed-in student can open it (free trial material)"),
+    LockMode(
+        "open",
+        "Free for signed-in",
+        "Every signed-in student can open it. Signed-out visitors are asked to sign in."
+    ),
     LockMode(
         "require_purchase",
         "Owners only",
-        "Locked (but visible) until the student owns the package by purchase or grant"
+        "Students who bought the package or were granted it can open it. Everyone else sees Package required. Needs Paid mode ON."
     ),
-    LockMode("coming_soon", "Coming soon", "Visible with a lock for everybody, owners too"),
-    LockMode("locked", "Hard locked", "Closed for everybody, owners too (same look as coming soon)")
+    LockMode(
+        "coming_soon",
+        "Coming soon",
+        "Everybody sees it with a lock and Coming soon, owners too. Use it for material that is not ready."
+    ),
+    LockMode(
+        "locked",
+        "Hard locked",
+        "Closed for everybody, owners too (same look as Coming soon). Use it to switch something off at once."
+    )
 )
 
 private const val PAID_KEY = "system:enforce"
@@ -143,6 +158,21 @@ private fun modeText(mode: String?): String = when (mode) {
     "coming_soon" -> "coming soon"
     "locked" -> "hard locked"
     else -> mode.replace('_', ' ')
+}
+
+/** One plain sentence: what a student sees right now for this lock mode (A3). */
+private fun effectText(mode: String?, paidOn: Boolean): String = when (mode) {
+    null -> "No lock is set here, so the level above decides."
+    "open" -> "Every signed-in student can open this. Signed-out visitors are asked to sign in."
+    "require_purchase" ->
+        if (paidOn) {
+            "Only students who bought or were granted the package can open this. Everyone else sees Package required."
+        } else {
+            "Paid mode is OFF, so every signed-in student opens this for now. Turn Paid mode ON to enforce it."
+        }
+    "coming_soon" -> "Everybody, owners too, sees this with a lock and Coming soon."
+    "locked" -> "Closed for everybody, owners too. Shown with the same lock as Coming soon."
+    else -> ""
 }
 
 private fun keyFor(node: AdminNavNode): String? {
@@ -194,6 +224,7 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
     val current = result
     val locks: List<LockItem> = if (current is LocksResult.Success) current.items else emptyList()
     val lockMap: Map<String, LockItem> = remember(locks) { locks.associateBy { it.lockKey } }
+    val paidOnNow = lockMap[PAID_KEY]?.mode == "locked"
 
     fun applyMode(lockKey: String, mode: String, label: String?) {
         scope.launch {
@@ -436,6 +467,11 @@ internal fun LocksScreen(modifier: Modifier = Modifier) {
                                 fontSize = 12.sp,
                                 fontFamily = FontFamily.Monospace
                             )
+                            Text(
+                                text = effectText(activeLock?.mode, paidOnNow),
+                                color = WisdomTextPrimary,
+                                fontSize = 13.sp
+                            )
                             LockControls(
                                 lock = activeLock,
                                 busy = busyKey == activeKey,
@@ -616,7 +652,7 @@ private fun LockControls(lock: LockItem?, busy: Boolean, onMode: (String) -> Uni
             )
         }
         AdminActionButton(
-            label = if (busy) "Saving..." else "Reset to code default",
+            label = if (busy) "Saving..." else "Remove this lock (the level above decides)",
             tone = WisdomMuted,
             filled = false,
             enabled = !busy && lock != null,

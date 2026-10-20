@@ -17,4 +17,6 @@
   A different student signing in on the phone starts clean. Old phone-only plans are offered to the server once (server wins if it already has a plan).
   Test plan (user bf091ce8-9ab0-48ec-9758-c76e7ff05263 has a 13-block schedule pushed from the database): open Planner = 13 blocks appear; edit one, check `study_plans.version`
   went 1 to 2; admin pushes a plan = the phone shows it after reopening the planner; airplane mode = the planner still opens with the last copy.
-- NEXT: read the CI result for the warmUp + planner commits; phone test of A2 with two accounts (no purchase / granted); then A3 (Locks screen wording, Grants confirmation), A4 test matrix, then B1 and C1.
+- A3 PUSHED, `[~]` not compiled / not tested: plain wording on the admin Locks screen (who is affected per mode, "what happens now" line, warning when Owners only
+  is set but Paid mode is OFF, "Remove this lock") and on the Grants screen ("<email> now has access to <package>", note while Paid mode is OFF). See docs/ADMIN_DASHBOARD_NEXT.md.
+- NEXT: read the CI result for the warmUp, planner and A3 commits; phone test of A2 with two accounts (no purchase / granted, Paid mode ON); then A4 test matrix, B1 (detail opens on top), C1 (looks audit).
