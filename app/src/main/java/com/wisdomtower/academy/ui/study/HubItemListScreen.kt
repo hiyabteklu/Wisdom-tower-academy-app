@@ -85,9 +85,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
-/** Hubs whose list rows show a count (cards / questions), so their list needs the `meta` JSON too. */
-private val COUNT_HUBS = setOf("flashcards", "question-banks", "exams")
-
 /** Progress value meaning "downloading, size not known" (notes, flashcards, questions have no byte count). */
 private const val SIZE_UNKNOWN = -1f
 
@@ -133,6 +130,11 @@ private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRos
  * tap shows the same pop-up as a closed hub card instead of opening; its Download button is hidden and "Download all"
  * skips it. A row that is already saved on the phone is blocked the same way (the lock is checked on every tap).
  * `locks = null` (any other caller) means no extra lock.
+ *
+ * SECURITY S2 (2026-10-20, docs/SECURITY_PLAN_CONTENT_ACCESS.md): the list is always light now (title, chapter, file
+ * address, count). The count of cards / questions comes from the database column `item_count`
+ * ([LearningResource.itemCount]); the heavy content of an item is only loaded when it is opened or downloaded, through
+ * the checked door in [LearningContentRepository.getResource].
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -237,7 +239,8 @@ fun HubItemListScreen(
     LaunchedEffect(scopePath, hubId, loggedIn, reload) {
         if (loggedIn) {
             result = null
-            result = LearningContentRepository.list(context, scopePath, hubId, full = hubId in COUNT_HUBS)
+            // S2: always a light list; counts come from item_count, heavy content from getResource.
+            result = LearningContentRepository.list(context, scopePath, hubId)
         }
     }
 
@@ -561,7 +564,7 @@ private fun ItemRow(
     onRemove: () -> Unit,
     onClick: () -> Unit
 ) {
-    val count = remember(item.id, item.metaJson) { itemCount(item) }
+    val count = remember(item.id, item.itemCount, item.metaJson) { itemCount(item) }
     val countText = when {
         count == null -> null
         hubId == "flashcards" -> "$count ${if (count == 1) "card" else "cards"}"
@@ -727,8 +730,11 @@ private fun DownloadButton(
     }
 }
 
-/** Number of flashcards or questions inside the row's `meta`, or null when it has neither. */
-private fun itemCount(item: LearningResource): Int? = runCatching {
+/**
+ * Number of flashcards or questions of a row: the database column `item_count` (security slice S2), or, for an old
+ * saved row that still carries its `meta`, the length of its `cards` / `questions`; null when it has neither.
+ */
+private fun itemCount(item: LearningResource): Int? = item.itemCount ?: runCatching {
     val meta = JSONObject(item.metaJson)
     (meta.optJSONArray("cards") ?: meta.optJSONArray("questions"))?.length()
 }.getOrNull()
