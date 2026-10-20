@@ -12,9 +12,12 @@ import coil.decode.ImageDecoderDecoder
 import coil.memory.MemoryCache
 import coil.request.ImageRequest
 import com.wisdomtower.academy.data.auth.AuthStateManager
+import com.wisdomtower.academy.data.content.ContentAccess
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class WisdomTowerApplication : Application(), ImageLoaderFactory {
@@ -83,6 +86,19 @@ class WisdomTowerApplication : Application(), ImageLoaderFactory {
         // and every 45 seconds while the app is visible (AuthStateManager.onAppForeground), the
         // session is renewed when it is close to expiry and pushed into every open website WebView.
         AuthStateManager.init(this)
+
+        // S-A2 follow-up: ask the server which packages the student owns as soon as a student is signed in
+        // (app start with a saved session, or a fresh sign-in), so the first course screen already knows.
+        // Runs once per signed-in student id; ContentAccess.warmUp() is cached 30 s and never throws on network errors.
+        appScope.launch {
+            AuthStateManager.currentUser
+                .map { it?.id }
+                .distinctUntilChanged()
+                .collect { userId ->
+                    if (userId != null) ContentAccess.warmUp()
+                }
+        }
+
         registerActivityLifecycleCallbacks(object : ActivityLifecycleCallbacks {
             override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
             override fun onActivityStarted(activity: Activity) {}
@@ -93,6 +109,8 @@ class WisdomTowerApplication : Application(), ImageLoaderFactory {
                     // Also covers the case where nothing needed renewing but a page was restored
                     // from the background holding an older copy of the session.
                     AuthStateManager.injectIntoAllWebViews()
+                    // Refresh ownership when the app comes to the front (a grant may have been added meanwhile).
+                    ContentAccess.warmUp()
                 }
             }
             override fun onActivityPaused(activity: Activity) {
