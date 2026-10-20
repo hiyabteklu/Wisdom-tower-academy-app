@@ -13,6 +13,8 @@ import coil.memory.MemoryCache
 import coil.request.ImageRequest
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.ContentAccess
+import com.wisdomtower.academy.ui.study.NativePlannerState
+import com.wisdomtower.academy.ui.study.PlannerSync
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -111,6 +113,11 @@ class WisdomTowerApplication : Application(), ImageLoaderFactory {
                     AuthStateManager.injectIntoAllWebViews()
                     // Refresh ownership when the app comes to the front (a grant may have been added meanwhile).
                     ContentAccess.warmUp()
+                }
+                // Study planner: send unsent edits and take a newer server copy (an admin may have pushed a plan).
+                appScope.launch {
+                    NativePlannerState.ensureLoaded(this@WisdomTowerApplication)
+                    PlannerSync.sync()
                 }
             }
             override fun onActivityPaused(activity: Activity) {
