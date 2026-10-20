@@ -13,13 +13,19 @@ import java.util.concurrent.TimeUnit
 
 /**
  * Keeps book PDFs on the phone so they open offline after the first download (plan step N4).
- * Files live in the app's private storage: `files/books/<key>.pdf`. No login or secret is needed: the
+ * Files live in the app's private storage: `files/books/<key>.pdf`. FREE books need no login or secret: the
  * Appwrite file address from [LearningContentRepository.appwriteViewUrl] is public (role "Any" can read,
  * the website's own `/api/content/pdf` proxy reads the same address).
  *
  * F4b (2026-10-12): [delete] removes a saved book (used by "Remove saved" in the hub list).
  * T4 (2026-10-12): [probeFileSize], [getCachedFileSize], and [formatBytes] provide real book file sizes
  * (e.g. "12.4 MB") before downloading, with persistent offline caching in `wt_book_sizes` SharedPreferences.
+ *
+ * SECURITY S5b (2026-10-20): PAID PDFs (private Appwrite bucket) have no public address. For them
+ * [LearningContentRepository.appwriteViewUrl] returns the marker `wtpaid://<FILE_ID>`; [ensureFile] swaps the marker for a
+ * real short-lived address from [LearningContentRepository.paidBookUrl] (key = the resource id) only when the PDF is not
+ * on the phone yet, so a saved paid PDF still opens offline with no server call. [probeFileSize] never probes a marker.
+ * A refusal throws [BookLockedException] (an IllegalStateException).
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -85,9 +91,11 @@ object BookFileStore {
      * Probes the file size of [url] without downloading the whole file.
      * Checks local cache first; if not found, performs a lightweight HEAD / Range probe.
      * Result is cached locally so subsequent calls are instant and offline-ready.
+     * A paid-file marker address (`wtpaid://`, security slice S5b) is never probed (it has no public address): null.
      */
     suspend fun probeFileSize(context: Context, key: String, url: String): Long? = withContext(Dispatchers.IO) {
         getCachedFileSize(context, key)?.let { return@withContext it }
+        if (url.startsWith(LearningContentRepository.PAID_URL_PREFIX)) return@withContext null
 
         // 1) Lightweight HEAD probe
         try {
@@ -144,6 +152,9 @@ object BookFileStore {
      * Returns the local file for [key], downloading [url] first when it is not on the phone yet.
      * [onProgress] gets 0..1 while the size is known. Throws `java.io.IOException` for network trouble and
      * `IllegalStateException` for any other problem (bad HTTP status, file is not a PDF).
+     * S5b: when [url] is the paid-file marker (`wtpaid://`), the real address is asked from
+     * [LearningContentRepository.paidBookUrl] with [key] as the resource id, only after the saved-file check, so a saved
+     * paid PDF opens offline. A refused paid file throws [BookLockedException] (an IllegalStateException).
      */
     suspend fun ensureFile(
         context: Context,
@@ -159,8 +170,14 @@ object BookFileStore {
             return@withContext target
         }
 
+        val realUrl = if (url.startsWith(LearningContentRepository.PAID_URL_PREFIX)) {
+            LearningContentRepository.paidBookUrl(key)
+        } else {
+            url
+        }
+
         val part = File(dir, "$safe.part")
-        val request = Request.Builder().url(url).get().build()
+        val request = Request.Builder().url(realUrl).get().build()
         http.newCall(request).execute().use { resp ->
             if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
             val body = resp.body ?: throw IllegalStateException("Empty answer")

@@ -22,6 +22,13 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 /**
+ * Thrown when the server refuses a PAID file (locked, package required, or the student is not signed in).
+ * It is an [IllegalStateException], so every existing `catch (e: Exception)` of the PDF screens treats it as a
+ * plain failure; a screen that wants a better text can catch it first and show [message].
+ */
+class BookLockedException(message: String) : IllegalStateException(message)
+
+/**
  * Reads the learning content (books, notes, flashcards, question banks, exams) straight from the SAME
  * Supabase table as the website, `public.learning_resources`, with the public anon key from BuildConfig.
  * Published rows are readable by everyone (policy `lr_public_select_published`, see
@@ -61,13 +68,30 @@ import java.util.concurrent.TimeUnit
  * `body_md` and `meta` of `learning_resources` (column privileges), so [LEGACY_DIRECT_READ] is false and the heavy
  * content only comes through `rpc/open_resource`.
  *
- * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1, S2 and S4 not compiled).
+ * SECURITY S5b (2026-10-20, app side of the paid PDFs): a paid PDF has `storage_path` = `appwrite-paid:<FILE_ID>`
+ * (private Appwrite bucket `paid-pdfs`, no public address works). [appwriteViewUrl] gives such a path the MARKER
+ * address `wtpaid://<FILE_ID>` (never a real URL). [BookFileStore.ensureFile] swaps the marker for a real address
+ * made by the Supabase Edge Function `book-url` ([paidBookUrl], called with the student's own login token, valid
+ * about 10 minutes) only when the file is not saved on the phone yet. Free books (`appwrite:<FILE_ID>`, public
+ * bucket) work exactly as before.
+ *
+ * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1, S2, S4 and S5b not compiled).
  */
 object LearningContentRepository {
     private const val TAG = "LearningContent"
     private const val NO_INTERNET = "Check your internet connection and try again."
     private const val LOAD_FAILED = "Unable to load materials right now. Please try again."
     private const val LOCKED_MESSAGE = "This material is locked. Unlock it with your package or ask the admin."
+    private const val SIGN_IN_MESSAGE = "Sign in to open this paid file."
+
+    /** `storage_path` prefix of a paid PDF in the private Appwrite bucket (free books use `appwrite:`). */
+    private const val PAID_PATH_PREFIX = "appwrite-paid:"
+
+    /**
+     * Marker "address" that [appwriteViewUrl] returns for a paid PDF. It is not a real URL: [BookFileStore.ensureFile]
+     * recognises it and asks [paidBookUrl] for the real, short-lived address (the resource id is the cache key).
+     */
+    const val PAID_URL_PREFIX = "wtpaid://"
 
     /**
      * Slice S1 kept the old direct read as a fallback. Slice S4 (2026-10-20) sets this to false: the database no longer
@@ -188,12 +212,21 @@ object LearningContentRepository {
         }
 
     /**
-     * The address of a book file on Appwrite (same URL the website's `/api/content/pdf` proxy reads), or null
-     * when [storagePath] is not an `appwrite:<FILE_ID>` path. Uses only the public `NEXT_PUBLIC_APPWRITE_*`
-     * values from BuildConfig. The id may be followed by `|...`; that part is cut off.
+     * The address of a book file, or null when [storagePath] is not a file path:
+     *  - `appwrite:<FILE_ID>` (free book, public bucket): the plain Appwrite address (same URL the website's
+     *    `/api/content/pdf` proxy reads). Uses only the public `NEXT_PUBLIC_APPWRITE_*` values from BuildConfig.
+     *  - `appwrite-paid:<FILE_ID>` (paid PDF, private bucket, security slice S5b): NOT a real address but the marker
+     *    `wtpaid://<FILE_ID>` ([PAID_URL_PREFIX]); [BookFileStore.ensureFile] turns it into a real short-lived
+     *    address through [paidBookUrl] when the file has to be downloaded.
+     * The id may be followed by `|...`; that part is cut off.
      */
     fun appwriteViewUrl(storagePath: String?): String? {
-        if (storagePath == null || !storagePath.startsWith("appwrite:")) return null
+        if (storagePath == null) return null
+        if (storagePath.startsWith(PAID_PATH_PREFIX)) {
+            val paidId = storagePath.removePrefix(PAID_PATH_PREFIX).substringBefore('|').trim()
+            return if (APPWRITE_ID_REGEX.matches(paidId)) "$PAID_URL_PREFIX$paidId" else null
+        }
+        if (!storagePath.startsWith("appwrite:")) return null
         val fileId = storagePath.removePrefix("appwrite:").substringBefore('|').trim()
         if (!APPWRITE_ID_REGEX.matches(fileId)) return null
         val endpoint = BuildConfig.NEXT_PUBLIC_APPWRITE_ENDPOINT.trim().trimEnd('/')
@@ -201,6 +234,57 @@ object LearningContentRepository {
         val bucket = BuildConfig.NEXT_PUBLIC_APPWRITE_BUCKET_ID.trim()
         if (endpoint.isEmpty() || project.isEmpty() || bucket.isEmpty()) return null
         return "$endpoint/storage/buckets/$bucket/files/$fileId/view?project=$project"
+    }
+
+    /**
+     * Security slice S5b: the real, short-lived (about 10 minutes) address of a PAID PDF. Asks the Supabase Edge
+     * Function `book-url` with the student's own login token; the function applies the lock rows, Paid mode and
+     * purchases (`open_book`) and only then makes an Appwrite file token. [resourceId] is the `learning_resources` id
+     * (the same id the app already uses as the book's cache key).
+     *
+     * Throws [BookLockedException] when the server refuses (locked / package required / not signed in), IOException for
+     * network trouble (the caller shows its "check your internet" text), IllegalStateException for anything else.
+     */
+    suspend fun paidBookUrl(resourceId: String): String = withContext(Dispatchers.IO) {
+        if (!UUID_REGEX.matches(resourceId)) throw IllegalStateException("Bad file id")
+        AuthStateManager.refreshIfNeeded()
+        val token = AuthStateManager.currentUser.value?.accessToken
+        if (token.isNullOrBlank()) throw BookLockedException(SIGN_IN_MESSAGE)
+
+        var reply = callBookUrl(resourceId, token)
+        if (reply.first == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
+            val fresh = AuthStateManager.currentUser.value?.accessToken
+            if (!fresh.isNullOrBlank()) reply = callBookUrl(resourceId, fresh)
+        }
+        val answer = runCatching { JSONObject(reply.second) }.getOrNull()
+        val status = answer?.optString("status").orEmpty()
+        when {
+            reply.first in 200..299 && status == "ok" -> {
+                val url = answer?.optString("url").orEmpty()
+                if (url.startsWith("https://")) url else throw IllegalStateException("Bad file address")
+            }
+            reply.first == 401 -> throw BookLockedException(SIGN_IN_MESSAGE)
+            reply.first == 403 || status == "locked" -> throw BookLockedException(LOCKED_MESSAGE)
+            else -> {
+                Log.w(TAG, "book-url failed: HTTP ${reply.first}")
+                throw IllegalStateException("HTTP ${reply.first}")
+            }
+        }
+    }
+
+    /** One POST to the Edge Function `book-url`. Returns the HTTP code and the body text. */
+    private fun callBookUrl(resourceId: String, token: String): Pair<Int, String> {
+        val body = JSONObject().put("id", resourceId).toString().toRequestBody(JSON_MEDIA)
+        val request = Request.Builder()
+            .url("$supabaseUrl/functions/v1/book-url")
+            .addHeader("apikey", anonKey)
+            .addHeader("Authorization", "Bearer $token")
+            .addHeader("Accept", "application/json")
+            .post(body)
+            .build()
+        return http.newCall(request).execute().use { resp ->
+            resp.code to resp.body?.string().orEmpty()
+        }
     }
 
     /**
