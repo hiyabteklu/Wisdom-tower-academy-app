@@ -2,6 +2,8 @@ package com.wisdomtower.academy.data.content
 
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
+import com.wisdomtower.academy.data.admin.AdminSupabase
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -14,9 +16,9 @@ import java.util.concurrent.TimeUnit
 /** The three lock modes of the website (`HubLockMode` in `data/content-availability.ts`). */
 enum class HubLockMode { Open, RequirePurchase, ComingSoon }
 
-/** What the app does when a student taps a learning hub of a course. */
+/** What the app does when a student taps a learning hub of a course (or one material inside it). */
 enum class HubGate {
-    /** Go on (open the hub). */
+    /** Go on (open it). */
     Open,
 
     /** Show the website's "Coming soon" message. */
@@ -55,70 +57,83 @@ data class CourseAccess(
 }
 
 /**
- * GRANULAR LOCKS (owner order 2026-10-20: "lock and unlock materials at chapter level and material list level,
- * without a code change or a release"). Every lock is ONE row of `public.content_locks`; a new lock is a new row,
- * never new code. Keys (admin dashboard / SQL writes them, the app only reads them):
+ * ACCESS MODEL (owner order 2026-10-20, rewritten the same day after "no materials are visible at all"):
  *
- *  - `package:<package id>`                         whole package          (already existed)
- *  - `scope:<scope path>`                           one course / subject   (already existed)
- *  - `hub:<scope path>:<hub id>`                    ONE hub of a course, e.g. `hub:freshman/physics:books`
- *  - `chapter:<scope path>:<hub id>:<chapter no>`   one chapter in one hub, e.g. `chapter:freshman/physics:books:3`
- *  - `item:<learning_resources.id>`                 one material (book, note, deck, bank, exam)
+ *  1. EVERYTHING IS ALWAYS VISIBLE. Hub cards always open and every published material is always listed.
+ *     Nothing is ever hidden because of a lock ([hubGate] is always Open).
+ *  2. What a student can OPEN is decided PER MATERIAL by the admin dashboard (Content locks). Every lock is ONE
+ *     row of `public.content_locks`; a new lock is a new row, never new code. Keys:
+ *       - `package:<package id>`                         whole package
+ *       - `scope:<scope path>`                           one course / subject
+ *       - `hub:<scope path>:<hub id>`                    ONE hub of a course, e.g. `hub:freshman/physics:short-notes`
+ *       - `chapter:<scope path>:<hub id>:<chapter no>`   one chapter in one hub, e.g. `chapter:freshman/physics:short-notes:1`
+ *       - `item:<learning_resources.id>`                 one material (book, note, deck, bank, exam)
+ *       - `system:enforce`                               the PAID MODE switch (mode `locked` = ON, anything else = OFF)
+ *     Modes: `open`, `require_purchase`, `coming_soon`, `locked` (shown as coming soon).
+ *     The MOST SPECIFIC row wins: item, chapter, hub, scope, package, then the static rule. So "package owners only,
+ *     but Chapter 1 free" is one `package:` row = require_purchase plus one `chapter:` row = open, and it WORKS now
+ *     (the old code checked the hub card first, so an open chapter inside a closed package could never be reached).
+ *  3. `require_purchase` only closes a material while PAID MODE is ON and the signed-in student does not own the
+ *     package. With paid mode OFF it is free for every signed-in student. `coming_soon` / `locked` close a material
+ *     for everybody. A locked material stays in the list with a lock icon and opens a pop-up when tapped.
+ *  4. Owner = a row of the student's own in `enrollments` or `access_grants` (read with the student's own login, row
+ *     level security returns only their rows) for the package or `__all__`; any `ece-y3-sem-*` row opens both ECE
+ *     semesters. This mirrors the database function `content_guard.resource_visible`.
  *
- * Modes: `open`, `require_purchase`, `coming_soon`, `locked` (shown as coming soon). The MOST SPECIFIC row wins:
- * item, then chapter, then hub, then scope, then package, then the static rule. So "course coming soon, except
- * Books open" is one `scope:` row plus one `hub:` row set to `open`, and "everything open except chapter 4 of
- * Books" is one `chapter:` row. No row = the level above decides. Clearing a lock = deleting its row.
- *
- * [hubGate] is what a hub card tap checks; [itemGate] is what a row tap in a hub list checks.
+ * [itemGate] is what a row tap in a hub list checks.
  */
 class CourseLocks internal constructor(
     private val scope: String?,
+    private val pkg: String?,
     private val signedIn: Boolean,
     private val owned: Boolean,
-    private val courseMode: HubLockMode,
+    private val paidOn: Boolean,
+    private val staticMode: HubLockMode,
     private val rows: Map<String, HubLockMode>
 ) {
-    private fun gateOf(mode: HubLockMode): HubGate = CourseAccess(mode, signedIn, owned).gate
-
-    /** Mode of one hub: its own `hub:` row, else the course / package / static mode. */
-    fun hubMode(hubId: String): HubLockMode =
-        scope?.let { rows["hub:$it:$hubId"] } ?: courseMode
-
-    /** What a tap on the hub card does. */
-    fun hubGate(hubId: String): HubGate = gateOf(hubMode(hubId))
-
-    /**
-     * The gate of ONE material when an `item:` or `chapter:` row exists for it, else null (null = no extra
-     * lock: the hub gate, already checked on the hub card, is the only rule). Item row beats chapter row.
-     */
-    fun itemGate(hubId: String, chapter: Int?, itemId: String): HubGate? {
-        rows["item:$itemId"]?.let { return gateOf(it) }
-        if (scope != null && chapter != null) {
-            rows["chapter:$scope:$hubId:$chapter"]?.let { return gateOf(it) }
+    /** The mode that applies to ONE material: the most specific row wins, else the static rule. */
+    private fun modeOf(hubId: String, chapter: Int?, itemId: String): HubLockMode {
+        rows["item:$itemId"]?.let { return it }
+        if (scope != null) {
+            if (chapter != null) rows["chapter:$scope:$hubId:$chapter"]?.let { return it }
+            rows["hub:$scope:$hubId"]?.let { return it }
+            rows["scope:$scope"]?.let { return it }
         }
-        return null
+        pkg?.let { rows["package:$it"] }?.let { return it }
+        return staticMode
     }
+
+    /** What a tap on a hub card does: ALWAYS opens the hub (owner rule: all materials are always visible). */
+    @Suppress("UNUSED_PARAMETER")
+    fun hubGate(hubId: String): HubGate = HubGate.Open
+
+    /** What a tap on one material does (Open, ComingSoon or PackageRequired). Never null. */
+    fun itemGate(hubId: String, chapter: Int?, itemId: String): HubGate =
+        when (modeOf(hubId, chapter, itemId)) {
+            HubLockMode.Open -> HubGate.Open
+            HubLockMode.ComingSoon -> HubGate.ComingSoon
+            HubLockMode.RequirePurchase -> when {
+                !signedIn -> HubGate.Open // the native screens show "Sign in to open" themselves
+                !paidOn -> HubGate.Open // paid mode OFF: free for every signed-in student
+                owned -> HubGate.Open
+                else -> HubGate.PackageRequired
+            }
+        }
 }
 
 /**
- * Plan step N9 (`docs/NATIVE_CONTENT_PLAN.md`): decides whether the hubs of a course can be opened.
- * Ports, from the website:
+ * Plan step N9 (`docs/NATIVE_CONTENT_PLAN.md`): decides what a student can open. Ports, from the website:
  *  - `data/content-availability.ts` (static rules per path, package ids per path, the two texts);
- *  - `lib/content-locks.ts` `resolveEffectiveLock` (admin locks in `public.content_locks`, public read with the
- *    anon key; priority scope lock, then package lock, then the static rule; the website grid passes no hub,
- *    so neither does this);
- *  - `lib/ownership.ts` (free mode and the free-for-registered package list).
+ *  - `lib/content-locks.ts` (admin locks in `public.content_locks`, public read with the anon key);
+ *  - `lib/ownership.ts` (free-for-registered package list).
  *
- * Free mode (owner, 2026-10-11): `IS_FREE_MODE` is true on the website, so every signed-in student owns every
- * package. [IS_FREE_MODE] below MUST be kept equal to the website value. The app never shows a price or a
- * purchase button; when the website later records purchases, only [ownsAny] has to change.
+ * Offline or server trouble: the last answer is reused, else only the static rule applies and paid mode counts as
+ * OFF (never a crash, never a silent lock-out because of a network error). If the student's own packages cannot be
+ * read while paid mode is ON, the student is treated as an owner for that moment for the same reason.
  *
- * Offline or server trouble: the last answer is reused, else the static rule applies (never a crash, never a
- * silent lock-out because of a network error).
- *
- * 2026-10-20: hub, chapter and item locks added ([CourseLocks], [resolveLocks], [staticLocks]). [resolve],
- * [staticAccess] and [isUnlocked] are unchanged (course level).
+ * 2026-10-20 (second pass): [resolveLocks] now reads the PAID MODE row (`system:enforce`) and the student's real
+ * ownership (enrollments + access grants), so the admin dashboard switch and the package rules really work.
+ * [IS_FREE_MODE] is no longer used by [resolveLocks] (it is only used by the older course-level [resolve]).
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -126,7 +141,10 @@ object ContentAccess {
     private const val TAG = "ContentAccess"
     private const val CACHE_MS = 30_000L
 
-    /** Mirror of `IS_FREE_MODE` in `website-reference/src/lib/ownership.ts`. */
+    /** The PAID MODE switch row of `content_locks`: mode `locked` = ON, anything else = OFF. */
+    private const val PAID_MODE_KEY = "system:enforce"
+
+    /** Mirror of `IS_FREE_MODE` in `website-reference/src/lib/ownership.ts` (used by the older [resolve] only). */
     val IS_FREE_MODE: Boolean = true
 
     /** Texts copied from `data/content-availability.ts`. */
@@ -137,7 +155,7 @@ object ContentAccess {
     const val PURCHASE_BODY = "Unlock this pathway with the matching package to access study materials."
     const val PURCHASE_BUTTON = "Keep exploring"
 
-    /** `FREE_FOR_REGISTERED_PACKAGE_IDS` of `lib/ownership.ts` (used only when free mode is off). */
+    /** `FREE_FOR_REGISTERED_PACKAGE_IDS` of `lib/ownership.ts` (used only by the older [resolve] when free mode is off). */
     private val FREE_FOR_REGISTERED = setOf(
         "ece-y3-sem-1", "ece-y3-sem-2", "freshman",
         "grade-9", "grade-10", "grade-11", "grade-12",
@@ -160,8 +178,11 @@ object ContentAccess {
 
     private val cache = HashMap<String, Pair<Long, HubLockMode?>>()
 
-    /** Granular lock rows of one course, cached 30 s (key = package + scope). */
+    /** Lock rows of one course (plus the paid mode switch), cached 30 s (key = package + scope). */
     private val courseRowsCache = HashMap<String, Pair<Long, Map<String, HubLockMode>>>()
+
+    /** Package ids the signed-in student owns, cached 30 s per login (key = access token hash). */
+    private var ownedCache: Triple<Int, Long, Set<String>>? = null
 
     /**
      * The access state of the course at [basePath] (a website route such as `/academy/freshman/physics`;
@@ -191,41 +212,83 @@ object ContentAccess {
         resolve(basePath, signedIn).isUnlocked
 
     /**
-     * All locks that matter inside the course at [basePath]: course / package / hub / chapter / item (see
-     * [CourseLocks]). One small request (cached 30 s). Offline or server trouble: the last answer is reused,
-     * else only the static rule applies, so a network error never locks a student out.
+     * Everything that decides what a student can open inside the course at [basePath]: the lock rows (package,
+     * scope, hub, chapter, item), the PAID MODE switch and, only while paid mode is ON, the student's own packages.
+     * One small request for the locks (cached 30 s) and, in paid mode, two for ownership (cached 30 s).
      */
     suspend fun resolveLocks(basePath: String, signedIn: Boolean): CourseLocks {
         val base = normalize(basePath)
         val unlockIds = unlockPackageIds(base)
         val (pkg, scope) = inferPackageAndScope(base, unlockIds)
         val rows = courseRows(pkg, scope)
-        val courseMode = scope?.let { rows?.get("scope:$it") }
-            ?: pkg?.let { rows?.get("package:$it") }
-            ?: staticLockMode(base)
-        return CourseLocks(scope, signedIn, ownsAny(signedIn, unlockIds), courseMode, rows ?: emptyMap())
+        val paidOn = rows?.get(PAID_MODE_KEY) == HubLockMode.ComingSoon // mode `locked` parses to ComingSoon
+        val owned = when {
+            !signedIn -> false
+            !paidOn -> true // nothing is enforced, nothing to look up
+            else -> ownsPackage(unlockIds)
+        }
+        return CourseLocks(scope, pkg, signedIn, owned, paidOn, staticLockMode(base), rows ?: emptyMap())
     }
 
-    /** Same as [resolveLocks] without the network: the static rule only (used until the first answer arrives). */
+    /** Same as [resolveLocks] without the network: static rule only, paid mode OFF (used until the first answer arrives). */
     fun staticLocks(basePath: String, signedIn: Boolean): CourseLocks {
         val base = normalize(basePath)
         val unlockIds = unlockPackageIds(base)
-        val (_, scope) = inferPackageAndScope(base, unlockIds)
-        return CourseLocks(scope, signedIn, ownsAny(signedIn, unlockIds), staticLockMode(base), emptyMap())
+        val (pkg, scope) = inferPackageAndScope(base, unlockIds)
+        return CourseLocks(scope, pkg, signedIn, signedIn, false, staticLockMode(base), emptyMap())
     }
 
     // ---------- ownership ----------
 
     /**
-     * Does the student own one of [unlockIds]? Free mode: every signed-in student owns everything.
-     * Paid mode (NOT finished): only the free-for-registered packages; enrollments, verified orders and
-     * access grants of the website (`lib/orders.ts`, `lib/access-grants.ts`) are not read yet, so a paid
-     * package stays closed in the app rather than opening by mistake (plan step N9b).
+     * Older course-level rule used by [resolve]: free mode = every signed-in student owns everything, else only the
+     * free-for-registered packages.
      */
     private fun ownsAny(signedIn: Boolean, unlockIds: List<String>): Boolean {
         if (!signedIn) return false
         if (IS_FREE_MODE) return true
         return unlockIds.any { it in FREE_FOR_REGISTERED }
+    }
+
+    /**
+     * Does the signed-in student own one of [unlockIds] (paid mode ON)? Reads the student's OWN rows of
+     * `enrollments` and `access_grants` with the student's login (row level security shows only their rows).
+     * Same rule as the database function: the package id, `__all__`, or any `ece-y3-sem-*` row for an ECE semester.
+     * A package that maps to no id (for example Open Learning) has nothing to own: false.
+     * If neither table could be read, returns true (fail open: a network error never locks a paying student out).
+     */
+    private suspend fun ownsPackage(unlockIds: List<String>): Boolean {
+        val ids = ownedPackageIds() ?: return true
+        if ("__all__" in ids) return true
+        if (unlockIds.any { it in ids }) return true
+        val ece = unlockIds.any { it.startsWith("ece-y3-sem-") }
+        return ece && ids.any { it.startsWith("ece-y3-sem-") }
+    }
+
+    private suspend fun ownedPackageIds(): Set<String>? {
+        val tokenKey = AuthStateManager.currentUser.value?.accessToken?.hashCode() ?: return null
+        val now = System.currentTimeMillis()
+        val hit = synchronized(this) { ownedCache }
+        if (hit != null && hit.first == tokenKey && now - hit.second < CACHE_MS) return hit.third
+        val ids = HashSet<String>()
+        var anyRead = false
+        for (table in listOf("enrollments", "access_grants")) {
+            val reply = AdminSupabase.get("$table?select=package_id")
+            if (!reply.ok) continue
+            try {
+                val arr = JSONArray(reply.body)
+                for (i in 0 until arr.length()) {
+                    val id = arr.optJSONObject(i)?.optString("package_id").orEmpty()
+                    if (id.isNotBlank()) ids.add(id)
+                }
+                anyRead = true
+            } catch (e: Exception) {
+                Log.w(TAG, "ownership parse failed: ${e.javaClass.simpleName}")
+            }
+        }
+        if (!anyRead) return if (hit != null && hit.first == tokenKey) hit.third else null
+        synchronized(this) { ownedCache = Triple(tokenKey, now, ids) }
+        return ids
     }
 
     // ---------- static rules (website `data/content-availability.ts`) ----------
@@ -353,9 +416,9 @@ object ContentAccess {
     }
 
     /**
-     * Every lock row that can matter inside one course: its package row, its scope row, all its `hub:` and
-     * `chapter:` rows (key prefix) and every `item:` row (item keys carry only the material id; there are only as
-     * many as the admin locked one by one). Null when nothing could be read and nothing is cached.
+     * Every lock row that can matter inside one course: the paid mode switch, its package row, its scope row, all
+     * its `hub:` and `chapter:` rows (key prefix) and every `item:` row (item keys carry only the material id; there
+     * are only as many as the admin locked one by one). Null when nothing could be read and nothing is cached.
      */
     private suspend fun courseRows(pkg: String?, scope: String?): Map<String, HubLockMode>? =
         withContext(Dispatchers.IO) {
@@ -365,6 +428,7 @@ object ContentAccess {
             if (hit != null && now - hit.first < CACHE_MS) return@withContext hit.second
             try {
                 val parts = ArrayList<String>()
+                parts.add("lock_key.eq.\"$PAID_MODE_KEY\"")
                 pkg?.let { parts.add("lock_key.eq.\"package:$it\"") }
                 scope?.let {
                     parts.add("lock_key.eq.\"scope:$it\"")
