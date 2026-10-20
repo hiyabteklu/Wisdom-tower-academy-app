@@ -257,22 +257,24 @@ object LearningContentRepository {
         )
         if (door.code == -1) throw IOException("Offline")
         if (door.ok) {
-            val reply = runCatching { JSONObject(door.body) }.getOrNull()
-            when (reply?.optString("status")) {
-                "ok" -> {
-                    val row = reply.getJSONObject("row")
-                    writeCache(cacheFile, row.toString())
-                    return row
+            val reply: JSONObject? = runCatching { JSONObject(door.body) }.getOrNull()
+            if (reply != null) {
+                when (reply.optString("status")) {
+                    "ok" -> {
+                        val row = reply.getJSONObject("row")
+                        writeCache(cacheFile, row.toString())
+                        return row
+                    }
+                    "locked" -> {
+                        runCatching { cacheFile.delete() }
+                        throw ResourceLockedException()
+                    }
+                    "not_found" -> {
+                        runCatching { cacheFile.delete() }
+                        return null
+                    }
+                    else -> Log.w(TAG, "open_resource: status ${reply.optString("status")}, using direct read")
                 }
-                "locked" -> {
-                    runCatching { cacheFile.delete() }
-                    throw ResourceLockedException()
-                }
-                "not_found" -> {
-                    runCatching { cacheFile.delete() }
-                    return null
-                }
-                else -> Log.w(TAG, "open_resource: status ${reply?.optString("status")}, using direct read")
             }
         } else {
             Log.w(TAG, "open_resource: HTTP ${door.code}, using direct read")
