@@ -27,7 +27,7 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - To test on the phone: Content locks > tap a package shortcut far down the list = panel opens at the top; tap a mode = badge in the
     panel changes, toast shows; Back = back to the list at the SAME scroll position; open a hub, tap a chapter and a material = same
     panel; System Back closes the panel first, the second Back goes up one step.
-- B1b PUSHED, `[~]` CI result not read yet / not tested on a phone:
+- B1b PUSHED, CI #851 GREEN (compiled; read from the owner's Actions screenshot on 2026-10-20), `[~]` not tested on a phone:
   - `AccessGrantsScreen.kt` uses the same `AdminDetailPanel`. The Package field in the form is a button with an arrow; a tap opens a
     "Choose a package" panel (All packages + every package, tap one = it is selected and the panel closes). Nothing opens inline.
   - Each grant is a compact row (email, package, arrow). A tap opens the grant detail panel: package, package id, note, granted by,
@@ -40,13 +40,24 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   inline inside a card), then Inquiries (status buttons expand inside the card, no search), Payments (tall cards, Approve at the bottom of the card),
   Catalog (editor replaces the list but Save is at the end of a long form and the list scroll position is lost), Users (already replaces the list).
   NOT read yet: Broadcasts, Broadcast composer, Course content, Free resources, Overview, Database status, Admin home (B2b).
+- B3a PUSHED, `[~]` CI result not read yet / not tested on a phone (commit starts "Admin B3a (Competitions)", not compiled):
+  - `CompetitionsScreen.kt`: the Create card keeps only its intro and the `New competition` button. A tap opens the `AdminDetailPanel`
+    "New competition" with the 12 fields; `Create competition` is fixed at the bottom. The exam field is a button that opens a second
+    panel "Choose an exam" (search box + exam rows); picking one closes only the picker. Back closes the picker first, then the form.
+  - Unchanged: `submitCreate()`, `createError()`, `doCreate()`, the "Show to students now" confirm, every `CompetitionsRepository` call,
+    Ethiopia-time handling, the toggles, and all contest actions, reschedule and entries (those are B3b and B3c).
+  - Only code additions: helper `CompFieldBlock`, import `ColumnScope`, toast lifted to 88 dp while the form panel is open. The old `Close` button is the panel Back arrow.
+  - To test on the phone: see `docs/SESSION_2026-10-20_ADMIN_B3A_COMPETITIONS.md` (5 steps).
+  - Possible compile risk to check first if the build is red: `CompFieldBlock` (content lambda with `ColumnScope` receiver called as `content()`), and the named `actions =` plus trailing content lambda on `AdminDetailPanel`.
 
 ## Next slices, in this order (one per chat)
-1. A4 run on the phone: one device, one admin, one test student, rows in `docs/A4_TEST_MATRIX.md`; record in `docs/A4_RESULTS.md`.
-2. B3a Competitions: Create and the exam picker as panels (see `docs/ADMIN_AUDIT.md` for the whole order B3a to B3g: Competitions, Inquiries,
-   Payments, Catalog, Users). Reuse `AdminDetailPanel`, never write another one.
-3. B2b audit of the 7 files not read yet (add them to `docs/ADMIN_AUDIT.md`).
-4. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
+1. First: read the CI result of B3a (ask the owner for the Actions list, or read it); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
+2. A4 run on the phone: one device, one admin, one test student, rows in `docs/A4_TEST_MATRIX.md`; record in `docs/A4_RESULTS.md`.
+3. B3b / B3c Competitions rest: compact contest row + detail panel with the actions (Show/Hide, Pause/Resume, Start now, Reschedule, Cancel);
+   reschedule as a small panel with Save fixed; entries as a panel with a search box and a count; flag details stay inside the entry.
+   Then B3d Inquiries, B3e Payments, B3f Catalog, B3g Users (order in `docs/ADMIN_AUDIT.md`). Reuse `AdminDetailPanel`, never write another one.
+4. B2b audit of the 7 files not read yet (add them to `docs/ADMIN_AUDIT.md`).
+5. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
    Already seen: `AccessGrantsScreen.kt` used a fixed pink (fixed in A3); `CatalogScreen.kt` RoseTone FB7185; `CompetitionsScreen.kt` CompOrange FB923C.
    The panel uses `WisdomBackground`, which is the page colour of the admin host, so it should follow Day / Night; check it in Transparent in C1.
 

@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -68,6 +69,10 @@ import kotlinx.coroutines.launch
 // flags, and disqualify an entry. One LazyColumn, no sideways scrolling. Every typed time is Ethiopia time.
 // Reuses the admin kit (AdminToneBadge, AdminActionButton, AdminConfirmDialog, AdminMessageCard, AdminTextField,
 // AdminTextArea, AdminSearchBox, AdminToast). Sentences are copied from the website panel.
+// B3a (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): the create form and the exam picker no longer expand inside the card.
+// The card keeps its intro and the New competition button; a tap opens the AdminDetailPanel New competition (12 fields,
+// Create competition fixed at the bottom) and the exam picker is a second panel drawn over it. The list and the typed
+// form stay composed underneath. Contest actions, reschedule and entries are unchanged (B3b and B3c).
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val CompOrange: Color = Color(0xFFFB923C)
@@ -100,7 +105,7 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
     var busyKey by remember { mutableStateOf<String?>(null) }
     var toast by remember { mutableStateOf("") }
 
-    // Create form
+    // Create form (the panel New competition)
     var createOpen by rememberSaveable { mutableStateOf(false) }
     var resourceId by rememberSaveable { mutableStateOf("") }
     var title by rememberSaveable { mutableStateOf("") }
@@ -237,6 +242,7 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
                 prizeDetails = ""
                 requiresPackage = false
                 publishNow = false
+                pickerOpen = false
                 createOpen = false
             } else {
                 toast = error
@@ -428,183 +434,19 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
                         fontSize = 15.sp,
                         fontWeight = FontWeight.SemiBold
                     )
-                    if (!createOpen) {
-                        Text(
-                            text = "Questions, correct answers and solutions are copied from the chosen exam. Every question must have a solution. The contest is created hidden unless you choose to show it.",
-                            color = WisdomMuted,
-                            fontSize = 13.sp
-                        )
-                        AdminActionButton(
-                            label = "New competition",
-                            tone = WisdomAccentAmber,
-                            filled = false,
-                            enabled = true,
-                            onClick = { createOpen = true },
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                    } else {
-                        Text(
-                            text = "Questions, correct answers and solutions are copied from the chosen exam. Every question must have a solution. The contest is created hidden unless you tick Show to students now.",
-                            color = WisdomMuted,
-                            fontSize = 13.sp
-                        )
-
-                        CompFieldLabel("Exam from the exam hub (required)")
-                        CompPickerButton(
-                            text = if (chosenExam == null) "Choose an exam..." else examLabel(chosenExam),
-                            chosen = chosenExam != null,
-                            onClick = { pickerOpen = !pickerOpen }
-                        )
-                        if (pickerOpen) {
-                            val pickerShape = RoundedCornerShape(14.dp)
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .clip(pickerShape)
-                                    .border(1.dp, WisdomBorderWhite, pickerShape)
-                                    .padding(10.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                AdminSearchBox(
-                                    query = pickerQuery,
-                                    onQueryChange = { pickerQuery = it },
-                                    placeholder = "Search exams"
-                                )
-                                if (examsFailed) {
-                                    Text(
-                                        text = "The exam list could not be loaded. Tap Refresh and try again.",
-                                        color = AdminRose,
-                                        fontSize = 13.sp
-                                    )
-                                } else if (exams.isEmpty()) {
-                                    Text(
-                                        text = "No exams in the exam hub yet.",
-                                        color = WisdomMuted,
-                                        fontSize = 13.sp
-                                    )
-                                } else if (pickerMatches.isEmpty()) {
-                                    Text(
-                                        text = "No exam matches your search.",
-                                        color = WisdomMuted,
-                                        fontSize = 13.sp
-                                    )
-                                }
-                                for (exam in pickerMatches.take(30)) {
-                                    Text(
-                                        text = examLabel(exam),
-                                        color = if (exam.id == resourceId) WisdomAccentAmber else WisdomTextPrimary,
-                                        fontSize = 14.sp,
-                                        fontWeight = if (exam.id == resourceId) FontWeight.Bold else FontWeight.Normal,
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable {
-                                                resourceId = exam.id
-                                                pickerOpen = false
-                                                pickerQuery = ""
-                                            }
-                                            .padding(vertical = 10.dp)
-                                    )
-                                }
-                                if (pickerMatches.size > 30) {
-                                    Text(
-                                        text = "Showing the first 30. Type in the search box to narrow the list.",
-                                        color = WisdomMuted,
-                                        fontSize = 12.sp
-                                    )
-                                }
-                            }
-                        }
-
-                        CompFieldLabel("Title (optional, default: the exam title)")
-                        AdminTextField(value = title, onValueChange = { title = it }, placeholder = "Title")
-
-                        CompFieldLabel("Starts at, Ethiopia time (required)")
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AdminTextField(
-                                value = startDate,
-                                onValueChange = { startDate = it },
-                                placeholder = "Date 2026-10-25",
-                                modifier = Modifier.weight(1f)
-                            )
-                            AdminTextField(
-                                value = startTime,
-                                onValueChange = { startTime = it },
-                                placeholder = "Time 14:30",
-                                modifier = Modifier.weight(1f)
-                            )
-                        }
-                        Text(
-                            text = "Type the date as year-month-day and the time in 24-hour format.",
-                            color = WisdomMuted,
-                            fontSize = 12.sp
-                        )
-
-                        CompFieldLabel("Duration in minutes (optional, default: the exam's own)")
-                        AdminTextField(
-                            value = durationText,
-                            onValueChange = { durationText = it },
-                            placeholder = "Minutes",
-                            keyboardType = KeyboardType.Number
-                        )
-
-                        CompFieldLabel("Audience (optional, default: the exam's package)")
-                        AdminTextField(value = audience, onValueChange = { audience = it }, placeholder = "Audience")
-
-                        CompFieldLabel("Points for the account total")
-                        AdminTextField(
-                            value = pointsText,
-                            onValueChange = { pointsText = it },
-                            placeholder = "0",
-                            keyboardType = KeyboardType.Number
-                        )
-
-                        CompFieldLabel("Prize title (shown only after the contest ends)")
-                        AdminTextField(value = prizeTitle, onValueChange = { prizeTitle = it }, placeholder = "Prize title")
-
-                        CompFieldLabel("Prize details (shown only after the contest ends)")
-                        AdminTextArea(
-                            value = prizeDetails,
-                            onValueChange = { prizeDetails = it },
-                            placeholder = "Prize details",
-                            minHeight = 80.dp
-                        )
-
-                        CompToggleRow(
-                            label = "Only students who own the exam's package may enter",
-                            checked = requiresPackage,
-                            onChange = { requiresPackage = it }
-                        )
-                        CompToggleRow(
-                            label = "Show to students now",
-                            checked = publishNow,
-                            onChange = { publishNow = it }
-                        )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            AdminActionButton(
-                                label = "Close",
-                                tone = WisdomMuted,
-                                filled = false,
-                                enabled = busyKey != "create",
-                                onClick = { createOpen = false; pickerOpen = false },
-                                modifier = Modifier.weight(1f)
-                            )
-                            AdminActionButton(
-                                label = if (busyKey == "create") "Creating..." else "Create competition",
-                                tone = WisdomAccentAmber,
-                                filled = true,
-                                enabled = !anyBusy,
-                                onClick = { submitCreate() },
-                                modifier = Modifier.weight(2f)
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Questions, correct answers and solutions are copied from the chosen exam. Every question must have a solution. The contest is created hidden unless you choose to show it.",
+                        color = WisdomMuted,
+                        fontSize = 13.sp
+                    )
+                    AdminActionButton(
+                        label = "New competition",
+                        tone = WisdomAccentAmber,
+                        filled = false,
+                        enabled = true,
+                        onClick = { createOpen = true },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
             }
 
@@ -727,12 +569,181 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
             }
         }
 
+        // B3a: the New competition panel. Drawn after the list, so it covers it; the list stays composed underneath.
+        if (createOpen) {
+            AdminDetailPanel(
+                title = "New competition",
+                subtitle = "Competition",
+                onBack = { createOpen = false; pickerOpen = false },
+                actions = {
+                    AdminActionButton(
+                        label = if (busyKey == "create") "Creating..." else "Create competition",
+                        tone = WisdomAccentAmber,
+                        filled = true,
+                        enabled = !anyBusy,
+                        onClick = { submitCreate() },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            ) {
+                Text(
+                    text = "Questions, correct answers and solutions are copied from the chosen exam. Every question must have a solution. The contest is created hidden unless you tick Show to students now.",
+                    color = WisdomMuted,
+                    fontSize = 13.sp
+                )
+
+                CompFieldBlock("Exam from the exam hub (required)") {
+                    CompPickerButton(
+                        text = if (chosenExam == null) "Choose an exam..." else examLabel(chosenExam),
+                        chosen = chosenExam != null,
+                        onClick = { pickerOpen = true }
+                    )
+                }
+
+                CompFieldBlock("Title (optional, default: the exam title)") {
+                    AdminTextField(value = title, onValueChange = { title = it }, placeholder = "Title")
+                }
+
+                CompFieldBlock("Starts at, Ethiopia time (required)") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        AdminTextField(
+                            value = startDate,
+                            onValueChange = { startDate = it },
+                            placeholder = "Date 2026-10-25",
+                            modifier = Modifier.weight(1f)
+                        )
+                        AdminTextField(
+                            value = startTime,
+                            onValueChange = { startTime = it },
+                            placeholder = "Time 14:30",
+                            modifier = Modifier.weight(1f)
+                        )
+                    }
+                    Text(
+                        text = "Type the date as year-month-day and the time in 24-hour format.",
+                        color = WisdomMuted,
+                        fontSize = 12.sp
+                    )
+                }
+
+                CompFieldBlock("Duration in minutes (optional, default: the exam's own)") {
+                    AdminTextField(
+                        value = durationText,
+                        onValueChange = { durationText = it },
+                        placeholder = "Minutes",
+                        keyboardType = KeyboardType.Number
+                    )
+                }
+
+                CompFieldBlock("Audience (optional, default: the exam's package)") {
+                    AdminTextField(value = audience, onValueChange = { audience = it }, placeholder = "Audience")
+                }
+
+                CompFieldBlock("Points for the account total") {
+                    AdminTextField(
+                        value = pointsText,
+                        onValueChange = { pointsText = it },
+                        placeholder = "0",
+                        keyboardType = KeyboardType.Number
+                    )
+                }
+
+                CompFieldBlock("Prize title (shown only after the contest ends)") {
+                    AdminTextField(value = prizeTitle, onValueChange = { prizeTitle = it }, placeholder = "Prize title")
+                }
+
+                CompFieldBlock("Prize details (shown only after the contest ends)") {
+                    AdminTextArea(
+                        value = prizeDetails,
+                        onValueChange = { prizeDetails = it },
+                        placeholder = "Prize details",
+                        minHeight = 80.dp
+                    )
+                }
+
+                CompToggleRow(
+                    label = "Only students who own the exam's package may enter",
+                    checked = requiresPackage,
+                    onChange = { requiresPackage = it }
+                )
+                CompToggleRow(
+                    label = "Show to students now",
+                    checked = publishNow,
+                    onChange = { publishNow = it }
+                )
+            }
+        }
+
+        // B3a: the exam picker, a second panel over the New competition panel. Drawn after it, so its Back closes it first.
+        if (createOpen && pickerOpen) {
+            AdminDetailPanel(
+                title = "Choose an exam",
+                subtitle = "New competition",
+                onBack = { pickerOpen = false; pickerQuery = "" }
+            ) {
+                AdminSearchBox(
+                    query = pickerQuery,
+                    onQueryChange = { pickerQuery = it },
+                    placeholder = "Search exams"
+                )
+                if (examsFailed) {
+                    Text(
+                        text = "The exam list could not be loaded. Tap Refresh and try again.",
+                        color = AdminRose,
+                        fontSize = 13.sp
+                    )
+                } else if (exams.isEmpty()) {
+                    Text(
+                        text = "No exams in the exam hub yet.",
+                        color = WisdomMuted,
+                        fontSize = 13.sp
+                    )
+                } else if (pickerMatches.isEmpty()) {
+                    Text(
+                        text = "No exam matches your search.",
+                        color = WisdomMuted,
+                        fontSize = 13.sp
+                    )
+                }
+                for (exam in pickerMatches.take(30)) {
+                    Text(
+                        text = examLabel(exam),
+                        color = if (exam.id == resourceId) WisdomAccentAmber else WisdomTextPrimary,
+                        fontSize = 14.sp,
+                        fontWeight = if (exam.id == resourceId) FontWeight.Bold else FontWeight.Normal,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                resourceId = exam.id
+                                pickerOpen = false
+                                pickerQuery = ""
+                            }
+                            .padding(vertical = 10.dp)
+                    )
+                }
+                if (pickerMatches.size > 30) {
+                    Text(
+                        text = "Showing the first 30. Type in the search box to narrow the list.",
+                        color = WisdomMuted,
+                        fontSize = 12.sp
+                    )
+                }
+            }
+        }
+
         if (toast.isNotEmpty()) {
             AdminToast(
                 text = toast,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = if (createOpen && !pickerOpen) 88.dp else 16.dp
+                    )
             )
         }
     }
@@ -746,6 +757,15 @@ private fun CompFieldLabel(text: String) {
         fontSize = 12.sp,
         fontWeight = FontWeight.SemiBold
     )
+}
+
+/** A label with its field(s) right under it, so the 12 dp gap of the panel falls between fields, not inside one. */
+@Composable
+private fun CompFieldBlock(label: String, content: @Composable ColumnScope.() -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        CompFieldLabel(label)
+        content()
+    }
 }
 
 @Composable

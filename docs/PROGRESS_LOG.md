@@ -25,3 +25,6 @@
 - B1b PUSHED, `[~]` CI result not read yet: the Grants screen uses the same panel (package picker panel, grant detail panel with Revoke / Revoke all fixed at the bottom, both still confirm). See docs/ADMIN_DASHBOARD_NEXT.md for the phone test.
 - B2 AUDIT WRITTEN (read-only, no code): docs/ADMIN_AUDIT.md covers Competitions, Inquiries, Payments, Catalog, Users; 7 files still to read (B2b). Order of conversion B3a to B3g is in that file; Competitions first.
 - NEXT: read the CI result for B1b (fix any red build first, log it in docs/BUILD_PITFALLS.md); run the A4 matrix on the phone (record in docs/A4_RESULTS.md) and the B1a / B1b phone tests; then B3a (Competitions create + exam picker panels), B2b, C1.
+- CORRECTION to the B1b line above: CI #851 ("Admin B1b (Grants)") is GREEN (seen in the owner's Actions screenshot). Docs runs #852, #854, #855 green; #853 was in progress.
+- B3a PUSHED, `[~]` CI result not read yet / not tested on a phone: `CompetitionsScreen.kt`, the New competition form and the exam picker are now panels (`AdminDetailPanel`), Create fixed at the bottom. Contest actions, reschedule and entries unchanged. No database change. See docs/SESSION_2026-10-20_ADMIN_B3A_COMPETITIONS.md for the 5-step phone test.
+- NEXT: read the CI result of B3a (fix red first); then B3b / B3c (Competitions rest), A4 on the phone, B3d to B3g, B2b, C1.
