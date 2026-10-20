@@ -57,7 +57,11 @@ import java.util.concurrent.TimeUnit
  * the database column `item_count` ([LearningResource.itemCount]). The `full` argument of [list] is kept so old
  * callers compile, but it is ignored. `storage_path` (book file address) is still in the light list: slice S5.
  *
- * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1 and S2 not compiled).
+ * SECURITY S4 (2026-10-20): done. The database now refuses the public key and every student login a read of
+ * `body_md` and `meta` of `learning_resources` (column privileges), so [LEGACY_DIRECT_READ] is false and the heavy
+ * content only comes through `rpc/open_resource`.
+ *
+ * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1, S2 and S4 not compiled).
  */
 object LearningContentRepository {
     private const val TAG = "LearningContent"
@@ -66,10 +70,12 @@ object LearningContentRepository {
     private const val LOCKED_MESSAGE = "This material is locked. Unlock it with your package or ask the admin."
 
     /**
-     * Slice S1 keeps the old direct read as a fallback. Slice S4 (after S1 and S2 are released and tested) sets this
-     * to false, together with the database change that removes the direct read of the content columns.
+     * Slice S1 kept the old direct read as a fallback. Slice S4 (2026-10-20) sets this to false: the database no longer
+     * lets the public key or a student login read `body_md` / `meta` of `learning_resources` (migration
+     * `s4_hide_body_md_and_meta_from_public_columns`), so the direct read would only fail. Heavy content comes ONLY
+     * through the checked door `rpc/open_resource`.
      */
-    private const val LEGACY_DIRECT_READ = true
+    private const val LEGACY_DIRECT_READ = false
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
