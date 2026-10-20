@@ -60,15 +60,14 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - Unchanged: `InquiriesRepository` calls, status logic, toast and empty-state texts. Removed (replaced): `InquiryCard`, `expandedId`.
     `AdminToast` and `AdminStatusBadge` stay in `InquiriesScreen.kt` untouched (other screens use them); NOT moved to `AdminKit.kt`.
   - Phone test (5 steps): `docs/SESSION_2026-10-20_ADMIN_B3D_INQUIRIES.md`.
-- B3e PUSHED (commit c485bd6, starts "Admin B3e (Payments)"), CI #860 was In progress at 3:18 pm (result not seen), `[~]` not tested on a phone: `PaymentsScreen.kt`. LAYOUT ONLY, money logic untouched.
+- B3e PUSHED (commit c485bd6, starts "Admin B3e (Payments)"), CI #860 GREEN (compiled; owner's Actions screenshot, 3:24 pm), `[~]` not tested on a phone: `PaymentsScreen.kt`. LAYOUT ONLY, money logic untouched.
   - Each order is a compact row (`OrderRow`: package, student, amount, date, status badge, arrow; pending rows keep the amber border). A tap opens the
     order panel (`OrderDetailBody`: status, placed date, order id, package, amount and method, student, phone, e-mail, Ref and note, `View Receipt`).
     For a PENDING order `Approve & Unlock` and `Reject` are the bar fixed at the bottom (`OrderActionButtons`); verified / rejected orders have no bottom bar.
   - Unchanged: `doApprove`, `doReject`, both confirm dialogs (still ask first), every `OrdersRepository` call, totals, search and chips, texts.
     After a SUCCESSFUL approve / reject the panel closes and the toast shows the result; after an error the panel stays open. Removed (replaced): `OrderCard`.
   - Phone test (5 steps; use a test order, do not approve a real student's payment): `docs/SESSION_2026-10-20_ADMIN_B3E_PAYMENTS.md`.
-  - Compile risks to check first if red: the two `AdminDetailPanel` call sites (with and without `actions`); smart casts of `detailOrder` in lambdas; the new imports.
-- B3f PUSHED (commit starts "Admin B3f (Catalog)"), `[~]` not compiled / not tested on a phone: `CatalogScreen.kt`. LAYOUT ONLY, save / delete logic untouched.
+- B3f PUSHED (commit starts "Admin B3f (Catalog)", 564b342), CI #861 In progress at 3:24 pm (result not seen), `[~]` not tested on a phone: `CatalogScreen.kt`. LAYOUT ONLY, save / delete logic untouched.
   - Each package is a compact row (`CatalogRow`: name, id, price, Inactive badge, arrow). A tap opens the editor panel (`CatalogEditor` = `AdminDetailPanel`,
     same 12 fields and labels, helper `CatalogField`); `Cancel` and `Save package` are the bar fixed at the bottom; `Delete package` is the last item in the
     panel and still asks first. The list stays composed underneath, so its scroll position is kept. `RoseTone` became `AdminRose`.
@@ -76,16 +75,26 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
     reloads; after an error the panel stays open and the toast shows it. Removed (replaced): `CatalogCard`, the old full-screen editor.
   - Phone test (5 steps; use a test package, do not delete a real one): `docs/SESSION_2026-10-20_ADMIN_B3F_CATALOG.md`.
   - Compile risks to check first if red: `AdminDetailPanel` named arguments plus trailing content lambda; smart cast of `editTarget` in the `onDelete` lambda; the new imports.
+- B3g PUSHED (commit starts "Admin B3g (Users)"), `[~]` not compiled / not tested on a phone: `UsersScreen.kt`. LAYOUT ONLY, `UsersRepository` calls, search, filters and grant logic untouched.
+  - Each scholar is a compact row (`ScholarRow`: initials, name, e-mail, student id and level, arrow). A tap opens the profile panel (`ProfilePanel` = `AdminDetailPanel`,
+    subtitle `Student Scholar Profile`): student id (tap to copy), level, joined, contact and school details, unlocked packages, recent scores. `Close` and
+    `Grant New Package` are the bar fixed at the bottom.
+  - `Grant New Package` opens a SECOND panel over the profile (`GrantPanel`: recipient, note, package choices; `Cancel` and `Confirm & Unlock Package` fixed at the bottom).
+    `All Packages` still asks first. After a successful grant the grant panel closes and the profile reloads its package list; after an error the grant panel stays open.
+  - Changed on purpose: the quick `Grant Package` button on each row is gone (open the scholar first). Removed (replaced): `ScholarCard`, `InspectView`, `GrantView`, `ViewHeader`,
+    the screen-level `BackHandler`s (the panels have their own).
+  - Phone test (5 steps; use a test student, do not grant a real student a package): `docs/SESSION_2026-10-20_ADMIN_B3G_USERS.md`.
+  - Compile risks to check first if red: `AdminDetailPanel` named arguments plus trailing content lambda; `ProfileBody` and the content lambdas emitting several children; smart casts of `inspectTarget` / `grantTarget` in lambdas.
+- B3 (the five audited modules: Competitions, Inquiries, Payments, Catalog, Users) is now DONE in code.
 
 ## Next slices, in this order (one per chat)
-1. First: read the CI result of B3e (#860) and of B3f (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
+1. First: read the CI result of B3f (#861) and of B3g (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
 2. A4 run on the phone: one device, one admin, one test student, rows in `docs/A4_TEST_MATRIX.md`; record in `docs/A4_RESULTS.md`.
-3. B3g Users (order in `docs/ADMIN_AUDIT.md`). Reuse `AdminDetailPanel`, never write another one.
-   `AdminToast` and `AdminStatusBadge` live in `InquiriesScreen.kt`: never delete them (other screens use them).
-4. B2b audit of the 7 files not read yet (add them to `docs/ADMIN_AUDIT.md`).
-5. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
+3. B2b audit of the 7 files not read yet (Broadcasts, Broadcast composer, Course content, Free resources, Overview, Database status, Admin home; add them to `docs/ADMIN_AUDIT.md`), then a B3 slice for each one the audit flags.
+   Reuse `AdminDetailPanel`, never write another one. `AdminToast` and `AdminStatusBadge` live in `InquiriesScreen.kt`: never delete them (other screens use them).
+4. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
    Already seen: `AccessGrantsScreen.kt` used a fixed pink (fixed in A3); `CatalogScreen.kt` RoseTone (fixed in B3f); `CompetitionsScreen.kt` CompOrange FB923C.
    The panel uses `WisdomBackground`, which is the page colour of the admin host, so it should follow Day / Night; check it in Transparent in C1.
 
 ## Not in scope
-Payment logic, prices, anything that weakens the server rules (B3e changed the Payments LAYOUT only; B3f changed the Catalog LAYOUT only).
+Payment logic, prices, anything that weakens the server rules (B3e changed the Payments LAYOUT only; B3f changed the Catalog LAYOUT only; B3g changed the Users LAYOUT only).
