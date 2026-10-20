@@ -19,6 +19,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
@@ -64,8 +65,14 @@ import java.util.TimeZone
 // ADMIN-native N2 (docs/ADMIN_NATIVE_PLAN.md). Native version of the website InquiriesPanel (Contact inquiries).
 // Same data and actions: list the newest 200, change status (new, read, replied, archived). Texts for the empty state
 // are copied from the website. Layout follows docs/ADMIN_UI_V2_PLAN.md section 3: dark cards, filter chips that all fit
-// the width (no horizontal scrolling), one LazyColumn, tap a card to open its status buttons.
-// This file also defines the small pieces the next admin slices reuse (AdminToast, AdminStatusBadge).
+// the width (no horizontal scrolling), one LazyColumn.
+// B3d (2026-10-20, docs/ADMIN_DASHBOARD_NEXT.md): each inquiry is a compact row (name, e-mail, status, two lines of the
+// message, date, arrow). A tap opens the inquiry panel (AdminDetailPanel, subtitle Inquiry): status and date, e-mail,
+// interest, the whole message, and the four status buttons fixed at the bottom. Nothing expands inside the list any more.
+// A search box under the filter chips narrows the list by name, e-mail, interest or message. The list stays composed
+// underneath the panel, so its scroll position and the typed search survive. Repository calls, texts and the status
+// logic are unchanged. Layout change only.
+// This file also defines the small pieces the next admin slices reuse (AdminToast, AdminStatusBadge). Never delete them.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val FILTERS: List<Pair<String, String>> = listOf(
@@ -84,7 +91,8 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
     var busyId by remember { mutableStateOf<String?>(null) }
     var toast by remember { mutableStateOf("") }
     var filter by rememberSaveable { mutableStateOf("all") }
-    var expandedId by rememberSaveable { mutableStateOf<String?>(null) }
+    var query by rememberSaveable { mutableStateOf("") }
+    var detailId by rememberSaveable { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(reloadKey) {
@@ -102,7 +110,20 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
     val current = result
     val all: List<InquiryItem> = if (current is InquiriesResult.Success) current.items else emptyList()
     val newCount = all.count { it.status == "new" }
-    val shown = if (filter == "all") all else all.filter { it.status == filter }
+    val byStatus = if (filter == "all") all else all.filter { it.status == filter }
+    val q = query.trim()
+    val shown = if (q.isEmpty()) {
+        byStatus
+    } else {
+        byStatus.filter {
+            val service = it.service
+            it.name.contains(q, ignoreCase = true) ||
+                it.email.contains(q, ignoreCase = true) ||
+                it.message.contains(q, ignoreCase = true) ||
+                (service != null && service.contains(q, ignoreCase = true))
+        }
+    }
+    val detailItem = all.firstOrNull { it.id == detailId }
 
     fun changeStatus(item: InquiryItem, status: String) {
         scope.launch {
@@ -171,6 +192,14 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
                 }
             }
 
+            item(key = "search") {
+                AdminSearchBox(
+                    query = query,
+                    onQueryChange = { query = it },
+                    placeholder = "Search by name, e-mail or message"
+                )
+            }
+
             if (current == null) {
                 item(key = "loading") {
                     Text(
@@ -204,7 +233,7 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
             } else if (shown.isEmpty()) {
                 item(key = "nomatch") {
                     Text(
-                        text = "No messages with this status",
+                        text = if (q.isEmpty()) "No messages with this status" else "No message matches your search",
                         color = WisdomMuted,
                         fontSize = 14.sp,
                         textAlign = TextAlign.Center,
@@ -216,13 +245,28 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
             }
 
             items(shown, key = { it.id }) { item ->
-                InquiryCard(
+                InquiryRow(
                     item = item,
-                    expanded = expandedId == item.id,
-                    busy = busyId == item.id,
-                    onToggle = { expandedId = if (expandedId == item.id) null else item.id },
-                    onStatus = { status -> changeStatus(item, status) }
+                    onClick = { detailId = item.id }
                 )
+            }
+        }
+
+        // B3d: the inquiry panel. Drawn after the list, so it covers it; the list stays composed underneath.
+        if (detailItem != null) {
+            AdminDetailPanel(
+                title = detailItem.name,
+                subtitle = "Inquiry",
+                onBack = { detailId = null },
+                actions = {
+                    StatusButtons(
+                        currentStatus = detailItem.status,
+                        busy = busyId == detailItem.id,
+                        onStatus = { status -> changeStatus(detailItem, status) }
+                    )
+                }
+            ) {
+                InquiryDetailBody(item = detailItem)
             }
         }
 
@@ -231,90 +275,139 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
                 text = toast,
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
-                    .padding(start = 16.dp, end = 16.dp, bottom = 16.dp)
+                    .padding(
+                        start = 16.dp,
+                        end = 16.dp,
+                        bottom = if (detailItem != null) 128.dp else 16.dp
+                    )
             )
         }
     }
 }
 
+/** B3d: the compact list row of one inquiry: name, e-mail, status, two lines of the message, date, arrow. */
 @Composable
-private fun InquiryCard(
+private fun InquiryRow(
     item: InquiryItem,
-    expanded: Boolean,
-    busy: Boolean,
-    onToggle: () -> Unit,
-    onStatus: (String) -> Unit
+    onClick: () -> Unit
 ) {
     val shape = RoundedCornerShape(16.dp)
-    Column(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(shape)
             .background(WisdomCard)
             .border(1.dp, WisdomBorderWhite, shape)
-            .clickable(onClick = onToggle)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp)
+            .clickable(onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
-        Row(verticalAlignment = Alignment.Top) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = item.name,
-                    color = WisdomTextPrimary,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                Text(
-                    text = item.email,
-                    color = WisdomMuted,
-                    fontSize = 13.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+        Column(
+            modifier = Modifier.weight(1f),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Row(verticalAlignment = Alignment.Top) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = item.name,
+                        color = WisdomTextPrimary,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = item.email,
+                        color = WisdomMuted,
+                        fontSize = 13.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+                AdminStatusBadge(status = item.status)
             }
-            Spacer(modifier = Modifier.width(8.dp))
-            AdminStatusBadge(status = item.status)
-        }
-        if (item.service != null) {
             Text(
-                text = "Interest: ${item.service}",
-                color = WisdomCyan,
+                text = item.message,
+                color = WisdomTextPrimary,
+                fontSize = 14.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = formatWhen(item.createdAt),
+                color = WisdomMuted,
                 fontSize = 12.sp
             )
         }
-        Text(
-            text = item.message,
-            color = WisdomTextPrimary,
-            fontSize = 14.sp,
-            maxLines = if (expanded) Int.MAX_VALUE else 3,
-            overflow = TextOverflow.Ellipsis
+        Spacer(modifier = Modifier.width(8.dp))
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = WisdomMuted
         )
+    }
+}
+
+/** B3d: the content of the inquiry panel: status and date, e-mail, interest, then the whole message. */
+@Composable
+private fun InquiryDetailBody(item: InquiryItem) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        AdminStatusBadge(status = item.status)
         Text(
             text = formatWhen(item.createdAt),
             color = WisdomMuted,
             fontSize = 12.sp
         )
-        if (expanded) {
-            val rows = InquiriesRepository.STATUSES.chunked(2)
-            for (pair in rows) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    for (status in pair) {
-                        StatusButton(
-                            label = status,
-                            selected = item.status == status,
-                            enabled = !busy && item.status != status,
-                            onClick = { onStatus(status) },
-                            modifier = Modifier.weight(1f)
-                        )
-                    }
-                    for (i in pair.size until 2) {
-                        Spacer(modifier = Modifier.weight(1f))
-                    }
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = item.email,
+            color = WisdomMuted,
+            fontSize = 14.sp
+        )
+        if (item.service != null) {
+            Text(
+                text = "Interest: ${item.service}",
+                color = WisdomCyan,
+                fontSize = 13.sp
+            )
+        }
+    }
+    Text(
+        text = item.message,
+        color = WisdomTextPrimary,
+        fontSize = 15.sp
+    )
+}
+
+/** B3d: the four status buttons, two to a row. Used as the bar fixed at the bottom of the inquiry panel. */
+@Composable
+private fun StatusButtons(
+    currentStatus: String,
+    busy: Boolean,
+    onStatus: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        for (pair in InquiriesRepository.STATUSES.chunked(2)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                for (status in pair) {
+                    StatusButton(
+                        label = status,
+                        selected = currentStatus == status,
+                        enabled = !busy && currentStatus != status,
+                        onClick = { onStatus(status) },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+                for (i in pair.size until 2) {
+                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
         }

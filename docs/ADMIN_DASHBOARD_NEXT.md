@@ -45,6 +45,10 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   second panel "Choose an exam" (search + rows); picking one closes only the picker. Back closes the picker first, then the form.
   Helper `CompFieldBlock`; toast lifted to 88 dp while a panel with a bottom bar is open. Phone test: `docs/SESSION_2026-10-20_ADMIN_B3A_COMPETITIONS.md`.
 - B3b + B3c PUSHED (commit starts "Admin B3b/B3c (Competitions)"), `[~]` CI result not read yet / not tested on a phone, same file:
+  - CI: the owner's Actions screenshot (3:06 pm) showed #857 (this commit) and #858 (docs) still In progress. Result not seen. A code read in the
+    B3d chat found no problem in the three risk spots below (code read only, not a build): `EntryItem.name` is used as a plain String in
+    `Text(text = entry.name)`; `EntriesBody` gets `result` as a parameter, so its smart casts are stable; the multi-child composables sit inside the
+    panel's composable Column lambda.
   - Each contest is a compact row (`CompetitionRow`: state badge, visible/hidden badge, title, start + minutes, arrow). A tap opens the contest panel
     (`CompetitionDetailBody`: badges, when / ends / points, audience, prize, actions two to a row: Show/Hide, Pause/Resume, Start now, Reschedule,
     Cancel contest, Entries). The panel finds the contest by id in the reloaded list, so it shows the new state after an action.
@@ -55,13 +59,22 @@ Owner rules: not a coder, plain steps, ONE small slice per chat, push every slic
   - Phone test (6 steps): `docs/SESSION_2026-10-20_ADMIN_B3B_B3C_COMPETITIONS.md`.
   - Compile risks to check first if red: `EntriesBody` uses `it.name.contains(...)` (assumes `EntryItem.name` is a non-null String); the new
     `KeyboardArrowRight` import; the plain composables that emit several children into the panel Column.
+- B3d PUSHED (commit starts "Admin B3d (Inquiries)"), `[~]` CI not seen / not tested on a phone: `InquiriesScreen.kt`.
+  - Each inquiry is a compact row (`InquiryRow`: name, e-mail, status badge, two lines of the message, date, arrow). A tap opens the inquiry panel
+    (`InquiryDetailBody`: status and date, e-mail, interest, the whole message; `StatusButtons`, the four statuses two to a row, fixed at the bottom).
+    The panel stays open after a status change. New search box under the filter chips (name, e-mail, interest, message), combined with the status chips.
+  - Unchanged: `InquiriesRepository` calls, status logic, toast and empty-state texts. Removed (replaced): `InquiryCard`, `expandedId`.
+    `AdminToast` and `AdminStatusBadge` stay in `InquiriesScreen.kt` untouched (other screens use them); NOT moved to `AdminKit.kt`.
+  - Phone test (5 steps): `docs/SESSION_2026-10-20_ADMIN_B3D_INQUIRIES.md`.
+  - Compile risks to check first if red: the new `KeyboardArrowRight` import; `InquiriesRepository.STATUSES.chunked(2)` inside `StatusButtons`;
+    the local `val service = it.service` in the search filter.
 
 ## Next slices, in this order (one per chat)
-1. First: read the CI result of B3b/B3c (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
+1. First: read the CI result of B3b/B3c (#857) and B3d (ask the owner for the Actions list); if red, fix it before anything else and log it in `docs/BUILD_PITFALLS.md`.
 2. A4 run on the phone: one device, one admin, one test student, rows in `docs/A4_TEST_MATRIX.md`; record in `docs/A4_RESULTS.md`.
-3. B3d Inquiries (detail panel + search), B3e Payments (Approve / Reject fixed at the bottom, logic unchanged), B3f Catalog (editor in the panel,
+3. B3e Payments (Approve / Reject fixed at the bottom, logic unchanged), B3f Catalog (editor in the panel,
    fixed pink to `AdminRose`), B3g Users (order in `docs/ADMIN_AUDIT.md`). Reuse `AdminDetailPanel`, never write another one.
-   `AdminToast` and `AdminStatusBadge` live in `InquiriesScreen.kt`: move them to `AdminKit.kt` first if Inquiries is rewritten.
+   `AdminToast` and `AdminStatusBadge` live in `InquiriesScreen.kt`: never delete them (other screens use them).
 4. B2b audit of the 7 files not read yet (add them to `docs/ADMIN_AUDIT.md`).
 5. C1 audit of fixed colours and fills that hide the Day / Night / Transparent looks; `docs/ADMIN_LOOKS_AUDIT.md`.
    Already seen: `AccessGrantsScreen.kt` used a fixed pink (fixed in A3); `CatalogScreen.kt` RoseTone FB7185; `CompetitionsScreen.kt` CompOrange FB923C.
