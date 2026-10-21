@@ -2,7 +2,7 @@
 
 > Repo is PUBLIC: no secrets, no student data. This is the ONLY live plan (see `docs/PARKED_2026-10-21.md`). Follow `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`: one slice = one commit straight to `main`, update this file in the same commit, say "not compiled" when CI was not seen.
 
-Status: STEP 1 (database) DONE 2026-10-21. Owner answered all open questions the same day (section 5). STEP 2a (data layer) written, not compiled. Next: STEP 2b.
+Status: STEP 1 (database) DONE 2026-10-21. Owner answered all open questions the same day (section 5). STEP 2a (data layer) and STEP 2b (hub screens) written, STEP 3 (full-screen helper) written. ALL THREE ARE NOT COMPILED: first thing next time, read the CI result of the last three games commits (ask the owner for the Actions list) and fix any compile error before adding code. Next: STEP 4 (Match).
 
 ## 1. Two games (not four)
 
@@ -61,10 +61,10 @@ Table `public.game_sets` (new, empty; does not touch `learning_resources`):
 | Step | What | Status |
 |---|---|---|
 | 1 | Database `game_sets` | DONE |
-| 2a | Data layer `data/games/GameSetsRepository.kt` (chapters of a subject, one set per chapter and game, offline cache, skips malformed items). New file, used by no screen yet | WRITTEN, NOT COMPILED |
-| 2b | Game hub UI: Game tab → pick game (Wisdom Defense / Match) → student's own courses → subject → chapter list from `GameSetsRepository.chapters`, "coming soon" per game when a chapter has no set. Open points: how a subject maps to the `scope_path` string (check how StudyWorkspaceScreen builds it), and how MainActivity passes the chosen course | NEXT |
-| 3 | Full-screen mode while playing | not started |
-| 4 | Match (new) | not started |
+| 2a | Data layer `data/games/GameSetsRepository.kt` (chapters of a subject, one set per chapter and game, offline cache, skips malformed items). New file | WRITTEN, NOT COMPILED |
+| 2b | Game hub UI: `ui/games/GameHubScreen.kt` (game → course → subject → chapter list, "Coming soon" per game) + `data/games/GameHubIndex.kt` (subjects of a package). New files, NOT wired into the Game tab | WRITTEN, NOT COMPILED, NOT TESTED |
+| 3 | Full-screen helper `ui/games/common/GameFullScreen.kt` (`GameFullScreenEffect()` hides status + system bars while a game screen is shown; `GameFullScreen.active` tells MainActivity to hide the bottom bar). New file, used by no screen yet | WRITTEN, NOT COMPILED |
+| 4 | Match (new): engine + screen, new files only, takes a `GameSetData` and an `onExit` | NEXT |
 | 5 | Wisdom Defense rewrite (cockpit, arc, nearest-enemy shot) | not started |
 | 6 | Remove the old FABs on Question Banks / Exams and the old game question source | not started |
 | 7 | Admin: a bulk JSON paste form for `game_sets` (the hub paste flow only writes `learning_resources`). Needed before the owner can load sets | not started |
@@ -76,3 +76,9 @@ Order note: step 7 may be moved earlier if the owner wants to load content while
 
 ## 8. Already built and live (Oct 21)
 Game tab (`ui/games/GameTabScreen.kt`) with game → course → subject flow; the games currently read Question Banks / Exams through StudyWorkspaceScreen (to be replaced). Rules for compile safety: always draw `AtmosphereBackground(modifier = Modifier.fillMaxSize())` as the first child of a `Box`, never with a content lambda (`docs/GAMES_HANDOFF_FOR_CLAUDE.md`, CI errors).
+
+## 9. Notes for the next agent (step 2b checks and the switchover)
+- How a subject gets its `scope_path` (the open point of step 2b): `GameHubIndex.knownSubjects(packageId)` walks the admin content tree (`data/admin/AdminContentTree.kt`), the same ids and scope paths the hubs and locks use (`grade/9/chemistry`, `freshman/physics`, `ece/sem-1/eceg3051`). The `NativePackage.id` values (`grade-9`, `freshman`, `ece-y3-sem-1`, ...) match the `packageId` values in that tree (checked 2026-10-21 for grade-9 and ece-y3-sem-1; confirm the rest on the first phone test). Packages that are not in the tree (the entrance stream, UAT, GAT, COC, Exit Exam, Remedial ...) list only the subjects that really have a published `game_sets` row (`GameHubIndex.packageSubjects`).
+- HYPOTHESIS: the admin content tree is a hand copy of the website lists; a subject added on the website must also be added there, or it will not show for tree-based packages.
+- SWITCHOVER (do it together with the first playable game, so students never meet a dead end): (1) in MainActivity show `GameHubScreen(packageList, onPlay = ...)` instead of `GameTabScreen` for the Game tab (`onPlay(game, scopePath, chapter)` loads the set with `GameSetsRepository.loadSet` and opens the game); (2) hide the bottom bar while `GameFullScreen.active` is true; (3) each game screen calls `GameFullScreenEffect()` first; (4) keep the old Climb / Defense code until step 6.
+- Match and Defense must read their text through the shared rich-text renderer only if the owner's sets use markup; check `docs/CONTENT_SHAPES.md` before step 4.
