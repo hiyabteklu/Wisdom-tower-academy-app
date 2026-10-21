@@ -52,10 +52,6 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlinx.coroutines.launch
 
-/**
- * Tower Climb host for G5: loading / empty / error / scrollable tower + floor sheet.
- * Play flow (G6) extends with FloorScene / session.
- */
 @Composable
 fun TowerClimbScreen(
     scopePath: String,
@@ -74,6 +70,8 @@ fun TowerClimbScreen(
     var progress by remember { mutableStateOf(GameStore.getClimb(context, scopePath)) }
     var selected by remember { mutableStateOf<ClimbFloor?>(null) }
     var sealMessage by remember { mutableStateOf<Pair<String, String>?>(null) }
+    var playFloor by remember { mutableStateOf<ClimbFloor?>(null) }
+    var showAttic by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
@@ -100,7 +98,37 @@ fun TowerClimbScreen(
 
     LaunchedEffect(scopePath) { reload() }
 
-    BackHandler(onBack = onBack)
+    BackHandler(onBack = {
+        when {
+            playFloor != null -> playFloor = null
+            showAttic -> showAttic = false
+            else -> onBack()
+        }
+    })
+
+    if (playFloor != null) {
+        ClimbPlayScreen(
+            scopePath = scopePath,
+            floor = playFloor!!,
+            locks = locks,
+            allFloorsForBoss = model?.floors ?: emptyList(),
+            onExitToTower = {
+                playFloor = null
+                reload()
+            },
+            modifier = modifier.fillMaxSize()
+        )
+        return
+    }
+
+    if (showAttic) {
+        AtticScreen(
+            attic = progress.attic,
+            onBack = { showAttic = false },
+            modifier = modifier.fillMaxSize()
+        )
+        return
+    }
 
     Column(
         modifier = modifier
@@ -113,7 +141,10 @@ fun TowerClimbScreen(
             bestStreak = progress.bestStreak,
             atticCount = progress.attic.size,
             onBack = onBack,
-            onAttic = onOpenAttic
+            onAttic = {
+                showAttic = true
+                onOpenAttic()
+            }
         )
 
         Box(Modifier.weight(1f).fillMaxWidth()) {
@@ -146,11 +177,7 @@ fun TowerClimbScreen(
                         verticalArrangement = Arrangement.Center,
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        Text(
-                            "No question banks in this course yet.",
-                            color = WisdomTextPrimary,
-                            fontWeight = FontWeight.SemiBold
-                        )
+                        Text("No question banks in this course yet.", color = WisdomTextPrimary, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(8.dp))
                         Text("Check back when materials are published.", color = WisdomMuted, fontSize = 14.sp)
                     }
@@ -161,8 +188,7 @@ fun TowerClimbScreen(
                         floorRecords = records,
                         onFloorTap = { floor ->
                             if (floor.sealed) {
-                                val gate = floor.sealGate ?: HubGate.ComingSoon
-                                sealMessage = sealCopy(gate)
+                                sealMessage = sealCopy(floor.sealGate ?: HubGate.ComingSoon)
                             } else {
                                 selected = floor
                             }
@@ -205,6 +231,7 @@ fun TowerClimbScreen(
             onDismiss = { selected = null },
             onClimb = {
                 selected = null
+                playFloor = floor
                 onStartFloor(floor)
             }
         )
@@ -233,19 +260,14 @@ private fun ClimbHeader(
     onAttic: () -> Unit
 ) {
     Row(
-        Modifier
-            .fillMaxWidth()
-            .background(Color(0xEE0A101C))
-            .padding(horizontal = 8.dp, vertical = 10.dp),
+        Modifier.fillMaxWidth().background(Color(0xEE0A101C)).padding(horizontal = 8.dp, vertical = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Icon(
             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
             contentDescription = "Back",
             tint = WisdomTextPrimary,
-            modifier = Modifier
-                .clickable(onClick = onBack)
-                .padding(8.dp)
+            modifier = Modifier.clickable(onClick = onBack).padding(8.dp)
         )
         Column(Modifier.weight(1f)) {
             Text("Tower Climb", color = WisdomCyan, fontSize = 12.sp, fontWeight = FontWeight.Bold)
@@ -261,10 +283,7 @@ private fun ClimbHeader(
             text = "Attic ($atticCount)",
             color = WisdomMuted,
             fontSize = 12.sp,
-            modifier = Modifier
-                .clip(RoundedCornerShape(12.dp))
-                .clickable(onClick = onAttic)
-                .padding(horizontal = 8.dp, vertical = 6.dp)
+            modifier = Modifier.clip(RoundedCornerShape(12.dp)).clickable(onClick = onAttic).padding(horizontal = 8.dp, vertical = 6.dp)
         )
     }
 }
@@ -277,10 +296,7 @@ private fun FloorSheet(
     onClimb: () -> Unit
 ) {
     Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0x99000000))
-            .clickable(onClick = onDismiss),
+        Modifier.fillMaxSize().background(Color(0x99000000)).clickable(onClick = onDismiss),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
@@ -299,11 +315,7 @@ private fun FloorSheet(
             )
             Text(floor.title, color = WisdomMuted, fontSize = 14.sp)
             Spacer(Modifier.height(8.dp))
-            Text(
-                text = "${floor.questionHint} questions in pool",
-                color = WisdomTextPrimary,
-                fontSize = 14.sp
-            )
+            Text("${floor.questionHint} questions in pool", color = WisdomTextPrimary, fontSize = 14.sp)
             if (stars > 0) {
                 Text("Best: ${"★".repeat(stars)}", color = GameTheme.gold, fontSize = 14.sp)
             }
@@ -318,18 +330,11 @@ private fun FloorSheet(
 @Composable
 private fun SealDialog(title: String, body: String, onDismiss: () -> Unit) {
     Box(
-        Modifier
-            .fillMaxSize()
-            .background(Color(0x99000000))
-            .clickable(onClick = onDismiss),
+        Modifier.fillMaxSize().background(Color(0x99000000)).clickable(onClick = onDismiss),
         contentAlignment = Alignment.Center
     ) {
         Column(
-            Modifier
-                .padding(32.dp)
-                .clip(RoundedCornerShape(16.dp))
-                .background(Color(0xFF121A2A))
-                .padding(20.dp),
+            Modifier.padding(32.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF121A2A)).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = WisdomMuted)
