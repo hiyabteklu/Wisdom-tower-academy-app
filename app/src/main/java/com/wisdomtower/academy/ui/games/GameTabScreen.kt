@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameSetData
 import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.GameSetsResult
+import com.wisdomtower.academy.ui.games.defense.WisdomDefenseScreen
 import com.wisdomtower.academy.ui.games.match.MatchScreen
 import com.wisdomtower.academy.ui.packages.NativePackage
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
@@ -29,9 +30,8 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.launch
 
 /**
- * Game tab root (docs/GAMES_HUB_PLAN.md switchover, section 9).
- * Shows [GameHubScreen]; on Match chapter play loads the set and opens [MatchScreen].
- * [onSelectPackage] is kept so MainActivity's existing call site still compiles; the new hub does not use it.
+ * Game tab root (docs/GAMES_HUB_PLAN.md switchover).
+ * Hosts [GameHubScreen]; Match and Wisdom Defense load sets and open their screens.
  */
 @Composable
 fun GameTabScreen(
@@ -42,7 +42,8 @@ fun GameTabScreen(
     @Suppress("UNUSED_PARAMETER")
     val unusedSelect = onSelectPackage
 
-    var activeSet by remember { mutableStateOf<GameSetData?>(null) }
+    var activeMatch by remember { mutableStateOf<GameSetData?>(null) }
+    var activeDefense by remember { mutableStateOf<GameSetData?>(null) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -50,18 +51,26 @@ fun GameTabScreen(
 
     LaunchedEffect(Unit) { GameLaunch.kind = null }
 
-    BackHandler(enabled = activeSet != null || error != null) {
-        activeSet = null
+    BackHandler(enabled = activeMatch != null || activeDefense != null || error != null) {
+        activeMatch = null
+        activeDefense = null
         error = null
         loading = false
     }
 
     Box(modifier = modifier.fillMaxSize()) {
         when {
-            activeSet != null -> {
+            activeMatch != null -> {
                 MatchScreen(
-                    set = activeSet!!,
-                    onExit = { activeSet = null },
+                    set = activeMatch!!,
+                    onExit = { activeMatch = null },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+            activeDefense != null -> {
+                WisdomDefenseScreen(
+                    set = activeDefense!!,
+                    onExit = { activeDefense = null },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -88,25 +97,35 @@ fun GameTabScreen(
                     packageList = packageList,
                     modifier = Modifier.fillMaxSize(),
                     onPlay = { game, scopePath, chapter ->
-                        if (game != GameSetsRepository.GAME_MATCH) {
-                            error = "Wisdom Defense is coming soon."
+                        if (game != GameSetsRepository.GAME_MATCH && game != GameSetsRepository.GAME_DEFENSE) {
+                            error = "Unknown game."
                             return@GameHubScreen
                         }
                         loading = true
                         error = null
                         scope.launch {
                             when (val result = GameSetsRepository.loadSet(
-                                context, scopePath, chapter, GameSetsRepository.GAME_MATCH
+                                context, scopePath, chapter, game
                             )) {
                                 is GameSetsResult.Success -> {
                                     val set = result.value
-                                    if (set == null || set.matchPairs.isEmpty()) {
-                                        error = "No Match set for this chapter yet."
-                                        loading = false
-                                    } else {
-                                        activeSet = set
-                                        loading = false
+                                    when (game) {
+                                        GameSetsRepository.GAME_MATCH -> {
+                                            if (set == null || set.matchPairs.isEmpty()) {
+                                                error = "No Match set for this chapter yet."
+                                            } else {
+                                                activeMatch = set
+                                            }
+                                        }
+                                        GameSetsRepository.GAME_DEFENSE -> {
+                                            if (set == null || set.defenseItems.isEmpty()) {
+                                                error = "No Defense set for this chapter yet."
+                                            } else {
+                                                activeDefense = set
+                                            }
+                                        }
                                     }
+                                    loading = false
                                 }
                                 is GameSetsResult.Failure -> {
                                     error = result.message
@@ -121,7 +140,6 @@ fun GameTabScreen(
     }
 }
 
-/** Kept for any code that still writes GameLaunch.kind from the old Climb/Defense tab flow. */
 object GameLaunch {
     var kind by mutableStateOf<String?>(null)
 }

@@ -1,6 +1,6 @@
 # GAMES HUB PLAN (owner decisions, 2026-10-21)
 
-Status: Steps 1–3 CI green. Step 4 Match written. Switchover: GameTabScreen now hosts GameHubScreen + Match load/play (MainActivity call site unchanged). Bottom-bar hide script: `scripts/patch_game_fullscreen_bottom_bar.py` (run via Apply pending patches workflow, or apply by hand). Defense still "coming soon" from hub. Next: CI for Match + switchover; then step 5 Wisdom Defense; then run bottom-bar patch if not applied.
+Status: Steps 1–3 CI green. Step 4 Match written + switchover host. Step 5 Wisdom Defense engine + cockpit screen WRITTEN and wired in GameTabScreen (NOT COMPILED this commit). Bottom-bar hide still needs `scripts/patch_game_fullscreen_bottom_bar.py`. Next: CI; step 6 remove old FABs when owner confirms; step 7 admin bulk paste for game_sets (needed to load real content).
 
 ## 6. Build order and status
 | Step | What | Status |
@@ -9,18 +9,16 @@ Status: Steps 1–3 CI green. Step 4 Match written. Switchover: GameTabScreen no
 | 2a | GameSetsRepository | DONE (CI green) |
 | 2b | GameHubScreen + GameHubIndex | DONE (CI green) |
 | 3 | GameFullScreen | DONE (CI green) |
-| 4 | Match engine + screen | WRITTEN; host wired in GameTabScreen; NOT COMPILED this commit |
-| 5 | Wisdom Defense rewrite | not started |
+| 4 | Match | DONE host wired; CI green for engine/screen |
+| 5 | Wisdom Defense | WRITTEN + wired; NOT COMPILED |
 | 6 | Remove old FABs | not started |
 | 7 | Admin bulk JSON for game_sets | not started |
 
-## Switchover notes
-- Game tab still calls `GameTabScreen(packageList, onSelectPackage)` — body now opens GameHub + Match.
-- `onSelectPackage` unused (PackageDetail path when selectedPackage != null still exists for Learning).
-- MainActivity bottomBar should use `!GameFullScreen.active` — apply `scripts/patch_game_fullscreen_bottom_bar.py`.
-- MatchScreen already calls `GameFullScreenEffect()`.
+## Defense files (step 5)
+- `data/games/WisdomDefenseEngine.kt` — multi-enemy approach, nearest-only kill, hearts, win/lose
+- `ui/games/defense/WisdomDefenseScreen.kt` — question top, canvas road/enemies, 4 choice bullets, AtmosphereBackground, GameFullScreenEffect
 
-## Owner phone test (after green CI + sets in DB)
-1. Game tab → Match → course → subject → chapter with a published match set → play
-2. Exit returns to hub; Back works
-3. Defense chapter → "coming soon" message
+## Owner phone test (after green CI + published sets)
+1. Game → Match → course → subject → chapter with match set
+2. Game → Wisdom Defense → same with defense set
+3. Correct kills nearest only; wrong lets enemies keep coming; 0 hearts = lose
