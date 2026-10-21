@@ -67,13 +67,16 @@ import kotlinx.coroutines.launch
 
 /**
  * Match game screen (docs/GAMES_HUB_PLAN.md step 4, animated by docs/GAMES_FEEL_PLAN.md slice M2,
- * HUD and result by slice M3).
+ * HUD and result by slice M3, sound mapping by slice P1).
  * Takes a loaded [GameSetData] with match pairs and [onExit].
  *
  * The engine swaps matched cards for new ones at once (M1). The screen keeps its own `shown`
  * list so the matched pair can pulse green and fade out first, and the new cards then take the
  * same two slots and scale in. Every other card stays where it is.
  * `attempt` restarts the game (new engine, fresh screen state) when the player taps Retry.
+ *
+ * P1 sound map: tap = Tap + light tap | match = Correct (Combo from a streak of 2) + correct buzz |
+ * wrong pair = Wrong + wrong buzz | result screen shown = Victory.
  */
 @Composable
 fun MatchScreen(
@@ -112,6 +115,11 @@ fun MatchScreen(
     val revision = tick
     val phase = engine.phase
     val finished = phase is MatchPhase.Complete && busy == 0
+
+    // P1: the result screen plays the fanfare once per finished game (Retry resets `finished`).
+    LaunchedEffect(finished, attempt) {
+        if (finished) GameAudio.play(GameAudio.Sfx.Victory)
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
@@ -189,7 +197,14 @@ fun MatchScreen(
                                     }
                                     MatchSelectResult.Matched,
                                     MatchSelectResult.MatchedAndFinished -> {
-                                        GameAudio.play(GameAudio.Sfx.Correct)
+                                        // Combo chirp from a streak of 2; the last pair keeps the plain
+                                        // Correct sound because the Victory fanfare follows on the result screen.
+                                        val lastPair = engine.phase is MatchPhase.Complete
+                                        if (engine.streak >= 2 && !lastPair) {
+                                            GameAudio.play(GameAudio.Sfx.Combo)
+                                        } else {
+                                            GameAudio.play(GameAudio.Sfx.Correct)
+                                        }
                                         GameHaptics.correct(view, true)
                                         val oldIds = engine.lastMatchedCards.map { it.id }
                                         val newCards: List<MatchCard> = engine.lastNewCardIds
@@ -244,7 +259,7 @@ private fun MatchCardView(
     }
 
     // Selected card lifts.
-    val lift by animateFloatAsState(if (selected) 1.06f else 1f, tween(120), label = "matchLift")
+    val lift by animateFloatAsState(if (selected) 1.06f else 1f, tween(if (reduceMotion) 0 else 120), label = "matchLift")
 
     // Matched card: green pulse, then shrink and fade.
     val pulse = remember { Animatable(0f) }
