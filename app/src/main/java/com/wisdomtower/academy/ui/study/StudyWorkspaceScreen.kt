@@ -304,7 +304,8 @@ fun StudyWorkspaceScreen(
         return
     }
 
-    AtmosphereBackground(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize()) {
+        AtmosphereBackground(modifier = Modifier.fillMaxSize())
         Column(Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
