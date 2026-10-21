@@ -16,6 +16,8 @@ Rules: push every slice straight to `main` (one commit, plan table updated in th
 7. Answer buttons are 78dp circles with 11sp text: unreadable for real answers, no pressed/right/wrong state.
 8. HUD hearts are plain circles. No progress bar. Result screen is two lines of text.
 
+(Items 2, 4, 5 and the distance part of 3 and 6 are fixed by D1 in the engine. The screen still draws the old flat look until D2 to D4.)
+
 ### Match (`ui/games/match/MatchScreen.kt`, `data/games/MatchEngine.kt`)
 1. Matched pair is removed from `board` at once: no animation, so it looks like nothing happened.
 2. `fillBoard()` reshuffles the WHOLE board after every match, so all cards jump to new places.
@@ -42,8 +44,8 @@ Rules: push every slice straight to `main` (one commit, plan table updated in th
 
 | Slice | Area | What | Status |
 |---|---|---|---|
-| D1 | Defense engine | Timing and distance: enemies move during shots, spaced spawn from far edge, push-back on correct, lunge and lock on wrong, mercy push-back on wall hit, enemy states (Walking, Dying) and event list for the screen. API stays compatible. | OPEN |
-| D2 | Defense art | Canvas monsters (slime, bat, golem), perspective scale, bobbing, wall/empire with shield, lane and background layers | OPEN |
+| D1 | Defense engine | Timing and distance: enemies move during shots, spaced spawn from far edge, push-back on correct, lunge and lock on wrong, mercy push-back on wall hit, enemy states (Walking, Dying) and event list for the screen. API stays compatible. | DONE (engine only, CI not seen yet) |
+| D2 | Defense art | Canvas monsters (slime, bat, golem), perspective scale, bobbing, wall/empire with shield, lane and background layers | OPEN (next) |
 | D3 | Defense effects | Shot with trail, explosion particles (reuse `GameParticles`), hit flash, shield shatter, wall shake, red vignette, heart-break, floating text | OPEN |
 | D4 | Defense UI | 2x2 answer cards (readable, locked/wrong/correct states), question panel slide, HUD with hearts and progress bar | OPEN |
 | D5 | Defense result | Victory/defeat screen: stars, killed, hearts left, Retry and Done | OPEN |
@@ -59,4 +61,4 @@ Order is D1 to D5, then M1 to M3, then P1. Owner may reorder by saying "do M1".
 - Match: matched cards visibly leave, others stay in place, wrong pair shakes then resets.
 
 ## 5. Plan changes
-(none yet)
+- D1 (2026-10-21): engine constants live in `WisdomDefenseEngine.companion` (SHOT_TIME 0.30, DEATH_TIME 0.35, WRONG_COOLDOWN 0.40, KILL_PUSH_BACK 0.10, WRONG_LUNGE 0.08, WALL_MERCY_PUSH 0.15, MIN_ENTRY_GAP 0.18). Never more enemies than questions left, so every enemy can be killed. A follower cannot run into the enemy in front (gap 0.06). New engine fields for the screen: `dying`, `lockedChoices`, `questionsLeft`, `drainEvents()`, `WisdomEnemy.kind`. The screen is NOT changed in D1, so a locked wrong answer is not greyed out yet (D4 does that); tapping it again does nothing.
