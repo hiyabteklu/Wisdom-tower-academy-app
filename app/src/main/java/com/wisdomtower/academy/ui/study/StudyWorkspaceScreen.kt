@@ -2,9 +2,7 @@ package com.wisdomtower.academy.ui.study
 
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -17,8 +15,6 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
@@ -53,7 +49,6 @@ import com.wisdomtower.academy.ui.packages.NATIVE_LEARNING_HUBS
 import com.wisdomtower.academy.ui.packages.OpenCard
 import com.wisdomtower.academy.ui.packages.openGrid
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
-import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.launch
@@ -74,12 +69,8 @@ private sealed interface WorkspaceView {
 
 private data class GateMessage(val gate: HubGate, val hubName: String)
 
-private val NEEDS_SUBJECT_LEVEL = Regex(
-    "^/academy/(freshman|remedial|grades/[^/]+|special-packages/[^/]+/[^/]+)$"
-)
-private val ENTRANCE_YEAR_PATH = Regex(
-    "^/academy/entrance-questions/[^/]+/[^/]+/[0-9]{4}$"
-)
+private val NEEDS_SUBJECT_LEVEL = Regex("^/academy/(freshman|remedial|grades/[^/]+|special-packages/[^/]+/[^/]+)$")
+private val ENTRANCE_YEAR_PATH = Regex("^/academy/entrance-questions/[^/]+/[^/]+/[0-9]{4}$")
 private val SCOPE_FRESHMAN = Regex("^/academy/freshman/([^/]+)$")
 private val SCOPE_REMEDIAL = Regex("^/academy/remedial/([^/]+)$")
 private val SCOPE_GRADE = Regex("^/academy/grades/([^/]+)/([^/]+)$")
@@ -162,9 +153,7 @@ fun StudyWorkspaceScreen(
     val context = LocalContext.current
     var hubCounts by remember(contentScope) { mutableStateOf<Map<String, Int>>(emptyMap()) }
     LaunchedEffect(contentScope) {
-        if (contentScope != null) {
-            hubCounts = LearningContentRepository.getHubCounts(context, contentScope)
-        }
+        if (contentScope != null) hubCounts = LearningContentRepository.getHubCounts(context, contentScope)
     }
 
     val loggedIn by AuthStateManager.isLoggedIn.collectAsState()
@@ -186,8 +175,9 @@ fun StudyWorkspaceScreen(
     }
 
     val initialHub = remember(basePath) {
-        cleanBase(basePath).substringAfterLast('/')
-            .takeIf { it in NATIVE_HUB_IDS && contentScope != null && entranceUrl == null }
+        cleanBase(basePath).substringAfterLast('/').takeIf {
+            it in NATIVE_HUB_IDS && contentScope != null && entranceUrl == null
+        }
     }
     var initialHubHandled by remember(basePath) { mutableStateOf(false) }
     LaunchedEffect(basePath, locks) {
@@ -200,8 +190,7 @@ fun StudyWorkspaceScreen(
     BackHandler(enabled = view != null && view !is WorkspaceView.Quiz) {
         val open = view
         if (open is WorkspaceView.HubList && entranceUrl != null) {
-            onBack()
-            return@BackHandler
+            onBack(); return@BackHandler
         }
         view = when (open) {
             is WorkspaceView.Pdf -> WorkspaceView.HubList(open.hubId)
@@ -217,29 +206,52 @@ fun StudyWorkspaceScreen(
     if (shown != null && contentScope != null) {
         PauseShellWhileShown()
         when (shown) {
-            is WorkspaceView.HubList -> HubItemListScreen(
-                scopePath = contentScope,
-                hubId = shown.hubId,
-                hubName = NATIVE_LEARNING_HUBS.firstOrNull { it.id == shown.hubId }?.name ?: shown.hubId,
-                courseTitle = title,
-                onBack = { if (entranceUrl != null) onBack() else view = null },
-                onOpenItem = { item ->
-                    when (item.contentType) {
-                        "pdf" -> view = WorkspaceView.Pdf(item, shown.hubId)
-                        "markdown" -> view = WorkspaceView.Note(item)
-                        "flashcard_deck" -> view = WorkspaceView.Cards(item)
-                        "quiz" -> view = WorkspaceView.Quiz(item, false, shown.hubId)
-                        "exam" -> view = WorkspaceView.Quiz(item, true, shown.hubId)
+            is WorkspaceView.HubList -> {
+                Box(modifier = modifier.fillMaxSize()) {
+                    HubItemListScreen(
+                        scopePath = contentScope,
+                        hubId = shown.hubId,
+                        hubName = NATIVE_LEARNING_HUBS.firstOrNull { it.id == shown.hubId }?.name ?: shown.hubId,
+                        courseTitle = title,
+                        onBack = { if (entranceUrl != null) onBack() else view = null },
+                        onOpenItem = { item ->
+                            when (item.contentType) {
+                                "pdf" -> view = WorkspaceView.Pdf(item, shown.hubId)
+                                "markdown" -> view = WorkspaceView.Note(item)
+                                "flashcard_deck" -> view = WorkspaceView.Cards(item)
+                                "quiz" -> view = WorkspaceView.Quiz(item, false, shown.hubId)
+                                "exam" -> view = WorkspaceView.Quiz(item, true, shown.hubId)
+                            }
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                        locks = locks
+                    )
+                    if (shown.hubId == "question-banks" || shown.hubId == "exams") {
+                        Box(
+                            Modifier
+                                .align(Alignment.BottomCenter)
+                                .padding(16.dp)
+                                .clip(CircleShape)
+                                .background(WisdomCyan)
+                                .clickable {
+                                    view = if (shown.hubId == "question-banks") {
+                                        WorkspaceView.Climb(shown.hubId)
+                                    } else {
+                                        WorkspaceView.Defense(shown.hubId)
+                                    }
+                                }
+                                .padding(horizontal = 20.dp, vertical = 12.dp)
+                        ) {
+                            Text(
+                                if (shown.hubId == "question-banks") "Tower Climb" else "Tower Defense",
+                                color = Color(0xFF070D17),
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp
+                            )
+                        }
                     }
-                },
-                modifier = modifier,
-                locks = locks,
-                onOpenGame = when (shown.hubId) {
-                    "question-banks" -> ({ view = WorkspaceView.Climb(shown.hubId) })
-                    "exams" -> ({ view = WorkspaceView.Defense(shown.hubId) })
-                    else -> null
                 }
-            )
+            }
 
             is WorkspaceView.Pdf -> PdfReaderScreen(
                 title = shown.item.title,
@@ -292,8 +304,6 @@ fun StudyWorkspaceScreen(
         return
     }
 
-    // RESTORE NOTE: hub grid body is in original file on parent 309fef73 — if compile fails on openGrid,
-    // Claude must re-copy the LazyColumn hub section from that parent and keep the Climb/Defense branches above.
     AtmosphereBackground(modifier = modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Row(
@@ -347,9 +357,8 @@ fun StudyWorkspaceScreen(
                             } else {
                                 val gate = if (entranceUrl == null) locks.hubGate(hub.id) else HubGate.Open
                                 when (gate) {
-                                    HubGate.ComingSoon, HubGate.PackageRequired -> {
+                                    HubGate.ComingSoon, HubGate.PackageRequired ->
                                         gateMessage = GateMessage(gate, hub.name)
-                                    }
                                     HubGate.Open -> {
                                         if (contentScope != null && hub.id in NATIVE_HUB_IDS) {
                                             view = WorkspaceView.HubList(hub.id)
