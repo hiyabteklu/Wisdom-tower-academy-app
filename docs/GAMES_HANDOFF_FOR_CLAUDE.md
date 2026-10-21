@@ -1,10 +1,13 @@
 # GAMES HANDOFF FOR CLAUDE
 
+> **LIVE TASK (owner order 2026-10-21): GAME FEEL.** Read `docs/GAMES_FEEL_PLAN.md`. Do the next OPEN slice (D1 first), one slice per chat, push to `main`, update the plan table in the same commit. The owner is on a free plan: plain short words, answer first. This overrides the old "do not rewrite the games" line in CLAUDE.md for the two live games only (Wisdom Defense, Match).
+
 ## Phase status
 - G0–G8 done (game code + StudyWorkspace FAB entry for Climb/Defense)
 - G9 polish: low-end ~30fps frame loop, particleCap factory, full inventory
 - G10 not started
 - GAME TAB DONE (owner order 2026-10-21): bottom-nav "Packages" tab is now "Game". `ui/games/GameTabScreen.kt` (+ `GameLaunch` hand-over), the StudyWorkspace change and the MainActivity patch `scripts/patch_game_tab.py` are ALL in `main` (PR #73 merged, commit 4a2fd16, build #913 green). Not yet tested on a phone by the owner.
+- LIVE GAMES NOW (docs/GAMES_HUB_PLAN.md): Wisdom Defense (`ui/games/defense/WisdomDefenseScreen.kt`, `data/games/WisdomDefenseEngine.kt`) and Match (`ui/games/match/MatchScreen.kt`, `data/games/MatchEngine.kt`). Engines are plain Kotlin; screens redraw with a `frame`/`tick` counter because engine fields are not Compose state.
 
 ## Entry points
 - Bottom nav **Game** tab → choose Tower Climb or Tower Defense → choose a course → course page (subject list, same PackageDetailScreen as before) → choose a subject → the game starts at once (`GameLaunch.kind` is read once by StudyWorkspaceScreen; Back from the game closes the workspace)
@@ -18,10 +21,11 @@
 ### data/games
 GameQuestion.kt, GameQuestionLoader.kt (LRU 12), GameStore.kt,
 ClimbRewards.kt, ClimbTower.kt, ClimbSession.kt,
-DefenseTuning.kt, DefenseEngine.kt
+DefenseTuning.kt, DefenseEngine.kt,
+GameHubIndex.kt, GameSetsRepository.kt, MatchEngine.kt, WisdomDefenseEngine.kt
 
 ### ui/games
-GameTabScreen.kt (bottom Game tab + `GameLaunch`)
+GameTabScreen.kt (bottom Game tab + `GameLaunch`), GameHubScreen.kt
 
 ### ui/games/common
 GameTheme.kt (isLowEnd, reduceMotion, particleCap, zones),
@@ -36,7 +40,10 @@ ClimbPlayScreen.kt, AtticScreen.kt
 
 ### ui/games/defense
 DefenseSprites.kt, DefenseCanvas.kt, DefenseHud.kt,
-ExamPickerScreen.kt, DefenseResultScreen.kt, TowerDefenseScreen.kt
+ExamPickerScreen.kt, DefenseResultScreen.kt, TowerDefenseScreen.kt, WisdomDefenseScreen.kt
+
+### ui/games/match
+MatchScreen.kt
 
 ### study
 StudyWorkspaceScreen.kt — Climb/Defense views + FAB + game-from-tab start
