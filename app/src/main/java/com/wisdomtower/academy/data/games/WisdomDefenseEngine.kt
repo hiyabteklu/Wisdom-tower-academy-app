@@ -6,7 +6,7 @@ import kotlin.random.Random
  * Wisdom Defense logic (docs/GAMES_HUB_PLAN.md §1a, step 5). Pure Kotlin — no Compose.
  * Enemies approach from different distances; correct answer on the nearest kills only that enemy.
  */
-data class DefenseEnemy(
+data class WisdomEnemy(
     val id: Int,
     /** 0 = just appeared far away, 1 = at the empire. */
     var progress: Float,
@@ -28,7 +28,7 @@ class WisdomDefenseEngine(
     private val queue = ArrayList(items.filter { it.choices.size == 4 && it.correct in 0..3 })
     private var nextEnemyId = 1
 
-    var enemies: List<DefenseEnemy> = emptyList()
+    var enemies: List<WisdomEnemy> = emptyList()
         private set
     var current: GameSetDefenseItem? = null
         private set
@@ -67,7 +67,7 @@ class WisdomDefenseEngine(
 
         if (shotProgress != null) return
 
-        val alive = ArrayList<DefenseEnemy>()
+        val alive = ArrayList<WisdomEnemy>()
         for (e in enemies) {
             e.progress = (e.progress + e.speed * dt).coerceAtMost(1.05f)
             if (e.progress >= 1f) {
@@ -125,7 +125,7 @@ class WisdomDefenseEngine(
         while (enemies.size < maxEnemies && (current != null || queue.isNotEmpty())) {
             val start = 0.05f + random.nextFloat() * 0.45f
             val speed = 0.04f + random.nextFloat() * 0.05f
-            enemies = enemies + DefenseEnemy(nextEnemyId++, start, speed)
+            enemies = enemies + WisdomEnemy(nextEnemyId++, start, speed)
         }
     }
 
