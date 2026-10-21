@@ -4,7 +4,7 @@
 - G0–G8 done (game code + StudyWorkspace FAB entry for Climb/Defense)
 - G9 polish: low-end ~30fps frame loop, particleCap factory, full inventory
 - G10 not started
-- GAME TAB (owner order 2026-10-21): bottom-nav "Packages" tab becomes "Game". Code pushed: `ui/games/GameTabScreen.kt` (+ `GameLaunch` hand-over) and the StudyWorkspace change. The `MainActivity.kt` part is the patch `scripts/patch_game_tab.py` (run through the "Apply pending patches" Action; NOT applied to main until the owner merges the branch, check with grep for `GameTabScreen(` in MainActivity.kt).
+- GAME TAB DONE (owner order 2026-10-21): bottom-nav "Packages" tab is now "Game". `ui/games/GameTabScreen.kt` (+ `GameLaunch` hand-over), the StudyWorkspace change and the MainActivity patch `scripts/patch_game_tab.py` are ALL in `main` (PR #73 merged, commit 4a2fd16, build #913 green). Not yet tested on a phone by the owner.
 
 ## Entry points
 - Bottom nav **Game** tab → choose Tower Climb or Tower Defense → choose a course → course page (subject list, same PackageDetailScreen as before) → choose a subject → the game starts at once (`GameLaunch.kind` is read once by StudyWorkspaceScreen; Back from the game closes the workspace)
@@ -66,4 +66,4 @@ HubItemListScreen.kt — optional onOpenGame (GAMES_HUB_PATCH.md)
   - Cause: the rewritten screen called `AtmosphereBackground(modifier = ...) { ...content... }`. `AtmosphereBackground` takes ONLY `modifier` and has NO content lambda. The trailing `{ }` made everything inside it a non-composable lambda, which caused the other errors (they were knock-on errors of line 307).
   - Fix (commit daf920b): `Box(modifier = modifier.fillMaxSize()) { AtmosphereBackground(modifier = Modifier.fillMaxSize()); ...content... }`. This is the pattern every other screen in the app uses.
   - DO NOT: never put a content lambda after `AtmosphereBackground`. Always draw it as the first child of a `Box`.
-  - If the next run shows NEW errors in the game files (ui/games/...), they were hidden behind these; paste the next `e: file:///` line.
+  - Result: runs #907 to #913 are green, so the game files compiled too.
