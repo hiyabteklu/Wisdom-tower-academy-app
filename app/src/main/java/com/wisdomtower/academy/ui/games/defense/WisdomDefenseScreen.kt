@@ -1,10 +1,15 @@
 package com.wisdomtower.academy.ui.games.defense
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -31,12 +37,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameSetData
@@ -59,6 +67,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * Art (monsters, lane, empire) is drawn by DefenseArt.kt (docs/GAMES_FEEL_PLAN.md slice D2).
  * Effects (shot trail, particles, shield shatter, wall shake, vignette, floating text)
  * come from DefenseEffects.kt (slice D3).
+ * UI (HUD with progress bar, question panel with slide, 2x2 answer cards) is slice D4.
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -70,12 +79,15 @@ fun WisdomDefenseScreen(
     val context = LocalContext.current
     val view = LocalView.current
     val engine = remember(set.id) { WisdomDefenseEngine(set.defenseItems) }
+    // Questions at the start = number of enemies to defeat (the engine has just been created).
+    val total = remember(set.id) { engine.questionsLeft }
     val lowEnd = remember { GameTheme.isLowEnd(context) }
     val reduceMotion = remember { GameTheme.reduceMotion(context) }
     val fx = remember(set.id) { DefenseEffects(GameParticleSystem.create(context), lowEnd, reduceMotion) }
     fx.dens = LocalDensity.current.density
     var frame by remember { mutableIntStateOf(0) }
     var clock by remember { mutableFloatStateOf(0f) }
+    val questionSlide = remember { Animatable(1f) }
 
     LaunchedEffect(Unit) { GameAudio.init(context) }
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
@@ -88,6 +100,17 @@ fun WisdomDefenseScreen(
         fx.update(dt, engine)
         clock += dt
         frame++
+    }
+
+    // The question panel slides in whenever the question changes.
+    val questionText = engine.current?.question
+    LaunchedEffect(questionText) {
+        if (reduceMotion) {
+            questionSlide.snapTo(1f)
+        } else {
+            questionSlide.snapTo(0f)
+            questionSlide.animateTo(1f, tween(280))
+        }
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -115,9 +138,9 @@ fun WisdomDefenseScreen(
             }
             is WisdomDefensePhase.Playing -> {
                 Column(Modifier.fillMaxSize()) {
+                    // HUD: Exit, progress bar, hearts.
                     Row(
-                        Modifier.fillMaxWidth().padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
+                        Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
@@ -126,6 +149,31 @@ fun WisdomDefenseScreen(
                             fontWeight = FontWeight.SemiBold,
                             modifier = Modifier.clickable(onClick = onExit).padding(8.dp)
                         )
+                        val frac = if (total > 0) (engine.killed.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
+                        val animFrac by animateFloatAsState(targetValue = frac, animationSpec = tween(300))
+                        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+                            Text(
+                                "${engine.killed} / $total",
+                                color = WisdomMuted,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Box(
+                                Modifier
+                                    .fillMaxWidth()
+                                    .height(8.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(Color(0x33FFFFFF))
+                            ) {
+                                Box(
+                                    Modifier
+                                        .fillMaxWidth(animFrac)
+                                        .height(8.dp)
+                                        .background(GameTheme.cyan)
+                                )
+                            }
+                        }
                         Row {
                             repeat(engine.maxHearts) { i ->
                                 val on = i < engine.hearts
@@ -151,18 +199,34 @@ fun WisdomDefenseScreen(
                         }
                     }
 
+                    // Question panel (slides in for every new question).
                     val q = engine.current
-                    Text(
-                        text = q?.question ?: "…",
-                        color = WisdomInk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier
+                    Box(
+                        Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    )
+                            .padding(horizontal = 12.dp, vertical = 4.dp)
+                            .graphicsLayer {
+                                alpha = questionSlide.value
+                                translationY = (1f - questionSlide.value) * -24.dp.toPx()
+                            }
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(Color(0x990E1A2B))
+                            .border(1.dp, WisdomCyan.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                            .padding(horizontal = 16.dp, vertical = 12.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = q?.question ?: "…",
+                            color = WisdomInk,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 17.sp,
+                            textAlign = TextAlign.Center,
+                            maxLines = 5,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
 
+                    // Battlefield. The answer cards sit below it, so nothing covers the wall any more.
                     Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp)) {
                         Canvas(
                             Modifier
@@ -240,19 +304,30 @@ fun WisdomDefenseScreen(
                             }
                             fx.drawOverlay(this)
                         }
+                    }
 
-                        val choices = engine.current?.choices.orEmpty()
-                        if (choices.size == 4) {
-                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.BottomCenter) {
+                    // 2x2 answer cards.
+                    val choices = q?.choices.orEmpty()
+                    if (choices.size == 4) {
+                        val firing = engine.shotProgress != null
+                        Column(
+                            Modifier
+                                .fillMaxWidth()
+                                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            for (row in 0..1) {
                                 Row(
-                                    Modifier
-                                        .fillMaxWidth()
-                                        .padding(bottom = 28.dp, start = 8.dp, end = 8.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                    Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    choices.forEachIndexed { index, label ->
-                                        ChoiceBullet(
-                                            label = label,
+                                    for (col in 0..1) {
+                                        val index = row * 2 + col
+                                        AnswerCard(
+                                            letter = ('A' + index).toString(),
+                                            label = choices[index],
+                                            locked = index in engine.lockedChoices,
+                                            firing = firing && engine.lastShotChoice == index,
                                             onClick = {
                                                 if (engine.fire(index)) {
                                                     fx.fireMuzzle()
@@ -260,20 +335,14 @@ fun WisdomDefenseScreen(
                                                     GameHaptics.tap(view, true)
                                                     frame++
                                                 }
-                                            }
+                                            },
+                                            modifier = Modifier.weight(1f).height(72.dp)
                                         )
                                     }
                                 }
                             }
                         }
                     }
-
-                    Text(
-                        "Killed ${engine.killed}",
-                        color = WisdomMuted,
-                        fontSize = 12.sp,
-                        modifier = Modifier.padding(12.dp)
-                    )
                 }
             }
         }
@@ -297,25 +366,77 @@ fun WisdomDefenseScreen(
     }
 }
 
+/**
+ * One answer card. States: normal, pressed (slightly smaller), firing (the shot for this answer
+ * is in the air), locked (tried wrongly: greyed out with a red edge, cannot be tapped again).
+ */
 @Composable
-private fun ChoiceBullet(label: String, onClick: () -> Unit) {
+private fun AnswerCard(
+    letter: String,
+    label: String,
+    locked: Boolean,
+    firing: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val source = remember { MutableInteractionSource() }
+    val pressed by source.collectIsPressedAsState()
+    val shape = RoundedCornerShape(16.dp)
+    val bg = when {
+        locked -> Color(0x33222A36)
+        firing -> Color(0xCC14566B)
+        else -> Color(0xCC0E3A4A)
+    }
+    val edge = when {
+        locked -> GameTheme.wrong.copy(alpha = 0.55f)
+        firing -> Color.White
+        else -> WisdomCyan
+    }
+    val scale = if (pressed && !locked) 0.96f else 1f
     Box(
-        modifier = Modifier
-            .size(width = 78.dp, height = 78.dp)
-            .clip(CircleShape)
-            .background(Color(0xCC0E3A4A))
-            .border(2.dp, WisdomCyan, CircleShape)
-            .clickable(onClick = onClick)
-            .padding(6.dp),
-        contentAlignment = Alignment.Center
+        modifier = modifier
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+                alpha = if (locked) 0.55f else 1f
+            }
+            .clip(shape)
+            .background(bg)
+            .border(2.dp, edge, shape)
+            .clickable(
+                interactionSource = source,
+                indication = null,
+                enabled = !locked,
+                onClick = onClick
+            )
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+        contentAlignment = Alignment.CenterStart
     ) {
-        Text(
-            text = label,
-            color = WisdomInk,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = 4
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                Modifier
+                    .size(26.dp)
+                    .clip(CircleShape)
+                    .background(if (locked) Color(0x33FFFFFF) else WisdomCyan.copy(alpha = 0.25f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = if (locked) "✕" else letter,
+                    color = if (locked) GameTheme.wrong else WisdomCyan,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+            Spacer(Modifier.size(8.dp))
+            Text(
+                text = label,
+                color = if (locked) WisdomMuted else WisdomInk,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.SemiBold,
+                maxLines = 3,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+        }
     }
 }
