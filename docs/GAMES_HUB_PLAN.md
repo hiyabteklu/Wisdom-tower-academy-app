@@ -1,24 +1,17 @@
 # GAMES HUB PLAN (owner decisions, 2026-10-21)
 
-Status: Steps 1–3 CI green. Step 4 Match written + switchover host. Step 5 Wisdom Defense engine + cockpit screen WRITTEN and wired in GameTabScreen (NOT COMPILED this commit). Bottom-bar hide still needs `scripts/patch_game_fullscreen_bottom_bar.py`. Next: CI; step 6 remove old FABs when owner confirms; step 7 admin bulk paste for game_sets (needed to load real content).
+Status: Steps 1–5 done (code). Bottom-bar hide merged (PR #74). Step 6: StudyWorkspace no longer has Climb/Defense FAB or GameLaunch path — games only via Game tab + game_sets. Old climb/defense source files still on disk (delete when owner says). Next: CI; step 7 admin bulk paste for game_sets so chapters have content.
 
 ## 6. Build order and status
 | Step | What | Status |
 |---|---|---|
-| 1 | Database `game_sets` | DONE |
-| 2a | GameSetsRepository | DONE (CI green) |
-| 2b | GameHubScreen + GameHubIndex | DONE (CI green) |
-| 3 | GameFullScreen | DONE (CI green) |
-| 4 | Match | DONE host wired; CI green for engine/screen |
-| 5 | Wisdom Defense | WRITTEN + wired; NOT COMPILED |
-| 6 | Remove old FABs | not started |
+| 1–3 | DB, repo, hub, fullscreen | DONE (CI green) |
+| 4 | Match | DONE + wired |
+| 5 | Wisdom Defense | DONE + wired |
+| 6 | Remove old FABs / GameLaunch from StudyWorkspace | DONE this commit (NOT COMPILED) |
 | 7 | Admin bulk JSON for game_sets | not started |
 
-## Defense files (step 5)
-- `data/games/WisdomDefenseEngine.kt` — multi-enemy approach, nearest-only kill, hearts, win/lose
-- `ui/games/defense/WisdomDefenseScreen.kt` — question top, canvas road/enemies, 4 choice bullets, AtmosphereBackground, GameFullScreenEffect
-
-## Owner phone test (after green CI + published sets)
-1. Game → Match → course → subject → chapter with match set
-2. Game → Wisdom Defense → same with defense set
-3. Correct kills nearest only; wrong lets enemies keep coming; 0 hearts = lose
+## Owner phone test
+1. Game tab → Match / Defense → course → subject → chapter (needs published game_sets)
+2. Learning hubs: no Tower Climb/Defense FAB
+3. Fullscreen play hides bottom bar

@@ -16,7 +16,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Icon
@@ -32,8 +31,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
@@ -45,12 +42,10 @@ import com.wisdomtower.academy.data.content.CourseLocks
 import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningResource
-import com.wisdomtower.academy.ui.games.GameLaunch
 import com.wisdomtower.academy.ui.packages.NATIVE_LEARNING_HUBS
 import com.wisdomtower.academy.ui.packages.OpenCard
 import com.wisdomtower.academy.ui.packages.openGrid
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
-import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.launch
 
@@ -64,8 +59,6 @@ private sealed interface WorkspaceView {
     data class Note(val item: LearningResource) : WorkspaceView
     data class Cards(val item: LearningResource) : WorkspaceView
     data class Quiz(val item: LearningResource, val isExam: Boolean, val hubId: String) : WorkspaceView
-    data class Climb(val hubId: String) : WorkspaceView
-    data class Defense(val hubId: String) : WorkspaceView
 }
 
 private data class GateMessage(val gate: HubGate, val hubName: String)
@@ -150,7 +143,6 @@ fun StudyWorkspaceScreen(
     }
     var view by remember(basePath) { mutableStateOf<WorkspaceView?>(null) }
     var exitExamHub by remember(basePath) { mutableStateOf<String?>(null) }
-    var gameFromTab by remember(basePath) { mutableStateOf(false) }
 
     val context = LocalContext.current
     var hubCounts by remember(contentScope) { mutableStateOf<Map<String, Int>>(emptyMap()) }
@@ -189,30 +181,16 @@ fun StudyWorkspaceScreen(
         }
     }
 
-    // GAME TAB: the bottom "Game" tab asks for a game; start it as soon as a course workspace with a content scope opens
-    LaunchedEffect(basePath, contentScope) {
-        val kind = GameLaunch.kind
-        if (kind != null && contentScope != null && entranceUrl == null) {
-            GameLaunch.kind = null
-            gameFromTab = true
-            view = if (kind == "climb") WorkspaceView.Climb("question-banks") else WorkspaceView.Defense("exams")
-        }
-    }
-
     BackHandler(enabled = view != null && view !is WorkspaceView.Quiz) {
         val open = view
         if (open is WorkspaceView.HubList && entranceUrl != null) {
-            onBack(); return@BackHandler
-        }
-        if (gameFromTab && (open is WorkspaceView.Climb || open is WorkspaceView.Defense)) {
-            onBack(); return@BackHandler
+            onBack()
+            return@BackHandler
         }
         view = when (open) {
             is WorkspaceView.Pdf -> WorkspaceView.HubList(open.hubId)
             is WorkspaceView.Note -> WorkspaceView.HubList("short-notes")
             is WorkspaceView.Cards -> WorkspaceView.HubList("flashcards")
-            is WorkspaceView.Climb -> WorkspaceView.HubList(open.hubId)
-            is WorkspaceView.Defense -> WorkspaceView.HubList(open.hubId)
             else -> null
         }
     }
@@ -221,52 +199,24 @@ fun StudyWorkspaceScreen(
     if (shown != null && contentScope != null) {
         PauseShellWhileShown()
         when (shown) {
-            is WorkspaceView.HubList -> {
-                Box(modifier = modifier.fillMaxSize()) {
-                    HubItemListScreen(
-                        scopePath = contentScope,
-                        hubId = shown.hubId,
-                        hubName = NATIVE_LEARNING_HUBS.firstOrNull { it.id == shown.hubId }?.name ?: shown.hubId,
-                        courseTitle = title,
-                        onBack = { if (entranceUrl != null) onBack() else view = null },
-                        onOpenItem = { item ->
-                            when (item.contentType) {
-                                "pdf" -> view = WorkspaceView.Pdf(item, shown.hubId)
-                                "markdown" -> view = WorkspaceView.Note(item)
-                                "flashcard_deck" -> view = WorkspaceView.Cards(item)
-                                "quiz" -> view = WorkspaceView.Quiz(item, false, shown.hubId)
-                                "exam" -> view = WorkspaceView.Quiz(item, true, shown.hubId)
-                            }
-                        },
-                        modifier = Modifier.fillMaxSize(),
-                        locks = locks
-                    )
-                    if (shown.hubId == "question-banks" || shown.hubId == "exams") {
-                        Box(
-                            Modifier
-                                .align(Alignment.BottomCenter)
-                                .padding(16.dp)
-                                .clip(CircleShape)
-                                .background(WisdomCyan)
-                                .clickable {
-                                    view = if (shown.hubId == "question-banks") {
-                                        WorkspaceView.Climb(shown.hubId)
-                                    } else {
-                                        WorkspaceView.Defense(shown.hubId)
-                                    }
-                                }
-                                .padding(horizontal = 20.dp, vertical = 12.dp)
-                        ) {
-                            Text(
-                                if (shown.hubId == "question-banks") "Tower Climb" else "Tower Defense",
-                                color = Color(0xFF070D17),
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 14.sp
-                            )
-                        }
+            is WorkspaceView.HubList -> HubItemListScreen(
+                scopePath = contentScope,
+                hubId = shown.hubId,
+                hubName = NATIVE_LEARNING_HUBS.firstOrNull { it.id == shown.hubId }?.name ?: shown.hubId,
+                courseTitle = title,
+                onBack = { if (entranceUrl != null) onBack() else view = null },
+                onOpenItem = { item ->
+                    when (item.contentType) {
+                        "pdf" -> view = WorkspaceView.Pdf(item, shown.hubId)
+                        "markdown" -> view = WorkspaceView.Note(item)
+                        "flashcard_deck" -> view = WorkspaceView.Cards(item)
+                        "quiz" -> view = WorkspaceView.Quiz(item, false, shown.hubId)
+                        "exam" -> view = WorkspaceView.Quiz(item, true, shown.hubId)
                     }
-                }
-            }
+                },
+                modifier = modifier,
+                locks = locks
+            )
 
             is WorkspaceView.Pdf -> PdfReaderScreen(
                 title = shown.item.title,
@@ -297,22 +247,6 @@ fun StudyWorkspaceScreen(
                 isExam = shown.isExam,
                 trackerScopeId = trackerScopeIdFor(basePath, shown.hubId),
                 onBack = { view = WorkspaceView.HubList(shown.hubId) },
-                modifier = modifier
-            )
-
-            is WorkspaceView.Climb -> com.wisdomtower.academy.ui.games.climb.TowerClimbScreen(
-                scopePath = contentScope,
-                courseTitle = title,
-                locks = locks,
-                onBack = { if (gameFromTab) onBack() else view = WorkspaceView.HubList(shown.hubId) },
-                modifier = modifier
-            )
-
-            is WorkspaceView.Defense -> com.wisdomtower.academy.ui.games.defense.TowerDefenseScreen(
-                scopePath = contentScope,
-                courseTitle = title,
-                locks = locks,
-                onBack = { if (gameFromTab) onBack() else view = WorkspaceView.HubList(shown.hubId) },
                 modifier = modifier
             )
         }
