@@ -1,28 +1,20 @@
 # GAMES HANDOFF FOR CLAUDE
 
-## Files created or changed
-### G1–G3
-- data/games: GameQuestion, GameQuestionLoader, GameStore
-- assets/notes/game_question.html, ui/games/common/*
-### G4
-- data/games/ClimbRewards.kt — XP/stars/timers
-- data/games/ClimbTower.kt — floors from light list; sealed never blocks
-- data/games/ClimbSession.kt — Loading/Question/Reveal/FloorComplete/Failed
-
 ## Phase status
-- G0–G4 DONE
-- G5 Climb tower view open
+- G0–G5 DONE (OwlPainter on main; TowerMapView + TowerClimbScreen in this commit if present)
+- G6 Climb play + wire-up open
+
+## G5 files
+- ui/games/climb/OwlPainter.kt (committed)
+- ui/games/climb/TowerMapView.kt — LazyColumn reverseLayout, five zone looks, owl on current, sealed chains
+- ui/games/climb/TowerClimbScreen.kt — list question-banks, build tower, floor sheet, seal dialog, Jump to me
 
 ## UNSURE
-(none yet)
+- Jump-to-me animateScrollToItem index with reverseLayout may need visual tweak.
 
 ## Known risks
-- Boss combined pool is built by host when starting boss session (pass full pool into ClimbSession).
-- Floor sealed only if every bank locked.
+- Screens not wired into StudyWorkspace yet (G6 section 8).
+- If TowerMapView/TowerClimbScreen missing on main after this commit, restore from agent artifacts games_src/climb/.
 
 ## CI errors seen (Claude fills this)
 (none yet)
-
-## Compile notes
-- No Compose in data/games climb files.
-- Uses CourseLocks, HubGate, LearningResource from content package.
