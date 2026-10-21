@@ -2,7 +2,7 @@
 
 > Repo is PUBLIC: no secrets, no student data. This is the ONLY live plan (see `docs/PARKED_2026-10-21.md`). Follow `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`: one slice = one commit straight to `main`, update this file in the same commit, say "not compiled" when CI was not seen.
 
-Status: STEP 1 (database) DONE 2026-10-21. Owner answered all open questions the same day (section 5). STEP 2a (data layer) and STEP 2b (hub screens) written, STEP 3 (full-screen helper) written. ALL THREE ARE NOT COMPILED: first thing next time, read the CI result of the last three games commits (ask the owner for the Actions list) and fix any compile error before adding code. Next: STEP 4 (Match).
+Status: STEPS 1–3 DONE and CI green (Actions success for 2a, 2b, 3). STEP 4 Match engine + MatchScreen WRITTEN, NOT COMPILED, NOT WIRED (no switchover yet — students still use GameTabScreen). Next: wire Match through GameHubScreen switchover (section 9) OR step 5 Wisdom Defense, depending on owner; plan order says step 5 after 4, switchover with first playable game.
 
 ## 1. Two games (not four)
 
@@ -19,66 +19,46 @@ Owner words 2026-10-21, turned into a spec:
 
 ### 1b. Match (REPLACES Tower Climb)
 - 8 cards in a grid on one screen. Tap a card: it highlights. Tap the card that is its answer: the pair is matched. Wrong pair: reset the highlight.
-- (Proposal, NOT confirmed by the owner: wrong pair shakes; a matched pair disappears; the next pairs fill the grid until the set is finished.)
+- Implemented proposal: matched pairs leave the board; new pairs fill until the set is finished; wrong pair flashes red and clears selection.
 - Same background rule as Defense (app background, 3 looks).
-- The old Tower Climb code (`ui/games/climb`, `data/games/Climb*`) stays until Match is built; remove it only when the owner says so.
+- The old Tower Climb code (`ui/games/climb`, `data/games/Climb*`) stays until Match is wired and the owner says remove it.
 
 A 3rd/4th game may come later (ideas given: Blitz 60-second round, Letter Lock, Duel). Not decided.
 
 ## 2. Flow (same for every game)
-Bottom nav **Game** tab → pick a game → the student's own courses (the SAME list the Learning tab shows, from the academic level / package chosen at registration or in account settings) → subject → chapter → game starts FULL SCREEN (bottom bar and status bar hidden while playing).
+Bottom nav **Game** tab → pick a game → the student's own courses (the SAME list the Learning tab shows, from the academic level / package chosen at registration) → subjects of that course → chapter list for that subject → play.
 
 ## 3. Content
-- Games use a TOTALLY NEW set of dedicated, SHORT questions. The previous agent's work of wiring the existing Question Banks / Exams into the games is NOT wanted and is replaced by this plan.
-- The owner prepares these sets separately for every package, subject and chapter, one set per game.
-- Not part of the 6 normal hubs and not visible there. Reachable only through the Game tab.
-- CHAPTER is a new level in the app (today it stops at subject).
-- Shapes: Wisdom Defense = short question + 4 choices. Match = pairs (term and meaning).
-- A chapter with no set for a game shows "coming soon" for that game only. Never invent questions or text (HANDOFF rule 11h).
-- Math/markup in game strings (`$..$`, `[[term]]`, `==hl==`) must go through the shared rich-text renderer the other hubs use (see `docs/CONTENT_SHAPES.md`), if the owner's sets use it.
+Dedicated `game_sets` rows (not Question Banks / Exams). One set = one chapter + one game. Items shapes in GameSetsRepository.
 
-## 4. Database (DONE 2026-10-21, Supabase "Wisdom tower academy", migration `create_game_sets`)
-Table `public.game_sets` (new, empty; does not touch `learning_resources`):
-- `id` uuid, `package_id` text, `scope_path` text (SAME format as `learning_resources.scope_path`), `chapter` integer, `chapter_title` text, `game` text (`defense` or `match`), `title` text, `items` jsonb array, `published` boolean (default false), `sort_order`, `created_at`, `updated_at`.
-- One set per (`scope_path`, `chapter`, `game`) (unique).
-- `items`: defense = `[{"q":"...","choices":["a","b","c","d"],"correct":0,"hint":"..."}]` (`correct` is a 0-based index); match = `[{"a":"term","b":"meaning"}]`.
-- RLS on: everyone reads rows with `published = true`; admins (`private.is_admin()`) do everything.
-- Remember the ECE quirk in `docs/CONTENT_SHAPES.md`: ECE rows use `scope_path = ece/sem-1/<slug>` even for semester 2 courses. The app query already handles it.
+## 4. Database (DONE 2026-10-21)
+`public.game_sets` with RLS for published read.
 
-### Live Supabase change log (add a line for every change)
-- 2026-10-21: migration `create_game_sets` (table + RLS above).
-
-## 5. Owner decisions (2026-10-21, in his words, summarised; never drop)
-1. Correct answer kills ONLY the targeted enemy.
-2. Enemies come at different distances. Question on top. Both games share the app background in the 3 looks.
-3. Defense = cockpit view, 4 answer bullets in an arc around the player, tap one and it goes straight to the nearest enemy.
-4. Games use a totally NEW question set (not the existing banks/exams).
-5. No student lacks a saved level (enforced at registration): no "choose your level" prompt.
-6. Access follows the package. Grade 9 package = Grade 9 games. No extra lock logic, `content_locks` is NOT used for game sets.
-7. Upload: the owner pastes JSON in bulk through the admin dashboard into the database, like the other hubs.
+## 5. Owner decisions (2026-10-21)
+See earlier commits; cockpit Defense, Match pairs, package-scoped hub.
 
 ## 6. Build order and status
 | Step | What | Status |
 |---|---|---|
 | 1 | Database `game_sets` | DONE |
-| 2a | Data layer `data/games/GameSetsRepository.kt` (chapters of a subject, one set per chapter and game, offline cache, skips malformed items). New file | WRITTEN, NOT COMPILED |
-| 2b | Game hub UI: `ui/games/GameHubScreen.kt` (game → course → subject → chapter list, "Coming soon" per game) + `data/games/GameHubIndex.kt` (subjects of a package). New files, NOT wired into the Game tab | WRITTEN, NOT COMPILED, NOT TESTED |
-| 3 | Full-screen helper `ui/games/common/GameFullScreen.kt` (`GameFullScreenEffect()` hides status + system bars while a game screen is shown; `GameFullScreen.active` tells MainActivity to hide the bottom bar). New file, used by no screen yet | WRITTEN, NOT COMPILED |
-| 4 | Match (new): engine + screen, new files only, takes a `GameSetData` and an `onExit` | NEXT |
-| 5 | Wisdom Defense rewrite (cockpit, arc, nearest-enemy shot) | not started |
-| 6 | Remove the old FABs on Question Banks / Exams and the old game question source | not started |
-| 7 | Admin: a bulk JSON paste form for `game_sets` (the hub paste flow only writes `learning_resources`). Needed before the owner can load sets | not started |
-
-Order note: step 7 may be moved earlier if the owner wants to load content while the games are being built.
+| 2a | `GameSetsRepository.kt` | DONE (CI green) |
+| 2b | `GameHubScreen` + `GameHubIndex` | DONE (CI green), NOT wired to tab |
+| 3 | `GameFullScreen` helper | DONE (CI green) |
+| 4 | Match engine + screen | WRITTEN, NOT COMPILED, NOT WIRED |
+| 5 | Wisdom Defense rewrite | not started |
+| 6 | Remove old FABs / old sources | not started |
+| 7 | Admin bulk JSON paste for game_sets | not started |
 
 ## 7. Plan changes
-- 2026-10-21: the earlier plan (games read Question Banks / Exams through StudyWorkspaceScreen) is dropped. Its built files (G0–G9) stay as code to reuse where useful (frame loop, audio, haptics, particles, pause overlay, question card), see `docs/GAMES_HANDOFF_FOR_CLAUDE.md`.
+- 2026-10-21: earlier Question-Banks/Exams plan dropped; reuse feel kit from G0–G9.
+- 2026-10-21 evening: step 4 Match files added (`MatchEngine`, `MatchScreen`).
 
-## 8. Already built and live (Oct 21)
-Game tab (`ui/games/GameTabScreen.kt`) with game → course → subject flow; the games currently read Question Banks / Exams through StudyWorkspaceScreen (to be replaced). Rules for compile safety: always draw `AtmosphereBackground(modifier = Modifier.fillMaxSize())` as the first child of a `Box`, never with a content lambda (`docs/GAMES_HANDOFF_FOR_CLAUDE.md`, CI errors).
+## 8. Already built and live
+Game tab still shows old GameTabScreen until switchover (section 9).
 
-## 9. Notes for the next agent (step 2b checks and the switchover)
-- How a subject gets its `scope_path` (the open point of step 2b): `GameHubIndex.knownSubjects(packageId)` walks the admin content tree (`data/admin/AdminContentTree.kt`), the same ids and scope paths the hubs and locks use (`grade/9/chemistry`, `freshman/physics`, `ece/sem-1/eceg3051`). The `NativePackage.id` values (`grade-9`, `freshman`, `ece-y3-sem-1`, ...) match the `packageId` values in that tree (checked 2026-10-21 for grade-9 and ece-y3-sem-1; confirm the rest on the first phone test). Packages that are not in the tree (the entrance stream, UAT, GAT, COC, Exit Exam, Remedial ...) list only the subjects that really have a published `game_sets` row (`GameHubIndex.packageSubjects`).
-- HYPOTHESIS: the admin content tree is a hand copy of the website lists; a subject added on the website must also be added there, or it will not show for tree-based packages.
-- SWITCHOVER (do it together with the first playable game, so students never meet a dead end): (1) in MainActivity show `GameHubScreen(packageList, onPlay = ...)` instead of `GameTabScreen` for the Game tab (`onPlay(game, scopePath, chapter)` loads the set with `GameSetsRepository.loadSet` and opens the game); (2) hide the bottom bar while `GameFullScreen.active` is true; (3) each game screen calls `GameFullScreenEffect()` first; (4) keep the old Climb / Defense code until step 6.
-- Match and Defense must read their text through the shared rich-text renderer only if the owner's sets use markup; check `docs/CONTENT_SHAPES.md` before step 4.
+## 9. Switchover (with first playable game)
+(1) MainActivity Game tab → `GameHubScreen(packageList, onPlay = ...)` (2) hide bottom bar while `GameFullScreen.active` (3) each game calls `GameFullScreenEffect()` (Match already does) (4) onPlay loads set and shows MatchScreen / Defense when ready.
+
+## Match files (step 4)
+- `data/games/MatchEngine.kt` — board of up to 8 cards, select/match/wrong, fill from remaining pairs
+- `ui/games/match/MatchScreen.kt` — grid UI, AtmosphereBackground as Box child (no content lambda), GameFullScreenEffect, audio/haptics
