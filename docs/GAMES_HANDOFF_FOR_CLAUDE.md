@@ -1,17 +1,55 @@
 # GAMES HANDOFF FOR CLAUDE
 
-## Status
-- StudyWorkspace has Climb + Defense workspace views and a bottom FAB on Question Banks / Exams lists (avoids HubItemList signature change until GAMES_HUB_PATCH.md is applied).
-- Apply docs/GAMES_HUB_PATCH.md when possible so GameHubBanner appears in the list instead of FAB.
-- G0–G8 game implementations are on main.
-- G9 polish still open.
+## Phase status
+- G0–G8 done (game code + StudyWorkspace FAB entry for Climb/Defense)
+- G9 polish: low-end ~30fps frame loop, particleCap factory, full inventory
+- G10 not started
 
-## Owner tests
-1. Learning → course → Question Banks → bottom **Tower Climb** button → climb
-2. Learning → course → Exams → bottom **Tower Defense** button → Exam Run / Endless
+## Entry points
+- Question Banks list → bottom FAB **Tower Climb** → TowerClimbScreen
+- Exams list → bottom FAB **Tower Defense** → TowerDefenseScreen
+- Optional in-list banner: docs/GAMES_HUB_PATCH.md
+
+## File inventory
+
+### data/games
+GameQuestion.kt, GameQuestionLoader.kt (LRU 12), GameStore.kt,
+ClimbRewards.kt, ClimbTower.kt, ClimbSession.kt,
+DefenseTuning.kt, DefenseEngine.kt
+
+### ui/games/common
+GameTheme.kt (isLowEnd, reduceMotion, particleCap, zones),
+GameClock.kt (GameFrameLoop + foreground pause + low-end 30fps),
+GameAudio.kt, GameHaptics.kt, GameParticles.kt,
+GameButtons.kt, GamePauseOverlay.kt, GameQuestionCard.kt, GameHubBanner.kt
+
+### ui/games/climb
+OwlPainter.kt, TowerMapView.kt, TowerClimbScreen.kt,
+ClimbHud.kt, FloorSceneCanvas.kt, FloorResultSheet.kt,
+ClimbPlayScreen.kt, AtticScreen.kt
+
+### ui/games/defense
+DefenseSprites.kt, DefenseCanvas.kt, DefenseHud.kt,
+ExamPickerScreen.kt, DefenseResultScreen.kt, TowerDefenseScreen.kt
+
+### study
+StudyWorkspaceScreen.kt — Climb/Defense views + FAB
+HubItemListScreen.kt — optional onOpenGame (GAMES_HUB_PATCH.md)
+
+## Owner test list
+1. Question Banks → Tower Climb FAB → sealed lock message → open floor → climb play
+2. Exams → Tower Defense FAB → Exam Run / Endless → result + missed review
+3. Background mid-play → pauses; return resumes
+4. Offline after one open → cached content still plays
+5. Low-RAM / animator scale 0 → still playable
 
 ## UNSURE
-- FAB may sit over list content; banner in-list is preferred after Hub patch.
+- Jump-to-me reverseLayout index may need visual tweak
+- Armored second-hit question may skip a wave slot
+- StudyWorkspace comments stripped for size; hub grid uses openGrid("hubs", …)
 
-## CI (Claude fills)
+## Memory / safety
+- Loader cache 12; Audio.release on leave; FrameLoop stops on ON_PAUSE; particles pooled 24/80
+
+## CI errors (Claude fills)
 (none yet)

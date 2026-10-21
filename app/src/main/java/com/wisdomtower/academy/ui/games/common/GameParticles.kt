@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.games.common
 
+import android.content.Context
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -7,6 +8,7 @@ import kotlin.random.Random
 
 /**
  * Pooled particles: no allocation in the hot frame path when the pool is warm.
+ * Capacity should come from [GameTheme.particleCap] (24 low-end, 80 otherwise).
  */
 class GameParticleSystem(private val capacity: Int) {
 
@@ -80,6 +82,12 @@ class GameParticleSystem(private val capacity: Int) {
                 radius = size[i],
                 center = Offset(x[i], y[i])
             )
+        }
+    }
+
+    companion object {
+        fun create(context: Context): GameParticleSystem {
+            return GameParticleSystem(GameTheme.particleCap(context))
         }
     }
 }
