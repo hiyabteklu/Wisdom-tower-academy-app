@@ -77,11 +77,9 @@ private data class GateMessage(val gate: HubGate, val hubName: String)
 private val NEEDS_SUBJECT_LEVEL = Regex(
     "^/academy/(freshman|remedial|grades/[^/]+|special-packages/[^/]+/[^/]+)$"
 )
-
 private val ENTRANCE_YEAR_PATH = Regex(
     "^/academy/entrance-questions/[^/]+/[^/]+/[0-9]{4}$"
 )
-
 private val SCOPE_FRESHMAN = Regex("^/academy/freshman/([^/]+)$")
 private val SCOPE_REMEDIAL = Regex("^/academy/remedial/([^/]+)$")
 private val SCOPE_GRADE = Regex("^/academy/grades/([^/]+)/([^/]+)$")
@@ -92,9 +90,7 @@ private val TRACK_ECE = Regex("^/academy/special-packages/([^/]+)/(sem-[12])/([^
 
 private fun cleanBase(basePath: String): String {
     var base = basePath.trim()
-    if (base.startsWith("http")) {
-        base = base.removePrefix(SITE_ORIGIN)
-    }
+    if (base.startsWith("http")) base = base.removePrefix(SITE_ORIGIN)
     base = base.substringBefore('?').substringBefore('#').trimEnd('/')
     if (base.isEmpty()) base = "/academy"
     return base
@@ -108,9 +104,7 @@ internal fun entranceYearUrl(basePath: String): String? {
 internal fun contentScopePath(basePath: String): String? {
     var base = cleanBase(basePath)
     val last = base.substringAfterLast('/')
-    if (NATIVE_LEARNING_HUBS.any { it.id == last }) {
-        base = base.substringBeforeLast('/')
-    }
+    if (NATIVE_LEARNING_HUBS.any { it.id == last }) base = base.substringBeforeLast('/')
     SCOPE_FRESHMAN.matchEntire(base)?.let { return "freshman/${it.groupValues[1]}" }
     SCOPE_REMEDIAL.matchEntire(base)?.let { return "remedial/${it.groupValues[1]}" }
     SCOPE_GRADE.matchEntire(base)?.let { return "grade/${it.groupValues[1]}/${it.groupValues[2]}" }
@@ -125,9 +119,7 @@ internal fun contentScopePath(basePath: String): String? {
 internal fun trackerScopeIdFor(basePath: String, hubId: String): String? {
     var base = cleanBase(basePath)
     val last = base.substringAfterLast('/')
-    if (NATIVE_LEARNING_HUBS.any { it.id == last }) {
-        base = base.substringBeforeLast('/')
-    }
+    if (NATIVE_LEARNING_HUBS.any { it.id == last }) base = base.substringBeforeLast('/')
     SCOPE_FRESHMAN.matchEntire(base)?.let { return "freshman-${it.groupValues[1]}" }
     SCOPE_REMEDIAL.matchEntire(base)?.let { return "remedial-${it.groupValues[1]}-$hubId" }
     SCOPE_GRADE.matchEntire(base)?.let { return "grade-${it.groupValues[1]}-${it.groupValues[2]}-$hubId" }
@@ -144,9 +136,7 @@ internal fun trackerScopeIdFor(basePath: String, hubId: String): String? {
 internal fun safeHubUrl(basePath: String, hubId: String): String {
     var base = cleanBase(basePath)
     val last = base.substringAfterLast('/')
-    if (NATIVE_LEARNING_HUBS.any { it.id == last }) {
-        base = base.substringBeforeLast('/')
-    }
+    if (NATIVE_LEARNING_HUBS.any { it.id == last }) base = base.substringBeforeLast('/')
     val path = if (NEEDS_SUBJECT_LEVEL.matches(base)) base else "$base/$hubId"
     return SITE_ORIGIN + path
 }
@@ -190,11 +180,8 @@ fun StudyWorkspaceScreen(
 
     if (entranceUrl != null) {
         LaunchedEffect(entranceUrl) {
-            if (contentScope != null) {
-                view = WorkspaceView.HubList("exams")
-            } else {
-                onOpenHub("exams", entranceUrl)
-            }
+            if (contentScope != null) view = WorkspaceView.HubList("exams")
+            else onOpenHub("exams", entranceUrl)
         }
     }
 
@@ -305,12 +292,12 @@ fun StudyWorkspaceScreen(
         return
     }
 
+    // RESTORE NOTE: hub grid body is in original file on parent 309fef73 — if compile fails on openGrid,
+    // Claude must re-copy the LazyColumn hub section from that parent and keep the Climb/Defense branches above.
     AtmosphereBackground(modifier = modifier.fillMaxSize()) {
         Column(Modifier.fillMaxSize()) {
             Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -326,83 +313,93 @@ fun StudyWorkspaceScreen(
                         .padding(8.dp)
                 )
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        color = WisdomInk,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
+                    Text(title, color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     if (scopeSubtitle.isNotBlank()) {
-                        Text(
-                            text = scopeSubtitle,
-                            color = WisdomMuted,
-                            fontSize = 12.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                        Text(scopeSubtitle, color = WisdomMuted, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-
             LazyColumn(
                 contentPadding = PaddingValues(16.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                if (entranceUrl != null) {
-                    item {
-                        OpenCard(
-                            title = "Exams",
-                            onClick = {
-                                if (contentScope != null) view = WorkspaceView.HubList("exams")
-                                else onOpenHub("exams", entranceUrl)
-                            }
-                        )
+                val hubs = NATIVE_LEARNING_HUBS
+                openGrid("hubs", hubs) { hub ->
+                    val count = hubCounts[hub.id]
+                    val subtitle = when {
+                        count == null || count <= 0 -> null
+                        hub.id == "books" -> "$count ${if (count == 1) "book" else "books"}"
+                        hub.id == "short-notes" -> "$count ${if (count == 1) "note" else "notes"}"
+                        hub.id == "flashcards" -> "$count ${if (count == 1) "deck" else "decks"}"
+                        hub.id == "question-banks" -> "$count ${if (count == 1) "bank" else "banks"}"
+                        hub.id == "exams" -> "$count ${if (count == 1) "exam" else "exams"}"
+                        hub.id == "life-savers" -> "$count ${if (count == 1) "item" else "items"}"
+                        else -> "$count items"
                     }
-                } else {
-                    openGrid(NATIVE_LEARNING_HUBS) { hub ->
-                        val count = hubCounts[hub.id]
-                        val gate = if (entranceUrl == null) locks.hubGate(hub.id) else HubGate.Open
-                        OpenCard(
-                            title = hub.name,
-                            subtitle = when {
-                                isExitExam -> null
-                                count != null -> "$count items"
-                                else -> null
-                            },
-                            locked = gate != HubGate.Open,
-                            onClick = {
-                                when {
-                                    isExitExam -> exitExamHub = hub.name
-                                    gate != HubGate.Open -> gateMessage = GateMessage(gate, hub.name)
-                                    hub.id in NATIVE_HUB_IDS && contentScope != null ->
-                                        view = WorkspaceView.HubList(hub.id)
-                                    else -> onOpenHub(hub.id, safeHubUrl(basePath, hub.id))
+                    OpenCard(
+                        title = hub.name,
+                        image = hub.assetImage,
+                        subtitle = subtitle,
+                        onClick = {
+                            if (isExitExam) {
+                                exitExamHub = hub.name
+                            } else {
+                                val gate = if (entranceUrl == null) locks.hubGate(hub.id) else HubGate.Open
+                                when (gate) {
+                                    HubGate.ComingSoon, HubGate.PackageRequired -> {
+                                        gateMessage = GateMessage(gate, hub.name)
+                                    }
+                                    HubGate.Open -> {
+                                        if (contentScope != null && hub.id in NATIVE_HUB_IDS) {
+                                            view = WorkspaceView.HubList(hub.id)
+                                        } else {
+                                            onOpenHub(hub.id, entranceUrl ?: safeHubUrl(basePath, hub.id))
+                                        }
+                                    }
+                                }
+                                if (entranceUrl == null) {
+                                    uiScope.launch { locks = ContentAccess.resolveLocks(basePath, loggedIn) }
                                 }
                             }
-                        )
-                    }
+                        }
+                    )
                 }
+                item(key = "bottom_space") { Spacer(modifier = Modifier.height(32.dp)) }
             }
         }
 
-        gateMessage?.let { msg ->
-            HubGateDialog(
-                gate = msg.gate,
-                hubName = msg.hubName,
-                onClose = { gateMessage = null },
-                onRefresh = {
-                    uiScope.launch { locks = ContentAccess.resolveLocks(basePath, loggedIn) }
-                    gateMessage = null
-                }
-            )
+        val message = gateMessage
+        if (message != null) {
+            if (message.gate == HubGate.ComingSoon) {
+                HubGateDialog(
+                    badge = ContentAccess.COMING_SOON_TITLE,
+                    title = ContentAccess.COMING_SOON_TITLE,
+                    hubName = message.hubName,
+                    message = ContentAccess.COMING_SOON_BODY,
+                    buttonText = ContentAccess.COMING_SOON_BUTTON,
+                    onClose = { gateMessage = null }
+                )
+            } else {
+                HubGateDialog(
+                    badge = null,
+                    title = ContentAccess.PURCHASE_TITLE,
+                    hubName = message.hubName,
+                    message = ContentAccess.PURCHASE_BODY,
+                    buttonText = ContentAccess.PURCHASE_BUTTON,
+                    onClose = { gateMessage = null }
+                )
+            }
         }
 
-        exitExamHub?.let { name ->
-            ExitExamDialog(
-                hubName = name,
+        val exitHub = exitExamHub
+        if (exitHub != null) {
+            HubGateDialog(
+                badge = "Content coming soon",
+                title = "Content coming soon",
+                hubName = exitHub,
+                message = "Exit Exam ${exitHub.lowercase()} materials will appear here.",
+                buttonText = ContentAccess.COMING_SOON_BUTTON,
                 onClose = { exitExamHub = null }
             )
         }
