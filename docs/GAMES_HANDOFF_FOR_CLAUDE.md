@@ -1,24 +1,28 @@
 # GAMES HANDOFF FOR CLAUDE
 
 ## Files created or changed
-- data/games: GameQuestion.kt, GameQuestionLoader.kt, GameStore.kt
-- assets/notes/game_question.html
-- ui/games/common: GameQuestionCard.kt, GameTheme.kt, GameClock.kt, GameAudio.kt, GameHaptics.kt, GameParticles.kt, GameButtons.kt, GamePauseOverlay.kt
+### G1–G3
+- data/games: GameQuestion, GameQuestionLoader, GameStore
+- assets/notes/game_question.html, ui/games/common/*
+### G4
+- data/games/ClimbRewards.kt — XP/stars/timers
+- data/games/ClimbTower.kt — floors from light list; sealed never blocks
+- data/games/ClimbSession.kt — Loading/Question/Reveal/FloorComplete/Failed
 
 ## Phase status
-- G0 DONE, G1 DONE, G2 DONE, G3 Feel kit DONE
-- G4–G9 open
+- G0–G4 DONE
+- G5 Climb tower view open
 
 ## UNSURE
 (none yet)
 
 ## Known risks
-- GameAudio silent on init failure (by design).
-- Plan stub on main; full plan parent 61a2b34.
+- Boss combined pool is built by host when starting boss session (pass full pool into ClimbSession).
+- Floor sealed only if every bank locked.
 
 ## CI errors seen (Claude fills this)
 (none yet)
 
 ## Compile notes
-- GameClock: androidx.lifecycle.compose.LocalLifecycleOwner
-- GameButtons: clickable, background, border, clip, padding each imported
+- No Compose in data/games climb files.
+- Uses CourseLocks, HubGate, LearningResource from content package.
