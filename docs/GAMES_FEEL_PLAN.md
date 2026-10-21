@@ -16,7 +16,7 @@ Rules: push every slice straight to `main` (one commit, plan table updated in th
 7. Answer buttons are 78dp circles with 11sp text: unreadable for real answers, no pressed/right/wrong state.
 8. HUD hearts are plain circles. No progress bar. Result screen is two lines of text.
 
-(Items 2, 4, 5 and the distance part of 3 and 6 are fixed by D1 in the engine. The screen still draws the old flat look until D2 to D4.)
+(Items 2, 4, 5 and the distance part of 3 and 6 are fixed by D1 in the engine. Item 1 is fixed by D2 (art). Items 3 (effects), 6 (impact), 7, 8 wait for D3 to D5.)
 
 ### Match (`ui/games/match/MatchScreen.kt`, `data/games/MatchEngine.kt`)
 1. Matched pair is removed from `board` at once: no animation, so it looks like nothing happened.
@@ -45,8 +45,8 @@ Rules: push every slice straight to `main` (one commit, plan table updated in th
 | Slice | Area | What | Status |
 |---|---|---|---|
 | D1 | Defense engine | Timing and distance: enemies move during shots, spaced spawn from far edge, push-back on correct, lunge and lock on wrong, mercy push-back on wall hit, enemy states (Walking, Dying) and event list for the screen. API stays compatible. | DONE (engine only, CI not seen yet) |
-| D2 | Defense art | Canvas monsters (slime, bat, golem), perspective scale, bobbing, wall/empire with shield, lane and background layers | OPEN (next) |
-| D3 | Defense effects | Shot with trail, explosion particles (reuse `GameParticles`), hit flash, shield shatter, wall shake, red vignette, heart-break, floating text | OPEN |
+| D2 | Defense art | Canvas monsters (slime, bat, golem), perspective scale, bobbing, wall/empire with shield, lane and background layers | DONE (written and pushed 2026-10-21, NOT compiled by the agent, CI and phone test pending). New file `ui/games/defense/DefenseArt.kt`; `WisdomDefenseScreen.kt` canvas now calls it |
+| D3 | Defense effects | Shot with trail, explosion particles (reuse `GameParticles`), hit flash, shield shatter, wall shake, red vignette, heart-break, floating text | OPEN (next) |
 | D4 | Defense UI | 2x2 answer cards (readable, locked/wrong/correct states), question panel slide, HUD with hearts and progress bar | OPEN |
 | D5 | Defense result | Victory/defeat screen: stars, killed, hearts left, Retry and Done | OPEN |
 | M1 | Match engine | Stable slots, no reshuffle, expose last matched and last wrong ids, streak | OPEN |
@@ -59,6 +59,8 @@ Order is D1 to D5, then M1 to M3, then P1. Owner may reorder by saying "do M1".
 ## 4. Owner phone test (after each slice)
 - Defense: enemies walk the whole time; right answer = kill + others pushed back + new enemy walks in from far; wrong answer = enemy lunges + answer locked; wall hit = heart breaks.
 - Match: matched cards visibly leave, others stay in place, wrong pair shakes then resets.
+- D2 look: three different monsters (green slime, purple bat with flapping wings, grey golem), small far away and bigger near the wall; a ring under the enemy the next shot hits; lane in perspective with moving dashes; battlement wall with tower and glowing crystal; shots start from the crystal; a killed enemy flashes white, shrinks and fades.
 
 ## 5. Plan changes
-- D1 (2026-10-21): engine constants live in `WisdomDefenseEngine.companion` (SHOT_TIME 0.30, DEATH_TIME 0.35, WRONG_COOLDOWN 0.40, KILL_PUSH_BACK 0.10, WRONG_LUNGE 0.08, WALL_MERCY_PUSH 0.15, MIN_ENTRY_GAP 0.18). Never more enemies than questions left, so every enemy can be killed. A follower cannot run into the enemy in front (gap 0.06). New engine fields for the screen: `dying`, `lockedChoices`, `questionsLeft`, `drainEvents()`, `WisdomEnemy.kind`. The screen is NOT changed in D1, so a locked wrong answer is not greyed out yet (D4 does that); tapping it again does nothing.
+- D1 (2026-10-21): engine constants live in `WisdomDefenseEngine.companion` (SHOT_TIME 0.30, DEATH_TIME 0.35, WRONG_COOLDOWN 0.40, KILL_PUSH_BACK 0.10, WRONG_LUNGE 0.08, WALL_MERCY_PUSH 0.15, MIN_ENTRY_GAP 0.18, MIN_FOLLOW_GAP 0.06). Never more enemies than questions left, so every enemy can be killed. A follower cannot run into the enemy in front (gap 0.06). New engine fields for the screen: `dying`, `lockedChoices`, `questionsLeft`, `drainEvents()`, `WisdomEnemy.kind`. The screen is NOT changed in D1, so a locked wrong answer is not greyed out yet (D4 does that); tapping it again does nothing.
+- D2 (2026-10-21): art helpers are `internal` functions in `DefenseArt.kt` (`drawDefenseField`, `drawDefenseEmpire`, `drawDefenseEnemy`, `drawDefenseTargetRing`, and the position helpers `defenseLaneX/Y`, `defenseUnit`, `defenseMuzzleY`). The screen got a `clock` (seconds) for animation. Enemy x now spreads a little with distance. The old dark curve over the bottom was removed. The screen still does NOT use `drainEvents()`, `lockedChoices` or `reduceMotion` (D3 and D4; P1 checks reduce-motion). Answer buttons still overlap the wall at the bottom until D4 re-lays them out. Not seen on a phone: monster sizes (`defenseUnit` factor 0.065) and shot start height (`defenseMuzzleY` 0.70) may need a tweak.

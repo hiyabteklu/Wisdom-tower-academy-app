@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
@@ -28,9 +29,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.text.font.FontWeight
@@ -49,10 +48,10 @@ import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
-import kotlin.math.sin
 
 /**
  * Wisdom Defense cockpit screen (docs/GAMES_HUB_PLAN.md step 5).
+ * Art (monsters, lane, empire) is drawn by DefenseArt.kt (docs/GAMES_FEEL_PLAN.md slice D2).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -65,6 +64,7 @@ fun WisdomDefenseScreen(
     val view = LocalView.current
     val engine = remember(set.id) { WisdomDefenseEngine(set.defenseItems) }
     var frame by remember { mutableIntStateOf(0) }
+    var clock by remember { mutableFloatStateOf(0f) }
 
     LaunchedEffect(Unit) { GameAudio.init(context) }
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
@@ -74,6 +74,7 @@ fun WisdomDefenseScreen(
     val playing = engine.phase is WisdomDefensePhase.Playing
     GameFrameLoop(running = playing) { dt ->
         engine.tick(dt)
+        clock += dt
         frame++
     }
 
@@ -143,40 +144,48 @@ fun WisdomDefenseScreen(
                         Canvas(Modifier.fillMaxSize()) {
                             val w = size.width
                             val h = size.height
-                            val empireY = h * 0.88f
-                            val empireX = w * 0.5f
+                            val clk = clock
 
-                            drawRect(
-                                Color(0x2200E5FF),
-                                topLeft = Offset(w * 0.35f, 0f),
-                                size = Size(w * 0.3f, h)
-                            )
-                            drawCircle(WisdomCyan, radius = 18f, center = Offset(empireX, empireY))
+                            drawDefenseField(w, h, clk)
+                            drawDefenseEmpire(w, h, clk)
 
-                            for (e in engine.enemies) {
-                                val y = h * (0.12f + e.progress * 0.7f)
-                                val x = w * 0.5f + sin(e.id * 1.7f) * w * 0.08f
-                                drawCircle(Color(0xFFF43F5E), radius = 14f, center = Offset(x, y))
+                            // Far enemies first, so near ones are drawn on top.
+                            val ordered = engine.enemies.sortedBy { it.progress }
+                            val nearest = ordered.lastOrNull()
+                            for (e in ordered) {
+                                val x = defenseLaneX(w, e.id, e.progress)
+                                val foot = defenseLaneY(h, e.progress)
+                                val u = defenseUnit(w, h, e.progress)
+                                if (e === nearest) drawDefenseTargetRing(x, foot, u, clk)
+                                drawDefenseEnemy(e.kind, x, foot, u, clk, e.id)
+                            }
+
+                            // Death: white flash, shrink and fade (particles come in D3).
+                            for (d in engine.dying) {
+                                val t = d.t
+                                val x = defenseLaneX(w, d.id, d.progress)
+                                val foot = defenseLaneY(h, d.progress)
+                                val u = defenseUnit(w, h, d.progress) * (1f - 0.35f * t)
+                                drawDefenseEnemy(
+                                    d.kind, x, foot, u, clk, d.id,
+                                    alpha = 1f - t,
+                                    flash = (1f - t * 2.5f).coerceIn(0f, 1f)
+                                )
                             }
 
                             val sp = engine.shotProgress
-                            if (sp != null && engine.enemies.isNotEmpty()) {
-                                val nearest = engine.enemies.maxByOrNull { it.progress }!!
-                                val ty = h * (0.12f + nearest.progress * 0.7f)
-                                val tx = w * 0.5f
-                                val fromY = empireY - 40f
-                                val y = fromY + (ty - fromY) * sp
+                            if (sp != null && nearest != null) {
+                                val tx = defenseLaneX(w, nearest.id, nearest.progress)
+                                val tu = defenseUnit(w, h, nearest.progress)
+                                val ty = defenseLaneY(h, nearest.progress) - tu * 1.0f
+                                val fromX = w * 0.5f
+                                val fromY = defenseMuzzleY(h)
+                                val sx = fromX + (tx - fromX) * sp
+                                val sy = fromY + (ty - fromY) * sp
                                 val col = if (engine.lastShotCorrect == true) Color(0xFF10B981) else Color(0xFFF43F5E)
-                                drawCircle(col, radius = 8f, center = Offset(tx, y))
+                                drawCircle(col.copy(alpha = 0.3f), 18f, Offset(sx, sy))
+                                drawCircle(col, 8f, Offset(sx, sy))
                             }
-
-                            val path = Path()
-                            path.moveTo(0f, h)
-                            path.quadraticBezierTo(w * 0.5f, h * 0.72f, w, h)
-                            path.lineTo(w, h)
-                            path.lineTo(0f, h)
-                            path.close()
-                            drawPath(path, Color(0x44070D17))
                         }
 
                         val choices = engine.current?.choices.orEmpty()
