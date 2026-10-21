@@ -3,8 +3,10 @@
 | Phase | Status |
 |---|---|
 | G0–G5 | done |
-| G6 Climb play + wire-up | open |
-| G7–G9 | open |
+| G6 Climb play | mostly done — play UI on main; workspace wiring may need Claude apply |
+| G7 Defense engine | open |
+| G8 Defense flow | open |
+| G9 Polish | open |
 | G10 | not started |
 
-Full plan parent 61a2b34.
+Owner test (after wiring lands): Learning > course > Question Banks > Tower Climb banner.

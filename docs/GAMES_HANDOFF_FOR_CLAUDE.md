@@ -2,26 +2,31 @@
 
 ## Phase status
 - G0–G5 DONE
-- G6 IN PROGRESS: play UI files on main; ClimbPlayScreen + TowerClimbScreen + StudyWorkspace + HubItemList wiring
+- G6 play UI on main (ClimbPlayScreen, TowerClimbScreen, Hud, Scene, Result, Attic)
+- G6 WIRING PENDING: StudyWorkspaceScreen.kt and HubItemListScreen.kt edits are in agent working copies but may not be on main yet (file size push limits).
 
-## G6 files
-- ClimbHud, FloorSceneCanvas, FloorResultSheet, AtticScreen (committed)
-- ClimbPlayScreen.kt, TowerClimbScreen.kt (play + attic host)
-- StudyWorkspaceScreen: WorkspaceView.Climb/Defense + onOpenGame
-- HubItemListScreen: onOpenGame + GameHubBanner
+## What Claude must apply if missing on main
+
+### StudyWorkspaceScreen.kt
+1. Add to WorkspaceView:
+```
+data class Climb(val hubId: String) : WorkspaceView
+data class Defense(val hubId: String) : WorkspaceView
+```
+2. BackHandler when: Climb/Defense -> HubList(hubId)
+3. HubItemListScreen(..., onOpenGame = when(hubId) { "question-banks" -> { view = Climb(...) }; "exams" -> { view = Defense(...) }; else -> null })
+4. when branches:
+```
+is WorkspaceView.Climb -> TowerClimbScreen(scopePath=contentScope, courseTitle=title, locks=locks, onBack={ view = HubList(shown.hubId) }, modifier=modifier)
+is WorkspaceView.Defense -> placeholder until G8
+```
+
+### HubItemListScreen.kt
+1. Add param `onOpenGame: (() -> Unit)? = null`
+2. When Success and items not empty and hub is question-banks or exams, show GameHubBanner item that calls onOpenGame
 
 ## UNSURE
-- Defense is placeholder until G8
-- Jump-to-me scroll index with reverseLayout
-
-## Known risks
-- ClimbPlayScreen records floor clear once via LaunchedEffect(resultRecorded)
-- Boss pool loads all open-floor banks (may be slow on first open)
+- Defense placeholder until G8
 
 ## CI errors seen (Claude fills this)
 (none yet)
-
-## Compile notes
-- GamePowerUpChip, GameQuestionCard, GameFrameLoop, GameAudio, GameHaptics used from common
-- HubItemList: onOpenGame default null; Canvas/Brush for banner
-- StudyWorkspace: fully qualified TowerClimbScreen path to avoid new imports if needed
