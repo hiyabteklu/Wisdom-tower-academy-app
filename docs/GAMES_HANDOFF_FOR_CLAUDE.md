@@ -4,11 +4,14 @@
 - G0–G8 done (game code + StudyWorkspace FAB entry for Climb/Defense)
 - G9 polish: low-end ~30fps frame loop, particleCap factory, full inventory
 - G10 not started
+- GAME TAB (owner order 2026-10-21): bottom-nav "Packages" tab becomes "Game". Code pushed: `ui/games/GameTabScreen.kt` (+ `GameLaunch` hand-over) and the StudyWorkspace change. The `MainActivity.kt` part is the patch `scripts/patch_game_tab.py` (run through the "Apply pending patches" Action; NOT applied to main until the owner merges the branch, check with grep for `GameTabScreen(` in MainActivity.kt).
 
 ## Entry points
+- Bottom nav **Game** tab → choose Tower Climb or Tower Defense → choose a course → course page (subject list, same PackageDetailScreen as before) → choose a subject → the game starts at once (`GameLaunch.kind` is read once by StudyWorkspaceScreen; Back from the game closes the workspace)
 - Question Banks list → bottom FAB **Tower Climb** → TowerClimbScreen
 - Exams list → bottom FAB **Tower Defense** → TowerDefenseScreen
 - Optional in-list banner: docs/GAMES_HUB_PATCH.md
+- The old Packages catalogue screen (`PackagesScreen`) is no longer reachable from the bottom nav (the file is kept). Its course page is still opened from the Learning tab (it sets `selectedIndex = 2`, which is now the Game tab).
 
 ## File inventory
 
@@ -16,6 +19,9 @@
 GameQuestion.kt, GameQuestionLoader.kt (LRU 12), GameStore.kt,
 ClimbRewards.kt, ClimbTower.kt, ClimbSession.kt,
 DefenseTuning.kt, DefenseEngine.kt
+
+### ui/games
+GameTabScreen.kt (bottom Game tab + `GameLaunch`)
 
 ### ui/games/common
 GameTheme.kt (isLowEnd, reduceMotion, particleCap, zones),
@@ -33,7 +39,7 @@ DefenseSprites.kt, DefenseCanvas.kt, DefenseHud.kt,
 ExamPickerScreen.kt, DefenseResultScreen.kt, TowerDefenseScreen.kt
 
 ### study
-StudyWorkspaceScreen.kt — Climb/Defense views + FAB
+StudyWorkspaceScreen.kt — Climb/Defense views + FAB + game-from-tab start
 HubItemListScreen.kt — optional onOpenGame (GAMES_HUB_PATCH.md)
 
 ## Owner test list
@@ -42,11 +48,14 @@ HubItemListScreen.kt — optional onOpenGame (GAMES_HUB_PATCH.md)
 3. Background mid-play → pauses; return resumes
 4. Offline after one open → cached content still plays
 5. Low-RAM / animator scale 0 → still playable
+6. Game tab: Tower Climb → course → subject → game opens; Back returns to the course page; same for Tower Defense
 
 ## UNSURE
 - Jump-to-me reverseLayout index may need visual tweak
 - Armored second-hit question may skip a wave slot
 - StudyWorkspace comments stripped for size; hub grid uses openGrid("hubs", …)
+- Game tab: a package whose subject opens a workspace without a content scope (web-only hub) will not start the game; it just shows the hub grid
+- `GameLaunch.kind` could stay set if the owner backs out in the middle of the Game tab flow and opens a Learning workspace; GameTabScreen clears it whenever it appears
 
 ## Memory / safety
 - Loader cache 12; Audio.release on leave; FrameLoop stops on ON_PAUSE; particles pooled 24/80
