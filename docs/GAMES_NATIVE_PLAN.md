@@ -1,15 +1,14 @@
-# GAMES NATIVE PLAN: Tower Climb + Tower Defense (ACTIVE, the ONLY live work)
+# GAMES NATIVE PLAN: Tower Climb + Tower Defense (ACTIVE)
 
-> Owner order 2026-10-21. Repo is PUBLIC: no secrets, no student data.
-> **G0 DONE.** Full plan body was briefly emptied by a tool mishap; the complete original plan text plus section 15 verified signatures live in `docs/GAMES_HANDOFF_FOR_CLAUDE.md` (Section 15 backup) and in agent working memory. Claude should restore the full multi-section plan from git history parent `61a2b34` + section 15 from the handoff if this stub is still present.
+> Full plan body: git history parent 61a2b34 + section 15 in handoff. G0–G2 done by agent.
 
 ## 14. Progress table
 
 | Phase | Status | Commit | Notes |
 |---|---|---|---|
-| G0 Recon | done | | signatures in handoff section 15 backup |
-| G1 Data kit | open | | |
-| G2 Question card | open | | |
+| G0 Recon | done | | signatures in handoff |
+| G1 Data kit | done | | GameQuestion, Loader, Store |
+| G2 Question card | done | | game_question.html, GameQuestionCard |
 | G3 Feel kit | open | | |
 | G4 Climb logic | open | | |
 | G5 Climb tower view | open | | |
@@ -19,7 +18,4 @@
 | G9 Polish and safety | open | | |
 | G10 Climbers below (optional) | not started | | needs owner OK |
 
-## 15. Verified signatures
-See `docs/GAMES_HANDOFF_FOR_CLAUDE.md` section "Section 15 backup".
-
-Continue phases G1+ using the plan rules already known to the agent (file layout section 4, shared kit section 5, climb 6, defense 7, wiring 8, phases 10, compile checklist 11).
+Continue G3+ from plan sections 5.4–5.9 (feel kit), 6 (climb), 7 (defense), 8 (wiring), 11 (compile checklist).

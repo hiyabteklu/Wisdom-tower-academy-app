@@ -1,0 +1,186 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="stylesheet" href="katex/katex.min.css">
+<link rel="stylesheet" href="richtext.css">
+<style>
+  :root { color-scheme: dark; }
+  html, body { margin: 0; padding: 0; background: transparent; }
+  body { color: #cbd5e1; font: 15px/1.55 -apple-system, Roboto, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; }
+  #root { padding: 2px 2px 16px; max-width: 680px; margin: 0 auto; overflow-wrap: anywhere; }
+  button { font-family: inherit; cursor: pointer; }
+  .msg { text-align: center; color: #94a3b8; padding: 40px 0; font-size: .9rem; }
+
+  .qcard {
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 16px;
+    padding: 14px;
+    background: linear-gradient(160deg, #131f38, #0e172a 60%, #0a101d);
+  }
+  .prompt {
+    color: #fff; font-weight: 700; margin-bottom: 12px;
+    font-family: var(--wt-content-font-family, "WT Tinos", serif);
+    font-style: var(--wt-content-font-style, italic);
+    font-size: var(--wt-content-size-question, 17px);
+    line-height: var(--wt-content-line-question, 26px);
+  }
+  .prompt .study-p { margin: 0 0 .5em; }
+  .crow { display: flex; align-items: center; margin-bottom: 8px; }
+  .choice {
+    width: 100%; text-align: left; display: flex; align-items: baseline; gap: 8px;
+    padding: 14px 14px; min-height: 48px; box-sizing: border-box;
+    border-radius: 12px; border: 1px solid rgba(255,255,255,.1);
+    background: rgba(255,255,255,.03); color: rgba(255,255,255,.9);
+    font-size: .85rem; font-weight: 600;
+    opacity: 0; transform: translateY(6px);
+    animation: choiceIn 160ms ease-out forwards;
+  }
+  .choice .cl { color: #fcd34d; font-weight: 800; flex: none; font-style: normal; }
+  .choice .ct {
+    min-width: 0; flex: 1;
+    font-family: var(--wt-content-font-family, "WT Tinos", serif);
+    font-style: var(--wt-content-font-style, italic);
+    font-size: var(--wt-content-size-option, 16px);
+    line-height: var(--wt-content-line-option, 24px);
+  }
+  .choice.sel { border-color: #22d3ee; background: rgba(6,182,212,.2); color: #fff; font-weight: 800; }
+  .choice:disabled { opacity: .85; }
+  .choice.hidden-choice { display: none; }
+  .choice.correct {
+    border-color: #10b981; background: rgba(16,185,129,.22); color: #fff;
+  }
+  .choice.wrong {
+    border-color: #f43f5e; background: rgba(244,63,94,.2); color: #fff;
+    animation: shake 280ms ease-out;
+  }
+  .solution {
+    margin-top: 12px; padding: 12px; border-radius: 12px;
+    border: 1px solid rgba(34,211,238,.25); background: rgba(6,182,212,.08);
+    color: #e2e8f0; font-size: .9rem; line-height: 1.5;
+  }
+  .solution-label {
+    color: #22d3ee; font-weight: 800; font-size: .75rem; letter-spacing: .04em;
+    text-transform: uppercase; margin-bottom: 6px;
+  }
+
+  @keyframes choiceIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    20% { transform: translateX(-5px); }
+    40% { transform: translateX(5px); }
+    60% { transform: translateX(-3px); }
+    80% { transform: translateX(3px); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .choice { animation: none; opacity: 1; transform: none; }
+    .choice.wrong { animation: none; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="katex/katex.min.js"></script>
+<script src="richtext.js"></script>
+<script>
+/*
+ * Game question card (native games G2). Same KaTeX path as competition.html.
+ * window.setCard(jsonText) with:
+ *   { id, prompt, choices, selected (-1 none), enabled, hidden: [indexes], reveal: null | { correct, solution } }
+ * Kotlin judges answers; page only displays. WTBridge.onPick(index) on tap.
+ * No network, no navigation, no answer key before reveal.
+ */
+(function () {
+  var root = document.getElementById("root");
+  var cur = null, lastId = null;
+
+  function esc(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  }
+  function R(t) {
+    try { return window.WTRich.render(String(t == null ? "" : t)); }
+    catch (e) { return esc(t); }
+  }
+  function RI(t) {
+    try { return window.WTRich.renderInline(String(t == null ? "" : t)); }
+    catch (e) { return esc(t); }
+  }
+  function cleanChoice(c) {
+    return String(c == null ? "" : c).replace(/^[A-Da-d][.)]\s*/, "").replace(/[\r\n]+/g, " ").trim();
+  }
+  function letter(i) { return String.fromCharCode(65 + i); }
+  function isHidden(idx) {
+    if (!cur || !Array.isArray(cur.hidden)) return false;
+    return cur.hidden.indexOf(idx) >= 0;
+  }
+
+  function draw() {
+    if (!cur) return;
+    var keep = (lastId === cur.id) ? (window.pageYOffset || 0) : 0;
+    var choices = Array.isArray(cur.choices) ? cur.choices : [];
+    var reveal = cur.reveal;
+    var h = '<div class="qcard"><div class="prompt">' + R(cur.prompt) + "</div>";
+    var i, cls, delay;
+    for (i = 0; i < choices.length; i++) {
+      if (isHidden(i)) {
+        h += '<div class="crow"><button class="choice hidden-choice" data-ci="' + i + '" disabled></button></div>';
+        continue;
+      }
+      cls = "choice";
+      if (cur.selected === i) cls += " sel";
+      if (reveal) {
+        if (i === reveal.correct) cls += " correct";
+        else if (cur.selected === i && i !== reveal.correct) cls += " wrong";
+      }
+      delay = (i * 30) + "ms";
+      h += '<div class="crow"><button class="' + cls + '" data-ci="' + i + '"' +
+        (cur.enabled && !reveal ? "" : " disabled") +
+        ' style="animation-delay:' + delay + '">' +
+        '<span class="cl">' + letter(i) + '.</span><span class="ct">' +
+        RI(cleanChoice(choices[i])) + "</span></button></div>";
+    }
+    if (reveal && reveal.solution) {
+      h += '<div class="solution"><div class="solution-label">Solution</div>' +
+        R(reveal.solution) + "</div>";
+    }
+    h += "</div>";
+    root.innerHTML = h;
+    window.scrollTo(0, keep);
+    lastId = cur.id;
+  }
+
+  root.addEventListener("click", function (e) {
+    if (!cur || !cur.enabled || cur.reveal) return;
+    var el = e.target;
+    while (el && el !== root && !(el.getAttribute && el.getAttribute("data-ci") !== null)) {
+      el = el.parentNode;
+    }
+    if (!el || el === root) return;
+    var ci = Number(el.getAttribute("data-ci"));
+    if (isHidden(ci)) return;
+    cur.selected = ci;
+    draw();
+    try {
+      if (window.WTBridge && window.WTBridge.onPick) window.WTBridge.onPick(ci);
+    } catch (err) {}
+  });
+
+  window.setCard = function (text) {
+    try {
+      cur = JSON.parse(text || "{}");
+      if (!Array.isArray(cur.hidden)) cur.hidden = [];
+      draw();
+    } catch (e) {
+      root.innerHTML = '<p class="msg">Could not display this question.</p>';
+    }
+  };
+})();
+</script>
+</body>
+</html>
