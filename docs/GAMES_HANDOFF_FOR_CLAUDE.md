@@ -1,21 +1,24 @@
 # GAMES HANDOFF FOR CLAUDE
 
 ## Phase status
-- G0–G5 DONE; G6 play UI on main (workspace wiring may still need apply)
-- G7 DONE: DefenseTuning, DefenseEngine, DefenseSprites, DefenseCanvas
-- G8 open: ExamPicker, TowerDefenseScreen, DefenseHud, results, wire Defense
+- G0–G5 done; G6 play UI on main
+- G7 Defense engine + scene done
+- G8 Defense flow UI on main (ExamPicker, TowerDefenseScreen, Hud, Result)
+- **Workspace wire still needed** — see docs/GAMES_WIRE_G8.md (StudyWorkspace + HubItemList). Local agent copies exist with full patches.
 
-## G7 files
-- data/games/DefenseTuning.kt — all numbers
-- data/games/DefenseEngine.kt — fixed 1/60 step, march-as-timer, power-ups, waves
-- ui/games/defense/DefenseSprites.kt — Scout/Standard/Armored + citadel paths
-- ui/games/defense/DefenseCanvas.kt — side-view lane, parallax, bolt
+## G8 files on main
+- ui/games/defense/DefenseHud.kt
+- ui/games/defense/ExamPickerScreen.kt
+- ui/games/defense/DefenseResultScreen.kt
+- ui/games/defense/TowerDefenseScreen.kt
+
+## Owner test after wire lands
+1. Learning → course → Question Banks → Tower Climb banner → climb a floor
+2. Learning → course → Exams → Tower Defense banner → Exam Run or Endless
 
 ## UNSURE
-- Armored second question pulls from nextQuestionCursor (may skip a planned wave slot)
-
-## Known risks
-- G6 StudyWorkspace/HubItemList wiring may still be missing on main
+- Armored second-hit question index may skip a wave slot
+- StudyWorkspace/HubItemList full file push may exceed tool size; use GAMES_WIRE_G8.md
 
 ## CI errors seen (Claude fills this)
 (none yet)

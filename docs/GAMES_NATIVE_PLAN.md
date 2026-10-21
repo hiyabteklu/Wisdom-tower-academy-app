@@ -3,10 +3,8 @@
 | Phase | Status |
 |---|---|
 | G0–G5 | done |
-| G6 | play UI on main; workspace wiring may need apply |
-| G7 Defense engine + scene | done |
-| G8 Defense flow + wire-up | open |
+| G6 | play UI done; workspace wire see GAMES_WIRE_G8.md |
+| G7 | done |
+| G8 | Defense flow UI done; workspace wire pending apply |
 | G9 | open |
 | G10 | not started |
-
-Full plan parent 61a2b34.
