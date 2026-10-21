@@ -55,7 +55,6 @@ import com.wisdomtower.academy.ui.games.common.GameFrameLoop
 import com.wisdomtower.academy.ui.games.common.GameFullScreenEffect
 import com.wisdomtower.academy.ui.games.common.GameHaptics
 import com.wisdomtower.academy.ui.games.common.GameParticleSystem
-import com.wisdomtower.academy.ui.games.common.GamePrimaryButton
 import com.wisdomtower.academy.ui.games.common.GameTheme
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -68,6 +67,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * Effects (shot trail, particles, shield shatter, wall shake, vignette, floating text)
  * come from DefenseEffects.kt (slice D3).
  * UI (HUD with progress bar, question panel with slide, 2x2 answer cards) is slice D4.
+ * The result screen (stars, stats, Retry and Done) is DefenseResult.kt (slice D5).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -78,12 +78,14 @@ fun WisdomDefenseScreen(
     GameFullScreenEffect()
     val context = LocalContext.current
     val view = LocalView.current
-    val engine = remember(set.id) { WisdomDefenseEngine(set.defenseItems) }
+    // Retry starts a fresh engine and fresh effects for the same set.
+    var attempt by remember { mutableIntStateOf(0) }
+    val engine = remember(set.id, attempt) { WisdomDefenseEngine(set.defenseItems) }
     // Questions at the start = number of enemies to defeat (the engine has just been created).
-    val total = remember(set.id) { engine.questionsLeft }
+    val total = remember(set.id, attempt) { engine.questionsLeft }
     val lowEnd = remember { GameTheme.isLowEnd(context) }
     val reduceMotion = remember { GameTheme.reduceMotion(context) }
-    val fx = remember(set.id) { DefenseEffects(GameParticleSystem.create(context), lowEnd, reduceMotion) }
+    val fx = remember(set.id, attempt) { DefenseEffects(GameParticleSystem.create(context), lowEnd, reduceMotion) }
     fx.dens = LocalDensity.current.density
     var frame by remember { mutableIntStateOf(0) }
     var clock by remember { mutableFloatStateOf(0f) }
@@ -118,23 +120,23 @@ fun WisdomDefenseScreen(
 
         when (val phase = engine.phase) {
             is WisdomDefensePhase.Won, is WisdomDefensePhase.Lost -> {
-                val title = if (phase is WisdomDefensePhase.Won) "Empire held!" else "Empire breached"
-                val detail = when (phase) {
-                    is WisdomDefensePhase.Won -> "${phase.killed} defeated · ${phase.heartsLeft} hearts left"
-                    is WisdomDefensePhase.Lost -> "${phase.killed} defeated"
-                    else -> ""
+                val won = phase is WisdomDefensePhase.Won
+                val killedCount = when (phase) {
+                    is WisdomDefensePhase.Won -> phase.killed
+                    is WisdomDefensePhase.Lost -> phase.killed
+                    else -> 0
                 }
-                Column(
-                    Modifier.fillMaxSize().padding(24.dp),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(title, color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 22.sp)
-                    Spacer(Modifier.height(8.dp))
-                    Text(detail, color = WisdomMuted, fontSize = 14.sp)
-                    Spacer(Modifier.height(24.dp))
-                    GamePrimaryButton("Done", onClick = onExit, modifier = Modifier.fillMaxWidth())
-                }
+                val heartsLeft = if (phase is WisdomDefensePhase.Won) phase.heartsLeft else 0
+                DefenseResult(
+                    won = won,
+                    killed = killedCount,
+                    total = total,
+                    heartsLeft = heartsLeft,
+                    maxHearts = engine.maxHearts,
+                    reduceMotion = reduceMotion,
+                    onRetry = { attempt++ },
+                    onDone = onExit
+                )
             }
             is WisdomDefensePhase.Playing -> {
                 Column(Modifier.fillMaxSize()) {
