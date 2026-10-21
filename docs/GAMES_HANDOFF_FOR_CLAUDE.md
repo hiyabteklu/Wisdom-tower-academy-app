@@ -52,4 +52,9 @@ HubItemListScreen.kt — optional onOpenGame (GAMES_HUB_PATCH.md)
 - Loader cache 12; Audio.release on leave; FrameLoop stops on ON_PAUSE; particles pooled 24/80
 
 ## CI errors (Claude fills)
-(none yet)
+- 2026-10-21, runs #899 to #906 (`:app:compileReleaseKotlin`), all in `StudyWorkspaceScreen.kt`:
+  `307:61 Too many arguments for 'fun AtmosphereBackground(modifier: Modifier = ...)'` plus three or four `@Composable invocations can only happen from the context of a @Composable function` (lines 308, 384, 393, 406).
+  - Cause: the rewritten screen called `AtmosphereBackground(modifier = ...) { ...content... }`. `AtmosphereBackground` takes ONLY `modifier` and has NO content lambda. The trailing `{ }` made everything inside it a non-composable lambda, which caused the other errors (they were knock-on errors of line 307).
+  - Fix (commit daf920b): `Box(modifier = modifier.fillMaxSize()) { AtmosphereBackground(modifier = Modifier.fillMaxSize()); ...content... }`. This is the pattern every other screen in the app uses.
+  - DO NOT: never put a content lambda after `AtmosphereBackground`. Always draw it as the first child of a `Box`.
+  - If the next run shows NEW errors in the game files (ui/games/...), they were hidden behind these; paste the next `e: file:///` line.
