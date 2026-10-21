@@ -1,17 +1,17 @@
 # GAMES HANDOFF FOR CLAUDE
 
-## URGENT / status
-- StudyWorkspaceScreen RESTORED and wired (Climb + Defense views, onOpenGame).
-- HubItemListScreen: if onOpenGame param missing on main, apply from docs/GAMES_WIRE_G8.md (param + GameHubBanner item using ui.games.common.GameHubBanner).
-- G0–G8 game code is on main. G9 polish open.
+## Status
+- StudyWorkspace has Climb + Defense workspace views and a bottom FAB on Question Banks / Exams lists (avoids HubItemList signature change until GAMES_HUB_PATCH.md is applied).
+- Apply docs/GAMES_HUB_PATCH.md when possible so GameHubBanner appears in the list instead of FAB.
+- G0–G8 game implementations are on main.
+- G9 polish still open.
 
-## Owner phone tests
-1. Learning → course → Question Banks → Tower Climb banner → climb a floor
-2. Learning → course → Exams → Tower Defense banner → Exam Run / Endless
+## Owner tests
+1. Learning → course → Question Banks → bottom **Tower Climb** button → climb
+2. Learning → course → Exams → bottom **Tower Defense** button → Exam Run / Endless
 
 ## UNSURE
-- Compacted StudyWorkspace may need comment restoration for maintainers; logic should match parent + wire.
-- HubItemList full push may still be pending if size-limited.
+- FAB may sit over list content; banner in-list is preferred after Hub patch.
 
-## CI errors (Claude fills)
+## CI (Claude fills)
 (none yet)
