@@ -56,7 +56,6 @@ import com.wisdomtower.academy.data.games.MatchSelectResult
 import com.wisdomtower.academy.ui.games.common.GameAudio
 import com.wisdomtower.academy.ui.games.common.GameFullScreenEffect
 import com.wisdomtower.academy.ui.games.common.GameHaptics
-import com.wisdomtower.academy.ui.games.common.GamePrimaryButton
 import com.wisdomtower.academy.ui.games.common.GameSecondaryButton
 import com.wisdomtower.academy.ui.games.common.GameTheme
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
@@ -67,12 +66,14 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /**
- * Match game screen (docs/GAMES_HUB_PLAN.md step 4, animated by docs/GAMES_FEEL_PLAN.md slice M2).
+ * Match game screen (docs/GAMES_HUB_PLAN.md step 4, animated by docs/GAMES_FEEL_PLAN.md slice M2,
+ * HUD and result by slice M3).
  * Takes a loaded [GameSetData] with match pairs and [onExit].
  *
  * The engine swaps matched cards for new ones at once (M1). The screen keeps its own `shown`
  * list so the matched pair can pulse green and fade out first, and the new cards then take the
  * same two slots and scale in. Every other card stays where it is.
+ * `attempt` restarts the game (new engine, fresh screen state) when the player taps Retry.
  */
 @Composable
 fun MatchScreen(
@@ -83,7 +84,8 @@ fun MatchScreen(
     GameFullScreenEffect()
     val context = LocalContext.current
     val view = LocalView.current
-    val engine = remember(set.id) { MatchEngine(set.matchPairs) }
+    var attempt by remember(set.id) { mutableIntStateOf(0) }
+    val engine = remember(set.id, attempt) { MatchEngine(set.matchPairs) }
     val reduceMotion = remember { GameTheme.reduceMotion(context) }
     val scope = rememberCoroutineScope()
 
@@ -91,10 +93,10 @@ fun MatchScreen(
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
 
     var tick by remember { mutableIntStateOf(0) }
-    var shown by remember(set.id) { mutableStateOf(engine.board) }
-    var leaving by remember(set.id) { mutableStateOf<Set<Int>>(emptySet()) }
-    var wrongIds by remember(set.id) { mutableStateOf<List<Int>>(emptyList()) }
-    var busy by remember(set.id) { mutableIntStateOf(0) }
+    var shown by remember(set.id, attempt) { mutableStateOf(engine.board) }
+    var leaving by remember(set.id, attempt) { mutableStateOf<Set<Int>>(emptySet()) }
+    var wrongIds by remember(set.id, attempt) { mutableStateOf<List<Int>>(emptyList()) }
+    var busy by remember(set.id, attempt) { mutableIntStateOf(0) }
 
     // A wrong pair shakes and glows red, then resets by itself.
     LaunchedEffect(wrongIds) {
@@ -115,28 +117,14 @@ fun MatchScreen(
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         if (finished && phase is MatchPhase.Complete) {
-            Column(
-                Modifier.fillMaxSize().padding(24.dp),
-                verticalArrangement = Arrangement.Center,
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    if (phase.pairsTotal == 0) "No pairs in this set" else "Set complete!",
-                    color = WisdomInk,
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 22.sp
-                )
-                if (phase.pairsTotal > 0) {
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        "${phase.pairsTotal} pairs · ${phase.moves} moves",
-                        color = WisdomMuted,
-                        fontSize = 14.sp
-                    )
-                }
-                Spacer(Modifier.height(24.dp))
-                GamePrimaryButton("Done", onClick = onExit, modifier = Modifier.fillMaxWidth())
-            }
+            MatchResult(
+                pairsTotal = phase.pairsTotal,
+                moves = phase.moves,
+                bestStreak = engine.bestStreak,
+                reduceMotion = reduceMotion,
+                onRetry = { attempt++ },
+                onDone = onExit
+            )
         } else {
             Column(Modifier.fillMaxSize().padding(12.dp)) {
                 Row(
@@ -167,10 +155,11 @@ fun MatchScreen(
                     )
                 }
                 Spacer(Modifier.height(8.dp))
-                Text(
-                    "Tap a card, then its match",
-                    color = WisdomMuted,
-                    fontSize = 13.sp,
+                MatchProgressBar(
+                    matched = engine.matchedCount,
+                    total = engine.pairsTotal,
+                    streak = engine.streak,
+                    reduceMotion = reduceMotion,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
                 Spacer(Modifier.height(12.dp))
