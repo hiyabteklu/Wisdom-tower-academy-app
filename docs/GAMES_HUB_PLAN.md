@@ -1,17 +1,21 @@
 # GAMES HUB PLAN (owner decisions, 2026-10-21)
 
-Status: Steps 1–5 done (code). Bottom-bar hide merged (PR #74). Step 6: StudyWorkspace no longer has Climb/Defense FAB or GameLaunch path — games only via Game tab + game_sets. Old climb/defense source files still on disk (delete when owner says). CI failed on step 5 (DefenseEnemy declared twice: legacy DefenseEngine.kt and WisdomDefenseEngine.kt). Fixed by renaming the new one to WisdomEnemy; waiting on CI. Next: step 7 admin bulk paste for game_sets so chapters have content.
+Status: Steps 1–7 code on main. CI fixed DefenseEnemy clash (WisdomEnemy). Bottom-bar hide merged. Admin **Game Sets** module: pick subject → list/add/edit/delete sets, bulk paste items JSON (match a/b; defense q/choices/correct). Next: CI for step 7; owner publishes a set and phone-tests Game tab.
 
 ## 6. Build order and status
 | Step | What | Status |
 |---|---|---|
-| 1–3 | DB, repo, hub, fullscreen | DONE (CI green) |
-| 4 | Match | DONE + wired |
-| 5 | Wisdom Defense | DONE + wired, compile fix pushed (WisdomEnemy rename), CI pending |
-| 6 | Remove old FABs / GameLaunch from StudyWorkspace | DONE (NOT COMPILED until CI passes) |
-| 7 | Admin bulk JSON for game_sets | not started |
+| 1–3 | DB, repo, hub, fullscreen | DONE |
+| 4 | Match | DONE |
+| 5 | Wisdom Defense | DONE (WisdomEnemy rename) |
+| 6 | Remove old FABs | DONE |
+| 7 | Admin bulk JSON for game_sets | WRITTEN + wired (NOT COMPILED this session) |
 
-## Owner phone test
-1. Game tab → Match / Defense → course → subject → chapter (needs published game_sets)
-2. Learning hubs: no Tower Climb/Defense FAB
-3. Fullscreen play hides bottom bar
+## Admin Game Sets (step 7)
+- `AdminGameSetsRepository.kt` — list / save / delete via AdminSupabase
+- `AdminGameSetsScreen.kt` — tree → subject → sets → editor with JSON paste
+- Module id `game-sets` in AdminModules + AdminConsoleHost branch
+
+## Owner test
+1. Admin → Game Sets → subject → Add set → paste JSON → Publish
+2. Game tab → Match/Defense → same subject chapter → play
