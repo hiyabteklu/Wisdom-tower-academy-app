@@ -2,7 +2,7 @@
 
 > Repo is PUBLIC: no secrets, no student data. This is the ONLY live plan (see `docs/PARKED_2026-10-21.md`). Follow `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`: one slice = one commit straight to `main`, update this file in the same commit, say "not compiled" when CI was not seen.
 
-Status: STEP 1 (database) DONE 2026-10-21. Owner answered all open questions the same day (section 6). Next: STEP 2.
+Status: STEP 1 (database) DONE 2026-10-21. Owner answered all open questions the same day (section 5). STEP 2a (data layer) written, not compiled. Next: STEP 2b.
 
 ## 1. Two games (not four)
 
@@ -13,7 +13,7 @@ Owner words 2026-10-21, turned into a spec:
 - **Question** is shown at the TOP of the screen.
 - **Bullets = the 4 answer choices.** They sit in an ARC around the player (cockpit side).
 - **Tap one choice** and it flies STRAIGHT to the NEAREST enemy.
-- **Correct:** kills ONLY that targeted enemy (decided: no area clearing).
+- **Correct:** kills ONLY the targeted enemy (decided: no area clearing).
 - **Wrong:** the bullet bounces back; the enemy keeps getting closer until the player answers correctly for it. If it arrives first, it attacks the empire.
 - **Background:** the same app background as everywhere else, in all 3 looks (Dark, Day, and the third look) if possible. Use the app's existing background/theme system; do not invent a game-only background.
 
@@ -43,7 +43,7 @@ Table `public.game_sets` (new, empty; does not touch `learning_resources`):
 - One set per (`scope_path`, `chapter`, `game`) (unique).
 - `items`: defense = `[{"q":"...","choices":["a","b","c","d"],"correct":0,"hint":"..."}]` (`correct` is a 0-based index); match = `[{"a":"term","b":"meaning"}]`.
 - RLS on: everyone reads rows with `published = true`; admins (`private.is_admin()`) do everything.
-- Remember the ECE quirk in `docs/CONTENT_SHAPES.md`: ECE rows use `scope_path = ece/sem-1/<slug>` even for semester 2 courses. Query `game_sets` the same way the Learning hubs do.
+- Remember the ECE quirk in `docs/CONTENT_SHAPES.md`: ECE rows use `scope_path = ece/sem-1/<slug>` even for semester 2 courses. The app query already handles it.
 
 ### Live Supabase change log (add a line for every change)
 - 2026-10-21: migration `create_game_sets` (table + RLS above).
@@ -61,7 +61,8 @@ Table `public.game_sets` (new, empty; does not touch `learning_resources`):
 | Step | What | Status |
 |---|---|---|
 | 1 | Database `game_sets` | DONE |
-| 2 | Game hub: Game tab → pick game → student's own courses → subject → chapter list (chapters come from published `game_sets` rows of that scope) | NEXT |
+| 2a | Data layer `data/games/GameSetsRepository.kt` (chapters of a subject, one set per chapter and game, offline cache, skips malformed items). New file, used by no screen yet | WRITTEN, NOT COMPILED |
+| 2b | Game hub UI: Game tab → pick game (Wisdom Defense / Match) → student's own courses → subject → chapter list from `GameSetsRepository.chapters`, "coming soon" per game when a chapter has no set. Open points: how a subject maps to the `scope_path` string (check how StudyWorkspaceScreen builds it), and how MainActivity passes the chosen course | NEXT |
 | 3 | Full-screen mode while playing | not started |
 | 4 | Match (new) | not started |
 | 5 | Wisdom Defense rewrite (cockpit, arc, nearest-enemy shot) | not started |
