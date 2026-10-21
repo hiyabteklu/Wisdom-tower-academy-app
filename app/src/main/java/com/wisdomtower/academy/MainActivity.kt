@@ -159,6 +159,7 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.CloudOff
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Business
 import androidx.compose.material.icons.filled.Campaign
 import androidx.compose.material.icons.automirrored.filled.Logout
@@ -897,7 +898,7 @@ class MainActivity : ComponentActivity() {
 sealed class BottomNavItem(val title: String, val icon: ImageVector, val url: String) {
     object Home : BottomNavItem("Home", Icons.Filled.Home, "https://www.wisdom-tower-academy.live/")
     object Learning : BottomNavItem("Learning", Icons.AutoMirrored.Filled.MenuBook, "https://www.wisdom-tower-academy.live/learning")
-    object Packages : BottomNavItem("Packages", Icons.AutoMirrored.Filled.ViewList, "https://www.wisdom-tower-academy.live/packages")
+    object Packages : BottomNavItem("Game", Icons.Filled.SportsEsports, "https://www.wisdom-tower-academy.live/packages")
     object Account : BottomNavItem("Profile", Icons.Filled.Person, "https://www.wisdom-tower-academy.live/account")
     object Settings : BottomNavItem("Settings", Icons.Filled.Settings, "https://www.wisdom-tower-academy.live/settings")
 }
@@ -3302,7 +3303,7 @@ fun MainScreen(
                                 .zIndex(10f)
                         )
                     } else {
-                        PackagesScreen(
+                        com.wisdomtower.academy.ui.games.GameTabScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .appBackdrop()
@@ -3310,8 +3311,7 @@ fun MainScreen(
                             packageList = catalogPackages,
                             onSelectPackage = { pkg ->
                                 selectedPackage = pkg
-                            },
-                            onNavigateToUrl = handleGlobalNav
+                            }
                         )
                     }
                 }
