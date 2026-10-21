@@ -45,6 +45,7 @@ import com.wisdomtower.academy.data.content.CourseLocks
 import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningResource
+import com.wisdomtower.academy.ui.games.GameLaunch
 import com.wisdomtower.academy.ui.packages.NATIVE_LEARNING_HUBS
 import com.wisdomtower.academy.ui.packages.OpenCard
 import com.wisdomtower.academy.ui.packages.openGrid
@@ -149,6 +150,7 @@ fun StudyWorkspaceScreen(
     }
     var view by remember(basePath) { mutableStateOf<WorkspaceView?>(null) }
     var exitExamHub by remember(basePath) { mutableStateOf<String?>(null) }
+    var gameFromTab by remember(basePath) { mutableStateOf(false) }
 
     val context = LocalContext.current
     var hubCounts by remember(contentScope) { mutableStateOf<Map<String, Int>>(emptyMap()) }
@@ -187,9 +189,22 @@ fun StudyWorkspaceScreen(
         }
     }
 
+    // GAME TAB: the bottom "Game" tab asks for a game; start it as soon as a course workspace with a content scope opens
+    LaunchedEffect(basePath, contentScope) {
+        val kind = GameLaunch.kind
+        if (kind != null && contentScope != null && entranceUrl == null) {
+            GameLaunch.kind = null
+            gameFromTab = true
+            view = if (kind == "climb") WorkspaceView.Climb("question-banks") else WorkspaceView.Defense("exams")
+        }
+    }
+
     BackHandler(enabled = view != null && view !is WorkspaceView.Quiz) {
         val open = view
         if (open is WorkspaceView.HubList && entranceUrl != null) {
+            onBack(); return@BackHandler
+        }
+        if (gameFromTab && (open is WorkspaceView.Climb || open is WorkspaceView.Defense)) {
             onBack(); return@BackHandler
         }
         view = when (open) {
@@ -289,7 +304,7 @@ fun StudyWorkspaceScreen(
                 scopePath = contentScope,
                 courseTitle = title,
                 locks = locks,
-                onBack = { view = WorkspaceView.HubList(shown.hubId) },
+                onBack = { if (gameFromTab) onBack() else view = WorkspaceView.HubList(shown.hubId) },
                 modifier = modifier
             )
 
@@ -297,7 +312,7 @@ fun StudyWorkspaceScreen(
                 scopePath = contentScope,
                 courseTitle = title,
                 locks = locks,
-                onBack = { view = WorkspaceView.HubList(shown.hubId) },
+                onBack = { if (gameFromTab) onBack() else view = WorkspaceView.HubList(shown.hubId) },
                 modifier = modifier
             )
         }
