@@ -68,6 +68,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * come from DefenseEffects.kt (slice D3).
  * UI (HUD with progress bar, question panel with slide, 2x2 answer cards) is slice D4.
  * The result screen (stars, stats, Retry and Done) is DefenseResult.kt (slice D5).
+ * Sound and haptics mapping, reduce-motion on the HUD bar: slice P1 (see the block at the end).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -152,7 +153,11 @@ fun WisdomDefenseScreen(
                             modifier = Modifier.clickable(onClick = onExit).padding(8.dp)
                         )
                         val frac = if (total > 0) (engine.killed.toFloat() / total.toFloat()).coerceIn(0f, 1f) else 0f
-                        val animFrac by animateFloatAsState(targetValue = frac, animationSpec = tween(300))
+                        val animFrac by animateFloatAsState(
+                            targetValue = frac,
+                            animationSpec = tween(if (reduceMotion) 0 else 300),
+                            label = "defenseProgress"
+                        )
                         Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
                             Text(
                                 "${engine.killed} / $total",
@@ -352,8 +357,15 @@ fun WisdomDefenseScreen(
     @Suppress("UNUSED_EXPRESSION")
     frame
 
+    // P1 sound and haptics map:
+    //   fire = Shot + light tap | kill = Hit + correct buzz | wrong answer (new locked card) = Wrong + wrong buzz
+    //   heart lost = HeartLost + heart buzz (the sound is skipped on the last heart, Defeat plays instead)
+    //   won = Victory | lost = Defeat
     val killed = engine.killed
     val hearts = engine.hearts
+    val lockedCount = engine.lockedChoices.size
+    val didWin = engine.phase is WisdomDefensePhase.Won
+    val didLose = engine.phase is WisdomDefensePhase.Lost
     LaunchedEffect(killed) {
         if (killed > 0) {
             GameAudio.play(GameAudio.Sfx.Hit)
@@ -362,9 +374,19 @@ fun WisdomDefenseScreen(
     }
     LaunchedEffect(hearts) {
         if (hearts < engine.maxHearts) {
-            GameAudio.play(GameAudio.Sfx.HeartLost)
+            if (hearts > 0) GameAudio.play(GameAudio.Sfx.HeartLost)
             GameHaptics.heartLost(view, true)
         }
+    }
+    LaunchedEffect(lockedCount) {
+        if (lockedCount > 0) {
+            GameAudio.play(GameAudio.Sfx.Wrong)
+            GameHaptics.wrong(view, true)
+        }
+    }
+    LaunchedEffect(didWin, didLose) {
+        if (didWin) GameAudio.play(GameAudio.Sfx.Victory)
+        else if (didLose) GameAudio.play(GameAudio.Sfx.Defeat)
     }
 }
 
