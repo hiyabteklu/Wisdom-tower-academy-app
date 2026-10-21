@@ -1,6 +1,6 @@
 # GAMES HUB PLAN (owner decisions, 2026-10-21) — READ BEFORE TOUCHING THE GAMES
 
-Status: PLAN ONLY. No code for this plan is written yet. It replaces the earlier plan where games read Question Banks and Exams.
+Status: STEP 1 (database) DONE on 2026-10-21. No app code for this plan is written yet. It replaces the earlier plan where games read Question Banks and Exams.
 
 ## 1. Two games (not four)
 1. **Wisdom Defense** (redesign of Tower Defense)
@@ -21,22 +21,31 @@ Bottom nav **Game** tab → pick a game → the student's own courses (the SAME 
 - Games get their OWN dedicated, SHORT questions. Long questions are not used.
 - The owner prepares these question sets separately, for every package, subject and chapter, one set per game.
 - This content is NOT part of the 6 normal hubs and is NOT visible there. It is reachable only through the Game tab.
-- CHAPTER is a new level in the app (today the app stops at subject). Needs a place to store chapters and their game sets (this is the old "G10" database step and comes BEFORE the screens).
+- CHAPTER is a new level in the app (today the app stops at subject).
 - Question shapes: Wisdom Defense = short question + 4 choices. Match = pairs (term and meaning).
 - A chapter with no set for a game shows "coming soon" for that game only.
 
-## 4. Build order (proposed)
-1. Database / storage for chapters and game sets (owner approves the tables; owner runs any SQL).
-2. Game hub: pick game → learning-level courses → subject → chapter list (only the student's courses).
+## 4. Database (DONE 2026-10-21, Supabase project "Wisdom tower academy", migration `create_game_sets`)
+Table `public.game_sets` (new, empty, does not touch `learning_resources`, so nothing changes on the website or in the normal hubs):
+- `id` uuid, `package_id` text, `scope_path` text (SAME format as `learning_resources.scope_path`), `chapter` integer, `chapter_title` text, `game` text (`defense` or `match`), `title` text, `items` jsonb array, `published` boolean (default false), `sort_order`, `created_at`, `updated_at`.
+- One set per (`scope_path`, `chapter`, `game`) (unique).
+- `items` shape: defense = `[{"q":"...","choices":["a","b","c","d"],"correct":0,"hint":"..."}]`; match = `[{"a":"term","b":"meaning"}]`.
+- Security (RLS on): everyone can read rows with `published = true`; admins (`private.is_admin()`) can do everything. Same rules as `learning_resources`.
+- Locks (`content_locks`) are NOT applied yet; decide with the owner how game sets follow package access.
+
+## 5. Build order (proposed)
+1. ~~Database for chapters and game sets~~ DONE.
+2. Game hub: pick game → learning-level courses → subject → chapter list (only the student's courses). Needs a way to list chapters (from `game_sets` rows of that scope).
 3. Full-screen mode for games.
 4. Match (new).
 5. Wisdom Defense redesign (rewrite of the enemy/bullet loop).
 6. Remove the old FABs on Question Banks / Exams and the old game question source.
+7. Way for the owner to load the question sets (see below).
 
-## 5. Still to ask the owner
+## 6. Still to ask the owner
 - "Clears your surroundings": does a correct answer also remove nearby enemies, or only the targeted one?
 - Students with no saved level: show all courses or a "choose your level" prompt?
 - Content upload: how the owner wants to send the question sets (JSON files like the other hubs, or typed in the website admin).
 
-## 6. Already built and live (Oct 21)
+## 7. Already built and live (Oct 21)
 Game tab (`ui/games/GameTabScreen.kt`) with game → course → subject flow; games currently read Question Banks / Exams through StudyWorkspaceScreen. See `docs/GAMES_HANDOFF_FOR_CLAUDE.md`.
