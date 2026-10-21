@@ -2223,7 +2223,7 @@ fun MainScreen(
                 }
             },
             bottomBar = {
-                if (!isKeyboardVisible) {
+                if (!isKeyboardVisible && !com.wisdomtower.academy.ui.games.common.GameFullScreen.active) {
                     AliveBottomNav(
                         items = items,
                         selectedIndex = selectedIndex,
