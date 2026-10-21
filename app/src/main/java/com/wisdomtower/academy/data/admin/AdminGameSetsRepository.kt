@@ -25,6 +25,8 @@ sealed class AdminGameSetsListResult {
 /**
  * Admin write path for game_sets (plan step 7). Uses the admin session via [AdminSupabase].
  * Bulk paste: items is a JSON array (defense: q/choices/correct; match: a/b).
+ * `package_id` (NOT NULL) is filled by the DB trigger `game_sets_fill_package_id`.
+ * Editing an existing set with the items box left as `[]` keeps the stored items (title/publish-only edit).
  */
 object AdminGameSetsRepository {
 
@@ -75,7 +77,9 @@ object AdminGameSetsRepository {
         }
         if (chapter < 1) return false to "Chapter must be 1 or higher."
         if (scopePath.isBlank()) return false to "Pick a subject first."
-        val items = try {
+        val keepItems = !existingId.isNullOrBlank() &&
+            itemsText.trim().let { it.isEmpty() || it == "[]" }
+        val items: JSONArray? = if (keepItems) null else try {
             val parsed = JSONTokener(itemsText.trim()).nextValue()
             if (parsed !is JSONArray) return false to "Items must be a JSON array."
             if (parsed.length() == 0) return false to "Items array is empty."
@@ -106,16 +110,21 @@ object AdminGameSetsRepository {
             .put("chapter", chapter)
             .put("chapter_title", chapterTitle)
             .put("title", title.ifBlank { chapterTitle.ifBlank { "Chapter $chapter" } })
-            .put("items", items)
             .put("published", published)
             .put("sort_order", chapter)
+        if (items != null) body.put("items", items)
 
         if (existingId.isNullOrBlank()) {
             val reply = AdminSupabase.post("game_sets", body.toString(), "return=minimal")
             return if (reply.ok) {
                 true to if (published) "Saved & published" else "Saved (draft)"
             } else {
-                false to reply.errorText().ifBlank { "Save failed." }
+                val err = reply.errorText()
+                false to when {
+                    err.contains("duplicate", true) || err.contains("unique", true) ->
+                        "This chapter already has a $game set for this subject. Open it from the list to edit."
+                    else -> err.ifBlank { "Save failed." }
+                }
             }
         }
         val reply = AdminSupabase.patch(
