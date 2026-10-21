@@ -1,8 +1,19 @@
 # Instructions for Claude agents
 
+> ## OWNER ORDER 2026-10-21: THE ONLY LIVE WORK IS THE NATIVE GAMES (Tower Climb + Tower Defense)
+>
+> Plan: **`docs/GAMES_NATIVE_PLAN.md`** (read it first). Handoff: `docs/GAMES_HANDOFF_FOR_CLAUDE.md`. Everything else is PARKED: `docs/PARKED_2026-10-21.md`.
+> **Your role in this job (Claude chat):** Google AI Studio writes the bulk of the game code. You (1) fix the compile errors its code causes (the owner pastes the line starting with `e: file:///`; read `docs/GAMES_HANDOFF_FOR_CLAUDE.md` first, fix the smallest thing, log it in `docs/BUILD_PITFALLS.md` and in the handoff "CI errors seen"), (2) review a finished phase against the plan, (3) apply the optional G10 SQL only after the owner says go. Do not rewrite the games yourself unless a phase is broken beyond a small fix.
+> The owner is on a free plan: small steps, push to `main` immediately, plain short words, lead with the answer.
+> Do not continue the security, competition, notifications, admin, day mode, play store or motion plans: they are PARKED, whatever the old text below says.
+
+---
+
+# PARKED (kept for history only; do NOT follow unless the owner reactivates a named plan)
+
 **READ FIRST (owner order 2026-10-20, newest, top priority): `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`, then the ACTIVE PLAN `docs/SECURITY_PLAN_CONTENT_ACCESS.md` (server-enforced content locks, bulletproofing for the Telegram APK before Play Store). Continue that plan slice by slice. Push every slice directly to `main` (no feature branch), update the plan file in the same commit, never make the owner re-explain, never switch approach without writing why under "Plan changes" in the plan. Talk to the owner in plain words.**
 
-**DAY MODE RETURNS (owner order 2026-10-19, newest decision; it overrides the "DAY / NIGHT MODE IS CANCELLED" paragraph below for DAY MODE ONLY): read `docs/DAY_MODE_PLAN.md` (premium "Ivory & Navy" day mode, rules, slices D1 to D9, status table in its section 6). Night stays exactly as it is. Do NOT use the old pale palette or slices L1 to L9 of `docs/DAY_NIGHT_PLAN.md`. Day cards must NOT be see-through (that was the reason for the cancel): the plan explains the frosted-ivory fix. One slice per chat; the owner says "do D<n>", do not start one on your own.**
+**DAY MODE RETURNS (owner order 2026-10-19, newest decision; it overrides the "DAY / NIGHT MODE IS CANCELLED" paragraph below for DAY MODE ONLY): read `docs/DAY_MODE_PLAN.md` (premium "Ivory & Navy" day mode, rules, slices D1 to D9, status table in its section 6). Night stays exactly as it is. Do NOT use the old pale palette or slices L1 to L9 of `docs/DAY_NIGHT_PLAN.md`. Day cards must NOT be see-through (that was the reason for the cancel): the plan explains the frosted-ivory fix. One slice per chat, the owner says "do D<n>", do not start one on your own.**
 
 **DAY / NIGHT MODE IS CANCELLED (owner order 2026-10-17, superseded for day mode by the 2026-10-19 paragraph above; it OVERRIDES `docs/DAY_NIGHT_PLAN.md`, ignore slices L1 to L9).** The app uses many transparent glass cards, so a light page does not work. The app is night-only: `AppThemeMode.isDark` is always true, and the light branches in Color.kt, WisdomGlass.kt, WisdomFieldTokens.kt, WisdomMessageCard.kt and Theme.kt are dead code (do not bring them back and do not build a day switch, EXCEPT as ordered by `docs/DAY_MODE_PLAN.md`). The student only picks a BACKGROUND (Settings > Display & Theme): Dark, BG 1, BG 2, BG 3 (the pictures `app/src/main/assets/backgrounds/bg_1.png` to `bg_3.png`), Blue. Code: `ui/theme/AppBackground.kt`. Still use `WisdomInk`, `WisdomOnInk`, `WisdomTextPrimary`, `WisdomMuted` instead of `Color.White` / `Color.Black` for text and tints.
 

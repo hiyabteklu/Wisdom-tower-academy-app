@@ -1,5 +1,16 @@
 # Instructions for AI coding agents
 
+> ## OWNER ORDER 2026-10-21: THE ONLY LIVE WORK IS THE NATIVE GAMES (Tower Climb + Tower Defense)
+>
+> **Read `docs/GAMES_NATIVE_PLAN.md` NOW and follow it from Phase G0, committing each phase to `main`.** Then read `docs/BUILD_PITFALLS.md` before writing any Kotlin.
+> **Every other plan, stage, slice and task in this repo is PARKED** (list: `docs/PARKED_2026-10-21.md`). Do not continue, fix or re-plan any of it, whatever the text below says.
+> The games plan overrides the reading list and rule 3 of `HANDOFF.md` section 0 and the "one slice per chat" rule of `docs/AGENT_QUOTA_PROTOCOL.md`. The other rules of `HANDOFF.md` section 0 still hold (forbidden files, no new dependencies or hosts, never invent text or numbers, public repo).
+> Do not ask the owner questions: decide from the plan, write `UNSURE:` lines in `docs/GAMES_HANDOFF_FOR_CLAUDE.md`.
+
+---
+
+# PARKED (kept for history only; do NOT follow unless the owner reactivates a named plan)
+
 **READ FIRST (owner order 2026-10-20): `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`, then the ACTIVE PLAN `docs/SECURITY_PLAN_CONTENT_ACCESS.md` (server-enforced content locks, app hardening). Continue that plan slice by slice. Push every slice directly to `main`, update the plan file in the same commit, never make the owner re-explain, never switch to a new approach without writing why in the plan under "Plan changes".**
 
 The agent rules live in ONE place: **`HANDOFF.md` section 0 (MANDATORY AGENT PROTOCOL)**. Read `HANDOFF.md` in full first, then **`docs/COMPETITION_STATUS.md`** (the live stage board), `docs/COMPETITION_DECISIONS.md` (owner answers, they override the plan), `docs/COMPETITION_PLAN.md`, then `docs/BUILD_PITFALLS.md` before writing any code, and the newest `docs/SESSION_*.md` files. Section 0, rule 10, plus `docs/EDITING_LARGE_FILES.md`, explain how to change files that are too big to resend (patch script in `scripts/` + the GitHub Action); never stop at "the file is too big".

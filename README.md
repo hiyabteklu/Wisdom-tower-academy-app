@@ -1,5 +1,7 @@
 # Wisdom Tower Academy — Android App
 
+> **OWNER ORDER 2026-10-21 (AI agents, read this first): the ONLY live work is the native games, Tower Climb and Tower Defense. Read [docs/GAMES_NATIVE_PLAN.md](docs/GAMES_NATIVE_PLAN.md) and start at Phase G0. Every other plan is PARKED: see [docs/PARKED_2026-10-21.md](docs/PARKED_2026-10-21.md).** The games plan overrides the "read HANDOFF.md first / competition is the only live work" lines below.
+
 > **AI agents: read [HANDOFF.md](HANDOFF.md) FIRST.** It has the rules, the goal, and the document map; live status and the active roadmap are in [STATUS.md](STATUS.md). Update it before you stop.
 
 Android app for [Wisdom Tower Academy](https://www.wisdom-tower-academy.live): a premium, native-feeling Compose app using the same Supabase / Appwrite backend as the website.
