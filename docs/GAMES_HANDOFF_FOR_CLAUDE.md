@@ -1,20 +1,24 @@
 # GAMES HANDOFF FOR CLAUDE
 
 ## Phase status
-- G0–G5 DONE (OwlPainter on main; TowerMapView + TowerClimbScreen in this commit if present)
+- G0–G5 DONE
 - G6 Climb play + wire-up open
 
-## G5 files
-- ui/games/climb/OwlPainter.kt (committed)
-- ui/games/climb/TowerMapView.kt — LazyColumn reverseLayout, five zone looks, owl on current, sealed chains
-- ui/games/climb/TowerClimbScreen.kt — list question-banks, build tower, floor sheet, seal dialog, Jump to me
+## G5 files on main
+- ui/games/climb/OwlPainter.kt
+- ui/games/climb/TowerMapView.kt
+- ui/games/climb/TowerClimbScreen.kt
 
 ## UNSURE
-- Jump-to-me animateScrollToItem index with reverseLayout may need visual tweak.
+- Jump-to-me reverseLayout scroll index may need visual tweak.
 
 ## Known risks
-- Screens not wired into StudyWorkspace yet (G6 section 8).
-- If TowerMapView/TowerClimbScreen missing on main after this commit, restore from agent artifacts games_src/climb/.
+- Not wired into StudyWorkspace yet (G6 section 8).
 
 ## CI errors seen (Claude fills this)
 (none yet)
+
+## Compile notes
+- TowerMapView: import foundation.lazy.items; clickable; background; height; padding
+- Icons.AutoMirrored.Filled.ArrowBack, Icons.Filled.Lock
+- ClimbTowerBuilder.build, GameStore.getClimb
