@@ -402,6 +402,9 @@ fun NativeStatusScreen(
                     // My Status V2 (S3): per-subject rings + detail card
                     StatusSubjectsPanel(rows = rows.orEmpty(), educationLevel = educationLevel)
 
+                    // My Status V2 (S6d): today ring + 7-day bars from study_day_log
+                    StatusDayPanel(dailyGoalMinutes = dailyGoalMinutes) // MYSTATUS-S6
+
                     // 3. Retention & exam accuracy
                     StPanel(borderColor = StPanelBorder) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
