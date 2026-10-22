@@ -28,6 +28,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,11 +49,13 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.games.GameLevel
 import com.wisdomtower.academy.data.games.GameSetData
 import com.wisdomtower.academy.data.games.MatchCard
 import com.wisdomtower.academy.data.games.MatchEngine
 import com.wisdomtower.academy.data.games.MatchPhase
 import com.wisdomtower.academy.data.games.MatchSelectResult
+import com.wisdomtower.academy.data.games.MatchTuning
 import com.wisdomtower.academy.ui.games.common.GameAudio
 import com.wisdomtower.academy.ui.games.common.GameFullScreenEffect
 import com.wisdomtower.academy.ui.games.common.GameHaptics
@@ -82,18 +85,24 @@ import kotlinx.coroutines.launch
  * (tapping the same card again clears it). The selection is mirrored into Compose state
  * (`selectedId`) because the engine's plain field did not trigger recomposition of the grid cards,
  * and the highlight colours were made stronger.
+ *
+ * Slice G3 (levels): [level] picks the [MatchTuning]. Pairs on the board come from the engine; Easy shows which card was
+ * the right partner after a wrong pair; Hard shows a timer against par (pairs x seconds) and uses it for the 3rd star
+ * (see MatchResult). 10 or more cards use 3 columns so the board does not scroll.
  */
 @Composable
 fun MatchScreen(
     set: GameSetData,
     onExit: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    level: GameLevel = GameLevel.MEDIUM
 ) {
     GameFullScreenEffect()
     val context = LocalContext.current
     val view = LocalView.current
     var attempt by remember(set.id) { mutableIntStateOf(0) }
-    val engine = remember(set.id, attempt) { MatchEngine(set.matchPairs) }
+    val tuning = remember(level) { MatchTuning.forLevel(level) }
+    val engine = remember(set.id, attempt, level) { MatchEngine(set.matchPairs, tuning = tuning) }
     val reduceMotion = remember { GameTheme.reduceMotion(context) }
     val scope = rememberCoroutineScope()
 
@@ -101,18 +110,29 @@ fun MatchScreen(
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
 
     var tick by remember { mutableIntStateOf(0) }
-    var shown by remember(set.id, attempt) { mutableStateOf(engine.board) }
-    var leaving by remember(set.id, attempt) { mutableStateOf<Set<Int>>(emptySet()) }
-    var wrongIds by remember(set.id, attempt) { mutableStateOf<List<Int>>(emptyList()) }
-    var busy by remember(set.id, attempt) { mutableIntStateOf(0) }
+    var shown by remember(set.id, attempt, level) { mutableStateOf(engine.board) }
+    var leaving by remember(set.id, attempt, level) { mutableStateOf<Set<Int>>(emptySet()) }
+    var wrongIds by remember(set.id, attempt, level) { mutableStateOf<List<Int>>(emptyList()) }
+    // Easy: the card that was the right partner of the first tapped card of a wrong pair (shown briefly).
+    var hintId by remember(set.id, attempt, level) { mutableStateOf<Int?>(null) }
+    var busy by remember(set.id, attempt, level) { mutableIntStateOf(0) }
     // Compose-state copy of engine.selectedId so the highlighted card recomposes right away.
-    var selectedId by remember(set.id, attempt) { mutableStateOf<Int?>(null) }
+    var selectedId by remember(set.id, attempt, level) { mutableStateOf<Int?>(null) }
+    // Hard: seconds since the game started (stops when the set is complete).
+    var elapsed by remember(set.id, attempt, level) { mutableFloatStateOf(0f) }
 
     // A wrong pair shakes and glows red, then resets by itself.
     LaunchedEffect(wrongIds) {
         if (wrongIds.isNotEmpty()) {
             delay(450)
             wrongIds = emptyList()
+        }
+    }
+    // The Easy hint stays a little longer than the shake.
+    LaunchedEffect(hintId) {
+        if (hintId != null) {
+            delay(900)
+            hintId = null
         }
     }
 
@@ -122,6 +142,17 @@ fun MatchScreen(
     val revision = tick
     val phase = engine.phase
     val finished = phase is MatchPhase.Complete && busy == 0
+    val gameDone = phase is MatchPhase.Complete
+    val timed = tuning.parSecondsPerPair != null
+
+    LaunchedEffect(set.id, attempt, level, timed, gameDone) {
+        if (timed) {
+            while (!gameDone) {
+                delay(100)
+                elapsed += 0.1f
+            }
+        }
+    }
 
     // P1: the result screen plays the fanfare once per finished game (Retry resets `finished`).
     LaunchedEffect(finished, attempt) {
@@ -138,7 +169,9 @@ fun MatchScreen(
                 bestStreak = engine.bestStreak,
                 reduceMotion = reduceMotion,
                 onRetry = { attempt++ },
-                onDone = onExit
+                onDone = onExit,
+                tuning = tuning,
+                elapsedSeconds = elapsed.toInt()
             )
         } else {
             Column(Modifier.fillMaxSize().padding(12.dp)) {
@@ -177,13 +210,26 @@ fun MatchScreen(
                     reduceMotion = reduceMotion,
                     modifier = Modifier.padding(horizontal = 8.dp)
                 )
+                val parSeconds: Int? = tuning.parSecondsPerPair?.let { it * engine.pairsTotal }
+                if (parSeconds != null) {
+                    val secs = elapsed.toInt()
+                    Text(
+                        "Time ${formatMatchTime(secs)}  /  par ${formatMatchTime(parSeconds)}",
+                        color = if (secs > parSeconds) Color(0xFFF43F5E) else WisdomMuted,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                    )
+                }
                 Spacer(Modifier.height(12.dp))
 
+                // 10 or more cards on the board (Hard): 3 columns so everything fits without scrolling.
+                val compact = tuning.pairsOnBoard * 2 >= 10
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                    columns = GridCells.Fixed(if (compact) 3 else 2),
                     contentPadding = PaddingValues(4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     items(shown, key = { it.id }) { card ->
@@ -192,11 +238,14 @@ fun MatchScreen(
                             text = card.text,
                             selected = selectedId == card.id,
                             wrong = card.id in wrongIds,
+                            hint = hintId == card.id,
                             leaving = isLeaving,
+                            compact = compact,
                             reduceMotion = reduceMotion,
                             onClick = {
                                 if (isLeaving) return@MatchCardView
                                 wrongIds = emptyList()
+                                hintId = null
                                 when (engine.select(card.id)) {
                                     MatchSelectResult.Highlighted -> {
                                         GameAudio.play(GameAudio.Sfx.Tap)
@@ -232,6 +281,15 @@ fun MatchScreen(
                                         GameAudio.play(GameAudio.Sfx.Wrong)
                                         GameHaptics.wrong(view, true)
                                         wrongIds = engine.lastWrongIds
+                                        if (tuning.wrongPairHint) {
+                                            val firstId = engine.lastWrongIds.firstOrNull()
+                                            val first = engine.board.find { it.id == firstId }
+                                            hintId = if (first == null) {
+                                                null
+                                            } else {
+                                                engine.board.find { it.pairId == first.pairId && it.id != first.id }?.id
+                                            }
+                                        }
                                     }
                                     else -> {}
                                 }
@@ -255,7 +313,9 @@ private fun MatchCardView(
     text: String,
     selected: Boolean,
     wrong: Boolean,
+    hint: Boolean,
     leaving: Boolean,
+    compact: Boolean,
     reduceMotion: Boolean,
     onClick: () -> Unit
 ) {
@@ -302,11 +362,13 @@ private fun MatchCardView(
     val green = GameTheme.correct
     val borderColor = when {
         leaving -> green
+        hint -> green
         wrong -> Color(0xFFF43F5E)
         selected -> WisdomCyan
         else -> Color(0x33FFFFFF)
     }
     val baseBg = when {
+        hint -> green.copy(alpha = 0.30f)
         selected -> Color(0x6622E0FF)
         wrong -> Color(0x33F43F5E)
         else -> Color(0x22121A2A)
@@ -332,18 +394,18 @@ private fun MatchCardView(
             )
             .clip(shape)
             .background(bg)
-            .border(if (selected || leaving) 4.dp else 2.dp, borderColor, shape)
+            .border(if (selected || leaving || hint) 4.dp else 2.dp, borderColor, shape)
             .clickable(enabled = !leaving, onClick = onClick)
-            .padding(12.dp),
+            .padding(if (compact) 6.dp else 12.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = text,
             color = WisdomInk,
-            fontSize = 14.sp,
+            fontSize = if (compact) 12.sp else 14.sp,
             fontWeight = FontWeight.SemiBold,
             textAlign = TextAlign.Center,
-            maxLines = 6,
+            maxLines = if (compact) 5 else 6,
             overflow = TextOverflow.Ellipsis
         )
     }

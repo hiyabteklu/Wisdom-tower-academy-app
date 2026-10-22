@@ -40,7 +40,7 @@ import kotlinx.coroutines.launch
  * 2026-10-22: the course list is now only the student's own packages (same rule as the My Learning tab,
  * see [enrolledGamePackages]), read from the signed-in profile, instead of the whole catalog.
  *
- * 2026-10-22 (slice G2): Wisdom Defense now goes Play > [LevelPickerScreen] > game. Match has no picker yet (slice G3).
+ * 2026-10-22 (slices G2, G3): both games go Play > [LevelPickerScreen] > game. The last level is remembered per game.
  */
 @Composable
 fun GameTabScreen(
@@ -56,7 +56,9 @@ fun GameTabScreen(
         enrolledGamePackages(profile?.educationLevel, packageList)
     }
 
+    var pendingMatch by remember { mutableStateOf<GameSetData?>(null) }
     var activeMatch by remember { mutableStateOf<GameSetData?>(null) }
+    var matchLevel by remember { mutableStateOf(GameLevel.MEDIUM) }
     var pendingDefense by remember { mutableStateOf<GameSetData?>(null) }
     var activeDefense by remember { mutableStateOf<GameSetData?>(null) }
     var defenseLevel by remember { mutableStateOf(GameLevel.MEDIUM) }
@@ -67,7 +69,11 @@ fun GameTabScreen(
 
     LaunchedEffect(Unit) { GameLaunch.kind = null }
 
-    BackHandler(enabled = activeMatch != null || pendingDefense != null || activeDefense != null || error != null) {
+    BackHandler(
+        enabled = pendingMatch != null || activeMatch != null ||
+            pendingDefense != null || activeDefense != null || error != null
+    ) {
+        pendingMatch = null
         activeMatch = null
         pendingDefense = null
         activeDefense = null
@@ -81,7 +87,8 @@ fun GameTabScreen(
                 MatchScreen(
                     set = activeMatch!!,
                     onExit = { activeMatch = null },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    level = matchLevel
                 )
             }
             activeDefense != null -> {
@@ -92,6 +99,25 @@ fun GameTabScreen(
                     level = defenseLevel
                 )
             }
+            pendingMatch != null -> {
+                val pending = pendingMatch!!
+                val initialLevel = remember(pending) {
+                    GameLevelPrefs.last(context, GameSetsRepository.GAME_MATCH)
+                }
+                LevelPickerScreen(
+                    gameTitle = "Match",
+                    initial = initialLevel,
+                    describe = { matchLevelLine(it) },
+                    onPick = { picked ->
+                        GameLevelPrefs.save(context, GameSetsRepository.GAME_MATCH, picked)
+                        matchLevel = picked
+                        activeMatch = pending
+                        pendingMatch = null
+                    },
+                    onBack = { pendingMatch = null },
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
             pendingDefense != null -> {
                 val pending = pendingDefense!!
                 val initialLevel = remember(pending) {
@@ -100,6 +126,7 @@ fun GameTabScreen(
                 LevelPickerScreen(
                     gameTitle = "Wisdom Defense",
                     initial = initialLevel,
+                    describe = { defenseLevelLine(it) },
                     onPick = { picked ->
                         GameLevelPrefs.save(context, GameSetsRepository.GAME_DEFENSE, picked)
                         defenseLevel = picked
@@ -150,7 +177,7 @@ fun GameTabScreen(
                                             if (set == null || set.matchPairs.isEmpty()) {
                                                 error = "No Match set for this chapter yet."
                                             } else {
-                                                activeMatch = set
+                                                pendingMatch = set
                                             }
                                         }
                                         GameSetsRepository.GAME_DEFENSE -> {

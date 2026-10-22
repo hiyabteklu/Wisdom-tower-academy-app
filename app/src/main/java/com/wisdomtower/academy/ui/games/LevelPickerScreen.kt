@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameLevel
+import com.wisdomtower.academy.data.games.MatchTuning
 import com.wisdomtower.academy.data.games.WisdomDefenseTuning
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -34,15 +35,17 @@ import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 
 /**
- * Full-screen "Choose level" step (docs/GAMES_COOL_PLAN.md slice G2).
+ * Full-screen "Choose level" step (docs/GAMES_COOL_PLAN.md slices G2 and G3).
  * Three cards (Easy green, Medium amber, Hard rose). Tap a card to select it, then Play.
  * [initial] is the level used last time. Back is handled by the parent (GameTabScreen BackHandler).
- * Numbers shown come from [WisdomDefenseTuning], so the text can never disagree with the game.
+ * [describe] gives the card text of one level; use [defenseLevelLine] or [matchLevelLine] so the text
+ * is always built from the real tuning numbers and can never disagree with the game.
  */
 @Composable
 fun LevelPickerScreen(
     gameTitle: String,
     initial: GameLevel,
+    describe: (GameLevel) -> String,
     onPick: (GameLevel) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
@@ -82,6 +85,7 @@ fun LevelPickerScreen(
                 for (level in GameLevel.values()) {
                     LevelCard(
                         level = level,
+                        text = describe(level),
                         selected = level == selected,
                         onClick = { selected = level }
                     )
@@ -118,7 +122,8 @@ private fun levelColor(level: GameLevel): Color = when (level) {
     GameLevel.HARD -> Color(0xFFF43F5E)
 }
 
-private fun levelLine(level: GameLevel): String {
+/** Card text for Wisdom Defense, built from [WisdomDefenseTuning]. */
+fun defenseLevelLine(level: GameLevel): String {
     val t = WisdomDefenseTuning.forLevel(level)
     val mult = if (t.scoreMultiplier == 1f) "x1" else "x" + t.scoreMultiplier.toString()
     val extra = when (level) {
@@ -129,9 +134,21 @@ private fun levelLine(level: GameLevel): String {
     return extra + "\n" + t.hearts + " hearts, up to " + t.maxEnemies + " enemies, score " + mult
 }
 
+/** Card text for Match, built from [MatchTuning]. */
+fun matchLevelLine(level: GameLevel): String {
+    val t = MatchTuning.forLevel(level)
+    val extra = when (level) {
+        GameLevel.EASY -> "No timer. A wrong pair shows the right card."
+        GameLevel.MEDIUM -> "The normal game."
+        GameLevel.HARD -> "A timer runs. 3 stars need few moves and a time under par."
+    }
+    return extra + "\n" + t.pairsOnBoard + " pairs on the board (" + (t.pairsOnBoard * 2) + " cards)"
+}
+
 @Composable
 private fun LevelCard(
     level: GameLevel,
+    text: String,
     selected: Boolean,
     onClick: () -> Unit
 ) {
@@ -154,7 +171,7 @@ private fun LevelCard(
         )
         Spacer(Modifier.height(4.dp))
         Text(
-            levelLine(level),
+            text,
             color = WisdomInk,
             fontSize = 13.sp,
             textAlign = TextAlign.Start

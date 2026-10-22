@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.games.MatchTuning
 import com.wisdomtower.academy.ui.games.common.GamePrimaryButton
 import com.wisdomtower.academy.ui.games.common.GameSecondaryButton
 import com.wisdomtower.academy.ui.games.common.GameTheme
@@ -35,8 +36,9 @@ import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
 /**
- * Match result screen (docs/GAMES_FEEL_PLAN.md slice M3).
- * Stars: 3 when moves <= pairs x 1.25 (rounded up), 2 when moves <= pairs x 2, otherwise 1.
+ * Match result screen (docs/GAMES_FEEL_PLAN.md slice M3, levels by docs/GAMES_COOL_PLAN.md slice G3).
+ * Stars from the level's [MatchTuning]: 3 when moves <= ceil(pairs x star3Factor) AND (no par time or finished
+ * under par), 2 when moves <= ceil(pairs x star2Factor), otherwise 1. MEDIUM = 1.25 and 2, exactly as before.
  * A finished set always earns at least 1 star.
  */
 @Composable
@@ -47,7 +49,9 @@ internal fun MatchResult(
     reduceMotion: Boolean,
     onRetry: () -> Unit,
     onDone: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tuning: MatchTuning = MatchTuning.MEDIUM,
+    elapsedSeconds: Int = 0
 ) {
     Column(
         modifier.fillMaxSize().padding(24.dp),
@@ -67,9 +71,11 @@ internal fun MatchResult(
             return@Column
         }
 
+        val parSeconds: Int? = tuning.parSecondsPerPair?.let { it * pairsTotal }
+        val underPar = parSeconds == null || elapsedSeconds <= parSeconds
         val stars = when {
-            moves <= ceil(pairsTotal * 1.25).toInt() -> 3
-            moves <= pairsTotal * 2 -> 2
+            moves <= ceil(pairsTotal * tuning.star3Factor.toDouble()).toInt() && underPar -> 3
+            moves <= ceil(pairsTotal * tuning.star2Factor.toDouble()).toInt() -> 2
             else -> 1
         }
         val accuracy = if (moves <= 0) 100 else (pairsTotal * 100 / moves).coerceIn(0, 100)
@@ -98,15 +104,29 @@ internal fun MatchResult(
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "$pairsTotal pairs matched",
+            "${tuning.level.label} \u00B7 $pairsTotal pairs matched",
             color = WisdomMuted,
             fontSize = 13.sp
         )
+        if (parSeconds != null) {
+            Spacer(Modifier.height(4.dp))
+            Text(
+                "Time ${formatMatchTime(elapsedSeconds)} (par ${formatMatchTime(parSeconds)})",
+                color = if (underPar) WisdomMuted else Color(0xFFF43F5E),
+                fontSize = 13.sp
+            )
+        }
         Spacer(Modifier.height(28.dp))
         GamePrimaryButton("Retry", onClick = onRetry, modifier = Modifier.fillMaxWidth())
         Spacer(Modifier.height(10.dp))
         GameSecondaryButton("Done", onClick = onDone, modifier = Modifier.fillMaxWidth())
     }
+}
+
+/** m:ss */
+internal fun formatMatchTime(totalSeconds: Int): String {
+    val s = if (totalSeconds < 0) 0 else totalSeconds
+    return "${s / 60}:${(s % 60).toString().padStart(2, '0')}"
 }
 
 @Composable
