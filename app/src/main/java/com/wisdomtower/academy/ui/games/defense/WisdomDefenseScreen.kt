@@ -86,6 +86,9 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * fallback for very narrow screens (under COCKPIT_MIN_WIDTH).
  * Juice (slice W4): combo, banners and score numbers live in DefenseEffects.kt; the only hook here is the frame loop,
  * where the engine step is multiplied by fx.timeScale (slow-motion on the last kill).
+ * Result v2 (slice W6): after a win on Easy or Medium the result offers "Next level". The screen keeps the level in
+ * [currentLevel] (starts as [level]), so the next level starts here without the hub; results are saved with the level
+ * that was played. The hub's "last level used" is not updated by this.
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -100,8 +103,10 @@ fun WisdomDefenseScreen(
     val view = LocalView.current
     // Retry starts a fresh engine and fresh effects for the same set (and the same level).
     var attempt by remember { mutableIntStateOf(0) }
-    val tuning = remember(level) { WisdomDefenseTuning.forLevel(level) }
-    val engine = remember(set.id, attempt, level) {
+    // W6: the level being played; "Next level" on the result changes it.
+    var currentLevel by remember(level) { mutableStateOf(level) }
+    val tuning = remember(currentLevel) { WisdomDefenseTuning.forLevel(currentLevel) }
+    val engine = remember(set.id, attempt, currentLevel) {
         WisdomDefenseEngine(
             set.defenseItems,
             maxHearts = tuning.hearts,
@@ -110,7 +115,7 @@ fun WisdomDefenseScreen(
         )
     }
     // Questions at the start = number of enemies to defeat (the engine has just been created).
-    val total = remember(set.id, attempt, level) { engine.questionsLeft }
+    val total = remember(set.id, attempt, currentLevel) { engine.questionsLeft }
     val lowEnd = remember { GameTheme.isLowEnd(context) }
     val reduceMotion = remember { GameTheme.reduceMotion(context) }
     val fx = remember(set.id, attempt) { DefenseEffects(GameParticleSystem.create(context), lowEnd, reduceMotion) }
@@ -119,12 +124,12 @@ fun WisdomDefenseScreen(
     var clock by remember { mutableFloatStateOf(0f) }
     val questionSlide = remember { Animatable(1f) }
     // R2: result of saving this finished game (null = still saving or not saved).
-    var saveOutcome by remember(set.id, attempt, level) { mutableStateOf<GameSaveOutcome?>(null) }
+    var saveOutcome by remember(set.id, attempt, currentLevel) { mutableStateOf<GameSaveOutcome?>(null) }
     val canSave = scopePath.isNotBlank()
     // W1: colour of the atmosphere for this level.
-    val atmosphereTint = remember(level) { defenseAtmosphereTint(level) }
+    val atmosphereTint = remember(currentLevel) { defenseAtmosphereTint(currentLevel) }
     // W2: enemy colours for this level.
-    val skin = remember(level) { defenseSkin(level) }
+    val skin = remember(currentLevel) { defenseSkin(currentLevel) }
 
     LaunchedEffect(Unit) { GameAudio.init(context) }
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
@@ -163,6 +168,14 @@ fun WisdomDefenseScreen(
                     else -> 0
                 }
                 val heartsLeft = if (phase is WisdomDefensePhase.Won) phase.heartsLeft else 0
+                // W6: "Next level" only after a win, and only while there is a harder level.
+                val nextLevel = if (won) GameLevel.values().getOrNull(currentLevel.ordinal + 1) else null
+                val goNext: (() -> Unit)? = if (nextLevel != null) {
+                    {
+                        currentLevel = nextLevel
+                        attempt++
+                    }
+                } else null
                 DefenseResult(
                     won = won,
                     killed = killedCount,
@@ -172,9 +185,13 @@ fun WisdomDefenseScreen(
                     reduceMotion = reduceMotion,
                     onRetry = { attempt++ },
                     onDone = onExit,
-                    levelLabel = level.label,
+                    levelLabel = currentLevel.label,
                     showSave = canSave,
-                    saveOutcome = saveOutcome
+                    saveOutcome = saveOutcome,
+                    score = defenseScore(killedCount, heartsLeft, won, tuning.scoreMultiplier),
+                    scoreMultiplier = tuning.scoreMultiplier,
+                    nextLevelLabel = nextLevel?.label,
+                    onNextLevel = goNext
                 )
             }
             is WisdomDefensePhase.Playing -> {
@@ -474,8 +491,8 @@ fun WisdomDefenseScreen(
         else if (didLose) GameAudio.play(GameAudio.Sfx.Defeat)
     }
 
-    // R2: save the finished game once (Retry starts a new attempt, which saves its own result).
-    LaunchedEffect(didWin, didLose, attempt, level) {
+    // R2: save the finished game once (Retry or Next level starts a new attempt, which saves its own result).
+    LaunchedEffect(didWin, didLose, attempt, currentLevel) {
         if ((didWin || didLose) && canSave) {
             val ph = engine.phase
             val won = ph is WisdomDefensePhase.Won
@@ -493,7 +510,7 @@ fun WisdomDefenseScreen(
                     game = GameSetsRepository.GAME_DEFENSE,
                     scopePath = scopePath,
                     chapter = set.chapter,
-                    level = level,
+                    level = currentLevel,
                     stars = stars,
                     score = defenseScore(killedCount, heartsLeft, won, tuning.scoreMultiplier),
                     won = won
