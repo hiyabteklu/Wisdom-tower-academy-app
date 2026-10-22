@@ -24,12 +24,16 @@ data class WisdomEnemy(
     val boss: Boolean = false
 )
 
-/** An enemy that is playing its death animation (not targetable). [t] goes 0..1. */
+/**
+ * An enemy that is playing its death animation (not targetable). [t] goes 0..1.
+ * W7b: [boss] is true when the dying enemy was the Hard boss, so it is drawn at boss size while it dies.
+ */
 data class WisdomDyingEnemy(
     val id: Int,
     val progress: Float,
     val kind: Int,
-    var age: Float = 0f
+    var age: Float = 0f,
+    val boss: Boolean = false
 ) {
     val t: Float get() = (age / WisdomDefenseEngine.DEATH_TIME).coerceIn(0f, 1f)
 }
@@ -200,7 +204,7 @@ class WisdomDefenseEngine(
         if (hit.isNotEmpty()) {
             hearts = (hearts - hit.size).coerceAtLeast(0)
             for (e in hit) {
-                dying = dying + WisdomDyingEnemy(e.id, 1f, e.kind)
+                dying = dying + WisdomDyingEnemy(e.id, 1f, e.kind, boss = e.boss)
                 addEvent(WisdomEvent.WallHit(e.kind))
             }
             if (hearts <= 0) {
@@ -246,7 +250,7 @@ class WisdomDefenseEngine(
                     rawScore += ARMOR_HIT_POINTS
                 } else {
                     enemies = enemies.filter { it.id != nearest.id }
-                    dying = dying + WisdomDyingEnemy(nearest.id, nearest.progress, nearest.kind)
+                    dying = dying + WisdomDyingEnemy(nearest.id, nearest.progress, nearest.kind, boss = nearest.boss)
                     rawScore += if (nearest.boss) BOSS_KILL_POINTS else KILL_POINTS
                     addEvent(WisdomEvent.Killed(nearest.progress, nearest.kind))
                 }
