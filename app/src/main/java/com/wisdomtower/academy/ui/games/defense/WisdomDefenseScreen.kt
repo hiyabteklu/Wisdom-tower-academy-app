@@ -89,6 +89,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * Result v2 (slice W6): after a win on Easy or Medium the result offers "Next level". The screen keeps the level in
  * [currentLevel] (starts as [level]), so the next level starts here without the hub; results are saved with the level
  * that was played. The hub's "last level used" is not updated by this.
+ * Slice W7b: a dying boss is drawn at boss size (the engine's dying enemy carries a boss flag).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -352,6 +353,7 @@ fun WisdomDefenseScreen(
                                 }
 
                                 // Death: white flash, shrink and fade (burst comes from the effects).
+                                // W7b: a dying boss keeps its boss size (bar empty).
                                 for (d in engine.dying) {
                                     val t = d.t
                                     val x = defenseLaneX(w, d.id, d.progress)
@@ -361,7 +363,9 @@ fun WisdomDefenseScreen(
                                         d.kind, x, foot, u, clk, d.id,
                                         alpha = 1f - t,
                                         flash = (1f - t * 2.5f).coerceIn(0f, 1f),
-                                        skin = skin
+                                        skin = skin,
+                                        boss = d.boss,
+                                        bossFrac = 0f
                                     )
                                 }
 
