@@ -77,6 +77,11 @@ import kotlinx.coroutines.launch
  *
  * P1 sound map: tap = Tap + light tap | match = Correct (Combo from a streak of 2) + correct buzz |
  * wrong pair = Wrong + wrong buzz | result screen shown = Victory.
+ *
+ * 2026-10-22 fix: the first-tapped card now stays clearly highlighted until its pair is tapped
+ * (tapping the same card again clears it). The selection is mirrored into Compose state
+ * (`selectedId`) because the engine's plain field did not trigger recomposition of the grid cards,
+ * and the highlight colours were made stronger.
  */
 @Composable
 fun MatchScreen(
@@ -100,6 +105,8 @@ fun MatchScreen(
     var leaving by remember(set.id, attempt) { mutableStateOf<Set<Int>>(emptySet()) }
     var wrongIds by remember(set.id, attempt) { mutableStateOf<List<Int>>(emptyList()) }
     var busy by remember(set.id, attempt) { mutableIntStateOf(0) }
+    // Compose-state copy of engine.selectedId so the highlighted card recomposes right away.
+    var selectedId by remember(set.id, attempt) { mutableStateOf<Int?>(null) }
 
     // A wrong pair shakes and glows red, then resets by itself.
     LaunchedEffect(wrongIds) {
@@ -183,7 +190,7 @@ fun MatchScreen(
                         val isLeaving = card.id in leaving
                         MatchCardView(
                             text = card.text,
-                            selected = engine.selectedId == card.id,
+                            selected = selectedId == card.id,
                             wrong = card.id in wrongIds,
                             leaving = isLeaving,
                             reduceMotion = reduceMotion,
@@ -228,6 +235,9 @@ fun MatchScreen(
                                     }
                                     else -> {}
                                 }
+                                // Mirror the engine's selection (set on first tap, null after the same
+                                // card is tapped again, a match or a wrong pair).
+                                selectedId = engine.selectedId
                                 tick++
                             }
                         )
@@ -297,7 +307,7 @@ private fun MatchCardView(
         else -> Color(0x33FFFFFF)
     }
     val baseBg = when {
-        selected -> Color(0x3322E0FF)
+        selected -> Color(0x6622E0FF)
         wrong -> Color(0x33F43F5E)
         else -> Color(0x22121A2A)
     }
@@ -322,7 +332,7 @@ private fun MatchCardView(
             )
             .clip(shape)
             .background(bg)
-            .border(if (selected || leaving) 3.dp else 2.dp, borderColor, shape)
+            .border(if (selected || leaving) 4.dp else 2.dp, borderColor, shape)
             .clickable(enabled = !leaving, onClick = onClick)
             .padding(12.dp),
         contentAlignment = Alignment.Center
