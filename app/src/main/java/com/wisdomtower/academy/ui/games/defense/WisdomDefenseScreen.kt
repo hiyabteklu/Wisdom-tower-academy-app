@@ -12,6 +12,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -81,6 +82,8 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * [GameResultsRepository.save] and the result screen shows the save line. A blank [scopePath] saves nothing.
  * Atmosphere (slice W1): nebula glow, drifting stars and lane glow in the level colour (DefenseAtmosphere.kt).
  * Enemies (slice W2): level skin, portal flash at the far edge, armor plates, Hard boss with a health bar (DefenseArt.kt).
+ * Cockpit (slice W3): turret and four answer bullets in an arch (DefenseCockpit.kt); the 2x2 cards below stay as the
+ * fallback for very narrow screens (under COCKPIT_MIN_WIDTH).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -374,38 +377,56 @@ fun WisdomDefenseScreen(
                         }
                     }
 
-                    // 2x2 answer cards.
+                    // Answers: W3 cockpit (turret + four bullets in an arch) on normal widths, the old 2x2 cards on
+                    // very narrow screens.
                     val choices = q?.choices.orEmpty()
                     if (choices.size == 4) {
                         val firing = engine.shotProgress != null
-                        Column(
-                            Modifier
-                                .fillMaxWidth()
-                                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            for (row in 0..1) {
-                                Row(
-                                    Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        val fireChoice: (Int) -> Unit = { index ->
+                            if (engine.fire(index)) {
+                                fx.fireMuzzle()
+                                GameAudio.play(GameAudio.Sfx.Shot)
+                                GameHaptics.tap(view, true)
+                                frame++
+                            }
+                        }
+                        BoxWithConstraints(Modifier.fillMaxWidth()) {
+                            if (maxWidth >= COCKPIT_MIN_WIDTH) {
+                                DefenseCockpit(
+                                    choices = choices,
+                                    locked = engine.lockedChoices,
+                                    firingIndex = if (firing) engine.lastShotChoice else null,
+                                    shotProgress = engine.shotProgress,
+                                    clock = clock,
+                                    reduceMotion = reduceMotion,
+                                    onFire = fireChoice,
+                                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp)
+                                )
+                            } else {
+                                // 2x2 answer cards (fallback).
+                                Column(
+                                    Modifier
+                                        .fillMaxWidth()
+                                        .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(10.dp)
                                 ) {
-                                    for (col in 0..1) {
-                                        val index = row * 2 + col
-                                        AnswerCard(
-                                            letter = ('A' + index).toString(),
-                                            label = choices[index],
-                                            locked = index in engine.lockedChoices,
-                                            firing = firing && engine.lastShotChoice == index,
-                                            onClick = {
-                                                if (engine.fire(index)) {
-                                                    fx.fireMuzzle()
-                                                    GameAudio.play(GameAudio.Sfx.Shot)
-                                                    GameHaptics.tap(view, true)
-                                                    frame++
-                                                }
-                                            },
-                                            modifier = Modifier.weight(1f).height(72.dp)
-                                        )
+                                    for (row in 0..1) {
+                                        Row(
+                                            Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                        ) {
+                                            for (col in 0..1) {
+                                                val index = row * 2 + col
+                                                AnswerCard(
+                                                    letter = ('A' + index).toString(),
+                                                    label = choices[index],
+                                                    locked = index in engine.lockedChoices,
+                                                    firing = firing && engine.lastShotChoice == index,
+                                                    onClick = { fireChoice(index) },
+                                                    modifier = Modifier.weight(1f).height(72.dp)
+                                                )
+                                            }
+                                        }
                                     }
                                 }
                             }
