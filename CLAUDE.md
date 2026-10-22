@@ -1,5 +1,11 @@
 # Instructions for Claude agents
 
+> ## OWNER ORDER 2026-10-22 (newest): SECOND LIVE JOB = NATIVE "MY STATUS" V2 (real data per subject, chapter, exam; ring gauges; tap a small icon for a card)
+>
+> Plan: **`docs/MY_STATUS_V2_PLAN.md`** (read it first, it lists what already exists, the real data, the slices S1 to S6 and the progress table). One slice per chat, push straight to `main`, update the plan in the same commit. The games job below stays live too. Real data only: never invent a number.
+
+---
+
 > ## OWNER ORDER 2026-10-21: THE ONLY LIVE WORK IS THE NATIVE GAMES (Tower Climb + Tower Defense)
 >
 > Plan: **`docs/GAMES_NATIVE_PLAN.md`** (read it first). Handoff: `docs/GAMES_HANDOFF_FOR_CLAUDE.md`. Everything else is PARKED: `docs/PARKED_2026-10-21.md`.
