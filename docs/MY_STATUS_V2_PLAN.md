@@ -1,6 +1,6 @@
 # MY STATUS V2 (native): real data, per subject / chapter / exam, ring gauges, tap-a-small-icon cards
 
-> Written 2026-10-22 by Claude (chat) from the owner's request. **S1 (data layer) and S2 (ring + subject card) done 2026-10-22, both written but not compiled, nothing wired into a screen yet; the rest is NOT implemented.** Repo is PUBLIC: no secrets, no student data.
+> Written 2026-10-22 by Claude (chat) from the owner's request. **S1 (data layer), S2 (ring + subject card), S3 (By subject panel in Your status) and S4 (chapter + exam cards) done 2026-10-22, all written but not compiled; S5 and S6 are NOT implemented.** Repo is PUBLIC: no secrets, no student data.
 > Rules that apply to every slice: `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md` (one slice = one commit straight to `main`, tick this file in the same commit), `docs/AGENT_QUOTA_PROTOCOL.md` (free plan, small steps), `docs/UI_POLISH_TASKS.md` G1 to G9 (forbidden files, no invented text, no new dependencies or hosts), `docs/EDITING_LARGE_FILES.md` (big files: patch script, never "the file is too big"), `docs/BUILD_PITFALLS.md`.
 > Owner is not a coder: talk in plain words, say what to test on the phone, nothing more. Website repo is NOT touched by this plan (owner rule 7).
 
@@ -58,11 +58,11 @@ C. **Reading speed (WPM):** the app cannot measure it, so it is left out for goo
 | Slice | Status |
 |---|---|
 | S0 plan (this file + pointer in CLAUDE.md) | done 2026-10-22 |
-| S1 data layer | **done 2026-10-22, written, NOT compiled** (log `docs/SESSION_2026-10-22_STATUS_S1.md`; nothing calls it yet) |
-| S2 ring + subject card | **done 2026-10-22, written, NOT compiled** (log `docs/SESSION_2026-10-22_STATUS_S2.md`; nothing opens the card yet) |
-| S3 By subject panel | open (next) |
-| S4 chapter + exam cards | open |
-| S5 icon in course lists | open |
+| S1 data layer | **done 2026-10-22, written, NOT compiled** (log `docs/SESSION_2026-10-22_STATUS_S1.md`) |
+| S2 ring + subject card | **done 2026-10-22, written, NOT compiled** (log `docs/SESSION_2026-10-22_STATUS_S2.md`) |
+| S3 By subject panel | **done 2026-10-22, written, NOT compiled** (log `docs/SESSION_2026-10-22_STATUS_S3.md`; opens the S2 card) |
+| S4 chapter + exam cards | **done 2026-10-22, written, NOT compiled** (log `docs/SESSION_2026-10-22_STATUS_S4.md`) |
+| S5 icon in course lists | open (next) |
 | S6 day log (owner OK needed) | blocked on question B |
 
 ## 9. Live Supabase changes made for this plan
@@ -71,3 +71,4 @@ None. (Only read-only table inspection on 2026-10-22.)
 ## 10. Plan changes
 - 2026-10-22 (S1): `ProgressRow.flashcardsKnow/Seen` default to 0 (not null) because 0 seen already means "no flashcard data" and the UI shows a dash then; `lastPage` defaults to null. Names in `StatusBreakdown.kt` carry the suffix `Breakdown` (`SubjectBreakdown`, `ChapterBreakdown`, ...) to avoid clashes with `NativeStatusModel.kt`.
 - 2026-10-22 (S2): `StatusDetailCard` takes the subject name as a parameter (`title`); the caller (S3) resolves it from `PackagesData.kt`. The card is a `Dialog` (scrim + bottom card), no new dependency.
+- 2026-10-22 (S4): chapter and exam views live inside the same `StatusDetailCard` dialog (internal view state, back arrow returns), so no new file and no change to `StatusBreakdown.kt`; chapters are labelled "Chapter N" / "General" because the data has no chapter titles.
