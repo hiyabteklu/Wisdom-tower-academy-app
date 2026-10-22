@@ -92,49 +92,14 @@ private const val SIZE_UNKNOWN = -1f
 private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRose)
 
 /**
- * Native list of the items inside one learning hub of one course (plan step N2). Replaces the website's
- * hub page for the hubs that have a native viewer. Texts and row content copied from the website's
- * `components/learning/HubContentView.tsx`:
- *  - not signed in: "Sign in to open" + its sentence (real content needs a signed-in student);
- *  - row: title, "Chapter N", "N cards" (flashcards) or "N questions" (question banks, exams), a "New" badge
- *    until the item was opened once on this phone;
- *  - empty: "No published materials in this hub yet. Check back soon."; failure: its message + "Retry".
- * Data: [LearningContentRepository.list] (direct Supabase read, offline copy).
+ * Native list of the items inside one learning hub of one course (books, notes, flashcards, question banks, exams).
+ * Rows, per-item Download button, "Download all (n)" / "Remove saved (n)", offline marks, granular admin locks
+ * (lock icon + "Coming soon" / "Package required" pop-up) and the S2 light list (counts from `item_count`) are unchanged;
+ * see the git history of this file for the full F4 / F4b / GLASS / D6b / GRANULAR LOCKS / SECURITY S2 notes.
  *
- * F4 (2026-10-12, owner report problem 4): every row has a small Download button on the item itself. Books are
- * saved with [BookFileStore] (real percent while downloading); notes, flashcard decks, question banks and exams
- * are saved with [LearningContentRepository.getResource] (`refresh = true`), after which they open offline and
- * instantly. While downloading the button shows the percent (or a spinner when the size is unknown) and a thin
- * bar appears under the row; when done it turns into a green check and the row says "Saved offline"; a failure
- * says so under the row and a tap on the button tries again. The "downloaded" marks are kept in the preferences
- * file `wt_downloaded_resources` (ids only). A download stops if the student leaves this list.
- *
- * F4b (2026-10-12, owner choice "Download all + delete saved items"):
- *  - "Download all (n)" above the list saves every item of this hub that is not saved yet, one after the other
- *    ("Downloading 2 of 10..."); an item that fails is marked as failed and the next one goes on;
- *  - a tap on the green check of an item asks "Remove from this phone?" and deletes only that saved copy;
- *  - "Remove saved (n)" asks once and deletes every saved item of this hub ([SavedContent]).
- *    Reading progress is kept; the item can be downloaded again at any time.
- *
- * GLASS (2026-10-13, owner request, docs/GLASS_PLAN.md area 1): rows, message cards, the round download button and
- * the round back button use the see-through glass look of the Targets screen (white 4-6% fill, white 8% edge).
- *
- * D6b (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Titles, the progress track, the NEW badge, the green / red states of the
- * round button and the remove dialog now follow the switch (night keeps the exact old literals as `dayNight` pairs; day uses
- * ink, deep rose, deep emerald and the 95 percent ivory dialog). [ScreenBackButton] tints its arrow with [WisdomInk], which
- * fixes the back arrow of every study tool that uses it.
- *
- * GRANULAR LOCKS (2026-10-20, owner order: lock single chapters / materials without a release): [locks] carries the
- * admin lock rows of this course (`content_locks`, keys `chapter:<scope>:<hub>:<n>` and `item:<id>`, see
- * [CourseLocks]). A locked row stays visible with a lock icon and "Coming soon" / "Package required" under the title; a
- * tap shows the same pop-up as a closed hub card instead of opening; its Download button is hidden and "Download all"
- * skips it. A row that is already saved on the phone is blocked the same way (the lock is checked on every tap).
- * `locks = null` (any other caller) means no extra lock.
- *
- * SECURITY S2 (2026-10-20, docs/SECURITY_PLAN_CONTENT_ACCESS.md): the list is always light now (title, chapter, file
- * address, count). The count of cards / questions comes from the database column `item_count`
- * ([LearningResource.itemCount]); the heavy content of an item is only loaded when it is opened or downloaded, through
- * the checked door in [LearningContentRepository.getResource].
+ * COMPACT HEADER (owner request 2026-10-22): no round back button and no course-title + hub-title block. ONE small muted
+ * line names the hub (the course was already shown on the previous screen). Back = phone back key / gesture, handled by
+ * the [BackHandler] in StudyWorkspaceScreen. [courseTitle] is kept so the caller does not change.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -279,36 +244,19 @@ fun HubItemListScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item(key = "hub_list_header") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    ScreenBackButton(onBack)
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = courseTitle.uppercase(),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = WisdomCyan,
-                            letterSpacing = 1.sp,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = hubName,
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.ExtraBold,
-                            color = WisdomInk,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
+                Text(
+                    text = hubName,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = WisdomMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             val current = result
