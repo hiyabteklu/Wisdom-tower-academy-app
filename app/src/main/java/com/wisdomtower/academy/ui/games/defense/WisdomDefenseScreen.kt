@@ -37,7 +37,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
@@ -97,6 +99,10 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * 2x2 fallback cards nothing changes (shot from the crystal, crystal flash).
  * Slice W7d: "Next level" also saves the new level as the last level used for this game ([GameLevelPrefs]), the same
  * value the level picker pre-selects, so the hub's "last level used" follows.
+ * Slice W5 (power-ups, owner yes 2026-10-22): on Medium and Hard, 3 correct answers in a row earn a Freeze (enemies stand
+ * still 3 s) and 5 in a row earn a Shield (absorbs one wall hit). The chip strip is [DefensePowerUps], laid over the
+ * bottom of the battlefield (no layout change). A frozen field gets an icy tint and frame, an active Shield a glowing
+ * line along the wall, and a blocked hit a short white flash. Rules live in [WisdomDefenseEngine].
  */
 
 /** How far below the battlefield canvas the turret barrel tip is (8 dp cockpit padding + about 78 dp inside it). */
@@ -137,6 +143,8 @@ fun WisdomDefenseScreen(
     var frame by remember { mutableIntStateOf(0) }
     var clock by remember { mutableFloatStateOf(0f) }
     val questionSlide = remember { Animatable(1f) }
+    // W5: short white flash on the wall when the Shield blocks a hit.
+    val shieldFlash = remember(set.id, attempt, currentLevel) { Animatable(0f) }
     // R2: result of saving this finished game (null = still saving or not saved).
     var saveOutcome by remember(set.id, attempt, currentLevel) { mutableStateOf<GameSaveOutcome?>(null) }
     val canSave = scopePath.isNotBlank()
@@ -416,6 +424,61 @@ fun WisdomDefenseScreen(
                                 fx.drawWorld(this)
                             }
                             fx.drawOverlay(this)
+
+                            // W5: power-up overlays (they do not shake with the wall).
+                            if (engine.freezeLeft > 0f) {
+                                val pulse = if (reduceMotion) 0.10f else 0.10f + 0.04f * kotlin.math.sin(clk * 6f)
+                                drawRect(Color(0xFF7DD3FC).copy(alpha = pulse.coerceIn(0f, 1f)))
+                                drawRect(Color(0xFFBAE6FD).copy(alpha = 0.55f), style = Stroke(width = 3.dp.toPx()))
+                            }
+                            val wallY = defenseLaneY(h, 1f)
+                            if (engine.shieldActive) {
+                                val a = if (reduceMotion) 0.9f else 0.7f + 0.2f * kotlin.math.sin(clk * 5f)
+                                drawLine(
+                                    WisdomCyan.copy(alpha = 0.25f),
+                                    Offset(w * 0.04f, wallY), Offset(w * 0.96f, wallY),
+                                    strokeWidth = 14.dp.toPx()
+                                )
+                                drawLine(
+                                    WisdomCyan.copy(alpha = a.coerceIn(0f, 1f)),
+                                    Offset(w * 0.04f, wallY), Offset(w * 0.96f, wallY),
+                                    strokeWidth = 3.dp.toPx()
+                                )
+                            }
+                            val sf = shieldFlash.value
+                            if (sf > 0f) {
+                                drawRect(
+                                    Color.White.copy(alpha = (0.30f * sf).coerceIn(0f, 1f)),
+                                    topLeft = Offset(0f, (wallY - h * 0.12f).coerceAtLeast(0f)),
+                                    size = Size(w, h * 0.24f)
+                                )
+                            }
+                        }
+
+                        // W5: power-up chips over the bottom of the battlefield (Medium and Hard only).
+                        if (engine.powerUpsOn) {
+                            DefensePowerUps(
+                                streak = engine.streak,
+                                freezeReady = engine.freezeReady,
+                                freezeLeft = engine.freezeLeft,
+                                shieldReady = engine.shieldReady,
+                                shieldActive = engine.shieldActive,
+                                onFreeze = {
+                                    if (engine.useFreeze()) {
+                                        GameAudio.play(GameAudio.Sfx.Correct)
+                                        GameHaptics.tap(view, true)
+                                        frame++
+                                    }
+                                },
+                                onShield = {
+                                    if (engine.useShield()) {
+                                        GameAudio.play(GameAudio.Sfx.Correct)
+                                        GameHaptics.tap(view, true)
+                                        frame++
+                                    }
+                                },
+                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
+                            )
                         }
                     }
 
@@ -486,11 +549,15 @@ fun WisdomDefenseScreen(
     //   fire = Shot + light tap | kill = Hit + correct buzz | wrong answer (new locked card) = Wrong + wrong buzz
     //   heart lost = HeartLost + heart buzz (the sound is skipped on the last heart, Defeat plays instead)
     //   won = Victory | lost = Defeat
+    // W5: power-up earned = Combo chirp | power-up used = Correct chirp + tap | Shield blocks a hit = Hit + tap + flash
     val killed = engine.killed
     val hearts = engine.hearts
     val lockedCount = engine.lockedChoices.size
     val didWin = engine.phase is WisdomDefensePhase.Won
     val didLose = engine.phase is WisdomDefensePhase.Lost
+    val freezeReady = engine.freezeReady
+    val shieldReady = engine.shieldReady
+    val shieldBlocks = engine.shieldBlocks
     LaunchedEffect(killed) {
         if (killed > 0) {
             GameAudio.play(GameAudio.Sfx.Hit)
@@ -512,6 +579,24 @@ fun WisdomDefenseScreen(
     LaunchedEffect(didWin, didLose) {
         if (didWin) GameAudio.play(GameAudio.Sfx.Victory)
         else if (didLose) GameAudio.play(GameAudio.Sfx.Defeat)
+    }
+    LaunchedEffect(freezeReady) {
+        if (freezeReady) GameAudio.play(GameAudio.Sfx.Combo)
+    }
+    LaunchedEffect(shieldReady) {
+        if (shieldReady) GameAudio.play(GameAudio.Sfx.Combo)
+    }
+    LaunchedEffect(shieldBlocks) {
+        if (shieldBlocks > 0) {
+            GameAudio.play(GameAudio.Sfx.Hit)
+            GameHaptics.tap(view, true)
+            if (reduceMotion) {
+                shieldFlash.snapTo(0f)
+            } else {
+                shieldFlash.snapTo(1f)
+                shieldFlash.animateTo(0f, tween(450))
+            }
+        }
     }
 
     // R2: save the finished game once (Retry or Next level starts a new attempt, which saves its own result).
