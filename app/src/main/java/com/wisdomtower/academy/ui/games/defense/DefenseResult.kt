@@ -26,7 +26,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.games.GameSaveOutcome
 import com.wisdomtower.academy.ui.games.common.GamePrimaryButton
+import com.wisdomtower.academy.ui.games.common.GameSaveLine
 import com.wisdomtower.academy.ui.games.common.GameSecondaryButton
 import com.wisdomtower.academy.ui.games.common.GameTheme
 import com.wisdomtower.academy.ui.theme.WisdomInk
@@ -36,6 +38,7 @@ import kotlinx.coroutines.delay
 /**
  * Wisdom Defense result screen (docs/GAMES_FEEL_PLAN.md slice D5).
  * Stars (only when won): 3 hearts left = 3 stars, 2 = 2 stars, 1 = 1 star. Lost = 0 stars.
+ * Slice R2: [levelLabel] (empty = hidden) and, when [showSave], the save line with [saveOutcome] (null = still saving).
  */
 @Composable
 internal fun DefenseResult(
@@ -47,7 +50,10 @@ internal fun DefenseResult(
     reduceMotion: Boolean,
     onRetry: () -> Unit,
     onDone: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    levelLabel: String = "",
+    showSave: Boolean = false,
+    saveOutcome: GameSaveOutcome? = null
 ) {
     val stars = if (won) heartsLeft.coerceIn(1, 3) else 0
     Column(
@@ -75,6 +81,14 @@ internal fun DefenseResult(
         ) {
             StatTile("Defeated", "$killed / $total", Modifier.weight(1f))
             StatTile("Hearts left", "$heartsLeft / $maxHearts", Modifier.weight(1f))
+        }
+        if (levelLabel.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text("$levelLabel level", color = WisdomMuted, fontSize = 13.sp)
+        }
+        if (showSave) {
+            Spacer(Modifier.height(6.dp))
+            GameSaveLine(saveOutcome)
         }
         Spacer(Modifier.height(28.dp))
         GamePrimaryButton("Retry", onClick = onRetry, modifier = Modifier.fillMaxWidth())

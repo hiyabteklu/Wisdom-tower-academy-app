@@ -26,8 +26,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.games.GameSaveOutcome
 import com.wisdomtower.academy.data.games.MatchTuning
 import com.wisdomtower.academy.ui.games.common.GamePrimaryButton
+import com.wisdomtower.academy.ui.games.common.GameSaveLine
 import com.wisdomtower.academy.ui.games.common.GameSecondaryButton
 import com.wisdomtower.academy.ui.games.common.GameTheme
 import com.wisdomtower.academy.ui.theme.WisdomInk
@@ -36,10 +38,30 @@ import kotlinx.coroutines.delay
 import kotlin.math.ceil
 
 /**
+ * Stars of a finished Match game from the level's [MatchTuning]: 3 when moves <= ceil(pairs x star3Factor) AND (no par time
+ * or finished under par), 2 when moves <= ceil(pairs x star2Factor), otherwise 1. MEDIUM = 1.25 and 2, exactly as before.
+ * Used by the result screen and by the result saver (slice R2), so both always agree.
+ */
+internal fun matchStars(pairsTotal: Int, moves: Int, tuning: MatchTuning, elapsedSeconds: Int): Int {
+    val parSeconds: Int? = tuning.parSecondsPerPair?.let { it * pairsTotal }
+    val underPar = parSeconds == null || elapsedSeconds <= parSeconds
+    return when {
+        moves <= ceil(pairsTotal * tuning.star3Factor.toDouble()).toInt() && underPar -> 3
+        moves <= ceil(pairsTotal * tuning.star2Factor.toDouble()).toInt() -> 2
+        else -> 1
+    }
+}
+
+/** Match score for the saved best: 100 per pair, minus 20 for every move beyond one per pair, never below 0. */
+internal fun matchScore(pairsTotal: Int, moves: Int): Int {
+    val extra = (moves - pairsTotal).coerceAtLeast(0)
+    return (pairsTotal * 100 - extra * 20).coerceAtLeast(0)
+}
+
+/**
  * Match result screen (docs/GAMES_FEEL_PLAN.md slice M3, levels by docs/GAMES_COOL_PLAN.md slice G3).
- * Stars from the level's [MatchTuning]: 3 when moves <= ceil(pairs x star3Factor) AND (no par time or finished
- * under par), 2 when moves <= ceil(pairs x star2Factor), otherwise 1. MEDIUM = 1.25 and 2, exactly as before.
- * A finished set always earns at least 1 star.
+ * Stars: see [matchStars]. A finished set always earns at least 1 star.
+ * Slice R2: when [showSave], the save line with [saveOutcome] (null = still saving).
  */
 @Composable
 internal fun MatchResult(
@@ -51,7 +73,9 @@ internal fun MatchResult(
     onDone: () -> Unit,
     modifier: Modifier = Modifier,
     tuning: MatchTuning = MatchTuning.MEDIUM,
-    elapsedSeconds: Int = 0
+    elapsedSeconds: Int = 0,
+    showSave: Boolean = false,
+    saveOutcome: GameSaveOutcome? = null
 ) {
     Column(
         modifier.fillMaxSize().padding(24.dp),
@@ -73,11 +97,7 @@ internal fun MatchResult(
 
         val parSeconds: Int? = tuning.parSecondsPerPair?.let { it * pairsTotal }
         val underPar = parSeconds == null || elapsedSeconds <= parSeconds
-        val stars = when {
-            moves <= ceil(pairsTotal * tuning.star3Factor.toDouble()).toInt() && underPar -> 3
-            moves <= ceil(pairsTotal * tuning.star2Factor.toDouble()).toInt() -> 2
-            else -> 1
-        }
+        val stars = matchStars(pairsTotal, moves, tuning, elapsedSeconds)
         val accuracy = if (moves <= 0) 100 else (pairsTotal * 100 / moves).coerceIn(0, 100)
 
         Text(
@@ -115,6 +135,10 @@ internal fun MatchResult(
                 color = if (underPar) WisdomMuted else Color(0xFFF43F5E),
                 fontSize = 13.sp
             )
+        }
+        if (showSave) {
+            Spacer(Modifier.height(6.dp))
+            GameSaveLine(saveOutcome)
         }
         Spacer(Modifier.height(28.dp))
         GamePrimaryButton("Retry", onClick = onRetry, modifier = Modifier.fillMaxWidth())
