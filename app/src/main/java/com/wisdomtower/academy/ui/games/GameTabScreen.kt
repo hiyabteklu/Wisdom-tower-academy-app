@@ -8,6 +8,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -18,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.games.GameSetData
 import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.GameSetsResult
@@ -32,6 +34,9 @@ import kotlinx.coroutines.launch
 /**
  * Game tab root (docs/GAMES_HUB_PLAN.md switchover).
  * Hosts [GameHubScreen]; Match and Wisdom Defense load sets and open their screens.
+ *
+ * 2026-10-22: the course list is now only the student's own packages (same rule as the My Learning tab,
+ * see [enrolledGamePackages]), read from the signed-in profile, instead of the whole catalog.
  */
 @Composable
 fun GameTabScreen(
@@ -41,6 +46,11 @@ fun GameTabScreen(
 ) {
     @Suppress("UNUSED_PARAMETER")
     val unusedSelect = onSelectPackage
+
+    val profile by AuthStateManager.currentProfile.collectAsState()
+    val enrolledPackages = remember(packageList, profile?.educationLevel) {
+        enrolledGamePackages(profile?.educationLevel, packageList)
+    }
 
     var activeMatch by remember { mutableStateOf<GameSetData?>(null) }
     var activeDefense by remember { mutableStateOf<GameSetData?>(null) }
@@ -94,7 +104,7 @@ fun GameTabScreen(
             }
             else -> {
                 GameHubScreen(
-                    packageList = packageList,
+                    packageList = enrolledPackages,
                     modifier = Modifier.fillMaxSize(),
                     onPlay = { game, scopePath, chapter ->
                         if (game != GameSetsRepository.GAME_MATCH && game != GameSetsRepository.GAME_DEFENSE) {
