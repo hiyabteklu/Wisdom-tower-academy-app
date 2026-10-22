@@ -12,7 +12,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import java.util.concurrent.TimeUnit
 
-/** One row of `public.learning_progress` (the student's own), reduced to what the "Your status" screen needs. */
+/** One row of `public.learning_progress` (the student's own), reduced to what the "Your status" screens need. */
 data class ProgressRow(
     val resourceId: String,
     val progressPct: Double,
@@ -22,7 +22,13 @@ data class ProgressRow(
     /** `meta.quiz.attempted` (0 when the row has no quiz data) */
     val quizAttempted: Int,
     /** `meta.quiz.correct` (0 when the row has no quiz data) */
-    val quizCorrect: Int
+    val quizCorrect: Int,
+    /** My Status V2: `last_page` (PDF), null when the row has none */
+    val lastPage: Int? = null,
+    /** My Status V2: `meta.flashcards.know` (0 when the row has no flashcard data) */
+    val flashcardsKnow: Int = 0,
+    /** My Status V2: `meta.flashcards.seen` (0 when the row has no flashcard data) */
+    val flashcardsSeen: Int = 0
 )
 
 sealed class ProgressFetchResult {
@@ -34,8 +40,9 @@ sealed class ProgressFetchResult {
 /**
  * Reads ALL of the signed-in student's rows of `public.learning_progress` (own rows only, policy `auth.uid() = user_id`),
  * the same select as `StudentAnalyticsDashboard.tsx` (`resource_id, progress_pct, total_seconds, focus_seconds,
- * last_opened_at, meta`). Used by the native "Your status" screen (F7 part 5). Uses the student's own access token
- * (refreshed when needed, one retry after a 401). Never logs tokens or bodies, only HTTP status codes. Never throws.
+ * last_opened_at, meta`) plus `last_page`. Used by the native "Your status" screen (F7 part 5). Uses the student's own
+ * access token (refreshed when needed, one retry after a 401). Never logs tokens or bodies, only HTTP status codes.
+ * Never throws.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -84,7 +91,7 @@ object StudentProgressReader {
 
     private fun read(userId: String, token: String): ReadOutcome {
         val url = "$supabaseUrl/rest/v1/learning_progress".toHttpUrl().newBuilder()
-            .addQueryParameter("select", "resource_id,progress_pct,total_seconds,focus_seconds,last_opened_at,meta")
+            .addQueryParameter("select", "resource_id,progress_pct,total_seconds,focus_seconds,last_opened_at,last_page,meta")
             .addQueryParameter("user_id", "eq.$userId")
             .addQueryParameter("limit", "1000")
             .build()
@@ -105,7 +112,9 @@ object StudentProgressReader {
             val rows = ArrayList<ProgressRow>(arr.length())
             for (i in 0 until arr.length()) {
                 val o = arr.getJSONObject(i)
-                val quiz = o.optJSONObject("meta")?.optJSONObject("quiz")
+                val meta = o.optJSONObject("meta")
+                val quiz = meta?.optJSONObject("quiz")
+                val cards = meta?.optJSONObject("flashcards")
                 val pct = o.optDouble("progress_pct", 0.0)
                 val opened = if (o.isNull("last_opened_at")) null else o.optString("last_opened_at", "").ifBlank { null }
                 rows.add(
@@ -116,7 +125,10 @@ object StudentProgressReader {
                         focusSeconds = o.optLong("focus_seconds", 0L),
                         lastOpenedAt = opened,
                         quizAttempted = quiz?.optInt("attempted", 0) ?: 0,
-                        quizCorrect = quiz?.optInt("correct", 0) ?: 0
+                        quizCorrect = quiz?.optInt("correct", 0) ?: 0,
+                        lastPage = if (o.isNull("last_page")) null else o.optInt("last_page"),
+                        flashcardsKnow = cards?.optInt("know", 0) ?: 0,
+                        flashcardsSeen = cards?.optInt("seen", 0) ?: 0
                     )
                 )
             }
