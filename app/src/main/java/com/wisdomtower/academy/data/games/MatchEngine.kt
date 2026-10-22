@@ -3,12 +3,13 @@ package com.wisdomtower.academy.data.games
 import kotlin.random.Random
 
 /**
- * Match game logic (docs/GAMES_HUB_PLAN.md step 4, reworked by docs/GAMES_FEEL_PLAN.md slice M1).
+ * Match game logic (docs/GAMES_HUB_PLAN.md step 4, reworked by docs/GAMES_FEEL_PLAN.md slice M1, levels by
+ * docs/GAMES_COOL_PLAN.md slice G1).
  * Pure Kotlin, no Compose.
  *
- * Up to 4 pairs (8 cards) on the board at once. Cards keep their SLOT: when a pair is matched,
- * the next pair (if any) takes exactly the two slots the matched cards had, so the other cards
- * never move. When no pairs are left to bring in, the two slots simply close up.
+ * Up to [MatchTuning.pairsOnBoard] pairs (MEDIUM: 4 pairs, 8 cards) on the board at once. Cards keep their SLOT: when a pair is
+ * matched, the next pair (if any) takes exactly the two slots the matched cards had, so the other cards never move. When no
+ * pairs are left to bring in, the two slots simply close up.
  */
 data class MatchCard(
     val id: Int,
@@ -25,7 +26,9 @@ sealed class MatchPhase {
 
 class MatchEngine(
     pairs: List<GameSetMatchPair>,
-    private val random: Random = Random.Default
+    private val random: Random = Random.Default,
+    /** G1: level numbers. MEDIUM = how the game played before levels. */
+    private val tuning: MatchTuning = MatchTuning.MEDIUM
 ) {
     private val remaining = ArrayList(pairs.filter { it.a.isNotBlank() && it.b.isNotBlank() })
     private var nextPairId = 0
@@ -43,6 +46,8 @@ class MatchEngine(
     var matchedCount: Int = 0
         private set
     val pairsTotal: Int = remaining.size
+
+    val level: GameLevel get() = tuning.level
 
     /** Matches in a row without a wrong pair. Resets to 0 on a wrong pair. */
     var streak: Int = 0
@@ -109,7 +114,7 @@ class MatchEngine(
     }
 
     private fun fillInitialBoard() {
-        val take = minOf(4, remaining.size)
+        val take = minOf(tuning.pairsOnBoard.coerceAtLeast(1), remaining.size)
         val added = ArrayList<MatchCard>()
         repeat(take) { added.addAll(nextPairCards()) }
         board = added.shuffled(random)

@@ -4,7 +4,8 @@ import kotlin.math.abs
 import kotlin.random.Random
 
 /**
- * Wisdom Defense logic (docs/GAMES_HUB_PLAN.md step 5, feel rules in docs/GAMES_FEEL_PLAN.md slice D1).
+ * Wisdom Defense logic (docs/GAMES_HUB_PLAN.md step 5, feel rules in docs/GAMES_FEEL_PLAN.md slice D1,
+ * levels in docs/GAMES_COOL_PLAN.md slice G1).
  * Pure Kotlin, no Compose. Distance: 0 = far edge, 1 = empire wall.
  * Enemies walk all the time (also while a shot flies).
  */
@@ -13,10 +14,14 @@ data class WisdomEnemy(
     /** 0 = just appeared far away, 1 = at the empire. */
     var progress: Float,
     val speed: Float,
-    /** Look: 0 slime, 1 bat, 2 golem (art arrives in slice D2). */
+    /** Look: 0 slime, 1 bat, 2 golem. */
     val kind: Int = 0,
     /** Smooth push still to apply: negative = pushed back, positive = lunge forward. */
-    var shift: Float = 0f
+    var shift: Float = 0f,
+    /** Extra correct answers still needed before it dies (G1: Hard golem 1, boss 2). 0 = the next hit kills. */
+    var armor: Int = 0,
+    /** The big last-wave enemy of Hard (drawn bigger from slice W2). */
+    val boss: Boolean = false
 )
 
 /** An enemy that is playing its death animation (not targetable). [t] goes 0..1. */
@@ -46,7 +51,9 @@ class WisdomDefenseEngine(
     items: List<GameSetDefenseItem>,
     private val random: Random = Random.Default,
     val maxHearts: Int = 3,
-    private val maxEnemies: Int = 4
+    private val maxEnemies: Int = 4,
+    /** G1: level numbers. MEDIUM = how the game played before levels. */
+    private val tuning: DefenseTuning = DefenseTuning.MEDIUM
 ) {
     companion object {
         /** Seconds for the shot to fly. */
@@ -57,7 +64,7 @@ class WisdomDefenseEngine(
         const val WRONG_COOLDOWN = 0.40f
         /** Push back of the other enemies after a kill. */
         const val KILL_PUSH_BACK = 0.10f
-        /** Forward lunge of the nearest enemy after a wrong answer. */
+        /** Forward lunge of the nearest enemy after a wrong answer (MEDIUM; the level's own value is used). */
         const val WRONG_LUNGE = 0.08f
         /** Push back of the other enemies after one hit the wall (mercy). */
         const val WALL_MERCY_PUSH = 0.15f
@@ -71,13 +78,24 @@ class WisdomDefenseEngine(
         const val MIN_ENTRY_GAP = 0.18f
         /** A follower may not get closer than this to the enemy in front. */
         const val MIN_FOLLOW_GAP = 0.06f
+        /** Correct answers the Hard boss needs. */
+        const val BOSS_HITS = 3
+        /** The boss only appears in sets with at least this many questions. */
+        const val BOSS_MIN_QUESTIONS = 8
+        private const val KILL_POINTS = 100
+        private const val ARMOR_HIT_POINTS = 50
+        private const val BOSS_KILL_POINTS = 300
+        private const val HEART_BONUS = 50
         private val START_POSITIONS = floatArrayOf(0.45f, 0.27f, 0.09f)
     }
 
     private val queue = ArrayList(items.filter { it.choices.size == 4 && it.correct in 0..3 })
+    private val totalQuestions: Int = queue.size
     private var nextEnemyId = 1
     private var spawnDelay = 0f
     private var cooldown = 0f
+    private var bossSpawned = false
+    private var rawScore = 0
     private val eventList = ArrayList<WisdomEvent>()
 
     /** Enemies that are walking (targetable). */
@@ -93,6 +111,7 @@ class WisdomDefenseEngine(
         private set
     var hearts: Int = maxHearts
         private set
+    /** Correct answers so far (an armor hit counts too, so the progress bar fills to the number of questions). */
     var killed: Int = 0
         private set
     var phase: WisdomDefensePhase = WisdomDefensePhase.Playing
@@ -104,8 +123,21 @@ class WisdomDefenseEngine(
     var lastShotChoice: Int? = null
         private set
 
+    val level: GameLevel get() = tuning.level
+
     /** Number of questions not yet answered correctly, including the current one. */
     val questionsLeft: Int get() = queue.size + (if (current != null) 1 else 0)
+
+    /** The current question's hint, only on levels that show it and only after a wrong answer. Null otherwise. */
+    val hint: String?
+        get() = if (tuning.hintAfterWrong && lockedChoices.isNotEmpty()) current?.hint else null
+
+    /** Score with the level multiplier; after a win it includes 50 per heart left. */
+    val score: Int
+        get() {
+            val bonus = if (phase is WisdomDefensePhase.Won) hearts * HEART_BONUS else 0
+            return ((rawScore + bonus) * tuning.scoreMultiplier).toInt()
+        }
 
     init {
         pullQuestion()
@@ -113,7 +145,10 @@ class WisdomDefenseEngine(
             phase = WisdomDefensePhase.Won(0, hearts)
         } else {
             val count = minOf(START_POSITIONS.size, maxEnemies, questionsLeft)
-            for (i in 0 until count) spawn(START_POSITIONS[i])
+            for (i in 0 until count) {
+                if (questionsLeft - hitsNeeded() <= 0) break
+                spawn(START_POSITIONS[i])
+            }
             spawnDelay = SPAWN_GAP
         }
     }
@@ -204,10 +239,17 @@ class WisdomDefenseEngine(
         val nearest = enemies.maxByOrNull { it.progress }
         if (correct) {
             if (nearest != null) {
-                enemies = enemies.filter { it.id != nearest.id }
-                dying = dying + WisdomDyingEnemy(nearest.id, nearest.progress, nearest.kind)
                 killed++
-                addEvent(WisdomEvent.Killed(nearest.progress, nearest.kind))
+                if (nearest.armor > 0) {
+                    // Armored enemy: this answer only cracks the armor.
+                    nearest.armor -= 1
+                    rawScore += ARMOR_HIT_POINTS
+                } else {
+                    enemies = enemies.filter { it.id != nearest.id }
+                    dying = dying + WisdomDyingEnemy(nearest.id, nearest.progress, nearest.kind)
+                    rawScore += if (nearest.boss) BOSS_KILL_POINTS else KILL_POINTS
+                    addEvent(WisdomEvent.Killed(nearest.progress, nearest.kind))
+                }
                 // Push everyone else back, smoothly.
                 for (e in enemies) e.shift -= KILL_PUSH_BACK
             }
@@ -217,7 +259,7 @@ class WisdomDefenseEngine(
         } else {
             if (choice != null) lockedChoices = lockedChoices + choice
             if (nearest != null) {
-                nearest.shift += WRONG_LUNGE
+                nearest.shift += tuning.wrongLunge
                 addEvent(WisdomEvent.WrongHit(nearest.progress))
             }
             cooldown = WRONG_COOLDOWN
@@ -231,21 +273,40 @@ class WisdomDefenseEngine(
         lockedChoices = emptySet()
     }
 
+    /** Correct answers still needed to kill everything on the lane (an armored enemy needs more than one). */
+    private fun hitsNeeded(): Int = enemies.sumOf { it.armor + 1 }
+
     private fun spawn(progress: Float) {
-        val kind = random.nextInt(3)
-        val base = when (kind) {
-            1 -> 0.050f // bat: fast
-            2 -> 0.032f // golem: slow
+        // Questions not yet promised to an enemy on the lane. Every enemy must be killable with the questions left.
+        val free = questionsLeft - hitsNeeded()
+        val bossPending = tuning.boss && !bossSpawned && totalQuestions >= BOSS_MIN_QUESTIONS
+        var kind = random.nextInt(3)
+        var armor = 0
+        var boss = false
+        if (bossPending && free == BOSS_HITS) {
+            // Last wave: the boss takes exactly the last BOSS_HITS questions.
+            kind = 2
+            armor = BOSS_HITS - 1
+            boss = true
+            bossSpawned = true
+        } else if (tuning.armoredGolem && kind == 2) {
+            val keepFree = if (bossPending) BOSS_HITS else 0
+            if (free - 2 >= keepFree) armor = 1
+        }
+        val base = when {
+            boss -> 0.028f // boss: slowest
+            kind == 1 -> 0.050f // bat: fast
+            kind == 2 -> 0.032f // golem: slow
             else -> 0.040f // slime
         }
-        val speed = base + (random.nextFloat() - 0.5f) * 0.008f
-        enemies = enemies + WisdomEnemy(nextEnemyId++, progress, speed, kind)
+        val speed = (base + (random.nextFloat() - 0.5f) * 0.008f) * tuning.speedScale
+        enemies = enemies + WisdomEnemy(nextEnemyId++, progress, speed, kind, armor = armor, boss = boss)
     }
 
     private fun trySpawn() {
         if (phase !is WisdomDefensePhase.Playing) return
-        // Never more enemies than questions left, so every enemy can be killed.
-        if (enemies.size >= minOf(maxEnemies, questionsLeft)) return
+        // Never more hits needed than questions left, so every enemy can be killed.
+        if (enemies.size >= maxEnemies || questionsLeft - hitsNeeded() <= 0) return
         // Enter from the far edge only when there is room.
         if (enemies.any { it.progress < MIN_ENTRY_GAP }) return
         spawn(0f)
