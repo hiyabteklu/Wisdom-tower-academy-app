@@ -28,6 +28,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
@@ -48,7 +49,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameLevel
+import com.wisdomtower.academy.data.games.GameResultInput
+import com.wisdomtower.academy.data.games.GameResultsRepository
+import com.wisdomtower.academy.data.games.GameSaveOutcome
 import com.wisdomtower.academy.data.games.GameSetData
+import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.WisdomDefenseEngine
 import com.wisdomtower.academy.data.games.WisdomDefensePhase
 import com.wisdomtower.academy.data.games.WisdomDefenseTuning
@@ -72,13 +77,16 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * The result screen (stars, stats, Retry and Done) is DefenseResult.kt (slice D5).
  * Sound and haptics mapping, reduce-motion on the HUD bar: slice P1 (see the block at the end).
  * Level (slice G2): [level] picks the numbers (hearts, enemies at once, speed, hint) from [WisdomDefenseTuning].
+ * Result saver (slice R2): when [scopePath] is not blank, the finished game (won or lost) is saved once through
+ * [GameResultsRepository.save] and the result screen shows the save line. A blank [scopePath] saves nothing.
  */
 @Composable
 fun WisdomDefenseScreen(
     set: GameSetData,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
-    level: GameLevel = GameLevel.MEDIUM
+    level: GameLevel = GameLevel.MEDIUM,
+    scopePath: String = ""
 ) {
     GameFullScreenEffect()
     val context = LocalContext.current
@@ -103,6 +111,9 @@ fun WisdomDefenseScreen(
     var frame by remember { mutableIntStateOf(0) }
     var clock by remember { mutableFloatStateOf(0f) }
     val questionSlide = remember { Animatable(1f) }
+    // R2: result of saving this finished game (null = still saving or not saved).
+    var saveOutcome by remember(set.id, attempt, level) { mutableStateOf<GameSaveOutcome?>(null) }
+    val canSave = scopePath.isNotBlank()
 
     LaunchedEffect(Unit) { GameAudio.init(context) }
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
@@ -148,7 +159,10 @@ fun WisdomDefenseScreen(
                     maxHearts = engine.maxHearts,
                     reduceMotion = reduceMotion,
                     onRetry = { attempt++ },
-                    onDone = onExit
+                    onDone = onExit,
+                    levelLabel = level.label,
+                    showSave = canSave,
+                    saveOutcome = saveOutcome
                 )
             }
             is WisdomDefensePhase.Playing -> {
@@ -415,6 +429,43 @@ fun WisdomDefenseScreen(
         if (didWin) GameAudio.play(GameAudio.Sfx.Victory)
         else if (didLose) GameAudio.play(GameAudio.Sfx.Defeat)
     }
+
+    // R2: save the finished game once (Retry starts a new attempt, which saves its own result).
+    LaunchedEffect(didWin, didLose, attempt, level) {
+        if ((didWin || didLose) && canSave) {
+            val ph = engine.phase
+            val won = ph is WisdomDefensePhase.Won
+            val killedCount = when (ph) {
+                is WisdomDefensePhase.Won -> ph.killed
+                is WisdomDefensePhase.Lost -> ph.killed
+                else -> 0
+            }
+            val heartsLeft = if (ph is WisdomDefensePhase.Won) ph.heartsLeft else 0
+            // Same stars rule as DefenseResult: 3 hearts left = 3 stars, 2 = 2, 1 = 1, lost = 0.
+            val stars = if (won) heartsLeft.coerceIn(1, 3) else 0
+            saveOutcome = GameResultsRepository.save(
+                context,
+                GameResultInput(
+                    game = GameSetsRepository.GAME_DEFENSE,
+                    scopePath = scopePath,
+                    chapter = set.chapter,
+                    level = level,
+                    stars = stars,
+                    score = defenseScore(killedCount, heartsLeft, won, tuning.scoreMultiplier),
+                    won = won
+                )
+            )
+        }
+    }
+}
+
+/**
+ * Defense score for the saved best (a proposal, change after a phone test): 100 per enemy defeated, plus 50 per heart
+ * left when won, times the level multiplier of [WisdomDefenseTuning], kept between 0 and 100000.
+ */
+private fun defenseScore(killed: Int, heartsLeft: Int, won: Boolean, multiplier: Float): Int {
+    val base = killed * 100 + (if (won) heartsLeft * 50 else 0)
+    return (base * multiplier).toInt().coerceIn(0, 100000)
 }
 
 /**
