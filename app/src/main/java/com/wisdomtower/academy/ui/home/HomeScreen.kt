@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.home
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -57,6 +59,7 @@ import com.wisdomtower.academy.ui.auth.SignInPill
 import com.wisdomtower.academy.ui.packages.ENTRANCE_BASE_PATH
 import com.wisdomtower.academy.ui.packages.ENTRANCE_IMAGE_ASSET
 import com.wisdomtower.academy.ui.packages.OpenCard
+import com.wisdomtower.academy.ui.packages.OpenCardLayout
 import com.wisdomtower.academy.ui.packages.openGrid
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.OutfitFontFamily
@@ -74,10 +77,10 @@ import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
-import com.wisdomtower.academy.ui.theme.WisdomSecondaryButton
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 data class ProgramItem(
     val id: String,
@@ -238,28 +241,38 @@ fun HomeScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp)
         ) {
-            // 1. Account line: one row, "New here? Create a free account" + "Sign in" (signed out)
-            //    or the welcome text + "My Learning" (signed in). The big "Wisdom Tower Academy" title and the
-            //    "Enter Academy" button were removed on purpose (2026-10-13): the header already shows the brand.
-            item(key = "hero_section") {
-                HeroSection(
-                    isLoggedIn = isLoggedIn,
-                    userName = userName,
-                    onLearning = { onNavigateToUrl("/learning") },
-                    onSignIn = { onNavigateToUrl("/login") },
-                    onSignUp = { onNavigateToUrl("/signup") }
-                )
+            // 1. Signed out only: one row, "New here? Create a free account" + "Sign in".
+            //    Signed in (2026-10-22, owner order): no line and no "My Learning" button here any more; the
+            //    "Welcome back, <name>" greeting now lives inside the welcome card below (animated).
+            //    The big "Wisdom Tower Academy" title and the "Enter Academy" button were removed on purpose (2026-10-13).
+            if (!isLoggedIn) {
+                item(key = "hero_section") {
+                    HeroSection(
+                        onSignIn = { onNavigateToUrl("/login") },
+                        onSignUp = { onNavigateToUrl("/signup") }
+                    )
+                }
             }
 
-            // 2. "Open Learning" card: the shared OpenCard (picture, title, Open). No gradient, no floating pill.
+            // 2. Welcome card: the shared card layout (picture, title, Open). Signed in, the title is the animated
+            //    "Welcome back, <name>" (replays every time Home opens); signed out it stays "Open Learning".
             //    M11 slice 6: rises in once like the program cards below it (wisdomReveal, docs/UI_MOTION_PLAN.md).
             item(key = "welcome_card") {
                 Box(modifier = Modifier.wisdomReveal("home_welcome_card", 0)) {
-                    OpenCard(
-                        title = "Open Learning",
-                        image = "file:///android_asset/images/home/academy.jpg",
-                        onClick = { onNavigateToUrl("/learning") }
-                    )
+                    if (isLoggedIn) {
+                        OpenCardLayout(
+                            image = "file:///android_asset/images/home/academy.jpg",
+                            subtitle = null,
+                            onClick = { onNavigateToUrl("/learning") },
+                            titleSlot = { WelcomeTitle(name = userName?.takeIf { it.isNotBlank() } ?: "Student") }
+                        )
+                    } else {
+                        OpenCard(
+                            title = "Open Learning",
+                            image = "file:///android_asset/images/home/academy.jpg",
+                            onClick = { onNavigateToUrl("/learning") }
+                        )
+                    }
                 }
             }
 
@@ -324,17 +337,62 @@ fun HomeScreen(
 }
 
 /**
- * The only thing at the top of Home: ONE line.
- *  - signed out: "New here? Create a free account" on the left, "Sign in" button on the right;
- *  - signed in: "Welcome back, <name>" on the left, "My Learning" button on the right.
+ * Animated title of the welcome card (signed in): "Welcome back," rises and fades in, then the student's name
+ * follows a moment later, bold and cyan. It replays every time Home is opened (the effect runs each time the
+ * card enters the screen, and again if the name changes). Replaces the small "Welcome back, name" line and the
+ * "My Learning" button that used to sit above the card (owner order 2026-10-22); the whole card still opens Learning.
+ */
+@Composable
+private fun WelcomeTitle(name: String) {
+    val first = remember { Animatable(0f) }
+    val second = remember { Animatable(0f) }
+    LaunchedEffect(name) {
+        first.snapTo(0f)
+        second.snapTo(0f)
+        launch { first.animateTo(1f, tween(650, easing = FastOutSlowInEasing)) }
+        delay(280)
+        second.animateTo(1f, tween(750, easing = FastOutSlowInEasing))
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Text(
+            text = "Welcome back,",
+            fontFamily = OutfitFontFamily,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            color = WisdomInk,
+            modifier = Modifier.graphicsLayer {
+                alpha = first.value
+                translationY = (1f - first.value) * 28f
+            }
+        )
+        Text(
+            text = name,
+            fontFamily = OutfitFontFamily,
+            fontSize = 26.sp,
+            lineHeight = 31.sp,
+            fontWeight = FontWeight.Black,
+            color = WisdomCyan,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.graphicsLayer {
+                val v = second.value
+                alpha = v
+                translationY = (1f - v) * 28f
+                scaleX = 0.92f + 0.08f * v
+                scaleY = 0.92f + 0.08f * v
+            }
+        )
+    }
+}
+
+/**
+ * Signed-out line at the top of Home: ONE line, "New here? Create a free account" on the left, "Sign in" button on the right.
+ * (Signed in, nothing is shown here; the greeting is inside the welcome card.)
  * M11 slice 6: the line fades up first (wisdomReveal, index 0).
  * S3 part 2: "Create a free account" is a button for TalkBack with a 48 dp touch target.
  */
 @Composable
 private fun HeroSection(
-    isLoggedIn: Boolean,
-    userName: String?,
-    onLearning: () -> Unit,
     onSignIn: () -> Unit,
     onSignUp: () -> Unit
 ) {
@@ -345,61 +403,26 @@ private fun HeroSection(
         horizontalArrangement = Arrangement.spacedBy(10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        if (isLoggedIn) {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Welcome back, ",
-                    color = WisdomMuted,
-                    fontSize = 12.sp
-                )
-                Text(
-                    text = (userName ?: "Student"),
-                    color = WisdomCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            WisdomSecondaryButton(
-                text = "My Learning",
-                onClick = onLearning,
-                borderColor = WisdomCyan.copy(alpha = 0.4f),
-                textColor = WisdomCyan,
-                icon = {
-                    Icon(
-                        imageVector = Icons.Default.School,
-                        contentDescription = null,
-                        tint = WisdomCyan,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
+        Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "New here? ",
+                color = WisdomMuted,
+                fontSize = 12.sp
             )
-        } else {
-            Row(
-                modifier = Modifier.weight(1f),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "New here? ",
-                    color = WisdomMuted,
-                    fontSize = 12.sp
-                )
-                Text(
-                    text = "Create a free account",
-                    color = WisdomCyan,
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .minimumInteractiveComponentSize()
-                        .clickable(role = Role.Button, onClick = onSignUp)
-                )
-            }
-            SignInPill(onClick = onSignIn) // S5-signin: the shared Sign in pill
+            Text(
+                text = "Create a free account",
+                color = WisdomCyan,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .clickable(role = Role.Button, onClick = onSignUp)
+            )
         }
+        SignInPill(onClick = onSignIn) // S5-signin: the shared Sign in pill
     }
 }
 

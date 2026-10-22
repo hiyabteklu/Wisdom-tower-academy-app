@@ -57,6 +57,10 @@ import com.wisdomtower.academy.ui.theme.wisdomReveal
  *
  * DAY-IVORY2 (owner order 2026-10-19): by day the Open button was teal on a teal tint on a card and washed out. By day it is
  * now a SOLID deep teal with white text. At night it is exactly as before (cyan 12 percent fill, cyan edge, cyan text).
+ *
+ * 2026-10-22: the card layout now lives in [OpenCardLayout], which takes the title as a composable slot. The normal
+ * OpenCard overloads pass the usual 13 sp bold title (looks unchanged). Home passes an animated "Welcome back, name"
+ * title for the signed-in student.
  */
 @Composable
 fun OpenCard(
@@ -80,6 +84,34 @@ fun OpenCard(
     subtitle: String?,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
+) {
+    OpenCardLayout(
+        image = image,
+        subtitle = subtitle,
+        modifier = modifier,
+        onClick = onClick,
+        titleSlot = {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = WisdomInk,
+                minLines = if (subtitle.isNullOrBlank()) 2 else 1,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    )
+}
+
+/** The shared card body: picture, [titleSlot], optional subtitle, and the "Open" button. */
+@Composable
+fun OpenCardLayout(
+    image: Any?,
+    subtitle: String?,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+    titleSlot: @Composable () -> Unit
 ) {
     val context = LocalContext.current
     val night = AppThemeMode.isDark
@@ -117,15 +149,7 @@ fun OpenCard(
                     .fillMaxWidth()
                     .padding(horizontal = 10.dp, vertical = 12.dp)
             ) {
-                Text(
-                    text = title,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = WisdomInk,
-                    minLines = if (subtitle.isNullOrBlank()) 2 else 1,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                )
+                titleSlot()
 
                 if (!subtitle.isNullOrBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
