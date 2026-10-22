@@ -64,7 +64,11 @@ sealed class GameSetsResult<out T> {
  * docs/CONTENT_SHAPES.md). Chapter lists never download `items`; a set is loaded only when a chapter is opened.
  * Every good answer is saved in the app's private storage; offline the saved copy is used (`fromCache = true`).
  *
- * STATUS: written, NOT compiled, NOT tested, not yet used by any screen (plan step 2a).
+ * 2026-10-22 (owner order, game cards and downloads): [isDownloaded], [download] and [removeDownload] let the chapter
+ * list show the same download icon as the learning lists. A "downloaded" chapter is simply a good saved copy of its set
+ * (the same file [loadSet] already writes and reads), so playing a chapter online also saves it.
+ *
+ * STATUS: [~] written, NOT compiled, NOT tested.
  */
 object GameSetsRepository {
     const val GAME_DEFENSE = "defense"
@@ -124,7 +128,7 @@ object GameSetsRepository {
         game: String
     ): GameSetsResult<GameSetData?> = withContext(Dispatchers.IO) {
         if (game != GAME_DEFENSE && game != GAME_MATCH) return@withContext GameSetsResult.Success(null, false)
-        val cacheFile = cacheFile(context, "set_${scopePath}_${chapter}_$game")
+        val cacheFile = setCacheFile(context, scopePath, chapter, game)
         try {
             val client = if (cacheFile.exists()) fastHttp else http
             val text = get(setUrl(scopePath, chapter, game), client)
@@ -141,6 +145,41 @@ object GameSetsRepository {
             } else {
                 GameSetsResult.Failure(if (e is IOException) NO_INTERNET else LOAD_FAILED)
             }
+        }
+    }
+
+    // ---------- offline copy (download icon) ----------
+
+    /** True when a usable saved copy of this chapter's set for [game] is on the phone. */
+    suspend fun isDownloaded(context: Context, scopePath: String, chapter: Int, game: String): Boolean =
+        withContext(Dispatchers.IO) {
+            val text = readCache(setCacheFile(context, scopePath, chapter, game)) ?: return@withContext false
+            runCatching { parseSet(JSONArray(text), game) != null }.getOrDefault(false)
+        }
+
+    /** Fetches the set from the server and saves it. Returns true only when a usable set was saved. */
+    suspend fun download(context: Context, scopePath: String, chapter: Int, game: String): Boolean =
+        withContext(Dispatchers.IO) {
+            try {
+                val text = get(setUrl(scopePath, chapter, game), http)
+                if (parseSet(JSONArray(text), game) == null) {
+                    false
+                } else {
+                    writeCache(setCacheFile(context, scopePath, chapter, game), text)
+                    true
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.w(TAG, "download failed: ${e.javaClass.simpleName}")
+                false
+            }
+        }
+
+    /** Deletes the saved copy of this chapter's set. */
+    suspend fun removeDownload(context: Context, scopePath: String, chapter: Int, game: String) {
+        withContext(Dispatchers.IO) {
+            runCatching { setCacheFile(context, scopePath, chapter, game).delete() }
         }
     }
 
@@ -255,6 +294,9 @@ object GameSetsRepository {
         (0 until length()).mapNotNull { optJSONObject(it) }
 
     // ---------- small file cache (app private storage, no secrets) ----------
+
+    private fun setCacheFile(context: Context, scopePath: String, chapter: Int, game: String): File =
+        cacheFile(context, "set_${scopePath}_${chapter}_$game")
 
     private fun cacheFile(context: Context, key: String): File {
         val dir = File(context.filesDir, "game_sets_cache").apply { mkdirs() }

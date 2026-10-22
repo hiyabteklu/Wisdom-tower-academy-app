@@ -16,11 +16,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -28,6 +31,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameHubIndex
@@ -35,24 +39,40 @@ import com.wisdomtower.academy.data.games.GameHubSubject
 import com.wisdomtower.academy.data.games.GameSetChapter
 import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.GameSetsResult
+import com.wisdomtower.academy.ui.packages.ECE_SEM1_COURSES
+import com.wisdomtower.academy.ui.packages.ECE_SEM2_COURSES
+import com.wisdomtower.academy.ui.packages.FRESHMAN_SUBJECTS
+import com.wisdomtower.academy.ui.packages.GRADE_10_SUBJECTS
+import com.wisdomtower.academy.ui.packages.GRADE_11_SUBJECTS
+import com.wisdomtower.academy.ui.packages.GRADE_12_SUBJECTS
+import com.wisdomtower.academy.ui.packages.GRADE_9_SUBJECTS
 import com.wisdomtower.academy.ui.packages.NativePackage
+import com.wisdomtower.academy.ui.packages.OpenCard
+import com.wisdomtower.academy.ui.packages.REMEDIAL_SUBJECTS
+import com.wisdomtower.academy.ui.packages.openGrid
+import com.wisdomtower.academy.ui.study.DownloadGauge
+import com.wisdomtower.academy.ui.study.DownloadState
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import kotlinx.coroutines.launch
 
 /**
- * NEW game hub (docs/GAMES_HUB_PLAN.md, step 2b). Flow: pick a game -> pick a course -> pick a subject -> chapter list.
+ * Game hub (docs/GAMES_HUB_PLAN.md, step 2b). Flow: pick a game -> pick a course -> pick a subject -> chapter list.
  * Chapters come from published `game_sets` rows. A chapter that has no set for the chosen game shows
  * "Coming soon" for that game only.
  *
- * [onPlay] is called when the student taps a chapter that has a set; the games themselves (Match, Wisdom Defense)
- * are plan steps 4 and 5, so by default it does nothing.
+ * 2026-10-22 (owner order): the course and subject steps use the SAME [OpenCard] two-column grid with pictures as the
+ * Learning tab (course picture from the package, subject picture from the packed website images), and every chapter
+ * that has a set for the chosen game shows the same [DownloadGauge] as the learning lists (tap: save offline, tap again
+ * when saved: remove). Texts are unchanged; nothing new is invented. Subjects with no packed picture (UAT, GAT, COC,
+ * Exit Exam) simply show the card without a picture, like the Learning tab does.
  *
- * NOT wired into the bottom nav yet: `GameTabScreen` (old Climb / Defense hub) is still what the Game tab shows.
- * It is switched over together with the first playable game, so students never meet a dead end.
+ * [onPlay] is called when the student taps a chapter that has a set.
  *
- * STATUS: written, NOT compiled, NOT tested.
+ * STATUS: [~] written, NOT compiled, NOT tested on a phone.
  */
 @Composable
 fun GameHubScreen(
@@ -89,6 +109,23 @@ fun GameHubScreen(
 private fun gameTitle(game: String): String =
     if (game == GameSetsRepository.GAME_DEFENSE) "Wisdom Defense" else "Match"
 
+/** Picture of a subject, found from its `scope_path` in the same packed lists the Learning tab uses. */
+private val SUBJECT_IMAGES: Map<String, String> by lazy {
+    val map = HashMap<String, String>()
+    FRESHMAN_SUBJECTS.forEach { map["freshman/${it.id}"] = it.assetImage }
+    map["freshman/mathematics"] = FRESHMAN_SUBJECTS.first { it.id == "math-natural" }.assetImage
+    (GRADE_9_SUBJECTS + GRADE_10_SUBJECTS + GRADE_11_SUBJECTS + GRADE_12_SUBJECTS).forEach { s ->
+        s.image?.let { map["grade/${s.grade}/${s.id}"] = it }
+    }
+    REMEDIAL_SUBJECTS.forEach { map["remedial/${it.id}"] = it.assetImage }
+    (ECE_SEM1_COURSES + ECE_SEM2_COURSES).forEach { map["ece/${it.semester}/${it.slug}"] = it.assetImage }
+    map
+}
+
+/** "ECEg3071 \u00B7 Applied Electronics II" becomes "Applied Electronics II" (clean cards, owner rule 2026-10-13). */
+private fun cleanSubjectTitle(name: String): String =
+    if (name.contains(" \u00B7 ")) name.substringAfter(" \u00B7 ").trim().ifEmpty { name } else name
+
 @Composable
 private fun GamePickStep(onPick: (String) -> Unit) {
     Column(
@@ -119,8 +156,8 @@ private fun CourseStep(game: String, packageList: List<NativePackage>, onPick: (
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            items(packageList, key = { it.id }) { pkg ->
-                HubRow(title = pkg.name, trailing = null, trailingColor = WisdomMuted, onClick = { onPick(pkg) })
+            openGrid("game_courses", packageList) { pkg ->
+                OpenCard(pkg.name, pkg.assetImage) { onPick(pkg) }
             }
             item(key = "bottom_space") { Spacer(Modifier.height(32.dp)) }
         }
@@ -154,8 +191,8 @@ private fun SubjectStep(game: String, pkg: NativePackage, onPick: (GameHubSubjec
                 modifier = Modifier.fillMaxSize(),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                items(list, key = { it.scopePath }) { subject ->
-                    HubRow(title = subject.name, trailing = null, trailingColor = WisdomMuted, onClick = { onPick(subject) })
+                openGrid("game_subjects_${pkg.id}", list) { subject ->
+                    OpenCard(cleanSubjectTitle(subject.name), SUBJECT_IMAGES[subject.scopePath]) { onPick(subject) }
                 }
                 item(key = "bottom_space") { Spacer(Modifier.height(32.dp)) }
             }
@@ -166,8 +203,12 @@ private fun SubjectStep(game: String, pkg: NativePackage, onPick: (GameHubSubjec
 @Composable
 private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, String, Int) -> Unit) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var chapters by remember(subject.scopePath) { mutableStateOf<List<GameSetChapter>?>(null) }
     var failure by remember(subject.scopePath) { mutableStateOf<String?>(null) }
+    // chapter number -> download state; only chapters that have a set for this game get an entry
+    val downloads = remember(subject.scopePath, game) { mutableStateMapOf<Int, DownloadState>() }
+
     LaunchedEffect(subject.scopePath) {
         when (val result = GameSetsRepository.chapters(context, subject.scopePath)) {
             is GameSetsResult.Success -> chapters = result.value
@@ -176,7 +217,20 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
     }
     val list = chapters
     val error = failure
-    StepColumn(kicker = "${gameTitle(game)} \u00B7 ${subject.name}", title = "Choose a chapter") {
+
+    // Which chapters are already saved on the phone (checked once when the list appears)
+    LaunchedEffect(list, game) {
+        list?.forEach { chapter ->
+            val available =
+                if (game == GameSetsRepository.GAME_DEFENSE) chapter.hasDefense else chapter.hasMatch
+            if (available && downloads[chapter.chapter] == null) {
+                val saved = GameSetsRepository.isDownloaded(context, subject.scopePath, chapter.chapter, game)
+                downloads[chapter.chapter] = if (saved) DownloadState.DOWNLOADED else DownloadState.IDLE
+            }
+        }
+    }
+
+    StepColumn(kicker = "${gameTitle(game)} \u00B7 ${cleanSubjectTitle(subject.name)}", title = "Choose a chapter") {
         when {
             error != null -> StatusText(error)
             list == null -> StatusText("Loading\u2026")
@@ -190,11 +244,25 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
                         if (game == GameSetsRepository.GAME_DEFENSE) chapter.hasDefense else chapter.hasMatch
                     val label = if (chapter.title.isEmpty()) "Chapter ${chapter.chapter}"
                     else "Chapter ${chapter.chapter}: ${chapter.title}"
-                    HubRow(
+                    ChapterCard(
                         title = label,
-                        trailing = if (available) "Play" else "Coming soon",
-                        trailingColor = if (available) WisdomCyan else WisdomMuted,
-                        onClick = { if (available) onPlay(game, subject.scopePath, chapter.chapter) }
+                        available = available,
+                        downloadState = if (available) downloads[chapter.chapter] ?: DownloadState.IDLE else null,
+                        onClick = { if (available) onPlay(game, subject.scopePath, chapter.chapter) },
+                        onDownloadClick = {
+                            when (downloads[chapter.chapter]) {
+                                DownloadState.DOWNLOADING -> Unit
+                                DownloadState.DOWNLOADED -> scope.launch {
+                                    GameSetsRepository.removeDownload(context, subject.scopePath, chapter.chapter, game)
+                                    downloads[chapter.chapter] = DownloadState.IDLE
+                                }
+                                else -> scope.launch {
+                                    downloads[chapter.chapter] = DownloadState.DOWNLOADING
+                                    val ok = GameSetsRepository.download(context, subject.scopePath, chapter.chapter, game)
+                                    downloads[chapter.chapter] = if (ok) DownloadState.DOWNLOADED else DownloadState.FAILED
+                                }
+                            }
+                        }
                     )
                 }
                 item(key = "bottom_space") { Spacer(Modifier.height(32.dp)) }
@@ -218,26 +286,51 @@ private fun StatusText(text: String) {
     Text(text, color = WisdomMuted, fontSize = 15.sp, modifier = Modifier.padding(vertical = 8.dp))
 }
 
+/** Chapter card: glass card like the other lists, "Play" / "Coming soon", and the learning download gauge on the right. */
 @Composable
-private fun HubRow(title: String, trailing: String?, trailingColor: Color, onClick: () -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(18.dp))
-            .background(Color(0x1FFFFFFF))
-            .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 16.dp),
-        verticalAlignment = Alignment.CenterVertically
+private fun ChapterCard(
+    title: String,
+    available: Boolean,
+    downloadState: DownloadState?,
+    onClick: () -> Unit,
+    onDownloadClick: () -> Unit
+) {
+    WisdomGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 16.dp,
+        onClick = onClick
     ) {
-        Text(
-            title,
-            color = WisdomInk,
-            fontWeight = FontWeight.SemiBold,
-            fontSize = 16.sp,
-            modifier = Modifier.weight(1f)
-        )
-        if (trailing != null) {
-            Text(trailing, color = trailingColor, fontWeight = FontWeight.SemiBold, fontSize = 13.sp)
+        Row(
+            Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                title,
+                color = WisdomInk,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 15.sp,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f).padding(vertical = 8.dp)
+            )
+            Text(
+                if (available) "Play" else "Coming soon",
+                color = if (available) WisdomCyan else WisdomMuted,
+                fontWeight = FontWeight.SemiBold,
+                fontSize = 13.sp,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+            if (downloadState != null) {
+                Box(
+                    modifier = Modifier
+                        .minimumInteractiveComponentSize()
+                        .clip(RoundedCornerShape(24.dp))
+                        .clickable(onClick = onDownloadClick),
+                    contentAlignment = Alignment.Center
+                ) {
+                    DownloadGauge(state = downloadState, progress = null)
+                }
+            }
         }
     }
 }
@@ -254,7 +347,7 @@ private fun HubGameCard(emoji: String, title: String, body: String, onClick: () 
     ) {
         Text(emoji, fontSize = 36.sp)
         Spacer(Modifier.height(8.dp))
-        Text(title, color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 22.sp)
+        Text(title, color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 24.sp.coerceAtMost(22.sp))
         Spacer(Modifier.height(4.dp))
         Text(body, color = WisdomMuted, fontSize = 14.sp)
     }
