@@ -248,15 +248,18 @@ fun HubItemListScreen(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item(key = "hub_list_header") {
-                Text(
-                    text = hubName,
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = WisdomMuted,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = hubName,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = WisdomMuted,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (loggedIn) StatusSubjectIcon(scopePath = scopePath, title = courseTitle) // MYSTATUS-S5
+                }
             }
 
             val current = result

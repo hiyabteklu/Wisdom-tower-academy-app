@@ -136,7 +136,7 @@ fun PackageDetailScreen(
             if (isFreshman) {
                 item(key = "subjects_label") { SubjectsLabel() }
                 openGrid("freshman", FRESHMAN_SUBJECTS) { subject ->
-                    OpenCard(subject.name, subject.assetImage) {
+                    OpenCardWithStatus(subject.name, subject.assetImage, subject.path, isLoggedIn) {
                         onOpenSubjectWorkspace(subject.name, "Freshman Program · Subject", subject.path)
                     }
                 }
@@ -150,7 +150,7 @@ fun PackageDetailScreen(
                     }
                 } else {
                     openGrid("ece_courses_${eceSemester.id}", eceSemester.courses) { course ->
-                        OpenCard(course.title, course.assetImage) {
+                        OpenCardWithStatus(course.title, course.assetImage, course.path, isLoggedIn) {
                             onOpenSubjectWorkspace(
                                 course.title,
                                 "ECE Year 3 · ${eceSemester.label}",
@@ -172,7 +172,7 @@ fun PackageDetailScreen(
                 }
                 item(key = "subjects_label") { SubjectsLabel() }
                 openGrid("grade", gradeSubjects) { gSubject ->
-                    OpenCard(gSubject.name, gSubject.image) {
+                    OpenCardWithStatus(gSubject.name, gSubject.image, gSubject.path, isLoggedIn) {
                         onOpenSubjectWorkspace(
                             "${gSubject.name} (Grade ${gSubject.grade})",
                             "Grade ${gSubject.grade} Curriculum",
@@ -210,7 +210,7 @@ fun PackageDetailScreen(
             if (isRemedial) {
                 item(key = "subjects_label") { SubjectsLabel() }
                 openGrid("remedial", REMEDIAL_SUBJECTS) { subject ->
-                    OpenCard(subject.name, subject.assetImage) {
+                    OpenCardWithStatus(subject.name, subject.assetImage, subject.path, isLoggedIn) {
                         onOpenSubjectWorkspace(subject.name, "Remedial Program", subject.path)
                     }
                 }
