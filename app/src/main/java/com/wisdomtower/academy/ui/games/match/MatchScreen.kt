@@ -27,6 +27,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -100,6 +101,10 @@ import kotlinx.coroutines.launch
  *
  * Slice MW (part 2): a small level chip (Easy / Medium / Hard) sits in the top row next to the pair count. It takes no
  * extra height, so the Hard board still fits without scrolling.
+ *
+ * Slice MW (part 3, owner yes 2026-10-22): every new card (first board and the two cards that replace a matched pair)
+ * flips over from a card back to its face. This is only the entrance animation: the game rules are unchanged, cards
+ * still show their text as soon as the flip ends and every card is tappable at once. Reduce-motion skips the flip.
  */
 @Composable
 fun MatchScreen(
@@ -380,6 +385,14 @@ private fun MatchCardView(
         if (!reduceMotion) appear.animateTo(1f, tween(220, easing = FastOutSlowInEasing))
     }
 
+    // MW part 3: new cards also flip over from the card back (180 degrees) to the face (0 degrees).
+    // The back shows while the card is turned more than 90 degrees; the text shows after that.
+    val flip = remember { Animatable(if (reduceMotion) 0f else 180f) }
+    LaunchedEffect(Unit) {
+        if (!reduceMotion) flip.animateTo(0f, tween(380, easing = FastOutSlowInEasing))
+    }
+    val showBack by remember { derivedStateOf { flip.value > 90f } }
+
     // Selected card lifts.
     val lift by animateFloatAsState(if (selected) 1.06f else 1f, tween(if (reduceMotion) 0 else 120), label = "matchLift")
 
@@ -437,6 +450,8 @@ private fun MatchCardView(
                 scaleY = s
                 alpha = exit.value
                 translationX = shake.value * density
+                cameraDistance = 12f * density
+                rotationY = flip.value
             }
             .shadow(
                 elevation = if (selected) 10.dp else 0.dp,
@@ -451,14 +466,25 @@ private fun MatchCardView(
             .padding(if (compact) 6.dp else 12.dp),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            text = text,
-            color = WisdomInk,
-            fontSize = if (compact) 12.sp else 14.sp,
-            fontWeight = FontWeight.SemiBold,
-            textAlign = TextAlign.Center,
-            maxLines = if (compact) 5 else 6,
-            overflow = TextOverflow.Ellipsis
-        )
+        if (showBack) {
+            // Card back: a plain mark that looks the same mirrored, so it is never shown reversed.
+            Text(
+                text = "W",
+                color = WisdomCyan.copy(alpha = 0.55f),
+                fontSize = if (compact) 22.sp else 30.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center
+            )
+        } else {
+            Text(
+                text = text,
+                color = WisdomInk,
+                fontSize = if (compact) 12.sp else 14.sp,
+                fontWeight = FontWeight.SemiBold,
+                textAlign = TextAlign.Center,
+                maxLines = if (compact) 5 else 6,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
     }
 }
