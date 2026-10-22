@@ -36,6 +36,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameHubIndex
 import com.wisdomtower.academy.data.games.GameHubSubject
+import com.wisdomtower.academy.data.games.GameLevelPrefs
+import com.wisdomtower.academy.data.games.GameResultsRepository
 import com.wisdomtower.academy.data.games.GameSetChapter
 import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.GameSetsResult
@@ -69,6 +71,10 @@ import kotlinx.coroutines.launch
  * that has a set for the chosen game shows the same [DownloadGauge] as the learning lists (tap: save offline, tap again
  * when saved: remove). Texts are unchanged; nothing new is invented. Subjects with no packed picture (UAT, GAT, COC,
  * Exit Exam) simply show the card without a picture, like the Learning tab does.
+ *
+ * 2026-10-22 (slice R3 part 2): a chapter that was played shows a small line "Medium ★★☆" under its title: the best
+ * stars kept on this phone for the level used last in this game ([GameLevelPrefs.last]). Nothing is shown for a chapter
+ * that was never played (no invented value).
  *
  * [onPlay] is called when the student taps a chapter that has a set.
  *
@@ -208,6 +214,8 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
     var failure by remember(subject.scopePath) { mutableStateOf<String?>(null) }
     // chapter number -> download state; only chapters that have a set for this game get an entry
     val downloads = remember(subject.scopePath, game) { mutableStateMapOf<Int, DownloadState>() }
+    // R3 part 2: the level used last in this game; the best line of a chapter is shown for this level.
+    val lastLevel = remember(game) { GameLevelPrefs.last(context, game) }
 
     LaunchedEffect(subject.scopePath) {
         when (val result = GameSetsRepository.chapters(context, subject.scopePath)) {
@@ -244,10 +252,20 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
                         if (game == GameSetsRepository.GAME_DEFENSE) chapter.hasDefense else chapter.hasMatch
                     val label = if (chapter.title.isEmpty()) "Chapter ${chapter.chapter}"
                     else "Chapter ${chapter.chapter}: ${chapter.title}"
+                    val best = remember(chapter.chapter, game, lastLevel) {
+                        GameResultsRepository.localBest(context, game, subject.scopePath, chapter.chapter, lastLevel)
+                    }
+                    val bestLine: String? = if (available && best != null && best.plays > 0) {
+                        val stars = best.stars.coerceIn(0, 3)
+                        lastLevel.label + " " + "\u2605".repeat(stars) + "\u2606".repeat(3 - stars)
+                    } else {
+                        null
+                    }
                     ChapterCard(
                         title = label,
                         available = available,
                         downloadState = if (available) downloads[chapter.chapter] ?: DownloadState.IDLE else null,
+                        bestLine = bestLine,
                         onClick = { if (available) onPlay(game, subject.scopePath, chapter.chapter) },
                         onDownloadClick = {
                             when (downloads[chapter.chapter]) {
@@ -286,12 +304,16 @@ private fun StatusText(text: String) {
     Text(text, color = WisdomMuted, fontSize = 15.sp, modifier = Modifier.padding(vertical = 8.dp))
 }
 
-/** Chapter card: glass card like the other lists, "Play" / "Coming soon", and the learning download gauge on the right. */
+/**
+ * Chapter card: glass card like the other lists, "Play" / "Coming soon", and the learning download gauge on the right.
+ * [bestLine] (null = hidden) is a small line under the title with the best stars of the last used level.
+ */
 @Composable
 private fun ChapterCard(
     title: String,
     available: Boolean,
     downloadState: DownloadState?,
+    bestLine: String?,
     onClick: () -> Unit,
     onDownloadClick: () -> Unit
 ) {
@@ -304,15 +326,25 @@ private fun ChapterCard(
             Modifier.fillMaxWidth().padding(start = 16.dp, end = 8.dp, top = 8.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                title,
-                color = WisdomInk,
-                fontWeight = FontWeight.SemiBold,
-                fontSize = 15.sp,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis,
-                modifier = Modifier.weight(1f).padding(vertical = 8.dp)
-            )
+            Column(Modifier.weight(1f).padding(vertical = 8.dp)) {
+                Text(
+                    title,
+                    color = WisdomInk,
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 15.sp,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (bestLine != null) {
+                    Text(
+                        bestLine,
+                        color = WisdomCyan,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 12.sp,
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
+                }
+            }
             Text(
                 if (available) "Play" else "Coming soon",
                 color = if (available) WisdomCyan else WisdomMuted,
