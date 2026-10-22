@@ -47,9 +47,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.games.GameLevel
 import com.wisdomtower.academy.data.games.GameSetData
 import com.wisdomtower.academy.data.games.WisdomDefenseEngine
 import com.wisdomtower.academy.data.games.WisdomDefensePhase
+import com.wisdomtower.academy.data.games.WisdomDefenseTuning
 import com.wisdomtower.academy.ui.games.common.GameAudio
 import com.wisdomtower.academy.ui.games.common.GameFrameLoop
 import com.wisdomtower.academy.ui.games.common.GameFullScreenEffect
@@ -69,21 +71,31 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * UI (HUD with progress bar, question panel with slide, 2x2 answer cards) is slice D4.
  * The result screen (stars, stats, Retry and Done) is DefenseResult.kt (slice D5).
  * Sound and haptics mapping, reduce-motion on the HUD bar: slice P1 (see the block at the end).
+ * Level (slice G2): [level] picks the numbers (hearts, enemies at once, speed, hint) from [WisdomDefenseTuning].
  */
 @Composable
 fun WisdomDefenseScreen(
     set: GameSetData,
     onExit: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    level: GameLevel = GameLevel.MEDIUM
 ) {
     GameFullScreenEffect()
     val context = LocalContext.current
     val view = LocalView.current
-    // Retry starts a fresh engine and fresh effects for the same set.
+    // Retry starts a fresh engine and fresh effects for the same set (and the same level).
     var attempt by remember { mutableIntStateOf(0) }
-    val engine = remember(set.id, attempt) { WisdomDefenseEngine(set.defenseItems) }
+    val tuning = remember(level) { WisdomDefenseTuning.forLevel(level) }
+    val engine = remember(set.id, attempt, level) {
+        WisdomDefenseEngine(
+            set.defenseItems,
+            maxHearts = tuning.hearts,
+            maxEnemies = tuning.maxEnemies,
+            tuning = tuning
+        )
+    }
     // Questions at the start = number of enemies to defeat (the engine has just been created).
-    val total = remember(set.id, attempt) { engine.questionsLeft }
+    val total = remember(set.id, attempt, level) { engine.questionsLeft }
     val lowEnd = remember { GameTheme.isLowEnd(context) }
     val reduceMotion = remember { GameTheme.reduceMotion(context) }
     val fx = remember(set.id, attempt) { DefenseEffects(GameParticleSystem.create(context), lowEnd, reduceMotion) }
@@ -230,6 +242,21 @@ fun WisdomDefenseScreen(
                             textAlign = TextAlign.Center,
                             maxLines = 5,
                             overflow = TextOverflow.Ellipsis
+                        )
+                    }
+
+                    // Easy level: the item's hint shows after the first wrong answer (engine.hint is null otherwise).
+                    val hintText = engine.hint
+                    if (!hintText.isNullOrBlank()) {
+                        Text(
+                            text = "Hint: $hintText",
+                            color = WisdomCyan,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            textAlign = TextAlign.Center,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 2.dp)
                         )
                     }
 
