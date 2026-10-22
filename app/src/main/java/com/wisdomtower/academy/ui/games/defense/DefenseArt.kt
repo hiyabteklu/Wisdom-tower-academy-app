@@ -8,6 +8,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import com.wisdomtower.academy.data.games.GameLevel
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import kotlin.math.abs
 import kotlin.math.sin
@@ -16,9 +17,65 @@ import kotlin.math.sin
  * Wisdom Defense art (docs/GAMES_FEEL_PLAN.md slice D2): Canvas monsters, perspective, lane, empire wall.
  * Pure drawing helpers, no state. [clock] is seconds since the game started (animation only).
  * Effects (particles, trail, shake, vignette) come in D3.
+ *
+ * Slice W2 (docs/GAMES_COOL_PLAN.md): level skins ([defenseSkin]: Easy friendly green, Medium purple, Hard ember),
+ * a portal flash when an enemy enters at the far edge, a blurred second pair of bat wings, stomp dust under the golem,
+ * armor plates on an armored golem (they come off as the armor is cracked), and the Hard boss: a bigger golem with a
+ * health bar. All of it is drawn from data the engine already has (armor, boss); no engine change.
  */
 
 private fun Color.a(f: Float): Color = copy(alpha = (alpha * f).coerceIn(0f, 1f))
+
+/** Colours of the three enemy kinds for one level. */
+internal class DefenseSkin(
+    val slimeTop: Color,
+    val slimeBottom: Color,
+    val batWing: Color,
+    val batTop: Color,
+    val batBottom: Color,
+    val golemStone: Color,
+    val golemLight: Color,
+    val golemDark: Color
+)
+
+private val SKIN_EASY = DefenseSkin(
+    slimeTop = Color(0xFF4ADE80),
+    slimeBottom = Color(0xFF15803D),
+    batWing = Color(0xFF0D9488),
+    batTop = Color(0xFF5EEAD4),
+    batBottom = Color(0xFF0F766E),
+    golemStone = Color(0xFF64748B),
+    golemLight = Color(0xFF94A3B8),
+    golemDark = Color(0xFF334155)
+)
+
+private val SKIN_MEDIUM = DefenseSkin(
+    slimeTop = Color(0xFFC084FC),
+    slimeBottom = Color(0xFF7E22CE),
+    batWing = Color(0xFF6D28D9),
+    batTop = Color(0xFFA78BFA),
+    batBottom = Color(0xFF5B21B6),
+    golemStone = Color(0xFF6D6A8A),
+    golemLight = Color(0xFF9C99B8),
+    golemDark = Color(0xFF37364F)
+)
+
+private val SKIN_HARD = DefenseSkin(
+    slimeTop = Color(0xFFFB923C),
+    slimeBottom = Color(0xFFB91C1C),
+    batWing = Color(0xFF991B1B),
+    batTop = Color(0xFFFB7185),
+    batBottom = Color(0xFF9F1239),
+    golemStone = Color(0xFF78716C),
+    golemLight = Color(0xFFA8A29E),
+    golemDark = Color(0xFF44403C)
+)
+
+internal fun defenseSkin(level: GameLevel): DefenseSkin = when (level) {
+    GameLevel.EASY -> SKIN_EASY
+    GameLevel.MEDIUM -> SKIN_MEDIUM
+    GameLevel.HARD -> SKIN_HARD
+}
 
 /** Y of an enemy's feet. progress 0 = far edge, 1 = empire wall. */
 internal fun defenseLaneY(h: Float, progress: Float): Float = h * (0.12f + progress * 0.7f)
@@ -187,6 +244,9 @@ internal fun DrawScope.drawDefenseTargetRing(x: Float, footY: Float, unit: Float
 /**
  * One enemy. [kind] 0 slime, 1 bat, 2 golem. [footY] is where it touches the ground.
  * [alpha] fades it (death), [flash] 0..1 paints a white hit flash.
+ * W2: [skin] colours (see [defenseSkin]); [armor] > 0 draws armor plates on a golem (2 = chest and shoulders, 1 = chest
+ * only); [boss] draws the golem 1.6 times bigger with a health bar filled to [bossFrac] (0..1); [spawnT] 0..1 is the
+ * strength of the portal flash while the enemy enters at the far edge (0 = none).
  */
 internal fun DrawScope.drawDefenseEnemy(
     kind: Int,
@@ -196,25 +256,68 @@ internal fun DrawScope.drawDefenseEnemy(
     clock: Float,
     seed: Int,
     alpha: Float = 1f,
-    flash: Float = 0f
+    flash: Float = 0f,
+    skin: DefenseSkin = SKIN_MEDIUM,
+    armor: Int = 0,
+    boss: Boolean = false,
+    bossFrac: Float = 1f,
+    spawnT: Float = 0f
 ) {
+    val u = if (boss) unit * 1.6f else unit
     val shadowHalf = if (kind == 1) 1.0f else 1.6f
     drawOval(
         Color.Black.a(0.35f * alpha),
-        Offset(x - unit * shadowHalf, footY - unit * 0.12f),
-        Size(unit * shadowHalf * 2f, unit * 0.34f)
+        Offset(x - u * shadowHalf, footY - u * 0.12f),
+        Size(u * shadowHalf * 2f, u * 0.34f)
     )
+    // Portal glow behind the enemy while it enters (the boss gets a bigger red one).
+    val portalColor = if (boss) Color(0xFFF43F5E) else skin.slimeTop
+    if (spawnT > 0f) {
+        val c = Offset(x, footY - u * 1.0f)
+        val pr = u * (if (boss) 3.2f else 1.2f + 1.6f * spawnT)
+        drawCircle(
+            brush = Brush.radialGradient(
+                colors = listOf(portalColor.a(0.6f * spawnT * alpha), Color.Transparent),
+                center = c,
+                radius = pr
+            ),
+            radius = pr,
+            center = c
+        )
+    }
     when (kind) {
-        1 -> drawBat(x, footY, unit, clock, seed, alpha)
-        2 -> drawGolem(x, footY, unit, clock, seed, alpha)
-        else -> drawSlime(x, footY, unit, clock, seed, alpha)
+        1 -> drawBat(x, footY, u, clock, seed, alpha, skin)
+        2 -> drawGolem(x, footY, u, clock, seed, alpha, skin, armor)
+        else -> drawSlime(x, footY, u, clock, seed, alpha, skin)
+    }
+    if (spawnT > 0f) {
+        val c = Offset(x, footY - u * 1.0f)
+        drawCircle(
+            Color.White.a(0.7f * spawnT * alpha),
+            u * (0.9f + 1.4f * (1f - spawnT)),
+            c,
+            style = Stroke(width = 3f)
+        )
+    }
+    if (boss && alpha > 0.5f) {
+        val bw = u * 3.0f
+        val bh = u * 0.22f
+        val left = x - bw / 2f
+        val top = footY - u * 2.55f - u * 0.55f
+        drawRoundRect(Color.Black.a(0.55f * alpha), Offset(left - 2f, top - 2f), Size(bw + 4f, bh + 4f), CornerRadius(bh))
+        drawRoundRect(
+            Color(0xFFF43F5E).a(alpha),
+            Offset(left, top),
+            Size(bw * bossFrac.coerceIn(0f, 1f), bh),
+            CornerRadius(bh)
+        )
     }
     if (flash > 0f) {
-        drawCircle(Color.White.a(0.55f * flash), unit * 1.6f, Offset(x, footY - unit * 1.2f))
+        drawCircle(Color.White.a(0.55f * flash), u * 1.6f, Offset(x, footY - u * 1.2f))
     }
 }
 
-private fun DrawScope.drawSlime(x: Float, foot: Float, u: Float, clk: Float, seed: Int, al: Float) {
+private fun DrawScope.drawSlime(x: Float, foot: Float, u: Float, clk: Float, seed: Int, al: Float, skin: DefenseSkin) {
     val bob = sin(clk * 5f + seed)
     val bw = u * 1.15f
     val bh = u * 1.5f * (1f + 0.07f * bob)
@@ -228,7 +331,7 @@ private fun DrawScope.drawSlime(x: Float, foot: Float, u: Float, clk: Float, see
     drawPath(
         body,
         Brush.verticalGradient(
-            colors = listOf(Color(0xFF4ADE80).a(al), Color(0xFF15803D).a(al)),
+            colors = listOf(skin.slimeTop.a(al), skin.slimeBottom.a(al)),
             startY = top,
             endY = foot
         )
@@ -238,7 +341,7 @@ private fun DrawScope.drawSlime(x: Float, foot: Float, u: Float, clk: Float, see
         Offset(x - bw * 0.6f, top + bh * 0.12f),
         Size(bw * 0.55f, bh * 0.2f)
     )
-    val ink = Color(0xFF052E16).a(al)
+    val ink = Color(0xFF111827).a(al)
     for (s in floatArrayOf(-1f, 1f)) {
         val ex = x + s * bw * 0.38f
         val ey = top + bh * 0.48f
@@ -253,25 +356,29 @@ private fun DrawScope.drawSlime(x: Float, foot: Float, u: Float, clk: Float, see
     }
 }
 
-private fun DrawScope.drawBat(x: Float, foot: Float, u: Float, clk: Float, seed: Int, al: Float) {
+private fun DrawScope.drawBat(x: Float, foot: Float, u: Float, clk: Float, seed: Int, al: Float, skin: DefenseSkin) {
     val cy = foot - u * 1.7f + u * 0.3f * sin(clk * 7f + seed)
     val flap = sin(clk * 14f + seed)
-    val wingCol = Color(0xFF6D28D9).a(al)
-    for (s in floatArrayOf(-1f, 1f)) {
-        val wing = Path().apply {
-            moveTo(x + s * u * 0.4f, cy - u * 0.1f)
-            quadraticBezierTo(
-                x + s * u * 1.4f, cy - u * 0.9f + flap * u * 0.5f,
-                x + s * u * 2.1f, cy - u * 0.2f + flap * u * 0.8f
-            )
-            quadraticBezierTo(x + s * u * 1.5f, cy + u * 0.1f, x + s * u * 1.2f, cy + u * 0.6f)
-            quadraticBezierTo(x + s * u * 0.85f, cy + u * 0.2f, x + s * u * 0.4f, cy + u * 0.45f)
-            close()
-        }
-        drawPath(wing, wingCol)
+    val wingCol = skin.batWing.a(al)
+
+    fun wingPath(s: Float, fl: Float): Path = Path().apply {
+        moveTo(x + s * u * 0.4f, cy - u * 0.1f)
+        quadraticBezierTo(
+            x + s * u * 1.4f, cy - u * 0.9f + fl * u * 0.5f,
+            x + s * u * 2.1f, cy - u * 0.2f + fl * u * 0.8f
+        )
+        quadraticBezierTo(x + s * u * 1.5f, cy + u * 0.1f, x + s * u * 1.2f, cy + u * 0.6f)
+        quadraticBezierTo(x + s * u * 0.85f, cy + u * 0.2f, x + s * u * 0.4f, cy + u * 0.45f)
+        close()
     }
-    val bodyTop = Color(0xFFA78BFA).a(al)
-    val bodyBottom = Color(0xFF5B21B6).a(al)
+
+    for (s in floatArrayOf(-1f, 1f)) {
+        // Faint second wing at another flap phase: reads as wing blur.
+        drawPath(wingPath(s, sin(clk * 14f + seed + 1.3f)), wingCol.a(0.30f))
+        drawPath(wingPath(s, flap), wingCol)
+    }
+    val bodyTop = skin.batTop.a(al)
+    val bodyBottom = skin.batBottom.a(al)
     for (s in floatArrayOf(-1f, 1f)) {
         val ear = Path().apply {
             moveTo(x + s * u * 0.15f, cy - u * 0.5f)
@@ -303,15 +410,33 @@ private fun DrawScope.drawBat(x: Float, foot: Float, u: Float, clk: Float, seed:
     }
 }
 
-private fun DrawScope.drawGolem(x0: Float, foot: Float, u: Float, clk: Float, seed: Int, al: Float) {
+private fun DrawScope.drawGolem(
+    x0: Float,
+    foot: Float,
+    u: Float,
+    clk: Float,
+    seed: Int,
+    al: Float,
+    skin: DefenseSkin,
+    armor: Int
+) {
     val step = sin(clk * 3f + seed)
     val x = x0 + step * u * 0.05f
     val f = foot - abs(step) * u * 0.06f
-    val stone = Color(0xFF64748B).a(al)
-    val dark = Color(0xFF334155).a(al)
-    val light = Color(0xFF94A3B8).a(al)
+    val stone = skin.golemStone.a(al)
+    val dark = skin.golemDark.a(al)
+    val light = skin.golemLight.a(al)
     val crack = Color(0xFF1E293B).a(0.8f * al)
     val bodyTop = f - u * 1.9f
+
+    // Stomp dust when a foot hits the ground.
+    val contact = abs(step)
+    if (contact < 0.15f) {
+        val k = 1f - contact / 0.15f
+        val dust = Color(0xFFCBD5E1).a(0.28f * k * al)
+        drawCircle(dust, u * (0.12f + 0.22f * (1f - k)), Offset(x - u * 1.05f, foot - u * 0.05f))
+        drawCircle(dust, u * (0.12f + 0.22f * (1f - k)), Offset(x + u * 1.05f, foot - u * 0.05f))
+    }
 
     // legs
     drawRoundRect(dark, Offset(x - u * 0.75f, f - u * 0.5f), Size(u * 0.6f, u * 0.5f), CornerRadius(u * 0.1f))
@@ -341,4 +466,21 @@ private fun DrawScope.drawGolem(x0: Float, foot: Float, u: Float, clk: Float, se
     drawLine(crack, Offset(x + u * 0.5f, bodyTop + u * 0.3f), Offset(x + u * 0.35f, bodyTop + u * 0.8f), strokeWidth = u * 0.05f)
     drawCircle(Color(0xFFFB923C).a(0.45f * al), u * 0.28f, Offset(x, bodyTop + u * 0.95f))
     drawCircle(Color(0xFFFDBA74).a(al), u * 0.12f, Offset(x, bodyTop + u * 0.95f))
+
+    // Armor plates (only while armor is left): shoulders go first, the chest plate on the last armor point.
+    if (armor >= 2) {
+        val gold = Color(0xFFFBBF24).a(al)
+        val plate = Color(0xFFE2E8F0).a(0.75f * al)
+        drawRoundRect(plate, Offset(x - u * 1.42f, bodyTop - u * 0.12f), Size(u * 0.74f, u * 0.5f), CornerRadius(u * 0.12f))
+        drawRoundRect(plate, Offset(x + u * 0.68f, bodyTop - u * 0.12f), Size(u * 0.74f, u * 0.5f), CornerRadius(u * 0.12f))
+        drawRoundRect(gold, Offset(x - u * 1.42f, bodyTop - u * 0.12f), Size(u * 0.74f, u * 0.5f), CornerRadius(u * 0.12f), style = Stroke(width = u * 0.07f))
+        drawRoundRect(gold, Offset(x + u * 0.68f, bodyTop - u * 0.12f), Size(u * 0.74f, u * 0.5f), CornerRadius(u * 0.12f), style = Stroke(width = u * 0.07f))
+    }
+    if (armor >= 1) {
+        val gold = Color(0xFFFBBF24).a(al)
+        val plate = Color(0xFFE2E8F0).a(0.75f * al)
+        drawRoundRect(plate, Offset(x - u * 0.8f, bodyTop + u * 0.2f), Size(u * 1.6f, u * 0.85f), CornerRadius(u * 0.14f))
+        drawRoundRect(gold, Offset(x - u * 0.8f, bodyTop + u * 0.2f), Size(u * 1.6f, u * 0.85f), CornerRadius(u * 0.14f), style = Stroke(width = u * 0.07f))
+        drawCircle(Color(0xFFFB923C).a(0.45f * al), u * 0.28f, Offset(x, bodyTop + u * 0.95f))
+    }
 }
