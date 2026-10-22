@@ -20,6 +20,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.auth.AuthStateManager
+import com.wisdomtower.academy.data.games.GameLevel
+import com.wisdomtower.academy.data.games.GameLevelPrefs
 import com.wisdomtower.academy.data.games.GameSetData
 import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.GameSetsResult
@@ -37,6 +39,8 @@ import kotlinx.coroutines.launch
  *
  * 2026-10-22: the course list is now only the student's own packages (same rule as the My Learning tab,
  * see [enrolledGamePackages]), read from the signed-in profile, instead of the whole catalog.
+ *
+ * 2026-10-22 (slice G2): Wisdom Defense now goes Play > [LevelPickerScreen] > game. Match has no picker yet (slice G3).
  */
 @Composable
 fun GameTabScreen(
@@ -53,7 +57,9 @@ fun GameTabScreen(
     }
 
     var activeMatch by remember { mutableStateOf<GameSetData?>(null) }
+    var pendingDefense by remember { mutableStateOf<GameSetData?>(null) }
     var activeDefense by remember { mutableStateOf<GameSetData?>(null) }
+    var defenseLevel by remember { mutableStateOf(GameLevel.MEDIUM) }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
@@ -61,8 +67,9 @@ fun GameTabScreen(
 
     LaunchedEffect(Unit) { GameLaunch.kind = null }
 
-    BackHandler(enabled = activeMatch != null || activeDefense != null || error != null) {
+    BackHandler(enabled = activeMatch != null || pendingDefense != null || activeDefense != null || error != null) {
         activeMatch = null
+        pendingDefense = null
         activeDefense = null
         error = null
         loading = false
@@ -81,6 +88,25 @@ fun GameTabScreen(
                 WisdomDefenseScreen(
                     set = activeDefense!!,
                     onExit = { activeDefense = null },
+                    modifier = Modifier.fillMaxSize(),
+                    level = defenseLevel
+                )
+            }
+            pendingDefense != null -> {
+                val pending = pendingDefense!!
+                val initialLevel = remember(pending) {
+                    GameLevelPrefs.last(context, GameSetsRepository.GAME_DEFENSE)
+                }
+                LevelPickerScreen(
+                    gameTitle = "Wisdom Defense",
+                    initial = initialLevel,
+                    onPick = { picked ->
+                        GameLevelPrefs.save(context, GameSetsRepository.GAME_DEFENSE, picked)
+                        defenseLevel = picked
+                        activeDefense = pending
+                        pendingDefense = null
+                    },
+                    onBack = { pendingDefense = null },
                     modifier = Modifier.fillMaxSize()
                 )
             }
@@ -131,7 +157,7 @@ fun GameTabScreen(
                                             if (set == null || set.defenseItems.isEmpty()) {
                                                 error = "No Defense set for this chapter yet."
                                             } else {
-                                                activeDefense = set
+                                                pendingDefense = set
                                             }
                                         }
                                     }
