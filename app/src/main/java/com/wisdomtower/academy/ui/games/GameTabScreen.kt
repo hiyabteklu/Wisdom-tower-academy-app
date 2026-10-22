@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.games.GameLevel
 import com.wisdomtower.academy.data.games.GameLevelPrefs
+import com.wisdomtower.academy.data.games.GameResultsRepository
 import com.wisdomtower.academy.data.games.GameSetData
 import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.GameSetsResult
@@ -41,6 +42,10 @@ import kotlinx.coroutines.launch
  * see [enrolledGamePackages]), read from the signed-in profile, instead of the whole catalog.
  *
  * 2026-10-22 (slices G2, G3): both games go Play > [LevelPickerScreen] > game. The last level is remembered per game.
+ *
+ * 2026-10-22 (slices R2, R3 part 1): the subject path of the chapter being played ([gameScope]) goes to both game screens
+ * so a finished game is saved (GameResultsRepository), the level picker shows the best result kept on this phone, and
+ * results waiting from an offline game are sent when this tab opens.
  */
 @Composable
 fun GameTabScreen(
@@ -62,12 +67,16 @@ fun GameTabScreen(
     var pendingDefense by remember { mutableStateOf<GameSetData?>(null) }
     var activeDefense by remember { mutableStateOf<GameSetData?>(null) }
     var defenseLevel by remember { mutableStateOf(GameLevel.MEDIUM) }
+    // Subject path of the chapter being played (the same path the set was loaded with).
+    var gameScope by remember { mutableStateOf("") }
     var loading by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(Unit) { GameLaunch.kind = null }
+    // Send results that were waiting from an offline game (does nothing when signed out or nothing waits).
+    LaunchedEffect(Unit) { GameResultsRepository.flushPending(context) }
 
     BackHandler(
         enabled = pendingMatch != null || activeMatch != null ||
@@ -88,7 +97,8 @@ fun GameTabScreen(
                     set = activeMatch!!,
                     onExit = { activeMatch = null },
                     modifier = Modifier.fillMaxSize(),
-                    level = matchLevel
+                    level = matchLevel,
+                    scopePath = gameScope
                 )
             }
             activeDefense != null -> {
@@ -96,7 +106,8 @@ fun GameTabScreen(
                     set = activeDefense!!,
                     onExit = { activeDefense = null },
                     modifier = Modifier.fillMaxSize(),
-                    level = defenseLevel
+                    level = defenseLevel,
+                    scopePath = gameScope
                 )
             }
             pendingMatch != null -> {
@@ -115,7 +126,12 @@ fun GameTabScreen(
                         pendingMatch = null
                     },
                     onBack = { pendingMatch = null },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    bestFor = { lvl ->
+                        GameResultsRepository.localBest(
+                            context, GameSetsRepository.GAME_MATCH, gameScope, pending.chapter, lvl
+                        )
+                    }
                 )
             }
             pendingDefense != null -> {
@@ -134,7 +150,12 @@ fun GameTabScreen(
                         pendingDefense = null
                     },
                     onBack = { pendingDefense = null },
-                    modifier = Modifier.fillMaxSize()
+                    modifier = Modifier.fillMaxSize(),
+                    bestFor = { lvl ->
+                        GameResultsRepository.localBest(
+                            context, GameSetsRepository.GAME_DEFENSE, gameScope, pending.chapter, lvl
+                        )
+                    }
                 )
             }
             loading -> {
@@ -166,6 +187,7 @@ fun GameTabScreen(
                         }
                         loading = true
                         error = null
+                        gameScope = scopePath
                         scope.launch {
                             when (val result = GameSetsRepository.loadSet(
                                 context, scopePath, chapter, game
