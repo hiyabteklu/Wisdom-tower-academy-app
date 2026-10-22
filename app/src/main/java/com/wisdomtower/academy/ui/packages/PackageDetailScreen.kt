@@ -62,6 +62,7 @@ fun PackageDetailScreen(
     onStartLearning: (String) -> Unit,
     onUnlock: (String) -> Unit,
     isLoggedIn: Boolean = false,
+    backEnabled: Boolean = true, // BACKFIX-S7
     modifier: Modifier = Modifier
 ) {
     val isFreshman = pkg.id == "freshman"
@@ -92,7 +93,7 @@ fun PackageDetailScreen(
             onBack()
         }
     }
-    BackHandler(enabled = stream != null || eceSemester != null) { goBack() }
+    BackHandler(enabled = backEnabled && (stream != null || eceSemester != null)) { goBack() } // BACKFIX-S7
 
     // ONE small line: where am I (current level only)
     val pageTitle: String = when {

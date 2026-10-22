@@ -3297,6 +3297,7 @@ fun MainScreen(
                                 openToolOverlay(fullUrl, "Package Checkout")
                             },
                             isLoggedIn = isLoggedIn,
+                            backEnabled = activeWorkspace == null, // BACKFIX-S7
                             modifier = Modifier
                                 .fillMaxSize()
                                 .appBackdrop()
