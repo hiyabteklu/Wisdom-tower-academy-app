@@ -51,6 +51,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameLevel
+import com.wisdomtower.academy.data.games.GameLevelPrefs
 import com.wisdomtower.academy.data.games.GameResultInput
 import com.wisdomtower.academy.data.games.GameResultsRepository
 import com.wisdomtower.academy.data.games.GameSaveOutcome
@@ -89,11 +90,13 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * where the engine step is multiplied by fx.timeScale (slow-motion on the last kill).
  * Result v2 (slice W6): after a win on Easy or Medium the result offers "Next level". The screen keeps the level in
  * [currentLevel] (starts as [level]), so the next level starts here without the hub; results are saved with the level
- * that was played. The hub's "last level used" is not updated by this.
+ * that was played.
  * Slice W7b: a dying boss is drawn at boss size (the engine's dying enemy carries a boss flag).
  * Slice W7c: with the cockpit shown, the shot starts at the turret barrel (just below the battlefield, see
  * [TURRET_TIP_BELOW]) instead of the crystal, and the turret's own muzzle flash replaces the crystal flash. With the
  * 2x2 fallback cards nothing changes (shot from the crystal, crystal flash).
+ * Slice W7d: "Next level" also saves the new level as the last level used for this game ([GameLevelPrefs]), the same
+ * value the level picker pre-selects, so the hub's "last level used" follows.
  */
 
 /** How far below the battlefield canvas the turret barrel tip is (8 dp cockpit padding + about 78 dp inside it). */
@@ -183,6 +186,8 @@ fun WisdomDefenseScreen(
                 val nextLevel = if (won) GameLevel.values().getOrNull(currentLevel.ordinal + 1) else null
                 val goNext: (() -> Unit)? = if (nextLevel != null) {
                     {
+                        // W7d: remember it as the last level used (the picker pre-selects this one next time).
+                        GameLevelPrefs.save(context, GameSetsRepository.GAME_DEFENSE, nextLevel)
                         currentLevel = nextLevel
                         attempt++
                     }
