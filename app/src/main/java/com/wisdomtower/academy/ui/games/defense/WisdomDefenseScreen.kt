@@ -84,6 +84,8 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * Enemies (slice W2): level skin, portal flash at the far edge, armor plates, Hard boss with a health bar (DefenseArt.kt).
  * Cockpit (slice W3): turret and four answer bullets in an arch (DefenseCockpit.kt); the 2x2 cards below stay as the
  * fallback for very narrow screens (under COCKPIT_MIN_WIDTH).
+ * Juice (slice W4): combo, banners and score numbers live in DefenseEffects.kt; the only hook here is the frame loop,
+ * where the engine step is multiplied by fx.timeScale (slow-motion on the last kill).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -131,7 +133,8 @@ fun WisdomDefenseScreen(
 
     val playing = engine.phase is WisdomDefensePhase.Playing
     GameFrameLoop(running = playing) { dt ->
-        engine.tick(dt)
+        // W4: slow-motion on the last kill slows the game (engine) but not the effects or the clock.
+        engine.tick(dt * fx.timeScale)
         fx.update(dt, engine)
         clock += dt
         frame++
