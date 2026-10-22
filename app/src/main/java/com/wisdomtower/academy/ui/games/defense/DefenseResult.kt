@@ -29,6 +29,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -51,6 +52,7 @@ import kotlin.math.sin
  * Slice W6: stars pop with a little overshoot, a confetti burst after the third star, the level as a chip, a score line
  * with the level multiplier ([score] below 0 = hidden), and a "Next level" button when [nextLevelLabel] and
  * [onNextLevel] are given (the screen passes them only after a win on Easy or Medium).
+ * Slice W7a: on a low-end phone the confetti has fewer pieces ([CONFETTI_PIECES_LOW] instead of [CONFETTI_PIECES]).
  */
 @Composable
 internal fun DefenseResult(
@@ -72,6 +74,8 @@ internal fun DefenseResult(
     onNextLevel: (() -> Unit)? = null
 ) {
     val stars = if (won) heartsLeft.coerceIn(1, 3) else 0
+    val context = LocalContext.current
+    val lowEnd = remember { GameTheme.isLowEnd(context) }
     Box(modifier.fillMaxSize()) {
         Column(
             Modifier.fillMaxSize().padding(24.dp),
@@ -130,10 +134,18 @@ internal fun DefenseResult(
         }
         // Confetti after the third star has popped in (300 + 2 x 250 ms delay + the pop itself).
         if (stars == 3 && !reduceMotion) {
-            ConfettiBurst(Modifier.fillMaxSize(), startDelayMs = 1000L)
+            ConfettiBurst(
+                Modifier.fillMaxSize(),
+                startDelayMs = 1000L,
+                pieces = if (lowEnd) CONFETTI_PIECES_LOW else CONFETTI_PIECES
+            )
         }
     }
 }
+
+/** Confetti pieces on a normal phone, and on a low-end phone (slice W7a). */
+private const val CONFETTI_PIECES = 36
+private const val CONFETTI_PIECES_LOW = 14
 
 /** "x2" for a whole multiplier, "x1.5" otherwise. */
 private fun multiplierText(m: Float): String {
@@ -196,12 +208,12 @@ private fun ResultStar(filled: Boolean, delayMs: Int, animate: Boolean) {
 }
 
 /**
- * Confetti falling over the whole screen for about 2 seconds, started after [startDelayMs]. 36 small coloured pieces,
- * positions come from the piece number (no randomness), so it is cheap and always looks the same. Draws nothing before
- * and after, and does not take any touches.
+ * Confetti falling over the whole screen for about 2 seconds, started after [startDelayMs]. [pieces] small coloured
+ * pieces (36, or 14 on a low-end phone); positions come from the piece number (no randomness), so it is cheap and
+ * always looks the same. Draws nothing before and after, and does not take any touches.
  */
 @Composable
-private fun ConfettiBurst(modifier: Modifier, startDelayMs: Long) {
+private fun ConfettiBurst(modifier: Modifier, startDelayMs: Long, pieces: Int) {
     val t = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
         delay(startDelayMs)
@@ -216,7 +228,7 @@ private fun ConfettiBurst(modifier: Modifier, startDelayMs: Long) {
         val w = size.width
         val h = size.height
         val fade = (1f - p0 * p0 * p0).coerceIn(0f, 1f)
-        for (i in 0 until 36) {
+        for (i in 0 until pieces) {
             val r1 = ((i * 37) % 100) / 100f
             val r2 = ((i * 53 + 11) % 100) / 100f
             val p = (p0 * (0.8f + 0.5f * r2)).coerceIn(0f, 1f)
