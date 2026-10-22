@@ -19,6 +19,9 @@ enum class GameLevel(val id: String, val label: String) {
  * Wisdom Defense numbers of one level. The SCREEN passes [hearts] and [maxEnemies] to the engine's existing
  * `maxHearts` / `maxEnemies` parameters (slice G2); everything else is read by the engine itself.
  *
+ * NAME NOTE: this class is called WisdomDefenseTuning because `DefenseTuning.kt` already has `object DefenseTuning`
+ * (the old Tower Defense numbers). Two top-level `DefenseTuning` in one package broke build #914 (Redeclaration).
+ *
  * @param speedScale multiplies every enemy's walk speed (1.0 = about 25 s far edge to wall for a slime).
  * @param wrongLunge forward lunge of the nearest enemy after a wrong answer.
  * @param hintAfterWrong the item's `hint` is shown after the first wrong answer of a question.
@@ -26,7 +29,7 @@ enum class GameLevel(val id: String, val label: String) {
  * @param boss the last wave is one big golem that needs 3 correct answers (only when the set has 8+ questions).
  * @param scoreMultiplier applied to the final score.
  */
-data class DefenseTuning(
+data class WisdomDefenseTuning(
     val level: GameLevel,
     val hearts: Int,
     val maxEnemies: Int,
@@ -38,11 +41,11 @@ data class DefenseTuning(
     val scoreMultiplier: Float
 ) {
     companion object {
-        val EASY = DefenseTuning(GameLevel.EASY, 5, 2, 0.73f, 0.05f, true, false, false, 1f)
-        val MEDIUM = DefenseTuning(GameLevel.MEDIUM, 3, 4, 1f, 0.08f, false, false, false, 1.5f)
-        val HARD = DefenseTuning(GameLevel.HARD, 3, 5, 1.47f, 0.12f, false, true, true, 2f)
+        val EASY = WisdomDefenseTuning(GameLevel.EASY, 5, 2, 0.73f, 0.05f, true, false, false, 1f)
+        val MEDIUM = WisdomDefenseTuning(GameLevel.MEDIUM, 3, 4, 1f, 0.08f, false, false, false, 1.5f)
+        val HARD = WisdomDefenseTuning(GameLevel.HARD, 3, 5, 1.47f, 0.12f, false, true, true, 2f)
 
-        fun forLevel(level: GameLevel): DefenseTuning = when (level) {
+        fun forLevel(level: GameLevel): WisdomDefenseTuning = when (level) {
             GameLevel.EASY -> EASY
             GameLevel.MEDIUM -> MEDIUM
             GameLevel.HARD -> HARD

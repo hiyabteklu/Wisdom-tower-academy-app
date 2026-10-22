@@ -53,7 +53,7 @@ class WisdomDefenseEngine(
     val maxHearts: Int = 3,
     private val maxEnemies: Int = 4,
     /** G1: level numbers. MEDIUM = how the game played before levels. */
-    private val tuning: DefenseTuning = DefenseTuning.MEDIUM
+    private val tuning: WisdomDefenseTuning = WisdomDefenseTuning.MEDIUM
 ) {
     companion object {
         /** Seconds for the shot to fly. */
