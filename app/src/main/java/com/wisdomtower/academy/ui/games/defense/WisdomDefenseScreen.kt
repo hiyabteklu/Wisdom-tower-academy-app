@@ -41,6 +41,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -90,7 +91,14 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * [currentLevel] (starts as [level]), so the next level starts here without the hub; results are saved with the level
  * that was played. The hub's "last level used" is not updated by this.
  * Slice W7b: a dying boss is drawn at boss size (the engine's dying enemy carries a boss flag).
+ * Slice W7c: with the cockpit shown, the shot starts at the turret barrel (just below the battlefield, see
+ * [TURRET_TIP_BELOW]) instead of the crystal, and the turret's own muzzle flash replaces the crystal flash. With the
+ * 2x2 fallback cards nothing changes (shot from the crystal, crystal flash).
  */
+
+/** How far below the battlefield canvas the turret barrel tip is (8 dp cockpit padding + about 78 dp inside it). */
+private val TURRET_TIP_BELOW = 86.dp
+
 @Composable
 fun WisdomDefenseScreen(
     set: GameSetData,
@@ -102,6 +110,8 @@ fun WisdomDefenseScreen(
     GameFullScreenEffect()
     val context = LocalContext.current
     val view = LocalView.current
+    // W7c: same rule as the BoxWithConstraints below (the cockpit is as wide as the screen).
+    val cockpitOn = LocalConfiguration.current.screenWidthDp.dp >= COCKPIT_MIN_WIDTH
     // Retry starts a fresh engine and fresh effects for the same set (and the same level).
     var attempt by remember { mutableIntStateOf(0) }
     // W6: the level being played; "Next level" on the result changes it.
@@ -370,13 +380,16 @@ fun WisdomDefenseScreen(
                                 }
 
                                 // Shot with a fading trail. Neutral colour: right or wrong shows on impact.
+                                // W7c: with the cockpit it leaves the turret barrel below the battlefield (this
+                                // draws a little outside the canvas, which Compose does not clip; if a phone does
+                                // clip it, the shot simply appears at the bottom edge).
                                 val sp = engine.shotProgress
                                 if (sp != null && nearest != null) {
                                     val tx = defenseLaneX(w, nearest.id, nearest.progress)
                                     val tu = defenseUnit(w, h, nearest.progress)
                                     val ty = defenseLaneY(h, nearest.progress) - tu * 1.0f
                                     val fromX = w * 0.5f
-                                    val fromY = defenseMuzzleY(h)
+                                    val fromY = if (cockpitOn) h + TURRET_TIP_BELOW.toPx() else defenseMuzzleY(h)
                                     val core = 3.5.dp.toPx()
                                     for (k in 8 downTo 1) {
                                         val tp = sp - k * 0.03f
@@ -408,7 +421,8 @@ fun WisdomDefenseScreen(
                         val firing = engine.shotProgress != null
                         val fireChoice: (Int) -> Unit = { index ->
                             if (engine.fire(index)) {
-                                fx.fireMuzzle()
+                                // W7c: the cockpit turret has its own flash; the crystal flash only for the 2x2 cards.
+                                if (!cockpitOn) fx.fireMuzzle()
                                 GameAudio.play(GameAudio.Sfx.Shot)
                                 GameHaptics.tap(view, true)
                                 frame++
