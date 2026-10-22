@@ -399,6 +399,9 @@ fun NativeStatusScreen(
                         footer = "Daily goal: $dailyGoalMinutes mins / day."
                     )
 
+                    // My Status V2 (S3): per-subject rings + detail card
+                    StatusSubjectsPanel(rows = rows.orEmpty(), educationLevel = educationLevel)
+
                     // 3. Retention & exam accuracy
                     StPanel(borderColor = StPanelBorder) {
                         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
