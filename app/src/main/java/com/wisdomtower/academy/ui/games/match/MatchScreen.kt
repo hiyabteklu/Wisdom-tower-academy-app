@@ -50,7 +50,11 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameLevel
+import com.wisdomtower.academy.data.games.GameResultInput
+import com.wisdomtower.academy.data.games.GameResultsRepository
+import com.wisdomtower.academy.data.games.GameSaveOutcome
 import com.wisdomtower.academy.data.games.GameSetData
+import com.wisdomtower.academy.data.games.GameSetsRepository
 import com.wisdomtower.academy.data.games.MatchCard
 import com.wisdomtower.academy.data.games.MatchEngine
 import com.wisdomtower.academy.data.games.MatchPhase
@@ -89,13 +93,18 @@ import kotlinx.coroutines.launch
  * Slice G3 (levels): [level] picks the [MatchTuning]. Pairs on the board come from the engine; Easy shows which card was
  * the right partner after a wrong pair; Hard shows a timer against par (pairs x seconds) and uses it for the 3rd star
  * (see MatchResult). 10 or more cards use 3 columns so the board does not scroll.
+ *
+ * Slice R2 (result saver): when [scopePath] is not blank, the finished game is saved once through
+ * [GameResultsRepository.save] (stars from [matchStars], score from [matchScore]) and the result screen shows the
+ * save line. A blank [scopePath] saves nothing.
  */
 @Composable
 fun MatchScreen(
     set: GameSetData,
     onExit: () -> Unit,
     modifier: Modifier = Modifier,
-    level: GameLevel = GameLevel.MEDIUM
+    level: GameLevel = GameLevel.MEDIUM,
+    scopePath: String = ""
 ) {
     GameFullScreenEffect()
     val context = LocalContext.current
@@ -120,6 +129,9 @@ fun MatchScreen(
     var selectedId by remember(set.id, attempt, level) { mutableStateOf<Int?>(null) }
     // Hard: seconds since the game started (stops when the set is complete).
     var elapsed by remember(set.id, attempt, level) { mutableFloatStateOf(0f) }
+    // R2: result of saving this finished game (null = still saving or not saved).
+    var saveOutcome by remember(set.id, attempt, level) { mutableStateOf<GameSaveOutcome?>(null) }
+    val canSave = scopePath.isNotBlank()
 
     // A wrong pair shakes and glows red, then resets by itself.
     LaunchedEffect(wrongIds) {
@@ -159,6 +171,26 @@ fun MatchScreen(
         if (finished) GameAudio.play(GameAudio.Sfx.Victory)
     }
 
+    // R2: save the finished game once (Retry starts a new attempt, which saves its own result).
+    LaunchedEffect(finished, attempt, level) {
+        if (finished && canSave && phase is MatchPhase.Complete) {
+            val stars = matchStars(phase.pairsTotal, phase.moves, tuning, elapsed.toInt())
+            val score = matchScore(phase.pairsTotal, phase.moves)
+            saveOutcome = GameResultsRepository.save(
+                context,
+                GameResultInput(
+                    game = GameSetsRepository.GAME_MATCH,
+                    scopePath = scopePath,
+                    chapter = set.chapter,
+                    level = level,
+                    stars = stars,
+                    score = score,
+                    won = true
+                )
+            )
+        }
+    }
+
     Box(modifier = modifier.fillMaxSize()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
@@ -171,7 +203,9 @@ fun MatchScreen(
                 onRetry = { attempt++ },
                 onDone = onExit,
                 tuning = tuning,
-                elapsedSeconds = elapsed.toInt()
+                elapsedSeconds = elapsed.toInt(),
+                showSave = canSave,
+                saveOutcome = saveOutcome
             )
         } else {
             Column(Modifier.fillMaxSize().padding(12.dp)) {
