@@ -1,49 +1,27 @@
 package com.wisdomtower.academy.ui.packages
 
 import androidx.activity.compose.BackHandler
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
-import androidx.compose.material3.minimumInteractiveComponentSize
-import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
-import com.wisdomtower.academy.ui.theme.WisdomCyan
-import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
-import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 
@@ -65,34 +43,16 @@ private val ECE_SEMESTER_ENTRIES = listOf(
 )
 
 /**
- * Package page. Rewritten 2026-10-11 (owner rules): every card is the shared [OpenCard]
- * (picture, title, Open button) in a TWO-column grid. No hero picture with gradient or tag, no
- * descriptions, no "What is included" list, no filter chips, no invented headings, nothing locked.
+ * Package page (shared [OpenCard] cards in a TWO-column grid; headings from the website pages, see git history of
+ * this file for the full wording notes: Freshman, Secondary Curriculum grades, Remedial, ECE semesters -> courses,
+ * Entrance Questions streams -> subjects -> years).
  *
- * Headings copied from the website pages (website-reference/src/app/academy/):
- *  - freshman/page.tsx: "Freshman courses" + "including preengineering & others", label "Subjects"
- *  - grades/[grade]/page.tsx: "Secondary Curriculum" + grade label ("Grade 9" ...), label "Subjects"
- *  - remedial/page.tsx: "Remedial", label "Subjects"
- *  - special-packages/[slug]/page.tsx (ECE, owner request 2026-10-11): first level = the two semester cover cards
- *    ("Semester 1", "Semester 2"), eyebrow "Department track · Year 3", title "Electrical & Computer Engineering";
- *    special-packages/[slug]/[semester]/page.tsx: second level = the 7 courses of that semester, eyebrow
- *    "Electrical & Computer Engineering · Year 3", title "Semester 1" / "Semester 2". Back goes from the courses to the
- *    two semester cards first, then leaves the package.
- *  - entrance-questions (2026-10-11 website update): root "Past Exams" / "Entrance Questions" with the two stream
- *    cards; stream page "Entrance Questions" / stream label with subject cards; subject page
- *    "Entrance Questions · {stream}" / subject name, label "Exam year", year cards. A year opens the website
- *    exams page (see StudyWorkspaceScreen). The three Entrance levels are inside this one screen and the
- *    Back button / phone back key go up one level first.
- * The Freshman GPA calculator is kept (the website shows it on the same page).
+ * COMPACT HEADER (owner request 2026-10-22): no round back button and no big title block (it looked like a website
+ * and wasted vertical space). The top of the page is ONE small muted line that names where the student is (the page
+ * title of the current level only, no eyebrow, no duplicate texts). Going back = the phone back key / gesture:
+ * [BackHandler] goes up one drill-down level first (ECE semester, Entrance subject / stream), then the app's own
+ * back handling leaves the package. The "Subjects" label is gone too (the cards speak for themselves).
  * The unused parameters are kept so the caller in MainActivity.kt does not change.
- *
- * GLASS (2026-10-13, docs/GLASS_PLAN.md area 3): the round back button uses the glass look of the Targets screen.
- * S3 part 2 (2026-10-17): that back button is a Role.Button with a 48 dp touch target (it still looks 36 dp).
- * D3 (day mode): the back arrow and the page title use [WisdomInk] (white at night, deep navy by day) instead of Color.White.
- *
- * Clean cards (owner request 2026-10-13): the ECE course cards (and the workspace header they open) show the course
- * TITLE only, without the course code ("ECEg3051 · Electromagnetic Fields" -> "Electromagnetic Fields"). The code is
- * still in the data and in the cover picture.
  */
 @Composable
 fun PackageDetailScreen(
@@ -134,22 +94,15 @@ fun PackageDetailScreen(
     }
     BackHandler(enabled = stream != null || eceSemester != null) { goBack() }
 
-    val eyebrow: String? = when {
-        isGrade -> "Secondary Curriculum"
-        isEce && eceSemester != null -> "$ECE_PACKAGE_NAME · $ECE_YEAR_LABEL"
-        isEce -> "Department track · $ECE_YEAR_LABEL"
-        isEntrance && stream != null && subject != null -> "Entrance Questions · ${stream.label}"
-        isEntrance && stream != null -> "Entrance Questions"
-        isEntrance -> "Past Exams"
-        else -> null
-    }
+    // ONE small line: where am I (current level only)
     val pageTitle: String = when {
         isFreshman -> "Freshman courses"
         isGrade -> "Grade ${pkg.id.removePrefix("grade-")}"
-        isEce && eceSemester != null -> eceSemester.label
-        isEce -> ECE_PACKAGE_NAME
+        isEce && eceSemester != null -> "${eceSemester.label} \u00B7 $ECE_YEAR_LABEL"
+        isEce -> "$ECE_PACKAGE_NAME \u00B7 $ECE_YEAR_LABEL"
         isEntrance && subject != null -> subject.name
         isEntrance && stream != null -> stream.label
+        isEntrance -> "Entrance Questions"
         else -> pkg.name
     }
 
@@ -158,69 +111,19 @@ fun PackageDetailScreen(
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            item(key = "top_nav") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .minimumInteractiveComponentSize()
-                            .size(36.dp)
-                            .clip(CircleShape)
-                            .background(WisdomGlassFillStrong)
-                            .border(BorderStroke(1.dp, WisdomGlassBorder), CircleShape)
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(color = WisdomCyan.copy(alpha = 0.2f)),
-                                role = Role.Button,
-                                onClick = goBack
-                            ),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = WisdomInk,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                }
-            }
-
-            // Page heading (website wording)
             item(key = "page_heading") {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    if (eyebrow != null) {
-                        Text(
-                            text = eyebrow,
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = WisdomMuted
-                        )
-                        Spacer(modifier = Modifier.height(2.dp))
-                    }
-                    Text(
-                        text = pageTitle,
-                        fontSize = 26.sp,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = WisdomInk,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    if (isFreshman) {
-                        Text(
-                            text = "including preengineering & others",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = WisdomMuted
-                        )
-                    }
-                }
+                Text(
+                    text = pageTitle,
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = WisdomMuted,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
 
             if (isFreshman) {
@@ -329,11 +232,13 @@ fun PackageDetailScreen(
     }
 }
 
+/** Section label. The default "Subjects" label is no longer drawn (compact header, 2026-10-22). */
 @Composable
 private fun SubjectsLabel(text: String = "Subjects") {
+    if (text == "Subjects") return
     Text(
         text = text.uppercase(),
-        fontSize = 12.sp,
+        fontSize = 11.sp,
         fontWeight = FontWeight.SemiBold,
         color = WisdomMuted,
         letterSpacing = 1.5.sp
