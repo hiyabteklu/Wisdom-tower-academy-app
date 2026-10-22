@@ -79,6 +79,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * Level (slice G2): [level] picks the numbers (hearts, enemies at once, speed, hint) from [WisdomDefenseTuning].
  * Result saver (slice R2): when [scopePath] is not blank, the finished game (won or lost) is saved once through
  * [GameResultsRepository.save] and the result screen shows the save line. A blank [scopePath] saves nothing.
+ * Atmosphere (slice W1): nebula glow, drifting stars and lane glow in the level colour (DefenseAtmosphere.kt).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -114,6 +115,8 @@ fun WisdomDefenseScreen(
     // R2: result of saving this finished game (null = still saving or not saved).
     var saveOutcome by remember(set.id, attempt, level) { mutableStateOf<GameSaveOutcome?>(null) }
     val canSave = scopePath.isNotBlank()
+    // W1: colour of the atmosphere for this level.
+    val atmosphereTint = remember(level) { defenseAtmosphereTint(level) }
 
     LaunchedEffect(Unit) { GameAudio.init(context) }
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
@@ -285,9 +288,13 @@ fun WisdomDefenseScreen(
                             val h = size.height
                             val clk = clock
 
+                            // W1: sky behind everything (does not shake with the wall).
+                            drawDefenseAtmosphere(w, h, clk, atmosphereTint, lowEnd, reduceMotion)
+
                             // The world shakes when the wall is hit; the overlay does not.
                             val shake = fx.shakeOffset(clk)
                             translate(left = shake.x, top = shake.y) {
+                                drawDefenseLaneGlow(w, h, clk, atmosphereTint, reduceMotion)
                                 drawDefenseField(w, h, clk)
                                 drawDefenseEmpire(w, h, clk)
 
