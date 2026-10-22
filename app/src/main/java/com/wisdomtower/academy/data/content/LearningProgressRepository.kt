@@ -83,6 +83,10 @@ object LearningProgressRepository {
                         status = write(second.id, token2, resourceId, progressPct, meta, addSeconds, addFocusSeconds, lastPage)
                     }
                 }
+                if (status == STATUS_OK && addSeconds > 0) { // MYSTATUS-S6B
+                    val dayToken = AuthStateManager.currentUser.value?.accessToken
+                    if (!dayToken.isNullOrBlank()) logDay(dayToken, addSeconds, addFocusSeconds)
+                }
                 status == STATUS_OK
             } catch (e: CancellationException) {
                 throw e
@@ -226,6 +230,30 @@ object LearningProgressRepository {
                     STATUS_FAILED
                 }
             }
+        }
+    }
+
+    /** MYSTATUS-S6B: adds the seconds to today's row of study_day_log (day = the phone's local date). Never throws, never changes saveProgress. */
+    private fun logDay(token: String, addSeconds: Int, addFocusSeconds: Int) {
+        try {
+            val day = SimpleDateFormat("yyyy-MM-dd", Locale.US).format(Date())
+            val body = JSONObject()
+                .put("p_day", day)
+                .put("p_seconds", addSeconds)
+                .put("p_focus", maxOf(0, addFocusSeconds))
+            val request = Request.Builder()
+                .url("$supabaseUrl/rest/v1/rpc/add_study_seconds")
+                .addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer $token")
+                .post(body.toString().toRequestBody(JSON_MEDIA))
+                .build()
+            http.newCall(request).execute().use { resp ->
+                if (!resp.isSuccessful) Log.w(TAG, "day log failed: HTTP ${resp.code}")
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "day log failed: ${e.javaClass.simpleName}")
         }
     }
 
