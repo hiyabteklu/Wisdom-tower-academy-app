@@ -27,6 +27,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.games.GameLevel
+import com.wisdomtower.academy.data.games.GameLocalBest
 import com.wisdomtower.academy.data.games.MatchTuning
 import com.wisdomtower.academy.data.games.WisdomDefenseTuning
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
@@ -40,6 +41,8 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * [initial] is the level used last time. Back is handled by the parent (GameTabScreen BackHandler).
  * [describe] gives the card text of one level; use [defenseLevelLine] or [matchLevelLine] so the text
  * is always built from the real tuning numbers and can never disagree with the game.
+ * Slice R3 (first part): [bestFor] gives the best result kept on this phone for a level (null = never played); a card
+ * with a result shows "Best" stars and how many times it was played.
  */
 @Composable
 fun LevelPickerScreen(
@@ -48,7 +51,8 @@ fun LevelPickerScreen(
     describe: (GameLevel) -> String,
     onPick: (GameLevel) -> Unit,
     onBack: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    bestFor: (GameLevel) -> GameLocalBest? = { null }
 ) {
     var selected by remember { mutableStateOf(initial) }
 
@@ -83,9 +87,11 @@ fun LevelPickerScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 for (level in GameLevel.values()) {
+                    val best = remember(level) { bestFor(level) }
                     LevelCard(
                         level = level,
                         text = describe(level),
+                        best = best,
                         selected = level == selected,
                         onClick = { selected = level }
                     )
@@ -149,6 +155,7 @@ fun matchLevelLine(level: GameLevel): String {
 private fun LevelCard(
     level: GameLevel,
     text: String,
+    best: GameLocalBest?,
     selected: Boolean,
     onClick: () -> Unit
 ) {
@@ -176,5 +183,16 @@ private fun LevelCard(
             fontSize = 13.sp,
             textAlign = TextAlign.Start
         )
+        if (best != null && best.plays > 0) {
+            Spacer(Modifier.height(6.dp))
+            val stars = best.stars.coerceIn(0, 3)
+            val timesWord = if (best.plays == 1) " time" else " times"
+            Text(
+                "Best " + "\u2605".repeat(stars) + "\u2606".repeat(3 - stars) + "   Played " + best.plays + timesWord,
+                color = color,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+        }
     }
 }
