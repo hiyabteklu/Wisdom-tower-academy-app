@@ -267,6 +267,11 @@ fun StudyWorkspaceScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
+                if (loggedIn && contentScope != null && !isExitExam) {
+                    item(key = "status_board") {
+                        StatusSubjectBoard(scopePath = contentScope, title = title) // MYSTATUS-B3
+                    }
+                }
                 val hubs = NATIVE_LEARNING_HUBS
                 openGrid("hubs", hubs) { hub ->
                     val count = hubCounts[hub.id]
