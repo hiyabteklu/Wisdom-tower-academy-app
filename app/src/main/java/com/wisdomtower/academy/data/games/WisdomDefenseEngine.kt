@@ -5,9 +5,9 @@ import kotlin.random.Random
 
 /**
  * Wisdom Defense logic (docs/GAMES_HUB_PLAN.md step 5, feel rules in docs/GAMES_FEEL_PLAN.md slice D1,
- * levels in docs/GAMES_COOL_PLAN.md slice G1).
+ * levels in docs/GAMES_COOL_PLAN.md slice G1, power-ups in slice W5).
  * Pure Kotlin, no Compose. Distance: 0 = far edge, 1 = empire wall.
- * Enemies walk all the time (also while a shot flies).
+ * Enemies walk all the time (also while a shot flies), except while a Freeze is running (W5).
  */
 data class WisdomEnemy(
     val id: Int,
@@ -86,6 +86,12 @@ class WisdomDefenseEngine(
         const val BOSS_HITS = 3
         /** The boss only appears in sets with at least this many questions. */
         const val BOSS_MIN_QUESTIONS = 8
+        /** W5: seconds the enemies stand still after a Freeze is used. */
+        const val FREEZE_TIME = 3f
+        /** W5: correct answers in a row that earn a Freeze. */
+        const val FREEZE_AT = 3
+        /** W5: correct answers in a row that earn a Shield. */
+        const val SHIELD_AT = 5
         private const val KILL_POINTS = 100
         private const val ARMOR_HIT_POINTS = 50
         private const val BOSS_KILL_POINTS = 300
@@ -127,7 +133,29 @@ class WisdomDefenseEngine(
     var lastShotChoice: Int? = null
         private set
 
+    /** W5: correct answers in a row (a wrong answer sets it back to 0). */
+    var streak: Int = 0
+        private set
+    /** W5: a Freeze has been earned and can be used with [useFreeze]. */
+    var freezeReady: Boolean = false
+        private set
+    /** W5: seconds of Freeze still running (enemies and spawns stand still while above 0). */
+    var freezeLeft: Float = 0f
+        private set
+    /** W5: a Shield has been earned and can be switched on with [useShield]. */
+    var shieldReady: Boolean = false
+        private set
+    /** W5: the Shield is on and will absorb the next hit on the wall. */
+    var shieldActive: Boolean = false
+        private set
+    /** W5: how many wall hits the Shield has absorbed so far (the screen plays an effect when it grows). */
+    var shieldBlocks: Int = 0
+        private set
+
     val level: GameLevel get() = tuning.level
+
+    /** W5: power-ups are earned on Medium and Hard only (Easy is already forgiving). */
+    val powerUpsOn: Boolean get() = tuning.level != GameLevel.EASY
 
     /** Number of questions not yet answered correctly, including the current one. */
     val questionsLeft: Int get() = queue.size + (if (current != null) 1 else 0)
@@ -164,6 +192,24 @@ class WisdomDefenseEngine(
         return out
     }
 
+    /** W5: use the earned Freeze. Enemies and new spawns stand still for [FREEZE_TIME] seconds. */
+    fun useFreeze(): Boolean {
+        if (phase !is WisdomDefensePhase.Playing) return false
+        if (!freezeReady) return false
+        freezeReady = false
+        freezeLeft = FREEZE_TIME
+        return true
+    }
+
+    /** W5: switch on the earned Shield. It absorbs the next hit on the wall. */
+    fun useShield(): Boolean {
+        if (phase !is WisdomDefensePhase.Playing) return false
+        if (!shieldReady || shieldActive) return false
+        shieldReady = false
+        shieldActive = true
+        return true
+    }
+
     fun tick(dt: Float) {
         if (phase !is WisdomDefensePhase.Playing) return
         val step = dt.coerceIn(0f, 0.1f)
@@ -181,10 +227,14 @@ class WisdomDefenseEngine(
             dying = dying.filter { it.age < DEATH_TIME }
         }
 
+        // W5: while a Freeze runs, nobody walks and nobody spawns (pushes from kills still play out).
+        val frozen = freezeLeft > 0f
+        if (frozen) freezeLeft = (freezeLeft - step).coerceAtLeast(0f)
+
         // Everybody walks, also while a shot flies.
         val hit = ArrayList<WisdomEnemy>()
         for (e in enemies) {
-            var move = e.speed * step
+            var move = if (frozen) 0f else e.speed * step
             if (e.shift != 0f) {
                 val m = minOf(abs(e.shift), SHIFT_RATE * step)
                 val signed = if (e.shift > 0f) m else -m
@@ -202,10 +252,18 @@ class WisdomDefenseEngine(
         for (e in enemies) if (e.progress >= 1f) hit.add(e)
 
         if (hit.isNotEmpty()) {
-            hearts = (hearts - hit.size).coerceAtLeast(0)
+            // W5: an active Shield absorbs one of the hits (no heart lost, no wall-hit effect for that enemy).
+            var absorbed: WisdomEnemy? = null
+            if (shieldActive) {
+                shieldActive = false
+                shieldBlocks++
+                absorbed = hit[0]
+            }
+            val damaging = hit.size - (if (absorbed != null) 1 else 0)
+            hearts = (hearts - damaging).coerceAtLeast(0)
             for (e in hit) {
                 dying = dying + WisdomDyingEnemy(e.id, 1f, e.kind, boss = e.boss)
-                addEvent(WisdomEvent.WallHit(e.kind))
+                if (e !== absorbed) addEvent(WisdomEvent.WallHit(e.kind))
             }
             if (hearts <= 0) {
                 phase = WisdomDefensePhase.Lost(killed)
@@ -217,8 +275,10 @@ class WisdomDefenseEngine(
             enemies = rest
         }
 
-        spawnDelay -= step
-        if (spawnDelay <= 0f) trySpawn()
+        if (!frozen) {
+            spawnDelay -= step
+            if (spawnDelay <= 0f) trySpawn()
+        }
         checkWin()
     }
 
@@ -242,6 +302,7 @@ class WisdomDefenseEngine(
         shotProgress = null
         val nearest = enemies.maxByOrNull { it.progress }
         if (correct) {
+            registerCorrect()
             if (nearest != null) {
                 killed++
                 if (nearest.armor > 0) {
@@ -261,6 +322,7 @@ class WisdomDefenseEngine(
             spawnDelay = SPAWN_DELAY_AFTER_KILL
             checkWin()
         } else {
+            streak = 0
             if (choice != null) lockedChoices = lockedChoices + choice
             if (nearest != null) {
                 nearest.shift += tuning.wrongLunge
@@ -270,6 +332,14 @@ class WisdomDefenseEngine(
         }
         lastShotCorrect = null
         lastShotChoice = null
+    }
+
+    /** W5: count a correct answer and earn a power-up at the right streak (one of each held at a time). */
+    private fun registerCorrect() {
+        streak++
+        if (!powerUpsOn) return
+        if (streak == FREEZE_AT && !freezeReady && freezeLeft <= 0f) freezeReady = true
+        if (streak == SHIELD_AT && !shieldReady && !shieldActive) shieldReady = true
     }
 
     private fun pullQuestion() {
