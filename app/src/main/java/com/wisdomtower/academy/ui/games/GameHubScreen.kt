@@ -347,7 +347,7 @@ private fun HubGameCard(emoji: String, title: String, body: String, onClick: () 
     ) {
         Text(emoji, fontSize = 36.sp)
         Spacer(Modifier.height(8.dp))
-        Text(title, color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 24.sp.coerceAtMost(22.sp))
+        Text(title, color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 22.sp)
         Spacer(Modifier.height(4.dp))
         Text(body, color = WisdomMuted, fontSize = 14.sp)
     }
