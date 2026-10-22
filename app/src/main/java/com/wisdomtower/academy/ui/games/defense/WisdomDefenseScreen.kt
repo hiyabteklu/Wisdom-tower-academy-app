@@ -80,6 +80,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * Result saver (slice R2): when [scopePath] is not blank, the finished game (won or lost) is saved once through
  * [GameResultsRepository.save] and the result screen shows the save line. A blank [scopePath] saves nothing.
  * Atmosphere (slice W1): nebula glow, drifting stars and lane glow in the level colour (DefenseAtmosphere.kt).
+ * Enemies (slice W2): level skin, portal flash at the far edge, armor plates, Hard boss with a health bar (DefenseArt.kt).
  */
 @Composable
 fun WisdomDefenseScreen(
@@ -117,6 +118,8 @@ fun WisdomDefenseScreen(
     val canSave = scopePath.isNotBlank()
     // W1: colour of the atmosphere for this level.
     val atmosphereTint = remember(level) { defenseAtmosphereTint(level) }
+    // W2: enemy colours for this level.
+    val skin = remember(level) { defenseSkin(level) }
 
     LaunchedEffect(Unit) { GameAudio.init(context) }
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
@@ -306,7 +309,16 @@ fun WisdomDefenseScreen(
                                     val foot = defenseLaneY(h, e.progress)
                                     val u = defenseUnit(w, h, e.progress)
                                     if (e === nearest) drawDefenseTargetRing(x, foot, u, clk)
-                                    drawDefenseEnemy(e.kind, x, foot, u, clk, e.id)
+                                    // W2: portal flash while the enemy is still at the far edge.
+                                    val spawnT = if (e.progress < 0.10f) ((0.10f - e.progress) / 0.10f).coerceIn(0f, 1f) else 0f
+                                    drawDefenseEnemy(
+                                        e.kind, x, foot, u, clk, e.id,
+                                        skin = skin,
+                                        armor = e.armor,
+                                        boss = e.boss,
+                                        bossFrac = (e.armor + 1) / WisdomDefenseEngine.BOSS_HITS.toFloat(),
+                                        spawnT = spawnT
+                                    )
                                     if (e === nearest && fx.wrongFlashT > 0f) {
                                         drawCircle(
                                             GameTheme.wrong.copy(alpha = 0.4f * fx.wrongFlashT / DefenseEffects.WRONG_FLASH_TIME),
@@ -325,7 +337,8 @@ fun WisdomDefenseScreen(
                                     drawDefenseEnemy(
                                         d.kind, x, foot, u, clk, d.id,
                                         alpha = 1f - t,
-                                        flash = (1f - t * 2.5f).coerceIn(0f, 1f)
+                                        flash = (1f - t * 2.5f).coerceIn(0f, 1f),
+                                        skin = skin
                                     )
                                 }
 
