@@ -97,6 +97,9 @@ import kotlinx.coroutines.launch
  * Slice R2 (result saver): when [scopePath] is not blank, the finished game is saved once through
  * [GameResultsRepository.save] (stars from [matchStars], score from [matchScore]) and the result screen shows the
  * save line. A blank [scopePath] saves nothing.
+ *
+ * Slice MW (part 2): a small level chip (Easy / Medium / Hard) sits in the top row next to the pair count. It takes no
+ * extra height, so the Hard board still fits without scrolling.
  */
 @Composable
 fun MatchScreen(
@@ -230,10 +233,25 @@ fun MatchScreen(
                         modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
                         textAlign = TextAlign.Center
                     )
+                    // MW part 2: level chip, then the pair count.
+                    val chipShape = RoundedCornerShape(50)
+                    Text(
+                        level.label,
+                        color = WisdomCyan,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 11.sp,
+                        maxLines = 1,
+                        modifier = Modifier
+                            .clip(chipShape)
+                            .background(WisdomCyan.copy(alpha = 0.15f))
+                            .border(1.dp, WisdomCyan.copy(alpha = 0.6f), chipShape)
+                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                    )
                     Text(
                         "${engine.matchedCount}/${engine.pairsTotal}",
                         color = WisdomMuted,
-                        fontSize = 13.sp
+                        fontSize = 13.sp,
+                        modifier = Modifier.padding(start = 8.dp)
                     )
                 }
                 Spacer(Modifier.height(8.dp))
