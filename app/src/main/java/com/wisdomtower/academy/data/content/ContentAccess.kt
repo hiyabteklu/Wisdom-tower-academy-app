@@ -1,7 +1,9 @@
 package com.wisdomtower.academy.data.content
 
+import android.content.Context
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
+import com.wisdomtower.academy.WisdomTowerApplication
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -124,6 +126,20 @@ class CourseLocks internal constructor(
  * trouble: the last answer for the same student is reused, else NOTHING is owned (a paid package stays closed rather
  * than opening by mistake). Lock rows are read separately and a read error never closes an open course.
  *
+ * OFFLINE-LOCK FIX (2026-10-23, owner: "content that is free for me becomes Package required after I have been offline
+ * for some time or killed the app; opening data for 5 seconds fixes it"): CAUSE (read from this file). The last
+ * ownership answer and the lock rows were kept only in memory (`ownership`, `cache`, `courseRowsCache`). After the app
+ * process was killed (by the student, or by the phone after a while) and reopened with no internet, both were empty:
+ * nothing was owned, no lock rows were known (so a course the admin made open fell back to the static rule, which
+ * is RequirePurchase for freshman, grades and so on) and every card showed "Package required". One successful read
+ * refilled the memory, which is why a few seconds of data fixed it. FIX: the last good answers are also saved on the
+ * phone (SharedPreferences `wt_content_access_cache`) and used when the server cannot be reached and the memory is
+ * empty: ownership (same student only, at most [DISK_MAX_AGE_MS] old, 30 days), lock rows and course modes (no age
+ * limit). The `static...` functions used for the first frame read the same saved copies. Nothing is invented: only
+ * what the server last said for this student. The server still decides on every open (`open_resource`), so a saved
+ * "owned" never gives anything the server refuses; the cost is that a package taken away stays shown as open until
+ * the next online read. NOT compiled, NOT seen on a phone.
+ *
  * 2026-10-20: hub, chapter and item locks added ([CourseLocks], [resolveLocks], [staticLocks]). [resolve],
  * [staticAccess] and [isUnlocked] are unchanged in shape (course level).
  *
@@ -132,6 +148,10 @@ class CourseLocks internal constructor(
 object ContentAccess {
     private const val TAG = "ContentAccess"
     private const val CACHE_MS = 30_000L
+
+    /** Saved copies on the phone (see OFFLINE-LOCK FIX in the class comment). */
+    private const val PREFS_NAME = "wt_content_access_cache"
+    private const val DISK_MAX_AGE_MS = 30L * 24L * 60L * 60L * 1000L
 
     /**
      * No longer used for any decision (S-A2). Kept only so other files that still mention it keep compiling;
@@ -195,13 +215,19 @@ object ContentAccess {
         return CourseAccess(mode, signedIn, ownsFrom(liveAccess(signedIn), signedIn, unlockIds))
     }
 
-    /** Same as [resolve] without the network: the static rule only (used until the first answer arrives). */
+    /**
+     * Same as [resolve] without the network: the saved answers (memory, then the phone) and the static rule (used
+     * until the first answer arrives).
+     */
     fun staticAccess(basePath: String, signedIn: Boolean): CourseAccess {
         val base = normalize(basePath)
+        val unlockIds = unlockPackageIds(base)
+        val (pkg, scope) = inferPackageAndScope(base, unlockIds)
+        val keys = listOfNotNull(scope?.let { "scope:$it" }, pkg?.let { "package:$it" })
         return CourseAccess(
-            staticLockMode(base),
+            cachedDynamicMode(keys) ?: staticLockMode(base),
             signedIn,
-            ownsFrom(cachedAccess(), signedIn, unlockPackageIds(base))
+            ownsFrom(cachedAccess(), signedIn, unlockIds)
         )
     }
 
@@ -211,8 +237,9 @@ object ContentAccess {
 
     /**
      * All locks that matter inside the course at [basePath]: course / package / hub / chapter / item (see
-     * [CourseLocks]). One small request (cached 30 s). Offline or server trouble: the last answer is reused,
-     * else only the static rule applies, so a network error never locks a student out of an open course.
+     * [CourseLocks]). One small request (cached 30 s). Offline or server trouble: the last answer is reused (memory,
+     * then the copy saved on the phone), else only the static rule applies, so a network error never locks a student
+     * out of an open course.
      */
     suspend fun resolveLocks(basePath: String, signedIn: Boolean): CourseLocks {
         val base = normalize(basePath)
@@ -231,17 +258,24 @@ object ContentAccess {
         )
     }
 
-    /** Same as [resolveLocks] without the network: the static rule only (used until the first answer arrives). */
+    /**
+     * Same as [resolveLocks] without the network: the saved answers (memory, then the phone) and the static rule
+     * (used until the first answer arrives).
+     */
     fun staticLocks(basePath: String, signedIn: Boolean): CourseLocks {
         val base = normalize(basePath)
         val unlockIds = unlockPackageIds(base)
-        val (_, scope) = inferPackageAndScope(base, unlockIds)
+        val (pkg, scope) = inferPackageAndScope(base, unlockIds)
+        val rows = cachedCourseRows(pkg, scope)
+        val courseMode = scope?.let { rows?.get("scope:$it") }
+            ?: pkg?.let { rows?.get("package:$it") }
+            ?: staticLockMode(base)
         return CourseLocks(
             scope,
             signedIn,
             ownsFrom(cachedAccess(), signedIn, unlockIds),
-            staticLockMode(base),
-            emptyMap()
+            courseMode,
+            rows ?: emptyMap()
         )
     }
 
@@ -251,6 +285,81 @@ object ContentAccess {
      */
     suspend fun warmUp() {
         liveAccess(AuthStateManager.currentUser.value != null)
+    }
+
+    // ---------- saved copies on the phone ----------
+
+    private fun diskPrefs() = runCatching {
+        WisdomTowerApplication.instance.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    }.getOrNull()
+
+    private fun saveOwnership(userId: String, answer: PackageAccess, time: Long) {
+        val p = diskPrefs() ?: return
+        p.edit()
+            .putString("own_user", userId)
+            .putLong("own_time", time)
+            .putBoolean("own_enforced", answer.enforced)
+            .putStringSet("own_packages", HashSet(answer.packages))
+            .apply()
+    }
+
+    /** The ownership answer saved for THIS student, at most [DISK_MAX_AGE_MS] old; null otherwise. */
+    private fun loadOwnership(userId: String): PackageAccess? {
+        val p = diskPrefs() ?: return null
+        if (p.getString("own_user", null) != userId) return null
+        val age = System.currentTimeMillis() - p.getLong("own_time", 0L)
+        if (age > DISK_MAX_AGE_MS) return null
+        val set = p.getStringSet("own_packages", null) ?: return null
+        return PackageAccess(p.getBoolean("own_enforced", true), HashSet(set))
+    }
+
+    private fun saveRows(cacheKey: String, rows: Map<String, HubLockMode>) {
+        val p = diskPrefs() ?: return
+        val o = JSONObject()
+        for ((k, v) in rows) o.put(k, v.name)
+        p.edit().putString("rows_$cacheKey", o.toString()).apply()
+    }
+
+    private fun loadRows(cacheKey: String): Map<String, HubLockMode>? {
+        val text = diskPrefs()?.getString("rows_$cacheKey", null) ?: return null
+        return try {
+            val o = JSONObject(text)
+            val out = HashMap<String, HubLockMode>()
+            val names = o.keys()
+            while (names.hasNext()) {
+                val k = names.next()
+                val mode = runCatching { HubLockMode.valueOf(o.getString(k)) }.getOrNull()
+                if (mode != null) out[k] = mode
+            }
+            out
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** [mode] null is saved as "none" (a read that found no row), so "no row" is remembered too. */
+    private fun saveDynamic(cacheKey: String, mode: HubLockMode?) {
+        diskPrefs()?.edit()?.putString("dyn_$cacheKey", mode?.name ?: "none")?.apply()
+    }
+
+    private fun loadDynamic(cacheKey: String): HubLockMode? {
+        val name = diskPrefs()?.getString("dyn_$cacheKey", null) ?: return null
+        return runCatching { HubLockMode.valueOf(name) }.getOrNull()
+    }
+
+    /** Course / package mode from memory (any age), else from the phone, else null (the static rule decides). */
+    private fun cachedDynamicMode(keys: List<String>): HubLockMode? {
+        if (keys.isEmpty()) return null
+        val cacheKey = keys.joinToString("|")
+        val mem = synchronized(cache) { cache[cacheKey] }
+        return if (mem != null) mem.second else loadDynamic(cacheKey)
+    }
+
+    /** Lock rows of one course from memory (any age), else from the phone, else null. */
+    private fun cachedCourseRows(pkg: String?, scope: String?): Map<String, HubLockMode>? {
+        val cacheKey = "${pkg.orEmpty()}|${scope.orEmpty()}"
+        val mem = synchronized(courseRowsCache) { courseRowsCache[cacheKey] }
+        return mem?.second ?: loadRows(cacheKey)
     }
 
     // ---------- ownership ----------
@@ -269,11 +378,12 @@ object ContentAccess {
         }
     }
 
-    /** The last answer for the student who is signed in now, without any network call. */
+    /** The last answer for the student who is signed in now (memory, then the phone), without any network call. */
     private fun cachedAccess(): PackageAccess? {
         val userId = AuthStateManager.currentUser.value?.id ?: return null
         val hit = ownership
-        return if (hit != null && hit.first == userId) hit.third else null
+        if (hit != null && hit.first == userId) return hit.third
+        return loadOwnership(userId)
     }
 
     /** The answer for the signed-in student: cached 30 s, else asked from the server, else the last answer. */
@@ -286,9 +396,10 @@ object ContentAccess {
         val fetched = fetchPackageAccess()
         if (fetched != null) {
             ownership = Triple(userId, now, fetched)
+            saveOwnership(userId, fetched, now)
             return fetched
         }
-        return if (hit != null && hit.first == userId) hit.third else null
+        return if (hit != null && hit.first == userId) hit.third else loadOwnership(userId)
     }
 
     private suspend fun fetchPackageAccess(): PackageAccess? = withContext(Dispatchers.IO) {
@@ -439,12 +550,13 @@ object ContentAccess {
                 }
             }
             synchronized(cache) { cache[cacheKey] = Pair(now, found) }
+            saveDynamic(cacheKey, found)
             found
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "locks read failed: ${e.javaClass.simpleName}")
-            hit?.second
+            if (hit != null) hit.second else loadDynamic(cacheKey)
         }
     }
 
@@ -460,7 +572,7 @@ object ContentAccess {
     /**
      * Every lock row that can matter inside one course: its package row, its scope row, all its `hub:` and
      * `chapter:` rows (key prefix) and every `item:` row (item keys carry only the material id; there are only as
-     * many as the admin locked one by one). Null when nothing could be read and nothing is cached.
+     * many as the admin locked one by one). Null when nothing could be read and nothing is cached or saved.
      */
     private suspend fun courseRows(pkg: String?, scope: String?): Map<String, HubLockMode>? =
         withContext(Dispatchers.IO) {
@@ -483,12 +595,13 @@ object ContentAccess {
                     .build().toString()
                 val rows = readModes(url)
                 synchronized(courseRowsCache) { courseRowsCache[cacheKey] = Pair(now, rows) }
+                saveRows(cacheKey, rows)
                 rows
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "course locks read failed: ${e.javaClass.simpleName}")
-                hit?.second
+                hit?.second ?: loadRows(cacheKey)
             }
         }
 
