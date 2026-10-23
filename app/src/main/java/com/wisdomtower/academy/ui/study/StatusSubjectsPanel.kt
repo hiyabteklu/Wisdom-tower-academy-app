@@ -75,7 +75,8 @@ private fun ssFormatSavedAt(ms: Long): String =
  * (2) Either is missing, or [progressKnown] is false (the status screen could not read the progress, so its empty skeleton
  * is shown): a notice with Retry, then one EMPTY row per picked subject (name from the packed subject list, empty ring,
  * dashes instead of "x of y items opened", no detail card). Nothing is counted as zero. With no picks there are no names to
- * draw: "Nothing to show yet." plus the notice. Online behaviour is unchanged.
+ * draw: "Nothing to show yet." plus the notice. Online behaviour is unchanged. Slice O5a: the panel also reads again by
+ * itself when the internet comes back.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -90,8 +91,10 @@ fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?, progre
     var skeletonNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var savedAtMs by remember { mutableStateOf<Long?>(null) }
     var openKey by remember { mutableStateOf<String?>(null) }
+    // OFFLINE STATUS (O5a): goes up when the internet comes back, which reads the exam attempts again
+    val netBack = rememberNetworkReturnCount()
 
-    LaunchedEffect(rows, reloadKey, progressKnown) {
+    LaunchedEffect(rows, reloadKey, progressKnown, netBack) {
         loading = true
         noData = false
         savedAtMs = null

@@ -100,7 +100,7 @@ private fun sdFormatSavedAt(ms: Long): String =
  * latest sync ([StudyDayLogFetchResult.Success.fromCache]) it is drawn from the copy and one amber line says when it was
  * saved; days after that day are unknown (a dash above an empty bar), so "today" shows a dash instead of a made-up 0 min.
  * With nothing read and nothing saved: a notice with Retry, then the empty ring and seven empty bars, all days unknown.
- * Online behaviour is unchanged.
+ * Online behaviour is unchanged. Slice O5a: the panel also reads again by itself when the internet comes back.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -112,8 +112,10 @@ fun StatusDayPanel(dailyGoalMinutes: Int, modifier: Modifier = Modifier) {
     var fromCache by remember { mutableStateOf(false) }
     var savedAtMs by remember { mutableStateOf<Long?>(null) }
     var rows by remember { mutableStateOf<List<StudyDayRow>>(emptyList()) }
+    // OFFLINE STATUS (O5a): goes up when the internet comes back, which reads the log again
+    val netBack = rememberNetworkReturnCount()
 
-    LaunchedEffect(reloadKey) {
+    LaunchedEffect(reloadKey, netBack) {
         loading = true
         failed = false
         fromCache = false
