@@ -71,6 +71,9 @@ import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMessageCard
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 // D6h day / night colours (docs/DAY_MODE_PLAN.md, 2026-10-19). Night value = the exact old literal; day value = Ivory & Navy
 // token. They are getters (not vals) so they are read while composing and follow the switch.
@@ -95,6 +98,13 @@ private val StInnerFill: Color get() = dayNight(Color.White.copy(alpha = 0.03f),
 private val StInnerBorder: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
 private val StTrack: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomInk.copy(alpha = 0.10f))
 private val StHudFill: Color get() = dayNight(Color(0x660B1329).copy(alpha = 0.40f), WisdomGlassFillStrong)
+
+/** OFFLINE STATUS (O2): shown when the numbers could not be read and nothing is saved on this phone yet (first open). */
+private const val CONNECT_NOTICE = "Could not reach the server. Connect to the internet once to load your real status."
+
+/** OFFLINE STATUS (O2): "23 Oct 2026, 14:05" in the phone's own time. */
+private fun formatSavedAt(ms: Long): String =
+    SimpleDateFormat("d MMM yyyy, HH:mm", Locale.US).format(Date(ms))
 
 /**
  * Native port of the "Your status" tool (`activeFeature === "analytics"` in `LearningContent.tsx`, component
@@ -122,6 +132,14 @@ private val StHudFill: Color get() = dayNight(Color(0x660B1329).copy(alpha = 0.4
  * numbers and borders); the progress track is a faint navy line; the HUD cards are the strong glass. The drop-down list of
  * tracks is the Material menu and follows the Material scheme from D1. Layout, texts, data and rules are unchanged.
  *
+ * OFFLINE STATUS (2026-10-23, docs/OFFLINE_STATUS_PLAN.md slice O2): the screen never replaces its layout with an error
+ * card. (1) Read failed, a saved copy of the same student exists ([StudentProgressReader] returns `fromCache = true`):
+ * everything is drawn from the copy and one amber line says when it was saved. (2) Read failed, nothing saved (first open
+ * offline): a notice with Retry, then the EMPTY skeleton: the four HUD cards with dashes, the track selector and the fixed
+ * recommendation texts. [computeStatus] is NOT run on an empty list for the skeleton (it would print 0 hours, a 0-day
+ * streak and a "Zero Study Sessions" alert, which is a claim, not a fact), so no Standing, no Retention panel, no alerts
+ * and no subject / day panels (those get their own offline states in slices O3 and O4). Online behaviour is unchanged.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -141,6 +159,9 @@ fun NativeStatusScreen(
     var errorText by remember { mutableStateOf<String?>(null) }
     var countedLine by remember { mutableStateOf<String?>(null) }
     var rows by remember { mutableStateOf<List<ProgressRow>?>(null) }
+    // OFFLINE STATUS (O2): true when the rows are the saved copy of the latest sync, and when it was saved
+    var fromCache by remember { mutableStateOf(false) }
+    var savedAtMs by remember { mutableStateOf<Long?>(null) }
 
     LaunchedEffect(isLoggedIn, reloadKey) {
         if (!isLoggedIn) {
@@ -150,8 +171,12 @@ fun NativeStatusScreen(
         loading = true
         failed = false
         errorText = null
+        fromCache = false
+        savedAtMs = null
         when (val result = StudentProgressReader.fetchAll()) {
             is ProgressFetchResult.Success -> {
+                fromCache = result.fromCache
+                savedAtMs = result.savedAtMs
                 val userId = AuthStateManager.currentUser.value?.id
                 val picks = if (userId != null) MySubjectsStore.load(context, userId, educationLevel) else null
                 if (picks == null || picks.keys.isEmpty()) {
@@ -177,7 +202,11 @@ fun NativeStatusScreen(
                     }
                 }
             }
-            else -> failed = true
+            else -> {
+                // Nothing could be read and nothing is saved: the screen draws the empty skeleton (see below).
+                rows = null
+                failed = true
+            }
         }
         loading = false
     }
@@ -303,6 +332,18 @@ fun NativeStatusScreen(
                         }
                     }
 
+                    // OFFLINE STATUS (O2): the numbers below are the saved copy of the latest sync, say when it was saved
+                    val savedAt = savedAtMs
+                    if (fromCache && savedAt != null && isLoggedIn && !loading && !failed) {
+                        Text(
+                            "No connection to the server. Showing your status as last saved on ${formatSavedAt(savedAt)}. Connect to the internet to update.",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = StAmber,
+                            lineHeight = 16.sp
+                        )
+                    }
+
                     // T8: what is counted (picked subjects), so the totals are never a surprise
                     val counted = countedLine
                     if (counted != null && isLoggedIn && !loading && !failed) {
@@ -310,7 +351,7 @@ fun NativeStatusScreen(
                     }
                 }
 
-                // States: signed out, loading, failed
+                // States: signed out, loading, failed (empty skeleton), loaded
                 if (!isLoggedIn) {
                     WisdomMessageCard( // S6-msgcard-status
                         message = "Sign in or create an account to sync your study notes, targets, and course progress.",
@@ -321,18 +362,18 @@ fun NativeStatusScreen(
                         CircularProgressIndicator(color = StCyan, modifier = Modifier.size(28.dp))
                     }
                 } else if (failed || summary == null) {
+                    // OFFLINE STATUS (O2): a notice with Retry, then the EMPTY skeleton (dashes, no invented zeros)
                     WisdomMessageCard( // S6-msgcard-status
-                        message = errorText ?: "Could not load your study records. Check your internet connection and try again.",
-                        isError = true,
+                        message = errorText ?: CONNECT_NOTICE,
+                        isError = errorText != null,
                         onRetry = { reloadKey += 1 }
                     )
+                    StHudCards(summary = null, track = track, dailyGoalMinutes = dailyGoalMinutes)
+                    val fixedRecommendations = remember(track) { computeStatus(emptyList(), track).recommendations }
+                    StRecommendationsPanel(recommendations = fixedRecommendations, name = name)
                 } else {
                     // 2. HUD cards
-                    val streakAccent = when {
-                        summary.streakDays >= 7 -> StEmerald
-                        summary.streakDays >= 3 -> StAmber
-                        else -> StRose
-                    }
+                    StHudCards(summary = summary, track = track, dailyGoalMinutes = dailyGoalMinutes)
                     val accuracy = summary.accuracyPct
                     val accuracyAccent = when {
                         accuracy == null -> StMuted
@@ -340,64 +381,6 @@ fun NativeStatusScreen(
                         accuracy >= 50.0 -> StAmber
                         else -> StRose
                     }
-                    val accuracyBadge = when {
-                        accuracy == null -> null
-                        accuracy >= 75.0 -> "Mastery Level"
-                        accuracy >= 50.0 -> "Developing"
-                        else -> "Needs Review"
-                    }
-                    val focus = summary.focusRatioPct
-                    val focusAccent = when {
-                        focus == null -> StMuted
-                        focus >= 75 -> StEmerald
-                        focus >= 60 -> StAmber
-                        else -> StRose
-                    }
-
-                    StHudCard(
-                        icon = Icons.Filled.Schedule,
-                        iconTint = StSky,
-                        title = "Study Time",
-                        badge = null,
-                        accent = StSky,
-                        big = formatStatusNumber(summary.totalStudyHours),
-                        unit = "hrs",
-                        line = "Target: ${formatStatusNumber(track.weeklyTargetHours)} hrs/wk",
-                        footer = null
-                    )
-                    StHudCard(
-                        icon = Icons.Filled.Speed,
-                        iconTint = StCyan,
-                        title = "Focus",
-                        badge = null,
-                        accent = focusAccent,
-                        big = if (focus != null) "$focus%" else "—",
-                        unit = null,
-                        line = "Focus Dwell Ratio",
-                        footer = null
-                    )
-                    StHudCard(
-                        icon = Icons.Filled.TrackChanges,
-                        iconTint = StEmerald,
-                        title = "Accuracy",
-                        badge = accuracyBadge,
-                        accent = accuracyAccent,
-                        big = if (accuracy != null) "${formatStatusNumber(accuracy)}%" else "—",
-                        unit = null,
-                        line = "Solved: ${summary.questionsCorrect} of ${summary.questionsAttempted} drills",
-                        footer = if (summary.retentionIndexPct != null) "Retention Index: ${summary.retentionIndexPct}%" else null
-                    )
-                    StHudCard(
-                        icon = Icons.Filled.LocalFireDepartment,
-                        iconTint = StAmber,
-                        title = "Active Streak",
-                        badge = if (summary.streakDays > 0) (if (summary.streakDays >= 7) "Unbroken" else "Active") else null,
-                        accent = streakAccent,
-                        big = "${summary.streakDays}",
-                        unit = "days",
-                        line = "Daily active learning recorded",
-                        footer = "Daily goal: $dailyGoalMinutes mins / day."
-                    )
 
                     // My Status V2 (S3): per-subject rings + detail card
                     StatusSubjectsPanel(rows = rows.orEmpty(), educationLevel = educationLevel)
@@ -472,25 +455,7 @@ fun NativeStatusScreen(
                     }
 
                     // 4. Recommendations
-                    StPanel(borderColor = StCyan.copy(alpha = 0.20f)) {
-                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            StChip("Study Recommendations", StCyan)
-                            Text("Personalized study guidance for $name", fontSize = 11.sp, color = StSlate300)
-                            Text("Recommended Study Routine Adjustments", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
-                            StChip("${summary.recommendations.size} Recommendations", StCyan)
-                        }
-                        summary.recommendations.forEach { rec ->
-                            StInfoCard(
-                                accent = StCyan,
-                                tag = rec.category,
-                                title = rec.title,
-                                bodyLabel = null,
-                                body = rec.description,
-                                boxLabel = "Actionable Step:",
-                                boxText = rec.actionableStep
-                            )
-                        }
-                    }
+                    StRecommendationsPanel(recommendations = summary.recommendations, name = name)
 
                     // 5. Study alerts
                     StPanel(borderColor = StRose.copy(alpha = 0.20f)) {
@@ -533,6 +498,110 @@ private fun buildCountedLine(pickedKeys: Set<String>, excludedRecords: Int): Str
     val base = if (labels.isNotEmpty()) "Counting $subjects: $labels." else "Counting $subjects."
     val other = if (excludedRecords > 0) " Other activity ($excludedRecords records) is not counted." else ""
     return "$base$other Change it in Settings > My Subjects."
+}
+
+/**
+ * The four HUD cards (Study Time, Focus, Accuracy, Active Streak). With a [summary] they show the real numbers exactly as
+ * before; with `summary = null` (OFFLINE STATUS O2, first open offline) every figure is a dash, the lines that need no
+ * data (weekly target of the track, daily goal of the student) stay.
+ */
+@Composable
+private fun StHudCards(summary: StatusSummary?, track: StatusTrack, dailyGoalMinutes: Int) {
+    val streakAccent = when {
+        summary == null -> StMuted
+        summary.streakDays >= 7 -> StEmerald
+        summary.streakDays >= 3 -> StAmber
+        else -> StRose
+    }
+    val accuracy = summary?.accuracyPct
+    val accuracyAccent = when {
+        accuracy == null -> StMuted
+        accuracy >= 75.0 -> StEmerald
+        accuracy >= 50.0 -> StAmber
+        else -> StRose
+    }
+    val accuracyBadge = when {
+        accuracy == null -> null
+        accuracy >= 75.0 -> "Mastery Level"
+        accuracy >= 50.0 -> "Developing"
+        else -> "Needs Review"
+    }
+    val focus = summary?.focusRatioPct
+    val focusAccent = when {
+        focus == null -> StMuted
+        focus >= 75 -> StEmerald
+        focus >= 60 -> StAmber
+        else -> StRose
+    }
+
+    StHudCard(
+        icon = Icons.Filled.Schedule,
+        iconTint = StSky,
+        title = "Study Time",
+        badge = null,
+        accent = StSky,
+        big = if (summary != null) formatStatusNumber(summary.totalStudyHours) else "—",
+        unit = if (summary != null) "hrs" else null,
+        line = "Target: ${formatStatusNumber(track.weeklyTargetHours)} hrs/wk",
+        footer = null
+    )
+    StHudCard(
+        icon = Icons.Filled.Speed,
+        iconTint = StCyan,
+        title = "Focus",
+        badge = null,
+        accent = focusAccent,
+        big = if (focus != null) "$focus%" else "—",
+        unit = null,
+        line = "Focus Dwell Ratio",
+        footer = null
+    )
+    StHudCard(
+        icon = Icons.Filled.TrackChanges,
+        iconTint = StEmerald,
+        title = "Accuracy",
+        badge = accuracyBadge,
+        accent = accuracyAccent,
+        big = if (accuracy != null) "${formatStatusNumber(accuracy)}%" else "—",
+        unit = null,
+        line = if (summary != null) "Solved: ${summary.questionsCorrect} of ${summary.questionsAttempted} drills" else "Solved: — of — drills",
+        footer = if (summary?.retentionIndexPct != null) "Retention Index: ${summary.retentionIndexPct}%" else null
+    )
+    StHudCard(
+        icon = Icons.Filled.LocalFireDepartment,
+        iconTint = StAmber,
+        title = "Active Streak",
+        badge = if (summary != null && summary.streakDays > 0) (if (summary.streakDays >= 7) "Unbroken" else "Active") else null,
+        accent = streakAccent,
+        big = if (summary != null) "${summary.streakDays}" else "—",
+        unit = if (summary != null) "days" else null,
+        line = "Daily active learning recorded",
+        footer = "Daily goal: $dailyGoalMinutes mins / day."
+    )
+}
+
+/** The "Study Recommendations" panel (fixed texts of the website). Shared by the loaded screen and the empty skeleton. */
+@Composable
+private fun StRecommendationsPanel(recommendations: List<StatusRecommendation>, name: String) {
+    StPanel(borderColor = StCyan.copy(alpha = 0.20f)) {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            StChip("Study Recommendations", StCyan)
+            Text("Personalized study guidance for $name", fontSize = 11.sp, color = StSlate300)
+            Text("Recommended Study Routine Adjustments", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+            StChip("${recommendations.size} Recommendations", StCyan)
+        }
+        recommendations.forEach { rec ->
+            StInfoCard(
+                accent = StCyan,
+                tag = rec.category,
+                title = rec.title,
+                bodyLabel = null,
+                body = rec.description,
+                boxLabel = "Actionable Step:",
+                boxText = rec.actionableStep
+            )
+        }
+    }
 }
 
 @Composable
