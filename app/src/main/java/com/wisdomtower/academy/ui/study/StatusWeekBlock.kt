@@ -37,6 +37,9 @@ import kotlinx.coroutines.CancellationException
  * that cannot be known is left out or said plainly, never shown as 0 and never invented. If the data cannot be built at
  * all the block is simply not shown (the rest of Your status is unchanged).
  *
+ * S4: the "Save as picture" button ([StatusSavePictureButton], own file) sits at the bottom of this block, so
+ * NativeStatusScreen.kt did not have to be touched.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -82,7 +85,7 @@ fun StatusWeekBlock(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             Text(
-                "YOUR WEEK  \u00B7  ${d.weekRangeLabel}",
+                "YOUR WEEK  ·  ${d.weekRangeLabel}",
                 fontSize = 11.sp,
                 fontWeight = FontWeight.Bold,
                 color = WisdomCyan,
@@ -108,6 +111,14 @@ fun StatusWeekBlock(
             if (asOf != null) {
                 Text(asOf, fontSize = 11.sp, color = WisdomMuted)
             }
+            // STATUS CARD (S4): builds the 9:16 picture from the same numbers and saves it to the gallery
+            StatusSavePictureButton(
+                rows = rows,
+                summary = summary,
+                track = track,
+                studentName = studentName,
+                educationLevel = educationLevel
+            )
         }
     }
 }
