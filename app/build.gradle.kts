@@ -23,6 +23,10 @@ android {
     versionName = "1.0.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+    // TELEGRAM BUILD SWITCH (owner order 2026-10-23, docs/TELEGRAM_PAID_BUILD_PLAN.md): false for the Play Store build,
+    // true only when Gradle runs with -PpaidUi=true (the CI step "Build Telegram APK"). Paid screens read BuildConfig.PAID_UI.
+    buildConfigField("boolean", "PAID_UI", (project.findProperty("paidUi") == "true").toString())
   }
 
   signingConfigs {
