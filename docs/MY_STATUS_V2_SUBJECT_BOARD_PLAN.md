@@ -36,8 +36,11 @@ Learning > any course (for example Economics): above the 6 hub cards there is a 
 | Slice | Status |
 |---|---|
 | Plan (this file) | done 2026-10-22 |
-| B1 remove icons | open (next) |
-| B2 board | open |
-| B3 wire it | open |
+| B1 remove icons | done 2026-10-22 (see `docs/SESSION_2026-10-22_STATUS_B1.md`). Hub header icon and package-card icon gone. |
+| B2 board | done 2026-10-22 (see `docs/SESSION_2026-10-22_STATUS_B2.md`). |
+| B3 wire it | done 2026-10-22 (see `docs/SESSION_2026-10-22_STATUS_B3.md`). The board now shows chapters and exams inline (no "Chapters and exams" button, no popup). |
 | S6 day log (weekday chart, daily-goal ring) | still blocked on owner question B of `MY_STATUS_V2_PLAN.md` |
-| B4 "By subject" rows open inline, no popup (Your status) | done 2026-10-23, NOT compiled. See `docs/SESSION_2026-10-23_STATUS_B4.md`. The board now shows chapters and exams inline too (no "Chapters and exams" button), see `docs/SESSION_2026-10-22_STATUS_B3.md`. Leftover: `StatusSubjectIcon.kt`, `OpenCardWithStatus.kt` and the popup `StatusDetailCard` are unused, deleting them is an owner decision. |
+| B4 "By subject" rows open inline, no popup (Your status) | done 2026-10-23, see `docs/SESSION_2026-10-23_STATUS_B4.md`. |
+| B5 cleanup of unused popup code | done 2026-10-23: `StatusSubjectIcon.kt` and `OpenCardWithStatus.kt` deleted. Still there on purpose: the unused popup function `StatusDetailCard(...)` in `StatusDetailCard.kt` (the same file holds `StatusDetailInline`, which IS used). Removing it is optional and needs a compile check, details in the B4 session note. |
+
+Nothing else is open for the subject board. Next real work is S6 (needs the owner's answer to question B) and the owner's phone test of the green build.
