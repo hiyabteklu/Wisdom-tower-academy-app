@@ -28,6 +28,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -47,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -84,6 +87,10 @@ import kotlinx.coroutines.launch
  *
  * 2026-10-16 (UI_AD, M11 slice 5): entrance motion only. The header, the first cards and every card that
  * scrolls into view rise in once per app session with wisdomReveal. No text, layout or logic changed.
+ *
+ * OWNER DECISION 2026-10-23 (Contact only): an "Other ways to reach us" card was ADDED under the contact
+ * form (Telegram @wisdom_tower2, phone 0900763030, support@wisdomtower.tech). These are extra channels,
+ * the form and its text are unchanged. This is an intended difference from the website contact page.
  */
 
 @Composable
@@ -446,7 +453,74 @@ fun AboutScreen(
 /* =========================================================================================
    2. CONTACT  (website-reference/src/app/contact/page.tsx)
    The message is stored in the same Supabase table `inquiries` as the website does (InquirySubmitter).
+   2026-10-23: plus the "Other ways to reach us" card (Telegram, phone, support email), see top comment.
 ========================================================================================= */
+
+/** One tappable contact channel row: icon, small label, the value, opens [uri] when tapped. */
+@Composable
+private fun ContactChannelRow(icon: ImageVector, label: String, value: String, uri: String) {
+    val uriHandler = LocalUriHandler.current
+    val shape = RoundedCornerShape(14.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(WisdomInk.copy(alpha = 0.04f))
+            .border(BorderStroke(1.dp, WisdomBorderWhite), shape)
+            .clickable { runCatching { uriHandler.openUri(uri) } }
+            .padding(horizontal = 12.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(36.dp)
+                .clip(CircleShape)
+                .background(WisdomCyan.copy(alpha = 0.15f))
+                .border(BorderStroke(1.dp, WisdomCyan.copy(alpha = 0.4f)), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(imageVector = icon, contentDescription = null, tint = WisdomCyan, modifier = Modifier.size(18.dp))
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(label, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = WisdomMuted)
+            Text(value, fontSize = 13.5.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+        }
+    }
+}
+
+/** Extra communication channels, shown under the contact form (and under "Message received"). */
+@Composable
+private fun ContactChannelsCard() {
+    WisdomGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wisdomReveal(key = "contact_channels", index = 3),
+        cornerRadius = 18.dp
+    ) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Eyebrow("Other ways to reach us")
+            ContactChannelRow(
+                icon = Icons.AutoMirrored.Filled.Send,
+                label = "Join us on Telegram",
+                value = "@wisdom_tower2",
+                uri = "https://t.me/wisdom_tower2"
+            )
+            ContactChannelRow(
+                icon = Icons.Default.Phone,
+                label = "Call for inquiries",
+                value = "0900763030",
+                uri = "tel:0900763030"
+            )
+            ContactChannelRow(
+                icon = Icons.Default.Email,
+                label = "Email support",
+                value = "support@wisdomtower.tech",
+                uri = "mailto:support@wisdomtower.tech"
+            )
+        }
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -701,6 +775,11 @@ fun ContactScreen(
                         }
                     }
                 }
+            }
+
+            // Extra channels (2026-10-23): Telegram, phone, support email. Shown in every state.
+            item(key = "contact_channels") {
+                ContactChannelsCard()
             }
 
             item(key = "bottom_space") {
