@@ -29,6 +29,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.ContentAccess
 import com.wisdomtower.academy.data.content.CourseLocks
@@ -131,6 +134,10 @@ internal fun safeHubUrl(basePath: String, hubId: String): String {
  * course it shows and how to open a website page (the same `onOpenHub` the hub cards use), so the "Package required" card
  * (here and in the hub list) can offer Buy now / My orders. It also reads the dashboard prices once. In the Play build
  * the card never asks for any of it, and `PackagePrices.refresh()` returns at once.
+ *
+ * P4: every time the app comes back to the front while this page is open (for example after the student paid in the
+ * website checkout and the admin or auto-verify unlocked the package), the locks and ownership are read again. The
+ * ownership answer is cached 30 s inside `ContentAccess`, so a return after a real checkout always reads fresh.
  */
 @Composable
 fun StudyWorkspaceScreen(
@@ -178,6 +185,23 @@ fun StudyWorkspaceScreen(
 
     LaunchedEffect(basePath, loggedIn) {
         locks = ContentAccess.resolveLocks(basePath, loggedIn)
+    }
+
+    // P4: read the locks and ownership again when the app comes back to the front (skips the first resume at start).
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner, basePath, loggedIn) {
+        var firstResume = true
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (firstResume) {
+                    firstResume = false
+                } else if (entranceUrl == null) {
+                    uiScope.launch { locks = ContentAccess.resolveLocks(basePath, loggedIn) }
+                }
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
     if (entranceUrl != null) {
