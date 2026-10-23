@@ -28,7 +28,12 @@ import androidx.compose.ui.graphics.Color
  * Slice BG-LOADING (2026-10-17, owner: "in loading it's black, especially on notes, exams, flashcards"): the page's own
  * dark colour showed from the start of loading until the glass script ran. [hidePageUntilReady] (called from
  * onPageStarted by scripts/patch_backdrop_loading.py) makes the WebView invisible, so the native backdrop shows, and
- * [clearPageBackground] fades it in once the glass script has run (safety reveal after 1.5 s).
+ * [clearPageBackground] reveals it once the glass script has run (safety reveal after 1.5 s).
+ *
+ * BG-NOFADE (2026-10-23, owner: "the background goes black the moment before the content is painted"): the reveal used
+ * to FADE the WebView's alpha (140 ms). HYPOTHESIS for the black: a WebView drawn at a fractional alpha is composited
+ * through an offscreen layer, and a transparent WebView inside such a layer is drawn black on many phones until its
+ * content is painted. The reveal is now instant (alpha 0 to 1, no layer). To go back: animate().alpha(1f).setDuration(140).
  *
  * Slice BG-POPUP (2026-10-17, owner: "pop ups overlap the text behind, dim the background, raise glass"): cause found.
  * The full-screen dark backdrop of a pop-up (for example `.ovl` in competition_exam.html, rgba(2,6,23,.82)) was treated
@@ -266,16 +271,17 @@ object AppBackdrop {
     /**
      * BG-LOADING: call from onPageStarted of a local-page WebView. The page is invisible (the native backdrop shows)
      * until [clearPageBackground] has run the glass script; a safety reveal after 1.5 s covers a page that never finishes.
+     * BG-NOFADE: both the hide and the reveal are instant (no alpha animation, see the class comment).
      */
     fun hidePageUntilReady(view: WebView) {
         view.animate().cancel()
         view.alpha = 0f
-        view.postDelayed({ view.animate().alpha(1f).setDuration(140).start() }, 1500)
+        view.postDelayed({ view.alpha = 1f }, 1500)
     }
 
     /**
      * Call from onPageFinished of a local-page WebView: makes the page itself transparent and turns its dark-blue
-     * panels into glass, then fades the page in (see [hidePageUntilReady]). Every caller must have
+     * panels into glass, then reveals it instantly (see [hidePageUntilReady]). Every caller must have
      * [AtmosphereBackground] behind its WebView (checked 2026-10-17: Notes, Flashcards, Quiz, Competition exam and
      * review, AI Tutor all have it).
      * D8a: night runs [GLASS_JS] exactly as before; day runs [GLASS_JS_DAY]. The mode is read when the page finishes
@@ -287,7 +293,7 @@ object AppBackdrop {
         val script = if (AppThemeMode.isDark) GLASS_JS else GLASS_JS_DAY
         view.evaluateJavascript(script) {
             view.animate().cancel()
-            view.animate().alpha(1f).setDuration(140).start()
+            view.alpha = 1f
         }
     }
 }
