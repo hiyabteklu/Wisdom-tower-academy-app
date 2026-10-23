@@ -21,7 +21,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
@@ -72,15 +73,18 @@ import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.random.Random
 
 /**
  * Match game screen (docs/GAMES_HUB_PLAN.md step 4, animated by docs/GAMES_FEEL_PLAN.md slice M2,
  * HUD and result by slice M3, sound mapping by slice P1).
  * Takes a loaded [GameSetData] with match pairs and [onExit].
  *
- * The engine swaps matched cards for new ones at once (M1). The screen keeps its own `shown`
- * list so the matched pair can pulse green and fade out first, and the new cards then take the
- * same two slots and scale in. Every other card stays where it is.
+ * 2026-10-24 (random arrivals): a matched pair no longer gets the next pair in the same two slots. The two slots turn
+ * into empty "portal" slots, and a loop in this screen asks the engine for ONE card at a time at random moments
+ * (0.6 to 2.8 s apart, 0.25 to 0.9 s when nothing on the board can be matched). The card is any card of the deck and it
+ * takes a random empty slot, so what comes, where and when cannot be predicted. The screen keeps its own `shown`
+ * list (one entry per slot, null = empty) so the matched pair can pulse green and fade out first.
  * `attempt` restarts the game (new engine, fresh screen state) when the player taps Retry.
  *
  * P1 sound map: tap = Tap + light tap | match = Correct (Combo from a streak of 2) + correct buzz |
@@ -92,8 +96,9 @@ import kotlinx.coroutines.launch
  * and the highlight colours were made stronger.
  *
  * Slice G3 (levels): [level] picks the [MatchTuning]. Pairs on the board come from the engine; Easy shows which card was
- * the right partner after a wrong pair; Hard shows a timer against par (pairs x seconds) and uses it for the 3rd star
- * (see MatchResult). 10 or more cards use 3 columns so the board does not scroll.
+ * the right partner after a wrong pair (only when that partner is on the board); Hard shows a timer against par
+ * (pairs x seconds) and uses it for the 3rd star (see MatchResult). 10 or more cards use 3 columns so the board does not
+ * scroll.
  *
  * Slice R2 (result saver): when [scopePath] is not blank, the finished game is saved once through
  * [GameResultsRepository.save] (stars from [matchStars], score from [matchScore]) and the result screen shows the
@@ -102,9 +107,9 @@ import kotlinx.coroutines.launch
  * Slice MW (part 2): a small level chip (Easy / Medium / Hard) sits in the top row next to the pair count. It takes no
  * extra height, so the Hard board still fits without scrolling.
  *
- * Slice MW (part 3, owner yes 2026-10-22): every new card (first board and the two cards that replace a matched pair)
- * flips over from a card back to its face. This is only the entrance animation: the game rules are unchanged, cards
- * still show their text as soon as the flip ends and every card is tappable at once. Reduce-motion skips the flip.
+ * Slice MW (part 3, owner yes 2026-10-22): every new card (first board and every card that arrives later) flips over
+ * from a card back to its face. This is only the entrance animation: cards show their text as soon as the flip ends and
+ * every card is tappable at once. Reduce-motion skips the flip.
  */
 @Composable
 fun MatchScreen(
@@ -127,7 +132,8 @@ fun MatchScreen(
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
 
     var tick by remember { mutableIntStateOf(0) }
-    var shown by remember(set.id, attempt, level) { mutableStateOf(engine.board) }
+    // One entry per slot. null = empty slot (a new card will arrive there at a random moment).
+    var shown by remember(set.id, attempt, level) { mutableStateOf<List<MatchCard?>>(engine.slots) }
     var leaving by remember(set.id, attempt, level) { mutableStateOf<Set<Int>>(emptySet()) }
     var wrongIds by remember(set.id, attempt, level) { mutableStateOf<List<Int>>(emptyList()) }
     // Easy: the card that was the right partner of the first tapped card of a wrong pair (shown briefly).
@@ -153,6 +159,25 @@ fun MatchScreen(
         if (hintId != null) {
             delay(900)
             hintId = null
+        }
+    }
+
+    // Random arrivals: one card, one empty slot, at a random moment. Nothing arrives while a matched pair is still
+    // fading out (its slots are not empty on screen yet).
+    LaunchedEffect(set.id, attempt, level) {
+        while (engine.phase is MatchPhase.Playing) {
+            if (!engine.canSpawn || leaving.isNotEmpty()) {
+                delay(100)
+                continue
+            }
+            // When nothing on the board can be matched, the next card comes sooner.
+            val stuck = !engine.hasMatchOnBoard()
+            val wait = if (stuck) Random.nextLong(250L, 900L) else Random.nextLong(600L, 2800L)
+            delay(wait)
+            if (leaving.isNotEmpty()) continue
+            val spawn = engine.spawnNext() ?: continue
+            shown = shown.toMutableList().also { it[spawn.slot] = spawn.card }
+            tick++
         }
     }
 
@@ -289,73 +314,74 @@ fun MatchScreen(
                     verticalArrangement = Arrangement.spacedBy(if (compact) 8.dp else 10.dp),
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
-                    items(shown, key = { it.id }) { card ->
-                        val isLeaving = card.id in leaving
-                        MatchCardView(
-                            text = card.text,
-                            selected = selectedId == card.id,
-                            wrong = card.id in wrongIds,
-                            hint = hintId == card.id,
-                            leaving = isLeaving,
-                            compact = compact,
-                            reduceMotion = reduceMotion,
-                            onClick = {
-                                if (isLeaving) return@MatchCardView
-                                wrongIds = emptyList()
-                                hintId = null
-                                when (engine.select(card.id)) {
-                                    MatchSelectResult.Highlighted -> {
-                                        GameAudio.play(GameAudio.Sfx.Tap)
-                                        GameHaptics.tap(view, true)
-                                    }
-                                    MatchSelectResult.Matched,
-                                    MatchSelectResult.MatchedAndFinished -> {
-                                        // Combo chirp from a streak of 2; the last pair keeps the plain
-                                        // Correct sound because the Victory fanfare follows on the result screen.
-                                        val lastPair = engine.phase is MatchPhase.Complete
-                                        if (engine.streak >= 2 && !lastPair) {
-                                            GameAudio.play(GameAudio.Sfx.Combo)
-                                        } else {
-                                            GameAudio.play(GameAudio.Sfx.Correct)
+                    // Empty slots get a negative key so they never clash with a card id.
+                    itemsIndexed(shown, key = { index, c -> c?.id ?: (-1 - index) }) { _, card ->
+                        if (card == null) {
+                            MatchEmptySlot(reduceMotion = reduceMotion)
+                        } else {
+                            val isLeaving = card.id in leaving
+                            MatchCardView(
+                                text = card.text,
+                                selected = selectedId == card.id,
+                                wrong = card.id in wrongIds,
+                                hint = hintId == card.id,
+                                leaving = isLeaving,
+                                compact = compact,
+                                reduceMotion = reduceMotion,
+                                onClick = {
+                                    if (isLeaving) return@MatchCardView
+                                    wrongIds = emptyList()
+                                    hintId = null
+                                    when (engine.select(card.id)) {
+                                        MatchSelectResult.Highlighted -> {
+                                            GameAudio.play(GameAudio.Sfx.Tap)
+                                            GameHaptics.tap(view, true)
                                         }
-                                        GameHaptics.correct(view, true)
-                                        val oldIds = engine.lastMatchedCards.map { it.id }
-                                        val newCards: List<MatchCard> = engine.lastNewCardIds
-                                            .mapNotNull { id -> engine.board.find { it.id == id } }
-                                        leaving = leaving + oldIds
-                                        busy++
-                                        scope.launch {
-                                            delay(if (reduceMotion) 0L else 520L)
-                                            shown = shown.mapNotNull { c ->
-                                                val i = oldIds.indexOf(c.id)
-                                                if (i < 0) c else newCards.getOrNull(i)
-                                            }
-                                            leaving = leaving - oldIds.toSet()
-                                            busy--
-                                        }
-                                    }
-                                    MatchSelectResult.Wrong -> {
-                                        GameAudio.play(GameAudio.Sfx.Wrong)
-                                        GameHaptics.wrong(view, true)
-                                        wrongIds = engine.lastWrongIds
-                                        if (tuning.wrongPairHint) {
-                                            val firstId = engine.lastWrongIds.firstOrNull()
-                                            val first = engine.board.find { it.id == firstId }
-                                            hintId = if (first == null) {
-                                                null
+                                        MatchSelectResult.Matched,
+                                        MatchSelectResult.MatchedAndFinished -> {
+                                            // Combo chirp from a streak of 2; the last pair keeps the plain
+                                            // Correct sound because the Victory fanfare follows on the result screen.
+                                            val lastPair = engine.phase is MatchPhase.Complete
+                                            if (engine.streak >= 2 && !lastPair) {
+                                                GameAudio.play(GameAudio.Sfx.Combo)
                                             } else {
-                                                engine.board.find { it.pairId == first.pairId && it.id != first.id }?.id
+                                                GameAudio.play(GameAudio.Sfx.Correct)
+                                            }
+                                            GameHaptics.correct(view, true)
+                                            val oldIds = engine.lastMatchedCards.map { it.id }
+                                            leaving = leaving + oldIds
+                                            busy++
+                                            scope.launch {
+                                                delay(if (reduceMotion) 0L else 520L)
+                                                // The two slots become empty. New cards arrive later, one by one.
+                                                shown = shown.map { c -> if (c != null && c.id in oldIds) null else c }
+                                                leaving = leaving - oldIds.toSet()
+                                                busy--
                                             }
                                         }
+                                        MatchSelectResult.Wrong -> {
+                                            GameAudio.play(GameAudio.Sfx.Wrong)
+                                            GameHaptics.wrong(view, true)
+                                            wrongIds = engine.lastWrongIds
+                                            if (tuning.wrongPairHint) {
+                                                val firstId = engine.lastWrongIds.firstOrNull()
+                                                val first = engine.board.find { it.id == firstId }
+                                                hintId = if (first == null) {
+                                                    null
+                                                } else {
+                                                    engine.board.find { it.pairId == first.pairId && it.id != first.id }?.id
+                                                }
+                                            }
+                                        }
+                                        else -> {}
                                     }
-                                    else -> {}
+                                    // Mirror the engine's selection (set on first tap, null after the same
+                                    // card is tapped again, a match or a wrong pair).
+                                    selectedId = engine.selectedId
+                                    tick++
                                 }
-                                // Mirror the engine's selection (set on first tap, null after the same
-                                // card is tapped again, a match or a wrong pair).
-                                selectedId = engine.selectedId
-                                tick++
-                            }
-                        )
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(8.dp))
@@ -363,6 +389,29 @@ fun MatchScreen(
             }
         }
     }
+}
+
+/** An empty slot: a faint pulsing outline where a new card will arrive at some random moment. */
+@Composable
+private fun MatchEmptySlot(reduceMotion: Boolean) {
+    val shape = RoundedCornerShape(14.dp)
+    val pulse = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        if (!reduceMotion) {
+            while (true) {
+                pulse.animateTo(1f, tween(1100))
+                pulse.animateTo(0f, tween(1100))
+            }
+        }
+    }
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .aspectRatio(1.15f)
+            .clip(shape)
+            .background(Color(0x0DFFFFFF))
+            .border(1.dp, WisdomCyan.copy(alpha = 0.10f + 0.14f * pulse.value), shape)
+    )
 }
 
 @Composable
@@ -430,15 +479,17 @@ private fun MatchCardView(
         hint -> green
         wrong -> Color(0xFFF43F5E)
         selected -> WisdomCyan
-        else -> Color(0x33FFFFFF)
+        else -> Color(0x5522E0FF)
     }
     val baseBg = when {
         hint -> green.copy(alpha = 0.30f)
         selected -> Color(0x6622E0FF)
         wrong -> Color(0x33F43F5E)
-        else -> Color(0x22121A2A)
+        else -> Color(0x3314243A)
     }
     val bg = lerp(baseBg, green.copy(alpha = 0.45f), pulse.value)
+    // Glass look: the card is lighter at the top and darker at the bottom.
+    val bgBottom = lerp(bg, Color(0xCC050B14), 0.5f)
 
     Box(
         modifier = Modifier
@@ -460,7 +511,7 @@ private fun MatchCardView(
                 spotColor = WisdomCyan
             )
             .clip(shape)
-            .background(bg)
+            .background(Brush.verticalGradient(listOf(bg, bgBottom)))
             .border(if (selected || leaving || hint) 4.dp else 2.dp, borderColor, shape)
             .clickable(enabled = !leaving, onClick = onClick)
             .padding(if (compact) 6.dp else 12.dp),
