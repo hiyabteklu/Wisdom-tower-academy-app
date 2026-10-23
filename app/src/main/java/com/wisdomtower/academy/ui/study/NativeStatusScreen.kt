@@ -137,8 +137,9 @@ private fun formatSavedAt(ms: Long): String =
  * everything is drawn from the copy and one amber line says when it was saved. (2) Read failed, nothing saved (first open
  * offline): a notice with Retry, then the EMPTY skeleton: the four HUD cards with dashes, the track selector and the fixed
  * recommendation texts. [computeStatus] is NOT run on an empty list for the skeleton (it would print 0 hours, a 0-day
- * streak and a "Zero Study Sessions" alert, which is a claim, not a fact), so no Standing, no Retention panel, no alerts
- * and no subject / day panels (those get their own offline states in slices O3 and O4). Online behaviour is unchanged.
+ * streak and a "Zero Study Sessions" alert, which is a claim, not a fact), so no Standing, no Retention panel and no
+ * alerts. Slice O3 (2026-10-23): the empty skeleton also shows the "By subject" panel (`progressKnown = false`: empty rows
+ * with dashes) and the "Today & this week" panel, each with its own offline states. Online behaviour is unchanged.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -369,6 +370,9 @@ fun NativeStatusScreen(
                         onRetry = { reloadKey += 1 }
                     )
                     StHudCards(summary = null, track = track, dailyGoalMinutes = dailyGoalMinutes)
+                    // OFFLINE STATUS (O3): subject rows (empty, names from the packed list) and the day panel (its own saved copy)
+                    StatusSubjectsPanel(rows = emptyList(), educationLevel = educationLevel, progressKnown = false)
+                    StatusDayPanel(dailyGoalMinutes = dailyGoalMinutes)
                     val fixedRecommendations = remember(track) { computeStatus(emptyList(), track).recommendations }
                     StRecommendationsPanel(recommendations = fixedRecommendations, name = name)
                 } else {
