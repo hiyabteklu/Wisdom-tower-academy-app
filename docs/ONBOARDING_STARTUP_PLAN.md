@@ -2,7 +2,15 @@
 
 > Repo is PUBLIC: no secrets, no student data. Written by Claude (chat) before any code, because the owner's quota may run out.
 > Evidence labels: VERIFIED = read in code on `main` 2026-10-23. HYPOTHESIS = not proven, needs a phone test or log.
-> Nothing below is compiled or seen on a phone yet.
+
+## 0. SLICE STATUS (updated 2026-10-23)
+- [x] O1: default look Transparent (`AppBackground.kt`, in `main`).
+- [x] O2: new 3-screen animated `OnboardingScreen.kt` (welcome, journey, orbit; in `main`).
+- [x] O3: `scripts/patch_o3_startup_cover.py` written and tested on a copy; owner runs Actions > Apply pending patches (log: `docs/SESSION_2026-10-23_O3_STARTUP_COVER.md`). NOT applied yet.
+- [ ] O4: `scripts/patch_o4_main_thread_relief.py` (next).
+- [ ] O5: owner phone test, then fix from the report.
+
+Plan changes: (1) the O3 cover draws the chosen app background (`appBackdrop()`), not solid navy (owner decision BG-LOADING; default look is now Transparent). (2) O3 also brings the cover back after onboarding finishes, because the WebView does not exist before that.
 
 ## 1. Owner words (2026-10-23, copied)
 - Serious redesign of the onboarding ("boarding") screens. Use animation.
@@ -14,16 +22,16 @@
 - DEFAULT LOOK: the "Transparent" look must be the default, not Dark/Night.
 
 ## 2. Verified findings (code read)
-1. `OnboardingScreen.kt` (12.7 KB, small, editable whole) has FIVE pages, not three: welcome (GIF), "Everything for your journey", "Zero margin for error", "Powerful AI...", "Stay on track" (notification permission). Flags: `hasCompletedOnboarding` / `setOnboardingCompleted` use SharedPreferences `wta_prefs` key `onboarding_done`.
+1. `OnboardingScreen.kt` (12.7 KB, small, editable whole) had FIVE pages, not three: welcome (GIF), "Everything for your journey", "Zero margin for error", "Powerful AI...", "Stay on track" (notification permission). Flags: `hasCompletedOnboarding` / `setOnboardingCompleted` use SharedPreferences `wta_prefs` key `onboarding_done`. (Replaced by O2.)
 2. ROOT CAUSE of the empty-screen loader (VERIFIED): in `MainActivity.kt`, `MainScreen` calls `onReady()` in its very first `LaunchedEffect(Unit)` (about line 1591), so the system splash is released at once. The app loader (`CustomCenteredLoader`, zIndex 95, about line 3564) is drawn INSIDE the Scaffold content area, so the top bar and bottom nav are drawn on top of / around it. That is exactly "loader rotating on an empty screen with the nav showing".
 3. Start-up timing (VERIFIED): the loader stays while `isInitialLoading`; it ends when the web page reports progress >= 60 or `onPageCommitVisible`, with a 3.0 s wait loop and a 3.5 s hard fail-safe.
 4. The loader overlay has no touch blocking (VERIFIED: no `pointerInput` on it), so taps pass through to the tabs and WebView underneath while it shows.
 5. Heavy main-thread work after every page (VERIFIED in `onPageFinished`): `document.documentElement.outerHTML` is read through `evaluateJavascript`; its callback (UI thread) runs `JSONTokener(...).nextValue()` on the whole page and `WebCacheVault.saveHtmlPage(...)`; then 7 scripts are injected, and 4 of them again after 800 ms. Quick tab switching repeats this for every page.
-6. Default look: `AppBackground.readSaved()` falls back to `AppBackgroundOption.Black` (Night). `AppBackgroundOption.Photo2` is the "Transparent" picture (`backgrounds/transparent.jpg`) and is still in `AppBackground.options`.
+6. Default look: `AppBackground.readSaved()` fell back to `AppBackgroundOption.Black` (Night). `AppBackgroundOption.Photo2` is the "Transparent" picture (`backgrounds/transparent.jpg`). (Fixed by O1.)
 
 ## 3. Hypotheses (not proven)
 - H1 (freeze): main-thread jank from finding 5 plus a WebView load per quick tab tap, while the app is still starting (BrandBytes/GIF decode, backdrop picture decode, cache vault). Needs an ANR/logcat or a phone test after the fix.
-- H2: while the loader overlay is up the student can already tap tabs (finding 4); removing that chance may remove most freezes by itself.
+- H2: while the loader overlay is up the student can already tap tabs (finding 4); removing that chance may remove most freezes by itself (O3 does this).
 
 ## 4. Design
 
@@ -40,23 +48,23 @@ The brand logo in the centre, two orbit rings turning slowly in opposite directi
 Only `graphicsLayer` / alpha / Canvas progress (cheap on budget phones). Respect the system "remove animations" setting. Swipe and Next button as today.
 
 ### Start-up fix (MainActivity, patch script)
-- A full-screen start-up cover at the ROOT of `MainScreen` (above top bar and bottom nav): solid `BarBg` navy, big loader (about 160 dp), swallows all touches, stays until `isInitialLoading` is false AND the first page rendered (existing 3.5 s fail-safe stays), then fades out in 220 ms.
-- Keep the system splash until the first frame of this cover is drawn (call `onReady()` after the cover is composed, not before).
-- Move the `outerHTML` parse and `WebCacheVault.saveHtmlPage` to a background thread; skip the second 800 ms injection round if the page changed.
+- A full-screen start-up cover at the ROOT of `MainScreen` (above top bar and bottom nav): the chosen app background (plan change, was solid `BarBg` navy), big loader (160 dp), swallows all touches, stays until `isInitialLoading` is false (first page rendered, existing 3.5 s fail-safe stays), then fades out in 220 ms.
+- Keep the system splash until the first frame of this cover is drawn (call `onReady()` after one frame, not before).
+- O4: move the `outerHTML` parse and `WebCacheVault.saveHtmlPage` to a background thread; skip the second 800 ms injection round if the page changed.
 - `MainActivity.kt` is 264 KB: edit ONLY by patch script (`docs/EDITING_LARGE_FILES.md`), exact anchors, safe to run twice, tested on a copy.
 
 ### Default look
-`AppBackground.kt`: default in `readSaved()` becomes `Photo2` (Transparent). Phones that already saved Night or Day keep their choice; only phones with no saved choice (new installs) get Transparent. Cold-start navy of the system splash stays (theme XML is a protected area).
+`AppBackground.kt`: default in `readSaved()` is `Photo2` (Transparent). Phones that already saved Night or Day keep their choice; only phones with no saved choice (new installs) get Transparent. Cold-start navy of the system splash stays (theme XML is a protected area).
 
 ## 5. Slices (one per chat)
-- O1: `AppBackground.kt` default to Transparent (tiny, direct commit).
-- O2: new `OnboardingScreen.kt` (3 screens, animated). Whole-file replace. Same function names and the two SharedPreferences helpers unchanged.
-- O3: patch script `scripts/patch_o3_startup_cover.py` (cover, onReady timing, touch block). Owner runs Actions > Apply pending patches.
+- O1: `AppBackground.kt` default to Transparent (tiny, direct commit). DONE.
+- O2: new `OnboardingScreen.kt` (3 screens, animated). Whole-file replace. Same function names and the two SharedPreferences helpers unchanged. DONE.
+- O3: patch script `scripts/patch_o3_startup_cover.py` (cover, onReady timing, touch block). Owner runs Actions > Apply pending patches. WRITTEN, NOT APPLIED.
 - O4: patch script `scripts/patch_o4_main_thread_relief.py` (HTML cache off the main thread). Same way.
 - O5: owner phone test (checklist below), then fix from the report.
 
 ## 6. Owner phone test
-1. Fresh install (or clear data): onboarding shows once, 3 screens, swipe and Next work, Skip works, "Start learning" asks notification permission, second launch skips onboarding.
+1. Fresh install (or clear data): onboarding shows once, 3 screens, swipe and Next work, Skip works, "Start learning" asks notification permission, second launch skips onboarding; after onboarding the big cover shows until the first page appears.
 2. Cold start: a big loader covers the WHOLE screen (no top bar, no bottom nav visible) until the app is ready, then fades.
 3. Right after opening, tap tabs fast and scroll hard 10 times: no freeze. If it still freezes: send the time it happened (logcat or an "App not responding" screenshot).
 4. New install with no saved choice: background is Transparent. Settings still lets you pick Night or Day.
