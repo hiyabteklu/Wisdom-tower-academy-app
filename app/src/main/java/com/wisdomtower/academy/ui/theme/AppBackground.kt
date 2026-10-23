@@ -2,6 +2,8 @@ package com.wisdomtower.academy.ui.theme
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.os.Handler
+import android.os.Looper
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -146,11 +148,19 @@ private fun pct(v: Float): String = String.format(Locale.US, "%.1f", v * 100f)
  * Loads each picture once, on a background thread (never while a screen is drawing), shrinks it, and keeps it. [get]
  * returns null until the picture is ready; when it becomes ready the Compose state [version] changes, so every
  * background that read it redraws by itself.
+ *
+ * BG-START (2026-10-23): the change of [version] is now written on the MAIN thread (it used to be written from the
+ * decoding thread), and [currentVersion] lets [appBackdrop] read it while COMPOSING, see there.
  */
 private object BackdropPhotos {
     private val cache = HashMap<String, ImageBitmap>()
     private val loading = HashSet<String>()
+    private val mainHandler = Handler(Looper.getMainLooper())
     private var version by mutableStateOf(0)
+
+    /** Changes every time a picture finishes loading. Read it while composing to recompose when that happens. */
+    val currentVersion: Int
+        get() = version
 
     fun get(option: AppBackgroundOption): ImageBitmap? {
         val asset = option.photoAsset ?: return null
@@ -165,7 +175,7 @@ private object BackdropPhotos {
                 if (bitmap != null) cache[asset] = bitmap
                 loading.remove(asset)
             }
-            if (bitmap != null) version += 1
+            if (bitmap != null) mainHandler.post { version += 1 }
         }.start()
         return null
     }
@@ -192,10 +202,20 @@ private object BackdropPhotos {
  * WHOLE window (the root layout) and shifted by the position of this box, so every copy shows the matching part of one
  * picture and the pieces line up. With an [option] (a small preview) the old behaviour stays: fitted to the box itself.
  * Before the first layout pass the box does not know its place yet and draws the old way for one frame.
+ *
+ * BG-START (2026-10-23, owner: at app start the picture only shows in the middle, the header, the status bar and the
+ * bottom bar stay black until the day / night choice is touched): what the owner's screenshot shows is that the copy
+ * drawn behind the bars (the root copy in Theme.kt) kept the plain colour while the copy in the middle (the loader
+ * overlay in MainActivity) had the picture. HYPOTHESIS: the root copy was drawn once before the picture finished
+ * decoding and was never told to draw again (the redraw relied on a state read inside the draw block only). Fix: every
+ * copy now also reads the picture version while COMPOSING (`photoVersion`), and the draw block uses it, so each copy is
+ * recomposed and redrawn when a picture becomes ready. Not seen on a phone.
  */
 fun Modifier.appBackdrop(option: AppBackgroundOption? = null): Modifier = composed {
     var origin by remember { mutableStateOf(Offset.Zero) }
     var screen by remember { mutableStateOf(Size.Zero) }
+    // BG-START: read while composing, so this modifier is rebuilt (and redrawn) when a picture has finished loading.
+    val photoVersion = BackdropPhotos.currentVersion
     this
         .onGloballyPositioned { coords ->
             val position = coords.positionInRoot()
@@ -205,6 +225,8 @@ fun Modifier.appBackdrop(option: AppBackgroundOption? = null): Modifier = compos
             if (rootSize != screen) screen = rootSize
         }
         .drawBehind {
+            @Suppress("UNUSED_VARIABLE")
+            val loadedPictures = photoVersion
             val opt = option ?: AppBackground.selected
             val aligned = option == null && screen.width > 0f && screen.height > 0f
             if (aligned) {
