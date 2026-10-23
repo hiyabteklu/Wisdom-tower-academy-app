@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.competition
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -22,6 +24,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -37,7 +40,6 @@ import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
-import com.wisdomtower.academy.ui.theme.wisdomReveal
 import kotlinx.coroutines.launch
 import org.json.JSONArray
 import org.json.JSONObject
@@ -53,6 +55,10 @@ private val RvMuted: Color
 private val RvRed: Color
     get() = if (AppThemeMode.isDark) Color(0xFFF87171) else Color(0xFFB91C1C)
 
+// Solid-ish base under each floating button, so the text of the question never shows through the pill.
+private val FloatBase: Color
+    get() = if (AppThemeMode.isDark) Color(0xF2101829) else Color(0xF2FBF9F4)
+
 // C7 slice 3: review of the student's own ranked attempt after the window closed. Loads
 // CompetitionRepository.review (the server refuses it earlier, the plain message is shown), then shows one
 // question at a time through CompetitionReviewView (math rendered): the correct answer, the student's pick and
@@ -64,9 +70,13 @@ private val RvRed: Color
 // Session AJ (owner, 2026-10-15): the review follows the hub's review look. The two hub buttons (Official
 // solution, Explain with AI) now live inside the page in ONE row, the solution is closed when a question opens,
 // the separate native Explain button is gone, and a slide left or right moves to the next or previous question
-// (the page calls onSwipe). Previous and Next are pill buttons in one row, Back is a pill too.
-// Session UI_AC (M11 slice 4, 2026-10-16): the score line rises in once with wisdomReveal when the review has loaded.
-// Back, Previous and Next stay instant. The question motion itself lives in competition_review.html (UI_Z).
+// (the page calls onSwipe).
+// Owner request 2026-10-24: FULL HEIGHT. Once the review is loaded there is no Back row, no title, no score line and no
+// Question N of M line any more: the page fills the whole screen (leave with the phone Back button or gesture, the
+// BackHandler below). Previous and Next are two separate floating pills over the page (no strip, no second footer), with
+// a small N / M pill between them. The page gets extra bottom padding (bottomPaddingDp) so the last lines can scroll
+// above the pills. The Back row stays only while loading, on an error and when there are no questions, so there is
+// never a dead end.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 @Composable
 fun CompetitionReviewScreen(
@@ -101,111 +111,139 @@ fun CompetitionReviewScreen(
     Box(modifier = modifier.fillMaxSize()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                CompetitionPillButton(label = "Back", onClick = onBack, modifier = Modifier.size(width = 76.dp, height = 40.dp))
-                Spacer(modifier = Modifier.size(12.dp))
-                Text(
-                    text = title,
-                    color = WisdomInk,
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier.weight(1f)
-                )
-            }
-
-            val res = review
-            val err = errorText
-            if (loading && res == null) {
-                Text(text = "Loading...", color = RvMuted, fontSize = 14.sp)
-            } else if (res == null) {
-                Text(text = err ?: "The review could not be loaded.", color = RvRed, fontSize = 13.sp)
-                CompetitionPillButton(
-                    label = "Try again",
-                    onClick = { reloadKey += 1 },
-                    emphasized = true,
-                    modifier = Modifier.size(width = 120.dp, height = 40.dp)
-                )
-            } else if (res.questions.isEmpty()) {
-                Text(text = "There are no questions to review.", color = RvMuted, fontSize = 14.sp)
-            } else {
-                val questions = res.questions
-                val position = if (index >= questions.size) questions.size - 1 else index
-                val q = questions[position]
-                val score = res.score
-                val total = res.total
-                if (score != null && total != null) {
+        val res = review
+        val err = errorText
+        if (res == null || res.questions.isEmpty()) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    CompetitionPillButton(label = "Back", onClick = onBack, modifier = Modifier.size(width = 76.dp, height = 40.dp))
+                    Spacer(modifier = Modifier.size(12.dp))
                     Text(
-                        text = "Your score: " + score.toString() + " of " + total.toString(),
-                        color = RvCyan,
-                        fontSize = 14.sp,
+                        text = title,
+                        color = WisdomInk,
+                        fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
-                        modifier = Modifier.wisdomReveal(key = "comp_review_score_" + competitionId, index = 0)
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                Text(
-                    text = "Question " + (position + 1).toString() + " of " + questions.size.toString(),
-                    color = WisdomInk,
-                    fontSize = 13.sp
-                )
-                CompetitionReviewView(
-                    questionId = q.id,
-                    prompt = q.prompt,
-                    choices = q.choices,
-                    correct = q.correct,
-                    chosen = q.chosen,
-                    solution = q.solution,
-                    modifier = Modifier
-                        .weight(1f)
-                        .fillMaxWidth(),
-                    explanation = explanations[q.id] ?: "",
-                    // the Explain button is not drawn while a ranked exam is running
-                    canExplain = !ExamLockdown.active,
-                    explaining = explainingId == q.id,
-                    onSwipe = { next ->
-                        if (next) {
-                            if (position < questions.size - 1) index = position + 1
-                        } else {
-                            if (position > 0) index = position - 1
-                        }
-                    },
-                    onExplain = {
-                        if (explainingId == null && !ExamLockdown.active) {
-                            val asked = q
-                            scope.launch {
-                                explainingId = asked.id
-                                val answer = AiExplainRepository.explain(buildExplainPayload(asked))
-                                explanations[asked.id] = answer
-                                explainingId = null
-                            }
+                if (loading && res == null) {
+                    Text(text = "Loading...", color = RvMuted, fontSize = 14.sp)
+                } else if (res == null) {
+                    Text(text = err ?: "The review could not be loaded.", color = RvRed, fontSize = 13.sp)
+                    CompetitionPillButton(
+                        label = "Try again",
+                        onClick = { reloadKey += 1 },
+                        emphasized = true,
+                        modifier = Modifier.size(width = 120.dp, height = 40.dp)
+                    )
+                } else {
+                    Text(text = "There are no questions to review.", color = RvMuted, fontSize = 14.sp)
+                }
+            }
+        } else {
+            val questions = res.questions
+            val position = if (index >= questions.size) questions.size - 1 else index
+            val q = questions[position]
+
+            CompetitionReviewView(
+                questionId = q.id,
+                prompt = q.prompt,
+                choices = q.choices,
+                correct = q.correct,
+                chosen = q.chosen,
+                solution = q.solution,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 10.dp),
+                bottomPaddingDp = 72,
+                explanation = explanations[q.id] ?: "",
+                // the Explain button is not drawn while a ranked exam is running
+                canExplain = !ExamLockdown.active,
+                explaining = explainingId == q.id,
+                onSwipe = { next ->
+                    if (next) {
+                        if (position < questions.size - 1) index = position + 1
+                    } else {
+                        if (position > 0) index = position - 1
+                    }
+                },
+                onExplain = {
+                    if (explainingId == null && !ExamLockdown.active) {
+                        val asked = q
+                        scope.launch {
+                            explainingId = asked.id
+                            val answer = AiExplainRepository.explain(buildExplainPayload(asked))
+                            explanations[asked.id] = answer
+                            explainingId = null
                         }
                     }
+                }
+            )
+
+            // Floating pills: no strip behind them, the gaps between them pass touches through to the page.
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 10.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                FloatingNavPill(
+                    label = "Previous",
+                    enabled = position > 0,
+                    emphasized = false,
+                    onClick = { index = position - 1 }
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                Box(
+                    modifier = Modifier
+                        .clip(CircleShape)
+                        .background(FloatBase)
+                        .padding(horizontal = 12.dp, vertical = 8.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    CompetitionPillButton(
-                        label = "Previous",
-                        enabled = position > 0,
-                        onClick = { index = position - 1 },
-                        modifier = Modifier.weight(1f)
-                    )
-                    CompetitionPillButton(
-                        label = "Next",
-                        emphasized = true,
-                        enabled = position < questions.size - 1,
-                        onClick = { index = position + 1 },
-                        modifier = Modifier.weight(1f)
+                    Text(
+                        text = (position + 1).toString() + " / " + questions.size.toString(),
+                        color = RvCyan,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1
                     )
                 }
+                FloatingNavPill(
+                    label = "Next",
+                    enabled = position < questions.size - 1,
+                    emphasized = true,
+                    onClick = { index = position + 1 }
+                )
             }
         }
+    }
+}
+
+// One floating pill: the glass pill on top of a solid-ish base so it stays readable over the page text.
+@Composable
+private fun FloatingNavPill(
+    label: String,
+    enabled: Boolean,
+    emphasized: Boolean,
+    onClick: () -> Unit
+) {
+    Box(modifier = Modifier
+        .clip(CircleShape)
+        .background(FloatBase)) {
+        CompetitionPillButton(
+            label = label,
+            onClick = onClick,
+            emphasized = emphasized,
+            enabled = enabled,
+            modifier = Modifier.size(width = 108.dp, height = 40.dp)
+        )
     }
 }
 

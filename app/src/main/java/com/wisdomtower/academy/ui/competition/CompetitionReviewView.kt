@@ -35,6 +35,8 @@ import org.json.JSONObject
 // so they are handed to the main thread before the screen's lambdas run.
 // Default background picture (owner, 2026-10-17): the WebView is see-through and the page's own dark page colour is
 // cleared (AppBackdrop), so the app picture drawn behind the review screen shows through.
+// Owner request 2026-10-24: bottomPaddingDp adds empty space at the end of the page (one style rule added after the page
+// loaded), so the last lines can scroll above the floating Previous / Next pills that the screen draws over the page.
 // Status: written, not compiled, not seen on a device.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 @SuppressLint("SetJavaScriptEnabled")
@@ -47,6 +49,7 @@ fun CompetitionReviewView(
     chosen: Int?,
     solution: String,
     modifier: Modifier = Modifier,
+    bottomPaddingDp: Int = 0,
     explanation: String = "",
     canExplain: Boolean = false,
     explaining: Boolean = false,
@@ -106,6 +109,14 @@ fun CompetitionReviewView(
 
                     override fun onPageFinished(view: WebView, url: String?) {
                         AppBackdrop.clearPageBackground(view)
+                        if (bottomPaddingDp > 0) {
+                            val css = "#root{padding-bottom:" + bottomPaddingDp.toString() + "px !important}"
+                            view.evaluateJavascript(
+                                "(function(){var s=document.createElement('style');s.textContent=" +
+                                    JSONObject.quote(css) + ";document.head.appendChild(s);})();",
+                                null
+                            )
+                        }
                         pageReady = true
                     }
 
