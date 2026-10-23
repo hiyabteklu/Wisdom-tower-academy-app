@@ -1,6 +1,6 @@
 # STATUS CARD PLAN: "Your week" insight + 9:16 picture the student saves to the gallery
 
-Date: 2026-10-23. Owner request. Status: PLAN ONLY. Nothing is coded, nothing compiled, nothing seen on a device.
+Date: 2026-10-23. Owner request. Status: S1 and S2 pushed (CI result of S2 to be confirmed). Nothing seen on a device yet.
 
 ## Goal
 1. Your status (Learning > Your status) gets a short, human "Your week" block: plain sentences, no AI jargon.
@@ -106,4 +106,10 @@ PDF version, parent report, weekly push notification with the picture, reading s
 | Slice | State |
 |---|---|
 | Plan | pushed (this file) |
-| S1 to S5 | not started |
+| S1 StatusCardData.kt | pushed (#1086, commit 0a2f901). Read-checked 2026-10-23 against StatusBreakdown, NativeStatusModel, MySubjectsStore: field names and types match. CI result not seen by this session |
+| S2 part 1 StatusWeekBlock.kt | pushed (#1087, commit ce55f2f). CI FAILED: the same commit overwrote NativeStatusScreen.kt with a broken file ("Expecting a top level declaration" at line 1, plus 4 "Unresolved reference NativeStatusScreen") |
+| S2 part 2 restore NativeStatusScreen.kt + one StatusWeekBlock line | pushed (#1088, commit cafdc63). File read in full 2026-10-23: complete, the one call matches the StatusWeekBlock signature. CI result to be confirmed |
+| S2b wording clean-up | not started, waits for owner OK (open question 2) |
+| S3 to S5 | not started. Do not start S3 until #1088 is green |
+
+Lesson: never push a whole existing file over NativeStatusScreen.kt from a partial copy. Read it first, change one line, push it back.
