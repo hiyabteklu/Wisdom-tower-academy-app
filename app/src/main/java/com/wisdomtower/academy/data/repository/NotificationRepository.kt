@@ -2,6 +2,7 @@ package com.wisdomtower.academy.data.repository
 
 import android.content.Context
 import android.content.SharedPreferences
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.model.NativeNotificationItem
 import com.wisdomtower.academy.data.model.NotificationBlock
 import com.wisdomtower.academy.data.model.NotificationRun
@@ -132,7 +133,18 @@ object NotificationRepository {
                 val qs = if (queryParams.isNotEmpty()) "?" + queryParams.joinToString("&") else ""
                 val url = "https://www.wisdom-tower-academy.live/api/notifications$qs"
 
-                val request = Request.Builder().url(url).build()
+                // 2026-10-23: send the student's login token (when signed in) so the website can verify who is
+                // asking and fill in their first name in the welcome notice. Without a token (signed out, or the
+                // refresh failed) the old ?userId=&email= request is sent as before.
+                val token: String? = try {
+                    AuthStateManager.refreshIfNeeded(force = false)
+                    AuthStateManager.currentUser.value?.accessToken?.takeIf { it.isNotBlank() }
+                } catch (_: Exception) {
+                    null
+                }
+                val builder = Request.Builder().url(url)
+                if (token != null) builder.addHeader("Authorization", "Bearer $token")
+                val request = builder.build()
                 httpClient.newCall(request).execute().use { response ->
                     if (!response.isSuccessful) {
                         _lastError.value = "Could not load notifications (error ${response.code}). Try again."
