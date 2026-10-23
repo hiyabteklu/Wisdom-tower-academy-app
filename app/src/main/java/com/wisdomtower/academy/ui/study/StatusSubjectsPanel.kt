@@ -39,6 +39,7 @@ import com.wisdomtower.academy.data.content.ExamAttemptsReader
 import com.wisdomtower.academy.data.content.MySubjectsStore
 import com.wisdomtower.academy.data.content.ProgressRow
 import com.wisdomtower.academy.data.content.ResourceCatalogIndex
+import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentSky
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
@@ -49,40 +50,71 @@ import com.wisdomtower.academy.ui.theme.WisdomMessageCard
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
 private data class SubjectEntry(val key: String, val name: String, val breakdown: SubjectBreakdown)
+
+/** OFFLINE STATUS (O3): shown when the subject details cannot be read and nothing is saved yet. */
+private const val SUBJECTS_CONNECT_NOTICE = "Could not reach the server. Connect to the internet once to load your subject details."
+
+/** "23 Oct 2026, 14:05" in the phone's own time. */
+private fun ssFormatSavedAt(ms: Long): String =
+    SimpleDateFormat("d MMM yyyy, HH:mm", Locale.US).format(Date(ms))
 
 /**
  * My Status V2 (S3): the "By subject" panel inside "Your status". One row per picked subject (T8 picks; with no picks, every
  * subject that has activity): mini completion ring, subject name, items opened X of Y, and a small gauge icon. Tapping the row
  * or the icon opens [StatusDetailCard]. Real numbers only (G4). [rows] = the progress rows the status screen already loaded
- * (already filtered to the picks). Catalog = [ResourceCatalogIndex], exams = [ExamAttemptsReader]; a failed read shows the
- * existing message card with Retry.
+ * (already filtered to the picks). Catalog = [ResourceCatalogIndex], exams = [ExamAttemptsReader].
+ *
+ * OFFLINE STATUS (2026-10-23, docs/OFFLINE_STATUS_PLAN.md slice O3): the panel always draws. (1) Catalog and exam attempts
+ * available (the exam read may be the saved copy, then one amber line says when it was saved): the rows as before.
+ * (2) Either is missing, or [progressKnown] is false (the status screen could not read the progress, so its empty skeleton
+ * is shown): a notice with Retry, then one EMPTY row per picked subject (name from the packed subject list, empty ring,
+ * dashes instead of "x of y items opened", no detail card). Nothing is counted as zero. With no picks there are no names to
+ * draw: "Nothing to show yet." plus the notice. Online behaviour is unchanged.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
-fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?) {
+fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?, progressKnown: Boolean = true) {
     val context = LocalContext.current
     var reloadKey by remember { mutableStateOf(0) }
     var loading by remember { mutableStateOf(true) }
-    var failed by remember { mutableStateOf(false) }
+    // true = no data to compute from: draw the empty skeleton rows (see skeletonNames)
+    var noData by remember { mutableStateOf(false) }
     var entries by remember { mutableStateOf<List<SubjectEntry>>(emptyList()) }
+    var skeletonNames by remember { mutableStateOf<List<String>>(emptyList()) }
+    var savedAtMs by remember { mutableStateOf<Long?>(null) }
     var openKey by remember { mutableStateOf<String?>(null) }
 
-    LaunchedEffect(rows, reloadKey) {
+    LaunchedEffect(rows, reloadKey, progressKnown) {
         loading = true
-        failed = false
+        noData = false
+        savedAtMs = null
         val userId = AuthStateManager.currentUser.value?.id
         val picks = if (userId != null) MySubjectsStore.load(context, userId, educationLevel).keys else emptySet()
-        val catalog = ResourceCatalogIndex.get(context)
-        val attempts = ExamAttemptsReader.fetchAll()
-        if (catalog == null || attempts !is ExamAttemptsFetchResult.Success) {
-            failed = true
+        val names = MySubjectsStore.packages.flatMap { it.subjects }.associate { it.key to it.name }
+        if (!progressKnown) {
+            entries = emptyList()
+            skeletonNames = picks.map { names[it] ?: it.substringAfter('/') }.sorted()
+            noData = true
             loading = false
             return@LaunchedEffect
         }
+        val catalog = ResourceCatalogIndex.get(context)
+        val attempts = ExamAttemptsReader.fetchAll()
+        if (catalog == null || attempts !is ExamAttemptsFetchResult.Success) {
+            entries = emptyList()
+            skeletonNames = picks.map { names[it] ?: it.substringAfter('/') }.sorted()
+            noData = true
+            loading = false
+            return@LaunchedEffect
+        }
+        savedAtMs = if (attempts.fromCache) attempts.savedAtMs else null
         entries = withContext(Dispatchers.Default) { buildEntries(catalog.items, rows, attempts.rows, picks) }
         loading = false
     }
@@ -110,19 +142,65 @@ fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?) {
             loading -> Box(modifier = Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
                 CircularProgressIndicator(color = WisdomCyan, modifier = Modifier.size(24.dp))
             }
-            failed -> WisdomMessageCard(
-                message = "Could not load your subject details. Check your internet connection and try again.",
-                isError = true,
-                onRetry = { reloadKey += 1 }
-            )
+            noData -> {
+                WisdomMessageCard(
+                    message = SUBJECTS_CONNECT_NOTICE,
+                    isError = false,
+                    onRetry = { reloadKey += 1 }
+                )
+                if (skeletonNames.isEmpty()) {
+                    Text("Nothing to show yet.", fontSize = 12.sp, color = WisdomMuted)
+                } else {
+                    skeletonNames.forEach { n -> SkeletonSubjectRow(n) }
+                }
+            }
             entries.isEmpty() -> Text("Nothing to show yet.", fontSize = 12.sp, color = WisdomMuted)
-            else -> entries.forEach { e -> SubjectRow(e) { openKey = e.key } }
+            else -> {
+                val savedAt = savedAtMs
+                if (savedAt != null) {
+                    Text(
+                        "No connection to the server. Exam details as last saved on ${ssFormatSavedAt(savedAt)}.",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = WisdomAccentAmber,
+                        lineHeight = 16.sp
+                    )
+                }
+                entries.forEach { e -> SubjectRow(e) { openKey = e.key } }
+            }
         }
     }
 
     val open = entries.firstOrNull { it.key == openKey }
     if (open != null) {
         StatusDetailCard(title = open.name, breakdown = open.breakdown, onDismiss = { openKey = null })
+    }
+}
+
+/** OFFLINE STATUS (O3): one empty row (name, empty ring, dashes). Not clickable: there is nothing to open. */
+@Composable
+private fun SkeletonSubjectRow(name: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .background(WisdomGlassFillQuiet)
+            .border(BorderStroke(1.dp, WisdomGlassBorder), RoundedCornerShape(16.dp))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        StatusRing(
+            value = null,
+            color = statusRingColor(null),
+            diameter = 48.dp,
+            strokeWidth = 5.dp,
+            textSize = 12.sp
+        )
+        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk, lineHeight = 19.sp)
+            Text("\u2014 of \u2014 items opened", fontSize = 11.sp, color = WisdomMuted)
+        }
     }
 }
 
