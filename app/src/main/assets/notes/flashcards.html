@@ -21,16 +21,18 @@
   .chip.learning { border-color: rgba(251,191,36,.25); color: #fde68a; }
   .chip.again { border-color: rgba(251,113,133,.25); color: #fecdd3; }
 
-  /* M8 (2026-10-16, docs/UI_MOTION_PLAN.md): the flip turns the card around its vertical axis (rotateY, perspective on the
-   * slot). Still NO backface-visibility and NO preserve-3d: only ONE face is shown at a time and the faces are swapped
-   * while the card is edge-on (script below), so a missing 3D transform can never hide the answer (the F1d lesson).
-   * To go back to the old flat squeeze, replace the fcTurn keyframes by: 0% scaleX(1), 50% scaleX(.04), 100% scaleX(1). */
-  .slot { position: relative; height: 56vh; min-height: 300px; perspective: 900px; animation: fcIn .26s cubic-bezier(.22,1,.36,1); cursor: pointer; }
-  .slot.from-r { animation-name: fcInR; }
-  .slot.from-l { animation-name: fcInL; }
-  .slot.dragging { animation: none; }
+  /* M8 (2026-10-16): the flip turns the card around its vertical axis (rotateY, perspective on the slot). Still NO
+   * backface-visibility and NO preserve-3d: only ONE face is shown at a time and the faces are swapped while the card is
+   * edge-on (script below), so a missing 3D transform can never hide the answer (the F1d lesson).
+   *
+   * Owner request 2026-10-24: NO sideways movement and NO tilt any more (the card no longer follows the finger, no slide-in,
+   * no rotate). Changing the card (Previous, Next, a swipe, Again / Learning / Known) uses the SAME turn as the flip: the old
+   * card turns edge-on (.slot.leave), then the new card turns in (.slot.enter). Buttons and swipe look identical. */
+  .slot { position: relative; height: 56vh; min-height: 300px; perspective: 900px; cursor: pointer; }
   .flip { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
   .flip.turn { animation: fcTurn .34s ease-in-out; }
+  .slot.leave .flip { transform: rotateY(90deg); transition: transform .14s ease-in; }
+  .slot.enter .flip { animation: fcTurnIn .2s ease-out; }
   .face { position: absolute; top: 0; left: 0; right: 0; bottom: 0; box-sizing: border-box; border-radius: 22px; padding: 18px 20px;
           border: 1px solid rgba(255,255,255,.12); background: linear-gradient(160deg, #131f38, #0e172a 60%, #0a101d);
           display: flex; flex-direction: column; overflow-y: auto; }
@@ -38,9 +40,8 @@
   .flip.flipped .face.front { display: none; }
   .flip.flipped .face.back { display: flex; }
   @keyframes fcIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  @keyframes fcInR { from { opacity: 0; transform: translateX(40px); } to { opacity: 1; transform: none; } }
-  @keyframes fcInL { from { opacity: 0; transform: translateX(-40px); } to { opacity: 1; transform: none; } }
   @keyframes fcTurn { 0% { transform: rotateY(0deg); } 49.9% { transform: rotateY(90deg); } 50% { transform: rotateY(-90deg); } 100% { transform: rotateY(0deg); } }
+  @keyframes fcTurnIn { from { transform: rotateY(-90deg); } to { transform: rotateY(0deg); } }
 
   .lbl { flex: 0 0 auto; margin: 0 0 8px; text-align: center; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; }
   .lbl.q { color: #c4b5fd; }
@@ -68,7 +69,8 @@
   .done .sub { margin: 0 0 18px; font-size: .95rem; color: #94a3b8; }
 
   @media (prefers-reduced-motion: reduce) {
-    .slot, .done, .flip.turn { animation: none !important; }
+    .done, .flip.turn, .slot.enter .flip { animation: none !important; }
+    .slot.leave .flip { transition: none !important; transform: none !important; }
   }
 </style>
 </head>
@@ -92,16 +94,19 @@ window.onerror = function (message) {
  * "Again" / "Learning" / "Known" (the owner's wording; the website says "Know"). The stats keys sent to the app
  * are unchanged (know, learning, again, seen, total, accuracy).
  * F1c: visible errors instead of a silent dark screen. F1d: no preserve-3d / backface. F1g: normal page flow, fixed card height.
- * M8 (motion only): the card follows the finger while swiping, flies off when the swipe counts and springs back when it
- * does not; the next card slides in from the side it came from; the flip turns around the vertical axis.
+ * Owner request 2026-10-24: the card no longer follows the finger (no sideways move, no tilt, no slide-in). A swipe of 60 px
+ * or more still changes the card, and every card change (Previous, Next, swipe, Again / Learning / Known) plays the same
+ * turn animation, so the buttons are animated too. To get a plain fade instead, change .slot.leave .flip and
+ * .slot.enter .flip in the style block.
  * Called from the app: window.setDeck(metaJsonText) with the row's `meta` JSON ({ "cards": [ { front, back } ] }).
  * Progress goes back to the app through window.WTBridge.onProgress(json) (the app saves it to learning_progress).
  */
 (function () {
   var root = document.getElementById("root");
   var cards = [], i = 0, flipped = false, grades = {}, done = false;
-  var startX = null, startY = null;
-  var dragEl = null, dragging = false, dx = 0, busy = false, suppressClick = false;
+  var startX = null, startY = null, dx = 0, swiping = false, busy = false, suppressClick = false;
+  var reduced = false;
+  try { reduced = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches); } catch (e) {}
 
   function R(t) {
     try { return window.WTRich.render(String(t == null ? "" : t)); } catch (e) { return ""; }
@@ -136,8 +141,8 @@ window.onerror = function (message) {
     }
   }
 
-  /* dir: "r" = the new card comes in from the right (forward), "l" = from the left (back), none = a small rise */
-  function draw(dir) {
+  /* enter = true: the new card turns in (after a card change); false: drawn at once */
+  function draw(enter) {
     if (!cards.length) { root.innerHTML = '<p class="msg">No cards in this deck yet.</p>'; return; }
     var s = stats();
     if (done) {
@@ -149,7 +154,7 @@ window.onerror = function (message) {
     root.innerHTML =
       '<div class="chips"><span class="chip">' + (i + 1) + "/" + cards.length + '</span><span class="chip know">Known ' + s.know +
       '</span><span class="chip learning">Learning ' + s.learning + '</span><span class="chip again">Again ' + s.again + "</span></div>" +
-      '<div class="slot' + (dir ? " from-" + dir : "") + '" data-act="flip"><div class="flip' + (flipped ? " flipped" : "") + '" id="flip">' +
+      '<div class="slot' + (enter && !reduced ? " enter" : "") + '" data-act="flip"><div class="flip' + (flipped ? " flipped" : "") + '" id="flip">' +
       face("front", "Question", "q", c.front) + face("back", "Answer", "a", c.back) + "</div></div>" +
       '<p class="hint">Swipe left/right to change card · Tap to flip</p>' +
       '<div class="bar"><div class="nav"><button class="btn" data-act="prev"' + (i === 0 ? " disabled" : "") + '>‹ Previous</button>' +
@@ -158,20 +163,35 @@ window.onerror = function (message) {
       '<button class="btn know" data-act="know">Known</button></div></div>';
   }
 
+  /* Card change: the old card turns edge-on (0.14 s), then apply() swaps the content and the new card turns in (0.2 s).
+   * Clicks and swipes are ignored while this runs (busy). With reduced motion the change is immediate. */
+  function swapCard(apply) {
+    if (busy) return;
+    var slot = document.querySelector(".slot");
+    if (!slot || reduced) { apply(); return; }
+    busy = true;
+    slot.classList.add("leave");
+    window.setTimeout(function () { busy = false; apply(); }, 140);
+  }
+
   function goTo(n) {
     if (n < 0 || n >= cards.length) return;
-    var dir = n > i ? "r" : "l";
-    i = n; flipped = false; draw(dir);
+    swapCard(function () { i = n; flipped = false; draw(true); });
   }
 
   function grade(g) {
+    if (busy) return;
     grades[i] = g;
-    if (i < cards.length - 1) { goTo(i + 1); } else { done = true; draw(); }
     report();
+    if (i < cards.length - 1) {
+      swapCard(function () { i = i + 1; flipped = false; draw(true); });
+    } else {
+      done = true; draw(false);
+    }
   }
 
   function restart() {
-    grades = {}; done = false; i = 0; flipped = false; draw(); report();
+    grades = {}; done = false; i = 0; flipped = false; draw(false); report();
   }
 
   /* Flip: the card turns around its vertical axis (CSS animation "fcTurn", 0.34 s) and the faces are swapped while it is
@@ -203,55 +223,36 @@ window.onerror = function (message) {
     else if (act === "restart") restart();
   });
 
-  /* Swipe: the card follows the finger (a little tilt and fade), a swipe of 60 px or more changes the card, anything else
-   * springs back. Pulling past the first or last card is resisted (it moves a quarter of the way) and springs back. */
+  /* Swipe: nothing moves under the finger. A horizontal swipe of 60 px or more changes the card (same turn as the buttons);
+   * a vertical move is left to the page and the card scroll. */
   document.addEventListener("touchstart", function (e) {
-    if (busy || done) { startX = null; dragEl = null; return; }
+    if (busy || done) { startX = null; return; }
     var t = e.touches[0];
-    startX = t.clientX; startY = t.clientY; dx = 0; dragging = false;
-    dragEl = document.querySelector(".slot");
+    startX = t.clientX; startY = t.clientY; dx = 0; swiping = false;
   }, { passive: true });
 
   document.addEventListener("touchmove", function (e) {
-    if (startX == null || !dragEl) return;
+    if (startX == null) return;
     var t = e.touches[0], mx = t.clientX - startX, my = t.clientY - startY;
-    if (!dragging) {
+    if (!swiping) {
       if (Math.abs(mx) < 10 && Math.abs(my) < 10) return;
-      if (Math.abs(mx) < Math.abs(my) * 1.2) { startX = null; dragEl = null; return; } /* vertical: leave it to the page and the card scroll */
-      dragging = true;
-      dragEl.classList.add("dragging");
-      dragEl.style.transition = "none";
+      if (Math.abs(mx) < Math.abs(my) * 1.2) { startX = null; return; }
+      swiping = true;
     }
     dx = mx;
-    var blocked = (dx < 0 && i >= cards.length - 1) || (dx > 0 && i <= 0);
-    var shown = blocked ? dx * 0.25 : dx;
-    dragEl.style.transform = "translateX(" + shown + "px) rotate(" + (shown / 24) + "deg)";
-    dragEl.style.opacity = String(1 - Math.min(Math.abs(shown) / 400, 0.35));
   }, { passive: true });
 
-  function endDrag(cancelled) {
-    var el = dragEl, wasDrag = dragging, d = dx;
-    dragEl = null; dragging = false; startX = null; startY = null; dx = 0;
-    if (!el || !wasDrag) return;
+  function endSwipe(cancelled) {
+    var was = swiping, d = dx;
+    startX = null; startY = null; swiping = false; dx = 0;
+    if (!was) return;
     suppressClick = true;
     window.setTimeout(function () { suppressClick = false; }, 350);
-    var forward = d < 0;
-    var ok = !cancelled && Math.abs(d) >= 60 && (forward ? i < cards.length - 1 : i > 0);
-    if (ok) {
-      busy = true;
-      el.style.transition = "transform .16s ease-in, opacity .16s ease-in";
-      el.style.transform = "translateX(" + (forward ? "-120%" : "120%") + ") rotate(" + (forward ? "-8deg" : "8deg") + ")";
-      el.style.opacity = "0";
-      window.setTimeout(function () { busy = false; goTo(i + (forward ? 1 : -1)); }, 150);
-    } else {
-      el.classList.remove("dragging");
-      el.style.transition = "transform .34s cubic-bezier(.34,1.56,.64,1), opacity .2s";
-      el.style.transform = "";
-      el.style.opacity = "";
-    }
+    if (cancelled || Math.abs(d) < 60) return;
+    goTo(i + (d < 0 ? 1 : -1));
   }
-  document.addEventListener("touchend", function () { endDrag(false); }, { passive: true });
-  document.addEventListener("touchcancel", function () { endDrag(true); }, { passive: true });
+  document.addEventListener("touchend", function () { endSwipe(false); }, { passive: true });
+  document.addEventListener("touchcancel", function () { endSwipe(true); }, { passive: true });
 
   window.setDeck = function (metaText) {
     try {
@@ -259,7 +260,7 @@ window.onerror = function (message) {
       var list = Array.isArray(meta && meta.cards) ? meta.cards : [];
       cards = list.map(function (c) { return { front: c && c.front, back: c && c.back }; });
       i = 0; flipped = false; grades = {}; done = false; busy = false;
-      draw();
+      draw(false);
       if (cards.length) report();
     } catch (e) {
       root.innerHTML = '<p class="msg">Could not display this deck. (' + String(e && e.message || e).slice(0, 160) + ")</p>";
