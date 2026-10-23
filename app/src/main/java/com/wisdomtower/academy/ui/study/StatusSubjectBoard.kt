@@ -41,6 +41,7 @@ import com.wisdomtower.academy.data.content.ExamAttemptsReader
 import com.wisdomtower.academy.data.content.ProgressFetchResult
 import com.wisdomtower.academy.data.content.ResourceCatalogIndex
 import com.wisdomtower.academy.data.content.StudentProgressReader
+import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentSky
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
@@ -48,18 +49,32 @@ import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.CancellationException
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlin.math.roundToInt
 
-/** Result of reading one subject's real status (My Status V2, slice B2). */
+/** Result of reading one subject's real status (My Status V2, slice B2; offline copy added in O4). */
 sealed interface SubjectBoardLoad {
-    data class Ready(val breakdown: SubjectBreakdown) : SubjectBoardLoad
+    /**
+     * OFFLINE STATUS (O4): [savedAtMs] is null when the numbers are live. When the progress or the exam attempts came from
+     * the saved copy of the latest sync it is the OLDER of the two save times (the board then says so with the date).
+     */
+    data class Ready(val breakdown: SubjectBreakdown, val savedAtMs: Long? = null) : SubjectBoardLoad
     /** The catalog has no published item for this scope: nothing honest to show, the board hides itself. */
     object NoSubject : SubjectBoardLoad
-    /** A read failed (offline ...): never shown as numbers. */
+    /**
+     * No real numbers can be drawn (offline with nothing saved yet, catalog never saved, not signed in ...). OFFLINE STATUS (O4):
+     * the board does NOT show an error card any more: it draws the four EMPTY rings and a connect notice. Never zeros.
+     */
     object Failed : SubjectBoardLoad
 }
 
-/** Same reads and the same rule as the S5 icon: catalog + own progress + own exam attempts, subject found by [scopePath]. */
+/**
+ * Same reads and the same rule as the S5 icon: catalog + own progress + own exam attempts, subject found by [scopePath].
+ * OFFLINE STATUS (O4): the progress and exam readers return the saved copy of the same student when the server cannot be
+ * reached (O1), so [SubjectBoardLoad.Ready] may carry [SubjectBoardLoad.Ready.savedAtMs].
+ */
 suspend fun loadSubjectBreakdown(context: Context, scopePath: String): SubjectBoardLoad {
     return try {
         val catalog = ResourceCatalogIndex.get(context)
@@ -73,7 +88,15 @@ suspend fun loadSubjectBreakdown(context: Context, scopePath: String): SubjectBo
             val b = key?.let {
                 StatusBreakdown.subjectStatus(it, catalog.items, StatusBreakdown.progressMap(progress.rows), attempts.rows)
             }
-            if (b == null) SubjectBoardLoad.NoSubject else SubjectBoardLoad.Ready(b)
+            if (b == null) {
+                SubjectBoardLoad.NoSubject
+            } else {
+                val savedAt = listOfNotNull(
+                    if (progress.fromCache) progress.savedAtMs else null,
+                    if (attempts.fromCache) attempts.savedAtMs else null
+                ).minOrNull()
+                SubjectBoardLoad.Ready(b, savedAt)
+            }
         }
     } catch (e: CancellationException) {
         throw e
@@ -81,6 +104,13 @@ suspend fun loadSubjectBreakdown(context: Context, scopePath: String): SubjectBo
         SubjectBoardLoad.Failed
     }
 }
+
+/** OFFLINE STATUS (O4): shown with the empty rings when nothing real can be drawn. */
+private const val BOARD_CONNECT_NOTICE = "Could not reach the server. Connect to the internet to see your status."
+
+/** "23 Oct 2026, 14:05" in the phone's own time. */
+private fun sbFormatSavedAt(ms: Long): String =
+    SimpleDateFormat("d MMM yyyy, HH:mm", Locale.US).format(Date(ms))
 
 /**
  * My Status V2 (B2): the "My status" board that goes ABOVE the hub list of a course page (wired in B3). Collapsed = one
@@ -90,7 +120,14 @@ suspend fun loadSubjectBreakdown(context: Context, scopePath: String): SubjectBo
  * [reloadKey]: change it (for example when the student returns from a hub) to read the numbers again; a failed reload keeps
  * the numbers already shown.
  *
- * STATUS: written, NOT compiled, NOT tested on a device, NOT wired into any screen yet.
+ * OFFLINE STATUS (2026-10-23, docs/OFFLINE_STATUS_PLAN.md slice O4): the board always draws, it never shows an error card.
+ * (1) Numbers available (live or the saved copy of the same student): the four rings as before; when they come from the
+ * saved copy ONE amber line says "No connection to the server. Showing your status as last saved on <date, time>.", and the
+ * expanded rows and the "Chapters and exams" card use the same copy. (2) Nothing can be read and nothing is saved (or the
+ * catalog was never saved): the title, a connect notice with Retry and the four EMPTY rings (dashes). No chevron, no detail
+ * rows and no "Chapters and exams" button, because there is nothing real to open. Online behaviour is unchanged.
+ *
+ * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
 fun StatusSubjectBoard(
@@ -124,13 +161,16 @@ fun StatusSubjectBoard(
 
         SubjectBoardLoad.NoSubject -> Unit
 
+        // OFFLINE STATUS (O4): the empty skeleton. Same card, same four rings, all empty (dashes), one notice, Retry.
         SubjectBoardLoad.Failed -> SbPanel(modifier) {
-            Text("My status", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
-            Text(
-                "Could not load your status. Check your internet connection and try again.",
-                fontSize = 12.sp,
-                color = WisdomMuted
-            )
+            Text("My status", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+            Text(BOARD_CONNECT_NOTICE, fontSize = 12.sp, color = WisdomMuted, lineHeight = 17.sp)
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                SbRing("Completion", null)
+                SbRing("Accuracy", null)
+                SbRing("Focus", null)
+                SbRing("Flashcards known", null)
+            }
             Text(
                 "Retry",
                 fontSize = 13.sp,
@@ -147,6 +187,7 @@ fun StatusSubjectBoard(
             val b = s.breakdown
             val t = b.totals
             val completion = t.completionPct?.roundToInt()
+            val savedAt = s.savedAtMs
             SbPanel(modifier) {
                 // header: title + expand chevron (the whole row toggles)
                 Row(
@@ -179,6 +220,17 @@ fun StatusSubjectBoard(
                             modifier = Modifier.size(22.dp)
                         )
                     }
+                }
+
+                // OFFLINE STATUS (O4): the numbers below are the saved copy of the latest sync
+                if (savedAt != null) {
+                    Text(
+                        "No connection to the server. Showing your status as last saved on ${sbFormatSavedAt(savedAt)}. Connect to the internet to update.",
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = WisdomAccentAmber,
+                        lineHeight = 16.sp
+                    )
                 }
 
                 // ONE row of the four key gauges
