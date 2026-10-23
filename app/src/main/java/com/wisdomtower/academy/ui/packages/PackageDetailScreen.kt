@@ -3,7 +3,6 @@ package com.wisdomtower.academy.ui.packages
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -12,7 +11,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -22,8 +20,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.wisdomtower.academy.BuildConfig
-import com.wisdomtower.academy.data.content.PackagePrices
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
@@ -57,10 +53,8 @@ private val ECE_SEMESTER_ENTRIES = listOf(
  * back handling leaves the package. The "Subjects" label is gone too (the cards speak for themselves).
  * The unused parameters are kept so the caller in MainActivity.kt does not change.
  *
- * TELEGRAM BUILD (slice P2b, `docs/TELEGRAM_PAID_BUILD_PLAN.md`): [PackagePriceTag] shows the admin dashboard price of the
- * package under the heading, and under each ECE semester card (the semester package `ece-y3-sem-1` / `ece-y3-sem-2`).
- * It draws nothing for a package with no dashboard price. In the Play build nothing is added at all (the heading row is
- * skipped by the [BuildConfig.PAID_UI] check, so no empty row and no extra gap), so that layout is unchanged.
+ * NO PRICES HERE (owner order 2026-10-23): the app stays clean. A price appears only in the "Package required"
+ * pop-up when a locked chapter is tapped (Telegram build, `docs/TELEGRAM_PAID_BUILD_PLAN.md`).
  */
 @Composable
 fun PackageDetailScreen(
@@ -79,9 +73,6 @@ fun PackageDetailScreen(
     val isRemedial = pkg.id == "remedial"
     val isEntrance = pkg.id == ENTRANCE_PACKAGE_ID
     val hasSubjectList = isFreshman || isEce || isGrade || isRemedial || isEntrance
-
-    // Does nothing in the Play build (PackagePrices.refresh returns at once when PAID_UI is false).
-    LaunchedEffect(Unit) { PackagePrices.refresh() }
 
     // Entrance Questions drill-down state (stream -> subject)
     var streamId by rememberSaveable { mutableStateOf<String?>(null) }
@@ -138,12 +129,6 @@ fun PackageDetailScreen(
                 )
             }
 
-            // P2b (Telegram build): the package price under the heading. ECE shows its prices under the semester
-            // cards instead; Entrance Questions has no catalog package, so nothing is drawn for it.
-            if (BuildConfig.PAID_UI && !isEce) {
-                item(key = "package_price") { PackagePriceTag(pkg.id) }
-            }
-
             if (isFreshman) {
                 item(key = "gpa_calculator") {
                     GpaCalculatorCard()
@@ -164,10 +149,7 @@ fun PackageDetailScreen(
             if (isEce) {
                 if (eceSemester == null) {
                     openGrid("ece_semesters", ECE_SEMESTER_ENTRIES) { sem ->
-                        Column {
-                            OpenCard(sem.label, sem.image) { eceSemesterId = sem.id }
-                            PackagePriceTag("ece-y3-${sem.id}")
-                        }
+                        OpenCard(sem.label, sem.image) { eceSemesterId = sem.id }
                     }
                 } else {
                     openGrid("ece_courses_${eceSemester.id}", eceSemester.courses) { course ->
