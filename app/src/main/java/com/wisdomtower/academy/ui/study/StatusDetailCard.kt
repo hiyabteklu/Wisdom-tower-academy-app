@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.study
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -54,10 +55,12 @@ import kotlin.math.roundToInt
 /**
  * My Status V2 (S2 + S4): the overlay card for ONE subject (bottom card over a dim scrim, same glass panels / tokens as
  * NativeStatusScreen). Real numbers only: unknown = dash (G4). Subject view: hero ring = completion, small rings = accuracy,
- * focus, flashcards known; time rows; a Chapters list and an Exam attempts list. Tap a chapter -> chapter view (per hub),
+ * focus, flashcards known; reading time row; a Chapters list and an Exam attempts list. Tap a chapter -> chapter view (per hub),
  * tap an attempt -> exam view; back arrow / phone Back returns to the subject view, then closes.
  *
  * [title] = the subject name (the caller resolves it, e.g. from PackagesData.kt). Dismiss: tap the scrim, the X, or back.
+ *
+ * The course-page board does NOT use this popup any more: it uses [StatusDetailInline] (same lists, in the page flow).
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -173,9 +176,7 @@ private fun SdSubjectBody(
     SdTotalsBody(t, "${t.itemsOpened} of ${t.itemsTotal} items opened")
 
     SdPanel {
-        SdRow("Study time", sdDuration(t.studySeconds))
         SdRow("Reading time", sdDuration(t.readingSeconds))
-        SdRow("Watch time", sdDuration(t.watchSeconds))
         SdRow("Exams taken", "${breakdown.exams.attemptsTaken}")
         breakdown.exams.bestPct?.let { SdRow("Best exam score", "$it%") }
         breakdown.exams.latestPct?.let { SdRow("Latest exam score", "$it%") }
@@ -184,6 +185,16 @@ private fun SdSubjectBody(
         breakdown.lastPdfPage?.let { SdRow("Last PDF page", "$it") }
     }
 
+    SdListsBody(breakdown, onChapter, onExam)
+}
+
+/** Chapters list + exam attempts list (shared by the popup card and the inline board). */
+@Composable
+private fun SdListsBody(
+    breakdown: SubjectBreakdown,
+    onChapter: (ChapterBreakdown) -> Unit,
+    onExam: (ExamAttemptBreakdown) -> Unit
+) {
     if (breakdown.chapters.isNotEmpty()) {
         SdPanel {
             SdKicker("CHAPTERS")
@@ -255,9 +266,7 @@ private fun SdChapterBody(c: ChapterBreakdown) {
     SdTotalsBody(t, "${t.itemsOpened} of ${t.itemsTotal} items opened")
 
     SdPanel {
-        SdRow("Study time", sdDuration(t.studySeconds))
         SdRow("Reading time", sdDuration(t.readingSeconds))
-        SdRow("Watch time", sdDuration(t.watchSeconds))
         SdRow("Last active", sdDate(t.lastActiveIso))
     }
 
@@ -421,7 +430,7 @@ private fun sdScore(score: Double?, total: Int?): String {
 private fun sdDelta(d: Int?): String = when {
     d == null -> "—"
     d > 0 -> "+$d pts"
-    d < 0 -> "\u2212${abs(d)} pts"
+    d < 0 -> "−${abs(d)} pts"
     else -> "No change"
 }
 
@@ -446,4 +455,56 @@ private fun sdDate(iso: String?): String {
     val d = p[2].toIntOrNull()
     if (y == null || m == null || d == null || m !in 1..12) return "—"
     return "$d ${SD_MONTHS[m - 1]} $y"
+}
+
+/**
+ * INLINE VERSION (no popup, no scrim): the chapters list and the exam attempts list sit right in the page flow, above the
+ * hubs. Tap a chapter or an attempt -> its details replace the lists in place, with a Back arrow (phone Back works too).
+ */
+@Composable
+fun StatusDetailInline(title: String, breakdown: SubjectBreakdown) {
+    var view by remember { mutableStateOf<SdView>(SdView.Subject) }
+    val v = view
+    BackHandler(enabled = v !is SdView.Subject) { view = SdView.Subject }
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        when (v) {
+            is SdView.Subject -> SdListsBody(
+                breakdown = breakdown,
+                onChapter = { view = SdView.Chapter(it) },
+                onExam = { view = SdView.Exam(it) }
+            )
+            else -> {
+                val kicker = if (v is SdView.Chapter) "CHAPTER STATUS" else "EXAM ATTEMPT"
+                val heading = when (v) {
+                    is SdView.Chapter -> sdChapterLabel(v.data.chapter)
+                    is SdView.Exam -> v.data.title ?: "Exam"
+                    else -> title
+                }
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(50))
+                            .clickable { view = SdView.Subject },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = WisdomMuted, modifier = Modifier.size(20.dp))
+                    }
+                    Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        Text(kicker, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = WisdomAccentSky, letterSpacing = 0.8.sp)
+                        Text(heading, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
+                    }
+                }
+                when (v) {
+                    is SdView.Chapter -> SdChapterBody(v.data)
+                    is SdView.Exam -> SdExamBody(v.data, breakdown.exams.attempts)
+                    else -> Unit
+                }
+            }
+        }
+    }
 }

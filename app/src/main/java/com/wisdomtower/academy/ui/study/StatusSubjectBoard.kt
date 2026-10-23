@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -115,17 +116,19 @@ private fun sbFormatSavedAt(ms: Long): String =
 /**
  * My Status V2 (B2): the "My status" board that goes ABOVE the hub list of a course page (wired in B3). Collapsed = one
  * glass card: title, an expand chevron and ONE row of four rings (Completion, Accuracy, Focus, Flashcards known) with the
- * existing [StatusRing] and HUD colours. Expanded = the detail rows of the subject card (times, exams, last active) and a
- * "Chapters and exams" button that opens the existing [StatusDetailCard]. Real numbers only: unknown = dash (G4).
+ * existing [StatusRing] and HUD colours. Expanded = stat tiles (reading time, exams, last active) and, right below them in
+ * the same page flow, the chapters list and the exam attempts list ([StatusDetailInline]; no popup, no button). Tapping a
+ * chapter or an attempt opens its details in place with a Back arrow. Everything stays above the hubs. Real numbers only:
+ * unknown = dash (G4).
  * [reloadKey]: change it (for example when the student returns from a hub) to read the numbers again; a failed reload keeps
  * the numbers already shown.
  *
  * OFFLINE STATUS (2026-10-23, docs/OFFLINE_STATUS_PLAN.md slice O4): the board always draws, it never shows an error card.
  * (1) Numbers available (live or the saved copy of the same student): the four rings as before; when they come from the
  * saved copy ONE amber line says "No connection to the server. Showing your status as last saved on <date, time>.", and the
- * expanded rows and the "Chapters and exams" card use the same copy. (2) Nothing can be read and nothing is saved (or the
- * catalog was never saved): the title, a connect notice with Retry and the four EMPTY rings (dashes). No chevron, no detail
- * rows and no "Chapters and exams" button, because there is nothing real to open. Online behaviour is unchanged.
+ * expanded content uses the same copy. (2) Nothing can be read and nothing is saved (or the catalog was never saved): the
+ * title, a connect notice with Retry and the four EMPTY rings (dashes). No chevron and no detail, because there is nothing
+ * real to open. Online behaviour is unchanged.
  * Slice O5a: the board also reads again by itself when the internet comes back ([rememberNetworkReturnCount]).
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
@@ -141,7 +144,6 @@ fun StatusSubjectBoard(
     var state by remember(scopePath) { mutableStateOf<SubjectBoardLoad?>(null) }
     var retry by remember { mutableStateOf(0) }
     var expanded by rememberSaveable { mutableStateOf(false) }
-    var showCard by remember { mutableStateOf(false) }
     // OFFLINE STATUS (O5a): goes up when the internet comes back, which reads the numbers again
     val netBack = rememberNetworkReturnCount()
 
@@ -246,32 +248,24 @@ fun StatusSubjectBoard(
 
                 if (expanded) {
                     Text("${t.itemsOpened} of ${t.itemsTotal} items opened", fontSize = 12.sp, color = WisdomMuted)
-                    SbRow("Study time", sbDuration(t.studySeconds))
-                    SbRow("Reading time", sbDuration(t.readingSeconds))
-                    SbRow("Watch time", sbDuration(t.watchSeconds))
-                    SbRow("Exams taken", "${b.exams.attemptsTaken}")
-                    b.exams.bestPct?.let { SbRow("Best exam score", "$it%") }
-                    b.exams.latestPct?.let { SbRow("Latest exam score", "$it%") }
-                    b.exams.averagePct?.let { SbRow("Average exam score", "$it%") }
-                    SbRow("Last active", sbDate(t.lastActiveIso))
-                    if (b.chapters.isNotEmpty() || b.exams.attempts.isNotEmpty()) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(WisdomAccentSky.copy(alpha = 0.15f))
-                                .border(BorderStroke(1.dp, WisdomAccentSky.copy(alpha = 0.30f)), RoundedCornerShape(12.dp))
-                                .clickable { showCard = true }
-                                .padding(vertical = 10.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("Chapters and exams", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WisdomAccentSky)
+                    val tiles = ArrayList<Pair<String, String>>()
+                    tiles.add("Reading time" to sbDuration(t.readingSeconds))
+                    tiles.add("Exams taken" to "${b.exams.attemptsTaken}")
+                    b.exams.bestPct?.let { tiles.add("Best exam score" to "$it%") }
+                    b.exams.latestPct?.let { tiles.add("Latest exam score" to "$it%") }
+                    b.exams.averagePct?.let { tiles.add("Average exam score" to "$it%") }
+                    tiles.add("Last active" to sbDate(t.lastActiveIso))
+                    for (pair in tiles.chunked(2)) {
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                            for (p in pair) SbTile(p.first, p.second, Modifier.weight(1f))
+                            if (pair.size == 1) Spacer(Modifier.weight(1f))
                         }
                     }
+                    // chapters + exam attempts open right here (no button, no popup); tap one for its details
+                    if (b.chapters.isNotEmpty() || b.exams.attempts.isNotEmpty()) {
+                        StatusDetailInline(title = title, breakdown = b)
+                    }
                 }
-            }
-            if (showCard) {
-                StatusDetailCard(title = title, breakdown = b, onDismiss = { showCard = false })
             }
         }
     }
@@ -306,20 +300,23 @@ private fun SbRing(label: String, pct: Int?) {
 }
 
 @Composable
-private fun SbRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
+private fun SbTile(label: String, value: String, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(WisdomAccentSky.copy(alpha = 0.08f))
+            .border(BorderStroke(1.dp, WisdomGlassBorder), RoundedCornerShape(14.dp))
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp)
     ) {
-        Text(label, fontSize = 13.sp, color = WisdomMuted, modifier = Modifier.weight(1f))
-        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
+        Text(label, fontSize = 11.sp, color = WisdomMuted)
+        Text(value, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = WisdomInk)
     }
 }
 
 /** 0 seconds = nothing recorded = dash (G4). Same rule as the subject card. */
 private fun sbDuration(seconds: Long): String {
-    if (seconds <= 0L) return "\u2014"
+    if (seconds <= 0L) return "—"
     val m = seconds / 60L
     if (m < 1L) return "<1m"
     val h = m / 60L
@@ -330,12 +327,12 @@ private val SB_MONTHS = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", 
 
 /** ISO text (yyyy-MM-dd...) to "22 Oct 2026"; unknown = dash. */
 private fun sbDate(iso: String?): String {
-    if (iso == null || iso.length < 10) return "\u2014"
+    if (iso == null || iso.length < 10) return "—"
     val p = iso.substring(0, 10).split("-")
-    if (p.size != 3) return "\u2014"
+    if (p.size != 3) return "—"
     val y = p[0].toIntOrNull()
     val m = p[1].toIntOrNull()
     val d = p[2].toIntOrNull()
-    if (y == null || m == null || d == null || m !in 1..12) return "\u2014"
+    if (y == null || m == null || d == null || m !in 1..12) return "—"
     return "$d ${SB_MONTHS[m - 1]} $y"
 }
