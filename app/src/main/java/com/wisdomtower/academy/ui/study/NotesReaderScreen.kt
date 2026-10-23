@@ -106,10 +106,16 @@ private fun flushNoteProgress(resourceId: String, progress: NoteProgress) {
  * is hidden instead, so the jumping is still hidden, and the loader floats on the chosen app background.
  * To go back: put `.background(Color(0x4D0A101D))` on the cover Box again.
  * BG-NOFADE (2026-10-23, owner: the background goes black the moment before the text is painted): the page's alpha
- * used to be animated (1 minus the cover alpha, 220 ms). HYPOTHESIS: a transparent WebView drawn at a fractional alpha
- * goes through an offscreen layer and is drawn black there until its content is painted. The page is now either
- * fully hidden or fully shown (no fractional alpha). Only the loader (a plain Compose node) still fades out. To go
- * back: `.alpha(1f - coverAlpha)` on the NoteWebView modifier.
+ * used to be animated (1 minus the cover alpha, 220 ms). The page is now either fully hidden or fully shown. Only the
+ * loader (a plain Compose node) still fades out. To go back: `.alpha(1f - coverAlpha)` on the NoteWebView modifier.
+ * BG-NOFLASH (2026-10-23, owner screenshots: loader, then a dark navy screen, then the text; BG-NOFADE did not fix it):
+ * CAUSE (read from this file and `assets/notes/index.html`): the 1.2 s safety timer below sets `pageReady` even when the
+ * page has not finished loading (the first WebView of a run can need more than a second to start). The page was then
+ * shown with its OWN colour, `html, body { background: #0a101d }` in index.html, which is exactly the navy in the
+ * screenshot; the transparent override of [AppBackdrop.clearPageBackground] only runs at onPageFinished, and the
+ * WebView was only hidden from onPageStarted on. FIX, two parts: (1) the WebView is hidden from the moment it is
+ * created (`alpha = 0f` in the factory, shown again by [AppBackdrop.clearPageBackground] or by a 4 s safety), so the
+ * early reveal shows the app background; (2) index.html no longer paints a background of its own.
  * Build fix 2026-10-13: the cover used `AnimatedVisibility` inside a `Box` inside a `Column`, which the compiler
  * refuses; it is now a plain `animateFloatAsState` alpha.
  *
@@ -309,6 +315,10 @@ private fun NoteWebView(body: String, bridge: Any, webRef: Array<WebView?>, modi
             factory = { ctx ->
                 WebView(ctx).apply {
                     setBackgroundColor(AppBackdrop.webViewColor(ctx))
+                    // BG-NOFLASH: hidden from the moment it exists. AppBackdrop.clearPageBackground shows it once the
+                    // page is transparent; the 4 s safety shows it anyway if that never happens.
+                    alpha = 0f
+                    postDelayed({ alpha = 1f }, 4000)
                     settings.javaScriptEnabled = true
                     settings.allowFileAccess = true
                     settings.blockNetworkLoads = true
