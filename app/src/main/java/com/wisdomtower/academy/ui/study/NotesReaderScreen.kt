@@ -100,11 +100,16 @@ private fun flushNoteProgress(resourceId: String, progress: NoteProgress) {
  *
  * Loading look (owner request 2026-10-13): while the note is fetched and while the page lays itself out (the maths
  * is typeset and the lines change length, so the page would visibly jump), the app-start loader ([BrandSplashLoader])
- * is shown in the middle; the page fades in (animated alpha, 220 ms) when it reports ready.
+ * is shown in the middle; the page is revealed when it reports ready.
  * BG-NOTE-LOADER (2026-10-17, owner: the loader had a solid dark background, it must be transparent so the chosen
  * background shows): the cover used to be a dark fill that hid the page. Now the cover has NO fill. The page itself
- * is hidden instead (its alpha is 1 minus the cover alpha), so the jumping is still hidden, and the loader floats
- * on the chosen app background. To go back: put `.background(Color(0x4D0A101D))` on the cover Box again.
+ * is hidden instead, so the jumping is still hidden, and the loader floats on the chosen app background.
+ * To go back: put `.background(Color(0x4D0A101D))` on the cover Box again.
+ * BG-NOFADE (2026-10-23, owner: the background goes black the moment before the text is painted): the page's alpha
+ * used to be animated (1 minus the cover alpha, 220 ms). HYPOTHESIS: a transparent WebView drawn at a fractional alpha
+ * goes through an offscreen layer and is drawn black there until its content is painted. The page is now either
+ * fully hidden or fully shown (no fractional alpha). Only the loader (a plain Compose node) still fades out. To go
+ * back: `.alpha(1f - coverAlpha)` on the NoteWebView modifier.
  * Build fix 2026-10-13: the cover used `AnimatedVisibility` inside a `Box` inside a `Column`, which the compiler
  * refuses; it is now a plain `animateFloatAsState` alpha.
  *
@@ -230,14 +235,14 @@ fun NotesReaderScreen(
                         label = "noteCoverAlpha"
                     )
                     Box(modifier = Modifier.fillMaxSize()) {
-                        // The page is hidden while it lays itself out (its alpha is the opposite of the cover's).
+                        // The page is hidden while it lays itself out: fully hidden, then fully shown (BG-NOFADE).
                         NoteWebView(
                             body = r.item.bodyMd.orEmpty(),
                             bridge = bridge,
                             webRef = webRef,
                             modifier = Modifier
                                 .fillMaxSize()
-                                .alpha(1f - coverAlpha)
+                                .alpha(if (pageReady) 1f else 0f)
                         )
                         if (coverAlpha > 0f) {
                             var showCoverLoader by remember { mutableStateOf(false) }
