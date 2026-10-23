@@ -6,25 +6,40 @@
 ## 1. What the owner wants (his words, 2026-10-23)
 - "Every screen native, no web view at all ever on payment or purchase, till the payment screenshot upload / transaction ID form, all native."
 - "The locking and unlocking mechanism should be clean. That is where admin unlocks access for verified payments."
-- Admin lock screen: "clean tree like the user content navigation (ece > semester > course > hub > chapter)", not one long list of details. "We don't unlock subjects separately." Actions only at package level and chapter level.
-- "If the package is free for everyone, all chapter locks are cleared. If the package is in paid mode, all chapters are locked (all items in all 6 hubs: books, life savers, flashcards ...). While paid, admin can still unlock specific chapters / items for trial (example: chapter 1 of notes, one book, one exam)."
+- Admin lock screen: "clean tree like the user content navigation (ece > semester > course > hub > chapter)", not one long list of details. "We don't unlock subjects separately." Actions only at package level and chapter / item level.
 - Tapping a locked chapter or item opens a NATIVE screen: package price, then the account options with their logos (CBE, Telebirr, Abyssinia): copy the account number, the payment instructions ("pay with what you chose and come back to upload the screenshot"), inquiries: 0900763030 or Telegram @hiyab_t. The student uploads the screenshot or enters the transaction ID. Then it says PENDING: "we'll approve your request in a few minutes".
 - Admin approves in the admin dashboard (admin only, never automatic). The whole package is then owned by that student.
 - Bug seen on phone: the locked chapter opened the WEBSITE checkout, which said "is Unlocked" by itself (website free mode). That path must be gone.
 
-## 2. The model (two words: FREE and PAID)
-- PACKAGE: **Free** or **Paid**. Stored as the existing `content_locks` row `package:<package id>`: no row or `open` = Free, `require_purchase` = Paid.
-- Free package: everything open, and every chapter / item lock of that package is cleared (admin screen deletes those rows when switching to Free).
-- Paid package, student does NOT own it: the 6 hub cards of every course OPEN normally (student navigates freely). Inside a hub, EVERY chapter and item shows locked (lock icon). EXCEPT the ones the admin set to **Open for trial**.
-- Trial: existing rows `chapter:<scope>:<hub>:<n>` or `item:<learning_resources.id>` with mode `open`. Only these two kinds of row are used. `scope:` and `hub:` rows are NOT used any more by the Telegram build (no subject-level or hub-level locks).
-- Student owns the package (admin approved the payment, or admin granted it): everything open.
-- Play build: ignores all of this, always open.
-- Open question for step 1 (read first, do not guess): `public.my_package_access()` only enforces when `content_locks` has `system:enforce` = `locked`. Both apps share one database, so the Telegram build must decide by the package row itself (paid + not owned = locked) and NOT by this global flag, otherwise the Play app would be locked too. Read what `my_package_access()` returns and use only its list of owned packages.
+## 2. The model: 3 ACTIONS, same at package level and at chapter / item level
+| Action shown to the admin | `content_locks.mode` | What the student sees |
+|---|---|---|
+| **Owned only** | `require_purchase` | lock icon; tap = native purchase flow (S2) |
+| **Free for signed-in** | `open` | opens normally |
+| **Coming soon** | `coming_soon` | lock icon + "Coming soon"; tap = a small "Coming soon" message, NO purchase |
+
+No other action and no other word on the admin screen (no "default", "hard lock", "locked").
+
+**IMPORTANT (owner, 2026-10-23): locks never hide anything from students.** In ALL modes the student navigates freely down to the LAST items inside the hubs (package > subject > hub > chapter > item). Locks only mark rows (lock icon) and decide what a tap does. The PACKAGE action is only a convenience for the admin: it sets ALL chapters and items of the package at once. Then the admin goes down the tree and sets single chapters / items differently (trial unlocks, e.g. chapter 1 of notes = Free for signed-in while the rest is Owned only).
+
+How it is stored (existing table, no DB change): the package action writes the row `package:<package id>` (the default for everything below it). A chapter or item action writes `chapter:<scope>:<hub>:<n>` or `item:<learning_resources.id>`; the most specific row wins (item, chapter, package). Rules for the admin screen:
+- Setting a PACKAGE action deletes all chapter / item rows of that package first (clean "apply to all"), then the admin makes the trial exceptions. (Owner may correct this.)
+- Setting a chapter / item to the same action as the package deletes its row (no useless rows).
+- Package = Free for signed-in: everything open, no chapter / item rows left.
+- `scope:` and `hub:` rows are NOT used by the Telegram build any more (no subject-level or hub-level actions).
+
+**Owned**: a student who owns the package (admin approved his payment or granted it) has everything open, whatever the actions say. Student not signed in: signed-in is required for everything that is not Coming soon (existing rule).
+
+**Empty chapters**: the admin can create a chapter with no items and set it to Coming soon ("cool", owner). The student list must then show that chapter as a row "Chapter N: Coming soon" even with no items. Read first how `HubItemListScreen.kt` builds chapters (from the items); if chapters exist only through items, S1 adds placeholder rows for `chapter:` lock rows without items, and S3 gets a small "Add chapter" (number + optional title) that writes the Coming soon row.
+
+**Play build**: ignores all of this, always open.
+
+**Open question for S1 (read first, do not guess)**: `public.my_package_access()` only enforces when `content_locks` has `system:enforce` = `locked`. Both apps share one database, so the Telegram build must decide by the rows above (Owned only + not owned = locked) and NOT by this global flag, otherwise the Play app would be locked too. Read what `my_package_access()` returns and use only its list of owned packages.
 
 ## 3. Steps (do in this order, one commit each, tick when done)
-- [ ] **S1 Student lock logic** (`data/content/ContentAccess.kt`, `ui/study/HubItemListScreen.kt`, `StudyWorkspaceScreen.kt`): implement section 2. Hubs always open in a paid package; locked rows (lock icon) inside; trial rows open. Telegram build only (`PAID_UI`); Play build open.
-- [ ] **S2 Native purchase flow** (new screens, all Compose): tap a locked chapter/item > (1) Offer: package name, price from the admin dashboard (`PackagePrices`), button "Pay"; (2) Pay: account cards (logo, bank name, copy account number, account name), instructions text, inquiries line, field for transaction ID, button to attach the screenshot, button "Submit"; (3) Pending: "Pending. We will approve your request in a few minutes." The order is written to the existing `orders` table (status `pending_verification`), the screenshot to the existing receipts storage bucket, with the student's own session. Account details and logos come from the website `data/packages.ts` `paymentMethods`, copied into the app (logos packed like the other images). Remove the old "Buy now / My orders" web opener from `HubGateDialog.kt` and `PaidCheckoutOffer.kt`; the old pop-up is replaced by step (1). Read first: RLS of `orders` and the receipts bucket (can a student insert his own pending row and upload?). If not, one small SQL for the owner.
-- [ ] **S3 Admin Locks screen as a tree** (`ui/admin/LocksScreen.kt`): same drill-down as the student content: Packages (each with a Free / Paid badge) > package (ECE: semester > course) > the 6 hubs > chapters > items. Actions ONLY: on a package: **Free** or **Paid**; on a chapter or an item: **Open for trial** or **Locked again** (deletes the row). Nothing else on screen (no "default", "hard lock", "coming soon" words). Status shown as a small badge on each row, details only after tapping down the tree. I could not tell which "4 actions" the owner meant; these are 2 + 2. Owner may correct.
+- [ ] **S1 Student lock logic** (`data/content/ContentAccess.kt`, `ui/study/HubItemListScreen.kt`, `StudyWorkspaceScreen.kt`): implement section 2. Hub cards and chapter lists are never closed; only rows get a lock icon. Tap behaviour per the table. Telegram build only (`PAID_UI`); Play build open. Empty Coming soon chapters shown as rows.
+- [ ] **S2 Native purchase flow** (new Compose screens): tap an Owned-only row > (1) Offer: package name, price from the admin dashboard (`PackagePrices`), button "Pay"; (2) Pay: account cards (logo, bank name, copy account number, account name), instructions text, inquiries line, field for transaction ID, button to attach the screenshot, button "Submit"; (3) Pending: "Pending. We will approve your request in a few minutes." The order is written to the existing `orders` table (status `pending_verification`), the screenshot to the existing receipts storage bucket, with the student's own session. Account details and logos come from the website `data/packages.ts` `paymentMethods`, copied into the app (logos packed like the other images). Remove the old "Buy now / My orders" web opener from `HubGateDialog.kt` and `PaidCheckoutOffer.kt`. Read first: RLS of `orders` and the receipts bucket (can a student insert his own pending row and upload?). If not, one small SQL for the owner.
+- [ ] **S3 Admin Locks screen as a tree** (`ui/admin/LocksScreen.kt`): same drill-down as the student content: Packages > package (ECE: semester > course) > the 6 hubs > chapters > items. Each package, chapter and item shows its current action as a small badge and offers the 3 actions only. No hub or subject actions. "Add chapter" for empty Coming soon chapters (see section 2). Details only after tapping down the tree.
 - [ ] **S4 Admin approval** (existing native admin Payments / Grants screens): approving a pending order must give the student the whole package (access grant or enrollment, whichever `my_package_access()` reads). Read first what the Payments screen does on approve; add the grant only if missing. The student app already re-reads ownership when it comes back to the front (P4).
 - [ ] **S5 Cleanup**: delete the unused `PackagePriceTag.kt` and any code that opens the website checkout. Do NOT set `NEXT_PUBLIC_PAID_MODE` on Vercel (no longer needed; the website stays as it is).
 
@@ -36,18 +51,18 @@
 - Pending patch (owner action, not applied yet): `scripts/patch_package_tab_highlight.py` (tab highlight bug, see `docs/SESSION_2026-10-23_TAB_HIGHLIGHT.md`).
 
 ## 5. Facts to rely on (read earlier, not guessed)
-- `content_locks`: `lock_key` unique, `mode` in open / locked / coming_soon / require_purchase, public read, admin write. Keys: `package:<id>`, `chapter:<scope>:<hub>:<n>`, `item:<id>`. Most specific wins: item, chapter, then package. No DB change needed.
+- `content_locks`: `lock_key` unique, `mode` in open / locked / coming_soon / require_purchase, public read, admin write. Keys: `package:<id>`, `chapter:<scope>:<hub>:<n>`, `item:<id>`. Most specific wins. No DB change needed. The existing granular code is in `ContentAccess.kt` (`resolveLocks`), `HubItemListScreen.kt`, `data/admin/LocksRepository.kt`, `ui/admin/LocksScreen.kt` (see `docs/SESSION_2026-10-20_GRANULAR_LOCKS.md`); today a closed hub card hides its list, which S1 must stop doing.
 - `catalog_items` (12 rows): public read of active rows, admin write. Prices: grades 9-12, freshman, uat, gat, coc, exit-exam 500; ece-y3-full 600; ece sem 1 and 2: 300.
 - Locks are an interface gate only (the files stay readable with the public key). Real enforcement would need RLS on `learning_resources`. Not part of these steps.
 - The chat GitHub tool cannot write `.github/`. `MainActivity.kt` (265 KB) is edited only with patch scripts (`docs/EDITING_LARGE_FILES.md`).
 
 ## 6. Phone test (owner, after S1 to S4 are green)
-1. Admin: set a package to Paid; set one chapter to Open for trial.
-2. Student (test account): open the package, the 6 hubs open; inside, the trial chapter opens, every other row shows a lock.
-3. Tap a locked row: native Offer > Pay (logos, copy account) > submit a transaction ID > Pending. No web page at any point.
+1. Admin: set a package to Owned only; set one chapter to Free for signed-in; create an empty chapter as Coming soon.
+2. Student (test account): navigate package > subject > hub > chapters > items freely. The trial chapter opens; other rows show a lock; the empty chapter shows Coming soon.
+3. Tap an Owned-only row: native Offer > Pay (logos, copy account) > submit a transaction ID > Pending. No web page at any point. Tap a Coming soon row: just the Coming soon message.
 4. Admin approves the order. Student comes back to the app: everything in that package opens.
-5. Admin sets the package to Free: all locks gone, no lock icon anywhere.
+5. Admin sets the package to Free for signed-in: all locks gone.
 6. Play APK: nothing locked, no price, no purchase screen.
 
 ## 7. Status log (append only; if you cannot append, add a new `docs/SESSION_*.md`)
-- 2026-10-23 plan written. Nothing from S1 to S5 started.
+- 2026-10-23 plan written. 2026-10-23 corrected after owner: 3 actions (Owned only, Free for signed-in, Coming soon) at package and chapter / item level; students always navigate to the last items, locks never hide content. Nothing from S1 to S5 started.
