@@ -10,6 +10,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import org.json.JSONObject
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
@@ -23,7 +24,15 @@ data class StudyDayRow(
 )
 
 sealed class StudyDayLogFetchResult {
-    data class Success(val rows: List<StudyDayRow>) : StudyDayLogFetchResult()
+    /**
+     * OFFLINE STATUS (O1): [fromCache] is true when the server could not be reached and these rows are the saved copy of
+     * the latest sync ([savedAtMs] = when it was saved). Both have defaults, so every old `Success(rows)` still compiles.
+     */
+    data class Success(
+        val rows: List<StudyDayRow>,
+        val fromCache: Boolean = false,
+        val savedAtMs: Long? = null
+    ) : StudyDayLogFetchResult()
     object NotSignedIn : StudyDayLogFetchResult()
     object Failed : StudyDayLogFetchResult()
 }
@@ -33,10 +42,16 @@ sealed class StudyDayLogFetchResult {
  * pattern as [ExamAttemptsReader] (own token, refresh when needed, one retry after a 401, only HTTP codes logged, never
  * throws). Days without a row simply are not in the list: the UI shows them as empty, never as a made-up value (G4).
  *
- * STATUS: written, NOT compiled, NOT tested on a device. Not used by any screen yet (S6d).
+ * OFFLINE STATUS (2026-10-23, docs/OFFLINE_STATUS_PLAN.md slice O1): every good read is saved on the phone
+ * ([StatusSnapshotStore], kind `daylog`, per student). When a read fails and a saved copy of the SAME student exists it is
+ * returned as `Success(fromCache = true, savedAtMs = ...)`, keeping only the days inside the asked window; otherwise
+ * `Failed` as before. `NotSignedIn` never uses a copy.
+ *
+ * STATUS: written, NOT compiled, NOT tested on a device.
  */
 object StudyDayLogReader {
     private const val TAG = "StudyDayLog"
+    private const val KIND = "daylog"
     private const val STATUS_OK = 0
     private const val STATUS_UNAUTHORIZED = 1
     private const val STATUS_FAILED = 2
@@ -55,6 +70,7 @@ object StudyDayLogReader {
 
     /** The last [days] days including today (default 14), oldest first. */
     suspend fun fetchRecent(days: Int = 14): StudyDayLogFetchResult = withContext(Dispatchers.IO) {
+        var userId: String? = null
         try {
             AuthStateManager.refreshIfNeeded()
             val first = AuthStateManager.currentUser.value
@@ -62,6 +78,7 @@ object StudyDayLogReader {
             if (first == null || token1.isNullOrBlank() || !UUID_REGEX.matches(first.id)) {
                 return@withContext StudyDayLogFetchResult.NotSignedIn
             }
+            userId = first.id
             val since = sinceDay(days)
             var outcome = read(first.id, token1, since)
             if (outcome.status == STATUS_UNAUTHORIZED && AuthStateManager.refreshIfNeeded(force = true)) {
@@ -69,14 +86,20 @@ object StudyDayLogReader {
                 val token2 = second?.accessToken
                 if (second != null && !token2.isNullOrBlank() && UUID_REGEX.matches(second.id)) {
                     outcome = read(second.id, token2, since)
+                    userId = second.id
                 }
             }
-            if (outcome.status == STATUS_OK) StudyDayLogFetchResult.Success(outcome.rows) else StudyDayLogFetchResult.Failed
+            if (outcome.status == STATUS_OK) {
+                saveSnapshot(userId, outcome.rows)
+                StudyDayLogFetchResult.Success(outcome.rows)
+            } else {
+                cachedOrFailed(userId, since)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "fetchRecent failed: ${e.javaClass.simpleName}")
-            StudyDayLogFetchResult.Failed
+            cachedOrFailed(userId ?: AuthStateManager.currentUser.value?.id, sinceDay(days))
         }
     }
 
@@ -85,6 +108,35 @@ object StudyDayLogReader {
         val cal = Calendar.getInstance()
         cal.add(Calendar.DAY_OF_YEAR, -(maxOf(days, 1) - 1))
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
+    }
+
+    /** Saves the latest good read for this student. Never throws. */
+    private fun saveSnapshot(userId: String, rows: List<StudyDayRow>) {
+        runCatching {
+            val arr = JSONArray()
+            for (r in rows) {
+                arr.put(JSONObject().put("day", r.day).put("s", r.seconds).put("f", r.focusSeconds))
+            }
+            StatusSnapshotStore.save(userId, KIND, arr)
+        }
+    }
+
+    /** The saved copy of this student (only days from [since] on) as a result, or `Failed` when there is none. */
+    private fun cachedOrFailed(userId: String?, since: String): StudyDayLogFetchResult {
+        if (userId == null || !UUID_REGEX.matches(userId)) return StudyDayLogFetchResult.Failed
+        val saved = runCatching { StatusSnapshotStore.load(userId, KIND) }.getOrNull()
+            ?: return StudyDayLogFetchResult.Failed
+        val rows = runCatching {
+            val list = ArrayList<StudyDayRow>(saved.rows.length())
+            for (i in 0 until saved.rows.length()) {
+                val o = saved.rows.getJSONObject(i)
+                val day = o.optString("day", "")
+                if (day.length < 10 || day < since) continue
+                list.add(StudyDayRow(day.substring(0, 10), o.optInt("s", 0), o.optInt("f", 0)))
+            }
+            list
+        }.getOrNull() ?: return StudyDayLogFetchResult.Failed
+        return StudyDayLogFetchResult.Success(rows, fromCache = true, savedAtMs = saved.savedAtMs)
     }
 
     private fun read(userId: String, token: String, sinceDay: String): ReadOutcome {

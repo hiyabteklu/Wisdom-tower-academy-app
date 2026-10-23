@@ -10,6 +10,7 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import org.json.JSONArray
+import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
 /** One row of `public.exam_attempts` (the student's own). `score` is read as the number of correct answers (hypothesis, see docs). */
@@ -23,7 +24,15 @@ data class ExamAttemptRow(
 )
 
 sealed class ExamAttemptsFetchResult {
-    data class Success(val rows: List<ExamAttemptRow>) : ExamAttemptsFetchResult()
+    /**
+     * OFFLINE STATUS (O1): [fromCache] is true when the server could not be reached and these rows are the saved copy of
+     * the latest sync ([savedAtMs] = when it was saved). Both have defaults, so every old `Success(rows)` still compiles.
+     */
+    data class Success(
+        val rows: List<ExamAttemptRow>,
+        val fromCache: Boolean = false,
+        val savedAtMs: Long? = null
+    ) : ExamAttemptsFetchResult()
     object NotSignedIn : ExamAttemptsFetchResult()
     object Failed : ExamAttemptsFetchResult()
 }
@@ -32,10 +41,15 @@ sealed class ExamAttemptsFetchResult {
  * My Status V2 (S1): reads the signed-in student's own `exam_attempts` (policy `auth.uid() = user_id`), same pattern as
  * `StudentProgressReader` (own token, refresh when needed, one retry after a 401, only HTTP codes logged, never throws).
  *
+ * OFFLINE STATUS (2026-10-23, docs/OFFLINE_STATUS_PLAN.md slice O1): every good read is saved on the phone
+ * ([StatusSnapshotStore], kind `exams`, per student). When a read fails and a saved copy of the SAME student exists it is
+ * returned as `Success(fromCache = true, savedAtMs = ...)`; otherwise `Failed` as before. `NotSignedIn` never uses a copy.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 object ExamAttemptsReader {
     private const val TAG = "ExamAttempts"
+    private const val KIND = "exams"
     private const val STATUS_OK = 0
     private const val STATUS_UNAUTHORIZED = 1
     private const val STATUS_FAILED = 2
@@ -53,6 +67,7 @@ object ExamAttemptsReader {
     private class ReadOutcome(val status: Int, val rows: List<ExamAttemptRow>)
 
     suspend fun fetchAll(): ExamAttemptsFetchResult = withContext(Dispatchers.IO) {
+        var userId: String? = null
         try {
             AuthStateManager.refreshIfNeeded()
             val first = AuthStateManager.currentUser.value
@@ -60,21 +75,68 @@ object ExamAttemptsReader {
             if (first == null || token1.isNullOrBlank() || !UUID_REGEX.matches(first.id)) {
                 return@withContext ExamAttemptsFetchResult.NotSignedIn
             }
+            userId = first.id
             var outcome = read(first.id, token1)
             if (outcome.status == STATUS_UNAUTHORIZED && AuthStateManager.refreshIfNeeded(force = true)) {
                 val second = AuthStateManager.currentUser.value
                 val token2 = second?.accessToken
                 if (second != null && !token2.isNullOrBlank() && UUID_REGEX.matches(second.id)) {
                     outcome = read(second.id, token2)
+                    userId = second.id
                 }
             }
-            if (outcome.status == STATUS_OK) ExamAttemptsFetchResult.Success(outcome.rows) else ExamAttemptsFetchResult.Failed
+            if (outcome.status == STATUS_OK) {
+                saveSnapshot(userId, outcome.rows)
+                ExamAttemptsFetchResult.Success(outcome.rows)
+            } else {
+                cachedOrFailed(userId)
+            }
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
             Log.w(TAG, "fetchAll failed: ${e.javaClass.simpleName}")
-            ExamAttemptsFetchResult.Failed
+            cachedOrFailed(userId ?: AuthStateManager.currentUser.value?.id)
         }
+    }
+
+    /** Saves the latest good read for this student. Never throws. */
+    private fun saveSnapshot(userId: String, rows: List<ExamAttemptRow>) {
+        runCatching {
+            val arr = JSONArray()
+            for (r in rows) {
+                val o = JSONObject().put("rid", r.resourceId)
+                if (r.startedAt != null) o.put("st", r.startedAt)
+                if (r.submittedAt != null) o.put("sub", r.submittedAt)
+                if (r.score != null) o.put("score", r.score)
+                if (r.total != null) o.put("total", r.total)
+                arr.put(o)
+            }
+            StatusSnapshotStore.save(userId, KIND, arr)
+        }
+    }
+
+    /** The saved copy of this student as a result, or `Failed` when there is none. */
+    private fun cachedOrFailed(userId: String?): ExamAttemptsFetchResult {
+        if (userId == null || !UUID_REGEX.matches(userId)) return ExamAttemptsFetchResult.Failed
+        val saved = runCatching { StatusSnapshotStore.load(userId, KIND) }.getOrNull()
+            ?: return ExamAttemptsFetchResult.Failed
+        val rows = runCatching {
+            val list = ArrayList<ExamAttemptRow>(saved.rows.length())
+            for (i in 0 until saved.rows.length()) {
+                val o = saved.rows.getJSONObject(i)
+                list.add(
+                    ExamAttemptRow(
+                        resourceId = o.optString("rid", ""),
+                        startedAt = if (o.isNull("st")) null else o.optString("st", "").ifBlank { null },
+                        submittedAt = if (o.isNull("sub")) null else o.optString("sub", "").ifBlank { null },
+                        score = if (!o.has("score") || o.isNull("score")) null else o.optDouble("score").takeUnless { it.isNaN() },
+                        total = if (!o.has("total") || o.isNull("total")) null else o.optInt("total")
+                    )
+                )
+            }
+            list
+        }.getOrNull() ?: return ExamAttemptsFetchResult.Failed
+        return ExamAttemptsFetchResult.Success(rows, fromCache = true, savedAtMs = saved.savedAtMs)
     }
 
     private fun read(userId: String, token: String): ReadOutcome {
