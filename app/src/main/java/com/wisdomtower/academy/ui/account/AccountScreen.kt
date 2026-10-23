@@ -198,7 +198,7 @@ private val PillOnAccent: Color get() = dayNight(Color(0xFF06101F), WisdomDarkOn
  *     1. Personal Details            (first name, last name, phone)
  *     2. Academic Level & Institution (level, university or school, region)
  *     3. My Subjects                 (what "Your status" counts)
- *     4. Study Goals & Targets       (daily minutes, target exam, target score / GPA)
+ *     4. Study Goals & Targets       (daily minutes only)
  *     5. Study Schedule              (preferred study window)
  *
  * 2026-10-19 (owner order): Study Goals and My Subjects were moved here from Settings, and the duplicate
@@ -206,6 +206,11 @@ private val PillOnAccent: Color get() = dayNight(Color(0xFF06101F), WisdomDarkOn
  * Save uses [AuthStateManager.saveProfile], so "Saved" is shown only when the server really returned the row
  * (before, this screen showed "Saved" even when the server write failed). Subjects are written with
  * [ProfileSubjectsSync] (`my_subject_keys` + `study_subjects`).
+ *
+ * 2026-10-23 (owner order): the "Target Exam / Milestone" and "Target Score / GPA" boxes were REMOVED from
+ * this screen. Save no longer sends them, so whatever is already stored in `target_exam` / `target_score`
+ * stays untouched. The 10 completion points that "Target Exam" used to give now come from My Subjects
+ * (at least one subject chosen), so the gauge can still reach 100%.
  *
  * Saving never touches `stream` or `avatarPreset`: whatever is already stored stays as it is.
  */
@@ -325,10 +330,8 @@ private fun MyProfilePanel(
         )
     }
 
-    // Study goals and schedule (were in Settings)
+    // Study goals and schedule (were in Settings). Target exam / target score boxes were removed 2026-10-23.
     var dailyGoal by remember(profile.dailyStudyGoalMinutes) { mutableStateOf(profile.dailyStudyGoalMinutes) }
-    var targetExam by remember(profile.targetExam) { mutableStateOf(profile.targetExam ?: "") }
-    var targetScore by remember(profile.targetScore) { mutableStateOf(profile.targetScore ?: "") }
     var studyWindow by remember(profile.preferredStudyTime) {
         mutableStateOf(profile.preferredStudyTime?.takeIf { it.isNotBlank() } ?: "evening")
     }
@@ -360,7 +363,7 @@ private fun MyProfilePanel(
         if (educationLevel.isNotBlank()) score += 20
         if (schoolName.isNotBlank()) score += 30
         if (townRegion.isNotBlank()) score += 10
-        if (targetExam.isNotBlank()) score += 10
+        if (picks.isNotEmpty()) score += 10
         if (phone.isNotBlank()) score += 10
         minOf(100, score)
     }
@@ -508,13 +511,13 @@ private fun MyProfilePanel(
             }
         }
 
-        // CARD 4: Study goals and targets
+        // CARD 4: Study goals (daily minutes only; target exam and target score boxes removed 2026-10-23)
         StepAccordionCard(
             stepNumber = 4,
             title = "Study Goals & Targets",
-            subtitle = "Daily target ($dailyGoal mins), target exam, and score goal",
-            isFilled = targetExam.isNotBlank(),
-            unfilledLabel = "Incomplete",
+            subtitle = "Daily target ($dailyGoal mins)",
+            isFilled = dailyGoal > 0,
+            unfilledLabel = "Not set",
             isExpanded = openCard == 4,
             onToggle = { openCard = if (openCard == 4) 0 else 4 }
         ) {
@@ -531,28 +534,6 @@ private fun MyProfilePanel(
                     selected = "$dailyGoal min/day",
                     accent = WisdomCyan,
                     onSelect = { label -> dailyGoal = label.substringBefore(" ").toIntOrNull() ?: dailyGoal }
-                )
-
-                OutlinedTextField(
-                    value = targetExam,
-                    onValueChange = { targetExam = it },
-                    label = { Text("Target Exam / Milestone", fontSize = 11.sp) },
-                    placeholder = { Text("e.g. National Matric, Exit Exam", fontSize = 11.sp, color = WisdomMuted) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = fieldColors()
-                )
-
-                OutlinedTextField(
-                    value = targetScore,
-                    onValueChange = { targetScore = it },
-                    label = { Text("Target Score / GPA", fontSize = 11.sp) },
-                    placeholder = { Text("e.g. 3.85 GPA or 90%+", fontSize = 11.sp, color = WisdomMuted) },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(14.dp),
-                    colors = fieldColors()
                 )
             }
         }
@@ -596,7 +577,7 @@ private fun MyProfilePanel(
                 } else {
                     profile.bio
                 }
-                // stream and avatarPreset are NOT set here: whatever is stored stays untouched
+                // stream, avatarPreset, targetExam and targetScore are NOT set here: whatever is stored stays untouched
                 val updated = profile.copy(
                     fullName = if (composedName.isNotBlank()) composedName else profile.fullName,
                     firstName = firstName.trim(),
@@ -607,15 +588,11 @@ private fun MyProfilePanel(
                     townRegion = townRegion,
                     bio = newBio,
                     dailyStudyGoalMinutes = dailyGoal,
-                    targetExam = targetExam.trim(),
-                    targetScore = targetScore.trim(),
                     preferredStudyTime = studyWindow
                 )
                 // Same keys the old Settings card wrote, so anything that still reads them keeps working.
                 context.getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE).edit()
                     .putInt("daily_study_goal_minutes", dailyGoal)
-                    .putString("target_exam", targetExam.trim())
-                    .putString("target_score", targetScore.trim())
                     .putString("preferred_study_time", studyWindow)
                     .apply()
 
