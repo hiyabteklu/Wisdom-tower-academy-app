@@ -14,7 +14,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -33,6 +35,8 @@ import com.wisdomtower.academy.data.content.CourseLocks
 import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningResource
+import com.wisdomtower.academy.data.content.PackagePrices
+import com.wisdomtower.academy.data.content.PaidCheckout
 import com.wisdomtower.academy.ui.packages.NATIVE_LEARNING_HUBS
 import com.wisdomtower.academy.ui.packages.OpenCard
 import com.wisdomtower.academy.ui.packages.openGrid
@@ -122,6 +126,11 @@ internal fun safeHubUrl(basePath: String, hubId: String): String {
  * COMPACT HEADER (owner request 2026-10-22): no back arrow and no title + subtitle block. ONE small muted line names the
  * course; the semester / package is already known from the previous screen. Back = phone back key / gesture
  * ([BackHandler] below handles the native study views, the app handles leaving this page).
+ *
+ * TELEGRAM BUILD (slice P3, `docs/TELEGRAM_PAID_BUILD_PLAN.md`): while this page is on screen it tells [PaidCheckout] which
+ * course it shows and how to open a website page (the same `onOpenHub` the hub cards use), so the "Package required" card
+ * (here and in the hub list) can offer Buy now / My orders. It also reads the dashboard prices once. In the Play build
+ * the card never asks for any of it, and `PackagePrices.refresh()` returns at once.
  */
 @Composable
 fun StudyWorkspaceScreen(
@@ -153,6 +162,19 @@ fun StudyWorkspaceScreen(
         mutableStateOf<CourseLocks>(ContentAccess.staticLocks(basePath, loggedIn))
     }
     var gateMessage by remember(basePath) { mutableStateOf<GateMessage?>(null) }
+
+    // P3 (Telegram build): what the "Package required" card needs. Harmless in the Play build (the card ignores it).
+    SideEffect {
+        PaidCheckout.scope = contentScope
+        PaidCheckout.opener = { url -> onOpenHub("checkout", url) }
+    }
+    DisposableEffect(Unit) {
+        onDispose {
+            PaidCheckout.scope = null
+            PaidCheckout.opener = null
+        }
+    }
+    LaunchedEffect(Unit) { PackagePrices.refresh() }
 
     LaunchedEffect(basePath, loggedIn) {
         locks = ContentAccess.resolveLocks(basePath, loggedIn)
