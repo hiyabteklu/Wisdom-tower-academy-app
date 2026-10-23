@@ -4169,25 +4169,7 @@ fun MainScreen(
                                 }
                             )
 
-                            Spacer(modifier = Modifier.height(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(1.dp)
-                                    .background(CardBorderSubtle)
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-
-                            DrawerCompactRow(
-                                icon = Icons.Filled.Refresh,
-                                label = "Refresh",
-                                index = 5,
-                                onClick = {
-                                    menuExpanded = false
-                                    performHardRefresh()
-                                }
-                            )
-
+                            // DRAWER-CLEAN: Refresh row removed from the drawer
                             Spacer(modifier = Modifier.height(8.dp))
                             Box(
                                 modifier = Modifier
@@ -4210,7 +4192,7 @@ fun MainScreen(
                                 DrawerCompactRow(
                                     icon = link.icon,
                                     label = link.label,
-                                    index = 6 + linkIndex,
+                                    index = 5 + linkIndex,
                                     onClick = {
                                         menuExpanded = false
                                         when (link.label) {
@@ -4226,21 +4208,6 @@ fun MainScreen(
                             }
                         }
 
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(1.dp)
-                                .background(CardBorderSubtle)
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Wisdom Tower Academy • Native Shell",
-                            color = Muted.copy(alpha = if (AppThemeMode.isDark) 0.45f else 0.85f),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Normal,
-                            modifier = Modifier.fillMaxWidth(),
-                            textAlign = TextAlign.Center
-                        )
                     }
                 }
             }
