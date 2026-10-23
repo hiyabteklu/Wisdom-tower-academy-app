@@ -1045,6 +1045,16 @@ fun MainScreen(
 
     var selectedIndex by rememberSaveable { mutableIntStateOf(0) }
     var selectedPackage by remember { mutableStateOf<NativePackage?>(null) }
+    // TAB-HIGHLIGHT-2026-10-23: the tab a package page was opened from (0 Home, 1 Learning, 2 Game)
+    var packageOriginTab by remember { mutableIntStateOf(2) }
+    fun markPackageOrigin() {
+        if (selectedPackage == null || selectedIndex != 2) packageOriginTab = selectedIndex
+    }
+    fun leavePackage() {
+        selectedPackage = null
+        selectedIndex = packageOriginTab
+        packageOriginTab = 2
+    }
     var activeWorkspace by remember { mutableStateOf<Triple<String, String, String>?>(null) }
     var activeStudyUrl by remember { mutableStateOf<String?>(null) }
     var activeGuideSlug by remember { mutableStateOf<String?>(null) }
@@ -1742,7 +1752,7 @@ fun MainScreen(
             return@BackHandler
         }
         if (selectedPackage != null) {
-            selectedPackage = null
+            leavePackage()
             return@BackHandler
         }
         if (activeStudyUrl != null) {
@@ -1924,6 +1934,7 @@ fun MainScreen(
                 it.id.equals(pathPart.removePrefix("/packages/"), ignoreCase = true)
             }
             if (matchedPkg != null) {
+                markPackageOrigin()
                 selectedPackage = matchedPkg
                 selectedIndex = 2
             } else if (pathPart == "/academy" || pathPart == "/packages") {
@@ -2226,8 +2237,10 @@ fun MainScreen(
                 if (!isKeyboardVisible && !com.wisdomtower.academy.ui.games.common.GameFullScreen.active) {
                     AliveBottomNav(
                         items = items,
-                        selectedIndex = selectedIndex,
+                        selectedIndex = if (selectedIndex == 2 && selectedPackage != null) packageOriginTab else selectedIndex,
+                        reselectable = selectedIndex == 2 && selectedPackage != null && packageOriginTab != 2,
                         onItemSelected = { index, _ ->
+                            packageOriginTab = 2
                             resetOverlays()
                             stopNavigationLoading(forceImmediate = true)
                             selectedIndex = index
@@ -3267,6 +3280,7 @@ fun MainScreen(
                             }
                         },
                         onSelectCourse = { pkg ->
+                            markPackageOrigin()
                             selectedPackage = pkg
                             selectedIndex = 2
                         },
@@ -3280,7 +3294,7 @@ fun MainScreen(
                     if (currentPkg != null) {
                         PackageDetailScreen(
                             pkg = currentPkg,
-                            onBack = { selectedPackage = null },
+                            onBack = { leavePackage() },
                             onOpenSubjectWorkspace = { title, subtitle, path ->
                                 activeWorkspace = Triple(title, subtitle, path)
                             },
@@ -3311,6 +3325,7 @@ fun MainScreen(
                                 .zIndex(10f),
                             packageList = catalogPackages,
                             onSelectPackage = { pkg ->
+                                markPackageOrigin()
                                 selectedPackage = pkg
                             }
                         )
@@ -4318,6 +4333,7 @@ private fun AliveBottomNav(
     selectedIndex: Int,
     onItemSelected: (Int, BottomNavItem) -> Unit,
     modifier: Modifier = Modifier,
+    reselectable: Boolean = false,
 ) {
     val view = LocalView.current
     val lastIndex = (items.size - 1).coerceAtLeast(0)
@@ -4382,7 +4398,7 @@ private fun AliveBottomNav(
                                     role = androidx.compose.ui.semantics.Role.Tab // S3-a11y
                                 ) {
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
-                                    if (index != selectedIndex) onItemSelected(index, item)
+                                    if (index != selectedIndex || reselectable) onItemSelected(index, item)
                                 }
                                 .semantics { this.selected = selected },
                             contentAlignment = Alignment.Center
