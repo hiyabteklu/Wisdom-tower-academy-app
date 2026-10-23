@@ -7,7 +7,7 @@
 - [x] O1: default look Transparent (`AppBackground.kt`, in `main`).
 - [x] O2: new 3-screen animated `OnboardingScreen.kt` (welcome, journey, orbit; in `main`).
 - [x] O3: `scripts/patch_o3_startup_cover.py` written and tested on a copy; owner runs Actions > Apply pending patches (log: `docs/SESSION_2026-10-23_O3_STARTUP_COVER.md`). NOT applied yet.
-- [ ] O4: `scripts/patch_o4_main_thread_relief.py` (next).
+- [x] O4: `scripts/patch_o4_main_thread_relief.py` written and tested on a copy (log: `docs/SESSION_2026-10-23_O4_MAIN_THREAD_RELIEF.md`). NOT applied yet.
 - [ ] O5: owner phone test, then fix from the report.
 
 Plan changes: (1) the O3 cover draws the chosen app background (`appBackdrop()`), not solid navy (owner decision BG-LOADING; default look is now Transparent). (2) O3 also brings the cover back after onboarding finishes, because the WebView does not exist before that.
@@ -23,10 +23,10 @@ Plan changes: (1) the O3 cover draws the chosen app background (`appBackdrop()`)
 
 ## 2. Verified findings (code read)
 1. `OnboardingScreen.kt` (12.7 KB, small, editable whole) had FIVE pages, not three: welcome (GIF), "Everything for your journey", "Zero margin for error", "Powerful AI...", "Stay on track" (notification permission). Flags: `hasCompletedOnboarding` / `setOnboardingCompleted` use SharedPreferences `wta_prefs` key `onboarding_done`. (Replaced by O2.)
-2. ROOT CAUSE of the empty-screen loader (VERIFIED): in `MainActivity.kt`, `MainScreen` calls `onReady()` in its very first `LaunchedEffect(Unit)` (about line 1591), so the system splash is released at once. The app loader (`CustomCenteredLoader`, zIndex 95, about line 3564) is drawn INSIDE the Scaffold content area, so the top bar and bottom nav are drawn on top of / around it. That is exactly "loader rotating on an empty screen with the nav showing".
+2. ROOT CAUSE of the empty-screen loader (VERIFIED): in `MainActivity.kt`, `MainScreen` calls `onReady()` in its very first `LaunchedEffect(Unit)` (about line 1591), so the system splash is released at once. The app loader (`CustomCenteredLoader`, zIndex 95, about line 3564) is drawn INSIDE the Scaffold content area, so the top bar and bottom nav are drawn on top of / around it. That is exactly "loader rotating on an empty screen with the nav showing". (Fixed by O3.)
 3. Start-up timing (VERIFIED): the loader stays while `isInitialLoading`; it ends when the web page reports progress >= 60 or `onPageCommitVisible`, with a 3.0 s wait loop and a 3.5 s hard fail-safe.
-4. The loader overlay has no touch blocking (VERIFIED: no `pointerInput` on it), so taps pass through to the tabs and WebView underneath while it shows.
-5. Heavy main-thread work after every page (VERIFIED in `onPageFinished`): `document.documentElement.outerHTML` is read through `evaluateJavascript`; its callback (UI thread) runs `JSONTokener(...).nextValue()` on the whole page and `WebCacheVault.saveHtmlPage(...)`; then 7 scripts are injected, and 4 of them again after 800 ms. Quick tab switching repeats this for every page.
+4. The loader overlay has no touch blocking (VERIFIED: no `pointerInput` on it), so taps pass through to the tabs and WebView underneath while it shows. (Fixed by O3.)
+5. Heavy main-thread work after every page (VERIFIED in `onPageFinished`): `document.documentElement.outerHTML` is read through `evaluateJavascript`; its callback (UI thread) runs `JSONTokener(...).nextValue()` on the whole page and `WebCacheVault.saveHtmlPage(...)`; then 7 scripts are injected, and 4 of them again after 800 ms. Quick tab switching repeats this for every page. (Eased by O4.)
 6. Default look: `AppBackground.readSaved()` fell back to `AppBackgroundOption.Black` (Night). `AppBackgroundOption.Photo2` is the "Transparent" picture (`backgrounds/transparent.jpg`). (Fixed by O1.)
 
 ## 3. Hypotheses (not proven)
@@ -60,7 +60,7 @@ Only `graphicsLayer` / alpha / Canvas progress (cheap on budget phones). Respect
 - O1: `AppBackground.kt` default to Transparent (tiny, direct commit). DONE.
 - O2: new `OnboardingScreen.kt` (3 screens, animated). Whole-file replace. Same function names and the two SharedPreferences helpers unchanged. DONE.
 - O3: patch script `scripts/patch_o3_startup_cover.py` (cover, onReady timing, touch block). Owner runs Actions > Apply pending patches. WRITTEN, NOT APPLIED.
-- O4: patch script `scripts/patch_o4_main_thread_relief.py` (HTML cache off the main thread). Same way.
+- O4: patch script `scripts/patch_o4_main_thread_relief.py` (HTML cache off the main thread). Same way. WRITTEN, NOT APPLIED.
 - O5: owner phone test (checklist below), then fix from the report.
 
 ## 6. Owner phone test
@@ -68,7 +68,7 @@ Only `graphicsLayer` / alpha / Canvas progress (cheap on budget phones). Respect
 2. Cold start: a big loader covers the WHOLE screen (no top bar, no bottom nav visible) until the app is ready, then fades.
 3. Right after opening, tap tabs fast and scroll hard 10 times: no freeze. If it still freezes: send the time it happened (logcat or an "App not responding" screenshot).
 4. New install with no saved choice: background is Transparent. Settings still lets you pick Night or Day.
-5. Airplane mode cold start: cover still ends (offline page shows).
+5. Airplane mode cold start: cover still ends (offline page shows). A page opened online still opens offline.
 
 ## 7. Open questions for the owner
 1. Confirm the journey ORDER and names: Grades 9-12, EUEE, Remedial, Freshman, University, Exit Exam, then COC and GAT chips.
