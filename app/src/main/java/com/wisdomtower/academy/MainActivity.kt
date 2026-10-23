@@ -2724,6 +2724,8 @@ fun MainScreen(
                                         if (isOnline(ctx)) {
                                             wv.evaluateJavascript("(function(){return document.documentElement ? document.documentElement.outerHTML : '';})();") { htmlJson ->
                                                 if (!htmlJson.isNullOrBlank() && htmlJson != "\"\"" && htmlJson != "null") {
+                                                    // O4: main-thread relief. Parsing the whole page text and writing it to disk now run on the vault's own threads.
+                                                    WebCacheVault.io.execute {
                                                     try {
                                                         val rawHtml = org.json.JSONTokener(htmlJson).nextValue() as? String ?: ""
                                                         val saveUrl = curUrl ?: u
@@ -2736,6 +2738,7 @@ fun MainScreen(
                                                             WebCacheVault.saveHtmlPage(ctx, saveUrl, rawHtml)
                                                         }
                                                     } catch (_: Exception) {}
+                                                    }
                                                 }
                                             }
                                         }
@@ -2756,7 +2759,8 @@ fun MainScreen(
                                         wv.evaluateJavascript(AUTH_BRIDGE_JS, null)
                                         mainHandler.postDelayed({
                                             val cur = wv.url ?: ""
-                                            if (!cur.startsWith("file://")) {
+                                            // O4: main-thread relief. Skip this second round when the page changed in the meantime.
+                                            if (!cur.startsWith("file://") && cur.substringBefore('#') == u.substringBefore('#')) {
                                                 wv.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                                 wv.evaluateJavascript(DETECT_AND_RECOVER_JS, null)
                                                 wv.evaluateJavascript(BOOK_PAGE_HELPERS_JS, null)
