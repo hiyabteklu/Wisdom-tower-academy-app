@@ -65,7 +65,7 @@ private const val DAY_MODE_OFFERED = true
  * it loads as Night. The same is true of BG 1, BG 3 and Blue.
  *
  * The saved choice is the constant NAME. A saved name that is not one of the offered options falls back to the default,
- * Night.
+ * Transparent ([Photo2]) since O1 (owner order 2026-10-23).
  * [base] is the plain colour under the look; it is also what native views that need one solid colour use, and what shows
  * while a picture is still loading.
  * [isLight] is true only for the Day look. It is what switches the whole app to day colours (see [AppThemeMode]).
@@ -277,7 +277,10 @@ private fun DrawScope.drawBackdrop(opt: AppBackgroundOption, w: Float, h: Float)
  * The ONE holder of the chosen background. The choice is saved in SharedPreferences (key [KEY], the same key as before)
  * and exposed as Compose state, so every [AtmosphereBackground] redraws the moment [select] is used. Since D1 it also
  * decides day or night for the whole app: see [AppThemeMode].
- * Default: Night (the old Dark). Only the options in [options] can be chosen or loaded.
+ * Default: Transparent (the [AppBackgroundOption.Photo2] picture), since O1 (owner order 2026-10-23: "by default, the
+ * transparent mode should be the mode, not dark"). A phone that already saved Night or Day keeps that choice; only a
+ * phone with no saved choice, or a saved name that is not offered, gets the default. Only the options in [options] can
+ * be chosen or loaded.
  *
  * The saved value is read once when this object is first used (the Application already exists by then), so no state is
  * written while a screen is composing.
@@ -319,7 +322,8 @@ object AppBackground {
     }
 
     private fun readSaved(): AppBackgroundOption {
-        val default = AppBackgroundOption.Black
+        // O1 (2026-10-23): default is Transparent (Photo2), no longer Night (Black).
+        val default = AppBackgroundOption.Photo2
         val app = runCatching { WisdomTowerApplication.instance }.getOrNull() ?: return default
         val name = app.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).getString(KEY, null)
         return options.firstOrNull { it.name == name } ?: default
