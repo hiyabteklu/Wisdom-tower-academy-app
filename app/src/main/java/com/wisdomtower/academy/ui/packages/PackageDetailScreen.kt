@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.BuildConfig
 import com.wisdomtower.academy.data.content.PackagePrices
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomInk
@@ -58,7 +59,8 @@ private val ECE_SEMESTER_ENTRIES = listOf(
  *
  * TELEGRAM BUILD (slice P2b, `docs/TELEGRAM_PAID_BUILD_PLAN.md`): [PackagePriceTag] shows the admin dashboard price of the
  * package under the heading, and under each ECE semester card (the semester package `ece-y3-sem-1` / `ece-y3-sem-2`).
- * It draws nothing in the Play build or for a package with no dashboard price, so those layouts are unchanged.
+ * It draws nothing for a package with no dashboard price. In the Play build nothing is added at all (the heading row is
+ * skipped by the [BuildConfig.PAID_UI] check, so no empty row and no extra gap), so that layout is unchanged.
  */
 @Composable
 fun PackageDetailScreen(
@@ -138,7 +140,7 @@ fun PackageDetailScreen(
 
             // P2b (Telegram build): the package price under the heading. ECE shows its prices under the semester
             // cards instead; Entrance Questions has no catalog package, so nothing is drawn for it.
-            if (!isEce) {
+            if (BuildConfig.PAID_UI && !isEce) {
                 item(key = "package_price") { PackagePriceTag(pkg.id) }
             }
 
