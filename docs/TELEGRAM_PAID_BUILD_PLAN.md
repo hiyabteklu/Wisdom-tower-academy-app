@@ -12,6 +12,7 @@
 - BUT `website-reference/src/lib/ownership.ts` has `export const IS_FREE_MODE = true;` (hard-coded, comment: Play Store review). While true, checkout shows "is Unlocked" and all price / cart UI is hidden. The website repo is `hiyabteklu/Wisdom-tower-academy` (not edited from here without the owner's approval).
 - The native app decides ownership only from the DATABASE (`public.my_package_access()` + `public.content_locks`, see `ContentAccess.kt`). A locked course shows the native "Package required" card with no price and no button (`HubGate.PackageRequired`). The app has no price or checkout screen today (code search found none).
 - CI (`.github/workflows/build-apk.yml`) builds a signed AAB and APK from the GitHub secrets and fails without them. Package name stays `com.wisdomtower.academy` for both builds, so Firebase push keeps working. Hypothesis: a Telegram APK and the Play-installed app are signed with different keys (Google re-signs Play builds), so one cannot update the other; a student moving between them must uninstall first.
+- The chat GitHub tool CANNOT write anything under `.github/` (HTTP 403 "Resource not accessible by integration", seen 2026-10-23). Workflow changes must be pasted by the owner in the GitHub web editor.
 
 ## 3. Design
 1. ONE code base. A build switch `BuildConfig.PAID_UI` (false by default, true only when Gradle runs with `-PpaidUi=true`). Every paid screen checks it, so the Play build is byte-for-byte the current behaviour.
@@ -21,7 +22,7 @@
 5. Database (owner, no code): finished courses locked as `require_purchase`, unfinished ones left `open` as the promotion; the enforcement lock `system:enforce` must be ON or locks do nothing. Payments verified by `/api/verify-payment` or by the admin dashboard grant access.
 
 ## 4. Slices (one per commit)
-- [~] **P1 Build switch + second APK** (2026-10-23): `app/build.gradle.kts` (`PAID_UI` field) and `.github/workflows/build-apk.yml` (step "Build Telegram APK", artifact `Wisdom-tower-academy-TELEGRAM-APK`). Written, NOT compiled. Owner approved touching these two forbidden files by saying "Go" to this plan (2026-10-23).
+- [~] **P1 Build switch + second APK** (2026-10-23). (a) DONE in code: `app/build.gradle.kts` has the `PAID_UI` BuildConfig field (false unless `-PpaidUi=true`), commit "P1a", written, NOT compiled. (b) NOT DONE: `.github/workflows/build-apk.yml` needs one extra step "Build Telegram APK" after the step "Package Wisdom-tower-academy.apk" (runs `./gradlew assembleRelease -PpaidUi=true`, copies the APK to `Wisdom-tower-academy-telegram.apk`, `continue-on-error: true`) plus an upload step named `Wisdom-tower-academy-TELEGRAM-APK`. The chat tool cannot write `.github/`, so the owner pastes the ready file. Owner approved touching these two forbidden files by saying "Go" (2026-10-23).
 - [ ] **P2** price on package cards (paid build only).
 - [ ] **P3** "Package required" card with price + Buy + Orders (paid build only).
 - [ ] **P4** re-read ownership after checkout.
@@ -32,4 +33,4 @@
 2. After P2 to P4: in the Telegram APK a locked course shows price and Buy; checkout opens signed in; send a test payment; the admin unlocks; the course opens.
 
 ## 6. Status log (append only)
-- 2026-10-23 P1 written. Not compiled. Next: P2.
+- 2026-10-23 P1a written (`app/build.gradle.kts`). Not compiled. P1b (workflow) blocked: the chat tool cannot write `.github/`; owner to paste the file. Next: P2 (does not need the workflow; the Telegram APK only appears after P1b).
