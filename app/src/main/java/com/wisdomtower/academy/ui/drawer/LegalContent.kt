@@ -1,10 +1,10 @@
 package com.wisdomtower.academy.ui.drawer
 
 /**
- * Privacy Policy and Terms of Service: text copied from the website pages
- * website-reference/src/app/privacy/page.tsx and website-reference/src/app/terms/page.tsx
- * (version 3.2, last revised 28 September 2026). Do NOT reword or add text here: change the
- * website first, then copy.
+ * Privacy Policy and Terms of Service shown in the app drawer.
+ * Version 3.3, last revised 24 October 2026 (owner request: plainer professional wording, no payment topics).
+ * The website pages (website-reference/src/app/privacy/page.tsx and terms/page.tsx) still carry version 3.2:
+ * copy this text to the website so both say the same thing.
  */
 sealed class LegalBlock {
     /** A paragraph; [lead] is printed in bold in front of [text]. */
@@ -38,116 +38,121 @@ data class LegalDocument(
 )
 
 val PRIVACY_DOCUMENT = LegalDocument(
-    badge = "Student Data Protection",
+    badge = "Your Privacy",
     effective = "Effective: Academic Year 2026/2027",
-    title = "Institutional Privacy Policy",
-    intro = "Wisdom Tower Academy is dedicated to safeguarding the privacy, personal records, and academic integrity of every enrolled learner. This charter articulates our rigorous protocols for data stewardship, encryption safeguards, and the protection of student telemetry.",
-    meta = "Policy version: 3.2 • Last revised: 28 September 2026",
-    summaryTitle = "Our Academic Privacy Guarantees",
+    title = "Privacy Policy",
+    intro = "Wisdom Tower Academy respects the privacy of every student who uses it. This policy explains what information we collect, why we collect it, how we protect it, and the choices you have.",
+    meta = "Policy version: 3.3 • Last revised: 24 October 2026",
+    summaryTitle = "The Short Version",
     summaryItems = listOf(
-        "Zero Data Monetization:" to "We never sell, lease, or broker student personal or academic data to third-party ad networks.",
-        "End-to-End Encryption:" to "TLS 1.3 protocol protects all transit data; cryptographic vaults secure student profiles at rest.",
-        "Student-Centric Ownership:" to "Your progress records, bookmarks, and quiz histories belong to your academic journey.",
-        "Underage Scholar Protections:" to "Dedicated safety guardrails for secondary school learners in Grades 9–12."
+        "We do not sell your data:" to "We never sell or rent your personal or academic information to advertisers or other third parties.",
+        "Protected in transit and storage:" to "Connections are encrypted, and each student can only reach their own records.",
+        "Your progress is yours:" to "You can view, correct or delete your information at any time.",
+        "Extra care for younger students:" to "Learners in Grades 9–12 are covered by additional safeguards."
     ),
     sections = listOf(
         LegalSection(
-            "01", "Institutional Scope & Controller Identity", listOf(
-                LegalBlock.Para("Wisdom Tower Academy (“Wisdom Tower”, “we”, “our”, or “us”) operates the primary educational platform accessible via wisdomtower.et and its sub-domains. For the purposes of applicable data protection legislation and institutional standards, Wisdom Tower Academy is the official Data Controller responsible for the processing and protection of your personal and academic information."),
-                LegalBlock.Para("If you have questions regarding this charter or wish to exercise statutory data subject rights, you may reach our Data Protection Desk directly at: support@wisdomtower.tech")
+            "01", "Who We Are", listOf(
+                LegalBlock.Para("Wisdom Tower Academy (“we”, “our” or “us”) provides the Wisdom Tower Academy app and website at wisdom-tower-academy.live. We are responsible for the personal information described in this policy."),
+                LegalBlock.Para("If you have a question about this policy or want to use any of your rights, write to us at support@wisdomtower.tech.")
             )
         ),
         LegalSection(
-            "02", "Categories of Information We Collect", listOf(
-                LegalBlock.Para("We collect only the essential data necessary to deliver personalized, uninterrupted educational services across our hubs:"),
-                LegalBlock.Card("A. Student Identity & Authentication Records", "Full name, email address, password hash (one-way salted via bcrypt), and unique profile identifiers. When registering via Google OAuth, we receive authorized profile tokens (name, primary email, profile picture) without accessing personal passwords or external Google account details."),
-                LegalBlock.Card("B. Academic Telemetry & Performance Data", "Chapter completion timestamps, question-bank solution logs, mock exam scores, streak frequencies, study planner schedules, flashcard confidence ratings, and voluntary submissions to department or field leaderboards."),
-                LegalBlock.Card("C. Enrollment & Financial Verification Data", "Package identifiers, payment methods selected (Telebirr, CBE, Abyssinia, Awash), transaction reference codes, student contact phone numbers submitted for payment reconciliation, and optional payment receipt image uploads. Note: We never handle, store, or solicit private banking PINs or mobile wallet passwords."),
-                LegalBlock.Card("D. Device, Cache & Network Telemetry", "IP address (coarse geographic region), browser user agent, operating system, and localized IndexedDB cache storage used strictly to preserve offline study capability during internet interruptions in Ethiopia.")
+            "02", "Information We Collect", listOf(
+                LegalBlock.Para("We collect only what we need to run your account and your learning experience:"),
+                LegalBlock.Card("Account information", "Your name, email address, a unique profile identifier and your password in protected (hashed) form. If you sign in with Google, we receive your name, email address and profile picture. We never see your Google password."),
+                LegalBlock.Card("Learning activity", "Chapters you complete, answers and scores in quizzes and exams, study streaks, study planner entries, flashcard ratings, and your results on leaderboards if you choose to take part."),
+                LegalBlock.Card("Device and usage information", "Your device type, operating system, app version and an approximate region based on your IP address. Study content you download is stored on your device so you can use it offline.")
             )
         ),
         LegalSection(
-            "03", "Lawful Grounds for Processing", listOf(
-                LegalBlock.Para("In alignment with international privacy standards and Ethiopian legal frameworks, our processing activities rest upon well-defined legal bases:"),
+            "03", "How We Use Your Information", listOf(
+                LegalBlock.Para("We use your information to:"),
                 LegalBlock.Bullets(
                     listOf(
-                        "Contractual Necessity:" to "Processing required to authenticate your enrollment, unlock purchased packages, record completed chapters, and calculate exam scores.",
-                        "Legitimate Institutional Interests:" to "Enhancing pedagogical curriculum quality, diagnosing platform errors, safeguarding against fraudulent bank reference submissions, and preventing illegal scraping of copyrighted material.",
-                        "Explicit Student Consent:" to "Optional participation in field leaderboards, scholarship notification updates, or voluntary academic feedback surveys."
+                        "Provide the service:" to "sign you in, keep your progress, calculate scores and show your results.",
+                        "Improve the platform:" to "understand which content helps students most, and find and fix errors.",
+                        "Keep the platform safe:" to "prevent misuse, protect accounts and stop unauthorised copying of our content.",
+                        "Stay in touch:" to "send service notices, and optional updates if you have agreed to receive them."
+                    )
+                ),
+                LegalBlock.Para("Features such as leaderboards and optional surveys are used only if you choose to take part.")
+            )
+        ),
+        LegalSection(
+            "04", "How We Protect Your Information", listOf(
+                LegalBlock.Para("We use reasonable technical and organisational measures to protect your information:"),
+                LegalBlock.Bullets(
+                    listOf(
+                        "Encryption in transit:" to "all traffic between the app, the website and our servers uses HTTPS.",
+                        "Separated records:" to "our database applies row-level security, so each student can only access their own records.",
+                        "Limited staff access:" to "only authorised staff can reach administrative tools, based on their role, and their actions are logged."
+                    )
+                ),
+                LegalBlock.Para("No online service can be guaranteed to be completely secure, but we take protecting your information seriously.")
+            )
+        ),
+        LegalSection(
+            "05", "Service Providers", listOf(
+                LegalBlock.Para("We work with a small number of providers who process information on our behalf and are bound to keep it confidential:"),
+                LegalBlock.Bullets(
+                    listOf(
+                        "Supabase:" to "database, sign-in and secure file storage.",
+                        "Vercel and Google Cloud:" to "hosting and delivery of the website and app content.",
+                        "Google (Gemini API):" to "processes the question text when you use the optional explanation feature. Only the question content is sent, never your name or contact details."
                     )
                 )
             )
         ),
         LegalSection(
-            "04", "Infrastructure Safeguards & Cryptographic Protocols", listOf(
-                LegalBlock.Para("Wisdom Tower Academy enforces rigorous technological barriers to shield student records from unauthorized access, alteration, or disclosure:"),
+            "06", "Offline Content", listOf(
+                LegalBlock.Para("To help when your connection is slow or expensive, the app and website can keep downloaded notes, flashcards and reading progress on your device. This information stays on your device and you can remove it at any time by clearing the app data or your browser data.")
+            )
+        ),
+        LegalSection(
+            "07", "Your Rights", listOf(
+                LegalBlock.Para("You are in control of your information. You can:"),
                 LegalBlock.Bullets(
                     listOf(
-                        "Transit Encryption:" to "All HTTP traffic is forcefully upgraded to Transport Layer Security (TLS 1.3 / HTTPS), ensuring eavesdropping protection even on public Wi-Fi or cellular networks.",
-                        "Database Vault:" to "Production database clusters are maintained via Supabase with row-level security (RLS) policies ensuring students can only access their own private records.",
-                        "Restricted Administrative Access:" to "Academic registrars and staff operate under strict Role-Based Access Controls (RBAC) governed by multi-factor authentication and detailed audit logging."
+                        "See it:" to "review your profile, enrolled courses and results in your account.",
+                        "Correct it:" to "update your name and study preferences at any time.",
+                        "Delete it:" to "ask us to permanently delete your account and learning history.",
+                        "Opt out of leaderboards:" to "turn off leaderboard visibility so your scores stay private."
                     )
                 )
             )
         ),
         LegalSection(
-            "05", "Third-Party Sub-processors & Service Partners", listOf(
-                LegalBlock.Para("We partner only with enterprise-grade sub-processors bound by strict confidentiality and data-processing covenants:"),
+            "08", "Students Under 18", listOf(
+                LegalBlock.Para("Many of our learners are in Grades 9 to 12 and may be under 18. For them we:"),
                 LegalBlock.Bullets(
                     listOf(
-                        "Supabase:" to "Cloud database infrastructure, user authentication, and encrypted receipt asset storage.",
-                        "Google Cloud Platform & Vercel:" to "Edge computing servers, static asset delivery, and DDoS mitigation.",
-                        "Payment Verification Gateways:" to "Integration services (such as Verify.et) for automated bank reference validation.",
-                        "Google Gemini AI:" to "Server-side AI processing for “Explain with AI” question walkthroughs (prompts contain only academic question context; no personal student identity is transferred)."
+                        "" to "do not show contact details or social media handles on leaderboards.",
+                        "" to "allow parents and guardians to ask to see or change their child’s records by contacting our support team.",
+                        "" to "keep the platform free of advertising and do not build advertising profiles."
                     )
                 )
             )
         ),
         LegalSection(
-            "06", "Offline Persistence & Low-Bandwidth Caching", listOf(
-                LegalBlock.Para("Because Ethiopian students frequently face network volatility or high data costs, our platform uses client-side Service Workers and browser IndexedDB caches to store downloaded chapter summaries, flashcards, and reading progress locally."),
-                LegalBlock.Para("This localized data resides entirely on your device and can be cleared at any time through your browser settings or via the platform Preferences panel.")
+            "09", "How Long We Keep Information", listOf(
+                LegalBlock.Para("We keep your account and learning history for as long as your account is active, so your progress carries over from one semester to the next. Accounts that have been inactive for two years may be deleted after we notify you by email. You can ask us to delete your account at any time.")
             )
         ),
         LegalSection(
-            "07", "Student Rights & Autonomous Data Control", listOf(
-                LegalBlock.Para("Every enrolled student possesses comprehensive rights regarding their personal data:"),
-                LegalBlock.Bullets(
-                    listOf(
-                        "Right to Inspect:" to "View all saved profile details, active package enrollments, and quiz histories inside My Learning and Account Settings.",
-                        "Right to Rectify:" to "Update your name, phone number, and study preferences at any time.",
-                        "Right to Erasure (Right to Be Forgotten):" to "Request the permanent deletion of your profile and historical records upon completing your studies.",
-                        "Right to Opt-Out:" to "Toggle off optional leaderboard visibility to keep your score progress completely private."
-                    )
-                )
+            "10", "Changes to This Policy", listOf(
+                LegalBlock.Para("We may update this policy from time to time. The version number and date at the top show when it was last changed. If we make an important change, we will tell you in the app or by email.")
             )
         ),
         LegalSection(
-            "08", "Protection of Secondary School Minors", listOf(
-                LegalBlock.Para("For learners enrolled in our secondary curriculum tracks (Grades 9 through 12) who may be under the age of 18, Wisdom Tower Academy enforces protective parameters:"),
-                LegalBlock.Bullets(
-                    listOf(
-                        "" to "We do not display public contact details or personal social media handles on secondary leaderboards.",
-                        "" to "Parents and legal guardians may inspect or request modification of their dependent student's records by contacting our support desk.",
-                        "" to "We provide an entirely educational, ad-free environment without behavioural profiling or commercial solicitations."
-                    )
-                )
-            )
-        ),
-        LegalSection(
-            "09", "Data Retention Schedules", listOf(
-                LegalBlock.Para("Active student accounts and their associated learning histories are retained throughout the active enrollment period to maintain continuous academic records across academic semesters. Transaction records are maintained for a period of five (5) years in compliance with Ethiopian tax and commercial bookkeeping statutes. Dormant accounts with no package enrollments may be purged after two (2) years of persistent inactivity following prior email notification.")
-            )
-        ),
-        LegalSection(
-            "10", "Inquiries, Grievances & Data Protection Officer", listOf(
-                LegalBlock.Para("If you have inquiries concerning this policy or wish to exercise your data subject prerogatives, please submit a formal request:"),
+            "11", "Contact Us", listOf(
+                LegalBlock.Para("For any question or request about your information, contact us:"),
                 LegalBlock.Contact(
-                    title = "Wisdom Tower Academy · Data Protection Officer",
+                    title = "Wisdom Tower Academy · Privacy",
                     lines = listOf("Addis Ababa, Ethiopia"),
                     links = listOf(
                         Triple("Email: ", "support@wisdomtower.tech", "mailto:support@wisdomtower.tech"),
-                        Triple("Official Channel: ", "@wisdom_tower2", "https://t.me/wisdom_tower2")
+                        Triple("Telegram: ", "@wisdom_tower2", "https://t.me/wisdom_tower2")
                     )
                 )
             )
@@ -156,113 +161,98 @@ val PRIVACY_DOCUMENT = LegalDocument(
 )
 
 val TERMS_DOCUMENT = LegalDocument(
-    badge = "Institutional Agreement",
+    badge = "Terms",
     effective = "Effective: Academic Year 2026/2027",
-    title = "Terms of Service & Academic Agreement",
-    intro = "These Terms govern your enrollment, access to curriculum materials, digital examination engines, and software services provided by Wisdom Tower Academy. By registering an account or accessing any academic track, you enter into a legally binding academic compact.",
-    meta = "Document version: 3.2 • Last revised: 28 September 2026",
-    summaryTitle = "Core Academic Compact at a Glance",
+    title = "Terms of Service",
+    intro = "These terms explain the rules for using Wisdom Tower Academy, including its courses, study materials and practice exams. By creating an account or using the app or website, you agree to them.",
+    meta = "Document version: 3.3 • Last revised: 24 October 2026",
+    summaryTitle = "The Short Version",
     summaryItems = listOf(
-        "Personal Educational License:" to "Course enrollments, solved exams, and lecture notes are licensed strictly for your individual academic preparation and cannot be redistributed, scraped, or shared.",
-        "Academic Integrity:" to "Wisdom Tower Academy upholds rigorous academic honesty. The platform is designed to develop genuine competence under Ethiopia's new curriculum framework.",
-        "Verified Access:" to "Tuition fees in Ethiopian Birr (ETB) are verified through domestic payment channels (Telebirr, CBE, Abyssinia, etc.). Verified orders unlock immediate learning hub access."
+        "Personal use:" to "The materials are for your own study. Please do not copy, share or resell them.",
+        "Honest practice:" to "Take timed exams and join leaderboards fairly, so results mean something.",
+        "Keep your account safe:" to "Your account is yours alone. Do not share your sign-in details."
     ),
     sections = listOf(
         LegalSection(
-            "01", "Academic Purpose & Acceptance of Terms", listOf(
-                LegalBlock.Para("Wisdom Tower Academy (“the Platform”, “we”, “our”, or “us”) operates a specialized digital education infrastructure engineered to support secondary learners (Grades 9–12), remedial foundation candidates, university freshman scholars, departmental engineering students, and candidates preparing for national standardized examinations (including UAT, GAT, COC, and University Exit Exams)."),
-                LegalBlock.Para("By creating a student profile, logging in via federated credentials (such as Google OAuth), making a tuition payment, or accessing downloadable materials, you affirm that you are either at least 18 years of age or possess legal parental or guardian consent, and that you unreservedly agree to be bound by these Terms of Service. If you do not accept these provisions in their entirety, you are not authorized to utilize the platform.")
+            "01", "About These Terms", listOf(
+                LegalBlock.Para("Wisdom Tower Academy (“the Platform”, “we”, “our” or “us”) provides study materials and practice tools for secondary school students (Grades 9–12), remedial and freshman students, university students, and candidates preparing for national exams such as UAT, GAT, COC and the University Exit Exam."),
+                LegalBlock.Para("By creating an account, signing in (including with Google) or using the Platform, you confirm that you are at least 18 years old or have the permission of a parent or guardian, and that you agree to these terms. If you do not agree, please do not use the Platform.")
             )
         ),
         LegalSection(
-            "02", "Account Governance & Credential Security", listOf(
-                LegalBlock.Para("Each student account is an individual academic identity. To maintain the pedagogical validity of leaderboards, streak counts, and personalized question-bank progress, account credentials must remain exclusive to the registered student."),
+            "02", "Your Account", listOf(
+                LegalBlock.Para("Each account belongs to one student. Keeping it personal keeps leaderboards, streaks and progress records fair and accurate."),
                 LegalBlock.Bullets(
                     listOf(
-                        "True Information:" to "You agree to provide accurate, up-to-date registration details, including your genuine name, active phone number, and institutional or personal email address.",
-                        "Prohibition of Credential Sharing:" to "Sharing credentials, selling account seats, or distributing authenticated session tokens to unauthorized third parties constitutes a material breach of this Agreement and results in immediate, unrefunded termination of access.",
-                        "Multi-Device Authorization:" to "Students may access their learning portal across their personal mobile phones, tablets, and personal computers, provided usage represents the authentic individual study sessions of the enrolled student. Simultaneous concurrent sessions indicating credential pooling may trigger security holds."
+                        "Accurate details:" to "Please give us correct information when you register, including your real name and a working email address.",
+                        "No sharing:" to "Do not share your sign-in details, sell access to your account or let others use it. We may suspend or close accounts that are shared.",
+                        "Your devices:" to "You may use your account on your own phone, tablet and computer. Activity that suggests several people are using one account may lead to a temporary security hold."
                     )
                 )
             )
         ),
         LegalSection(
-            "03", "Intellectual Property & Limited Educational License", listOf(
-                LegalBlock.Para("All course lectures, modular summary notes, original step-by-step examination solutions, algorithmic question banks, flashcard taxonomies, pedagogical software code, graphic artwork, and trademarked branding are the exclusive proprietary intellectual property of Wisdom Tower Academy and its contributing academic faculty."),
-                LegalBlock.Card("License Scope Granted to Enrolled Students:", "Upon confirmed payment and activation of a package, Wisdom Tower Academy grants you a personal, non-exclusive, non-transferable, revocable license to view, read, and solve the designated curriculum materials for your own private study and exam revision."),
-                LegalBlock.Para("", lead = "Expressly Prohibited Conduct:"),
+            "03", "Content and Licence", listOf(
+                LegalBlock.Para("The courses, notes, worked solutions, question banks, flashcards, software, artwork and branding on the Platform belong to Wisdom Tower Academy and its contributors."),
+                LegalBlock.Card("What you may do", "You may view, read and practise with the materials available to you for your own private study and exam revision. This licence is personal, non-exclusive, non-transferable and can be withdrawn if these terms are broken."),
+                LegalBlock.Para("", lead = "What you may not do:"),
                 LegalBlock.Bullets(
                     listOf(
-                        "" to "Automated scraping, bulk downloading, or mirroring of curriculum materials via bots or unauthorized web crawlers.",
-                        "" to "Re-uploading, republishing, or reselling our notes, question banks, or solutions on external Telegram channels, social platforms, or rival websites.",
-                        "" to "Modifying, reverse-engineering, decompiling, or creating derivative works based upon our platform software or proprietary content engines."
+                        "" to "Use bots, scrapers or other automated tools to copy or download our content.",
+                        "" to "Republish, share or resell our notes, question banks or solutions on Telegram channels, social media or other websites.",
+                        "" to "Copy, modify, reverse-engineer or build on our software or content tools."
                     )
                 )
             )
         ),
         LegalSection(
-            "04", "Academic Integrity & Honor Code", listOf(
-                LegalBlock.Para("Wisdom Tower Academy is built to foster genuine intellectual mastery aligned with the high standards of higher education in Ethiopia and internationally. By engaging with our timed practice exams and leaderboard systems, you agree to:"),
+            "04", "Fair Use and Academic Integrity", listOf(
+                LegalBlock.Para("We want every student to learn for real. When you use timed exams, competitions and leaderboards, please:"),
                 LegalBlock.Bullets(
                     listOf(
-                        "" to "Complete timed diagnostic examinations honestly without manipulating client-side timers or injecting synthetic score submissions.",
-                        "" to "Use AI-assisted explanations as a formative learning tutor rather than as a substitute for developing personal problem-solving mastery.",
-                        "" to "Refrain from posting examination keys or solutions during ongoing live institutional assessments."
+                        "" to "Complete exams honestly, without tampering with timers or submitting false scores.",
+                        "" to "Treat the explanations in the app as a study aid that supports your own problem solving, not a replacement for it.",
+                        "" to "Do not post exam questions or answers while a live competition or assessment is still running."
                     )
                 )
             )
         ),
         LegalSection(
-            "05", "Curriculum Packages, Tuition Fees & Payment Verification", listOf(
-                LegalBlock.Para("To maintain accessible education across Ethiopia, packages are denominated in Ethiopian Birr (ETB) and structured modularly so students only pay for the tracks they need."),
-                LegalBlock.Bullets(
-                    listOf(
-                        "Domestic Payment Gateways:" to "Payments are transacted directly via established Ethiopian banking and mobile money institutions, including Telebirr, Commercial Bank of Ethiopia (CBE), Bank of Abyssinia, and Awash Bank.",
-                        "Verification Protocols:" to "Students submit their genuine bank transfer transaction reference (or optional receipt screenshot). Access is provisioned either automatically via our verification microservices or promptly via our academic registrar verification desk.",
-                        "Submission of Fraudulent References:" to "Submitting forged transaction codes, re-used transfer numbers, or falsified receipts constitutes fraud. Such attempts will lead to immediate account suspension, permanent blacklisting, and reporting to relevant financial channels."
-                    )
-                )
+            "05", "Availability of the Service", listOf(
+                LegalBlock.Para("We know how important reliable access is during exam season, so the Platform lets you keep downloaded content on your device for offline study."),
+                LegalBlock.Para("We work to keep the Platform running smoothly, but we cannot promise that it will always be available or free of interruptions, for example because of network outages or maintenance. We will announce planned maintenance in advance where we can.")
             )
         ),
         LegalSection(
-            "06", "Digital Fulfillment & Refund Policy", listOf(
-                LegalBlock.Para("Due to the immediate digital fulfillment and direct accessibility of proprietary textbooks, worked solutions, and question banks upon verification, enrollments are generally non-refundable once unlocked."),
-                LegalBlock.Para("Refunds will be granted under the following documented conditions:", lead = "Exceptional Refund Circumstances:"),
-                LegalBlock.Bullets(
-                    listOf(
-                        "" to "Duplicate payment for the identical package resulting from network timeout during transfer submission.",
-                        "" to "Verifiable technical defect on our platform that persistently prevents access to curriculum materials, where our technical team is unable to resolve the issue within 72 hours of written notification."
-                    )
-                ),
-                LegalBlock.Para("Refund requests must be lodged within 7 days of the payment date via official support channels, quoting the original Order Reference.")
+            "06", "Results and Disclaimer", listOf(
+                LegalBlock.Para("We create our materials carefully and align them with the curriculum, but your results in national exams, competitions or admissions depend on your own effort, preparation and performance on the day, and we cannot guarantee any particular outcome."),
+                LegalBlock.Para("The Platform is provided “as is” and “as available”. To the extent the law allows, Wisdom Tower Academy is not liable for indirect or consequential losses arising from the use of, or inability to use, the Platform.", italic = true)
             )
         ),
         LegalSection(
-            "07", "Platform Continuity, Offline Resilience & System Availability", listOf(
-                LegalBlock.Para("We understand that reliable study access is vital during examination seasons. Wisdom Tower Academy employs modern Progressive Web App (PWA) technologies, edge caching, and localized data stores (IndexedDB) to allow continuous learning during intermittent internet connectivity."),
-                LegalBlock.Para("While we strive for 99.9% uptime, we do not warrant that digital services will be entirely uninterrupted or immune from third-party telecom outages, national infrastructure maintenance, or force majeure events. Scheduled maintenance will be communicated via platform announcements.")
+            "07", "Suspension and Closing an Account", listOf(
+                LegalBlock.Para("You may stop using the Platform and ask us to delete your account at any time. If an account breaks these terms, we may suspend or close it. Where possible we will tell you why.")
             )
         ),
         LegalSection(
-            "08", "Educational Outcomes & Warranty Disclaimers", listOf(
-                LegalBlock.Para("Wisdom Tower Academy delivers high-caliber, curriculum-aligned academic instruments, verified exam solutions, and personalized practice engines. However, individual performance in national examinations, regional competitions, university admissions, and subsequent grade point averages depends upon the student's personal diligence, study discipline, and exam execution."),
-                LegalBlock.Para("The platform is provided on an “as is” and “as available” basis without express or implied warranties of commercial fitness for a particular vocational outcome. Wisdom Tower Academy shall not be liable for incidental, consequential, or indirect damages arising out of the use or inability to use our educational tools.", italic = true)
+            "08", "Changes to These Terms", listOf(
+                LegalBlock.Para("We may update these terms from time to time. The version number and date at the top show when they were last changed. If you keep using the Platform after an update, you accept the new terms.")
             )
         ),
         LegalSection(
-            "09", "Governing Law & Institutional Dispute Resolution", listOf(
-                LegalBlock.Para("These Terms are governed by and construed in conformity with the laws and educational proclamations of the Federal Democratic Republic of Ethiopia. Any disputes arising under or in connection with these Terms shall first be submitted to informal dispute resolution via our Academic Affairs Committee. If unresolved, disputes shall be subject to the exclusive jurisdiction of the competent courts of Addis Ababa, Ethiopia.")
+            "09", "Governing Law", listOf(
+                LegalBlock.Para("These terms are governed by the laws of the Federal Democratic Republic of Ethiopia. If a disagreement arises, we ask that you contact us first so we can try to resolve it informally. If that does not work, the competent courts of Addis Ababa, Ethiopia will have jurisdiction.")
             )
         ),
         LegalSection(
-            "10", "Official Academic Contact & Registrars", listOf(
-                LegalBlock.Para("For official legal notices, institutional licensing inquiries, or student advocacy matters regarding these Terms, contact our administrative office:"),
+            "10", "Contact Us", listOf(
+                LegalBlock.Para("For questions about these terms, contact us:"),
                 LegalBlock.Contact(
-                    title = "Wisdom Tower Academy · Legal & Academic Affairs",
+                    title = "Wisdom Tower Academy · Support",
                     lines = listOf("Addis Ababa, Ethiopia"),
                     links = listOf(
                         Triple("Email: ", "support@wisdomtower.tech", "mailto:support@wisdomtower.tech"),
-                        Triple("Telegram Official: ", "@wisdom_tower2", "https://t.me/wisdom_tower2")
+                        Triple("Telegram: ", "@wisdom_tower2", "https://t.me/wisdom_tower2")
                     )
                 )
             )
