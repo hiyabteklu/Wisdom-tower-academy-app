@@ -5,10 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -47,10 +45,10 @@ import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
  * plan) with the soft navy shadow, the title is deep navy ink, the badge is the premium gold (fill F1DFB4, text 5C3F0A) and
  * the button text is white on the deep teal. Night keeps every old literal, so night looks exactly as before.
  *
- * TELEGRAM BUILD (slice P3, `docs/TELEGRAM_PAID_BUILD_PLAN.md`): when the title is the "Package required" title and
- * [rememberPaidOffer] has an offer (paid build, course with a package, price in the admin dashboard), the card also shows
- * the price, the main button becomes "Buy now" (opens the website checkout), and a row below has "My orders" and the
- * old close text. With no offer (always in the Play build) the card is exactly as before. Callers are unchanged.
+ * TELEGRAM BUILD (S2, `docs/PLAN_TELEGRAM_PAID_NATIVE_V2.md`): when the title is the "Package required" title and
+ * [rememberPaidOffer] has an offer (paid build, course with a package, price in the admin dashboard), this pop-up is NOT
+ * shown: the native [PaidPurchaseScreen] (Offer, Pay, Pending) opens instead. The old "Buy now" / "My orders" website
+ * opener is removed. With no offer (always in the Play build) the card is exactly as before. Callers are unchanged.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -63,8 +61,12 @@ internal fun HubGateDialog(
     buttonText: String,
     onClose: () -> Unit
 ) {
-    val cardShape = RoundedCornerShape(24.dp)
     val offer = rememberPaidOffer().takeIf { title == ContentAccess.PURCHASE_TITLE }
+    if (offer != null) {
+        PaidPurchaseScreen(packageId = offer.packageId, price = offer.price, onClose = onClose)
+        return
+    }
+    val cardShape = RoundedCornerShape(24.dp)
     Dialog(onDismissRequest = onClose) {
         Column(
             modifier = Modifier
@@ -115,17 +117,6 @@ internal fun HubGateDialog(
                 )
             }
 
-            if (offer != null) {
-                Spacer(modifier = Modifier.height(10.dp))
-                Text(
-                    text = offer.priceText,
-                    fontSize = 20.sp,
-                    fontWeight = FontWeight.ExtraBold,
-                    color = dayNight(Color(0xFFFCD34D), Color(0xFF5C3F0A)),
-                    textAlign = TextAlign.Center
-                )
-            }
-
             Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = message,
@@ -143,63 +134,17 @@ internal fun HubGateDialog(
                     .clickable(
                         interactionSource = remember { MutableInteractionSource() },
                         indication = ripple(color = Color.White.copy(alpha = 0.3f)),
-                        onClick = {
-                            if (offer != null) {
-                                offer.onBuy()
-                            }
-                            onClose()
-                        }
+                        onClick = onClose
                     )
                     .padding(vertical = 12.dp),
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (offer != null) "Buy now" else buttonText,
+                    text = buttonText,
                     fontSize = 14.sp,
                     fontWeight = FontWeight.Bold,
                     color = dayNight(Color(0xFF020617), Color.White)
                 )
-            }
-
-            if (offer != null) {
-                Spacer(modifier = Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "My orders",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = WisdomCyan,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(color = WisdomCyan.copy(alpha = 0.25f)),
-                                onClick = {
-                                    offer.onOrders()
-                                    onClose()
-                                }
-                            )
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                    Text(
-                        text = buttonText,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = WisdomMuted,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(8.dp))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = ripple(color = WisdomMuted.copy(alpha = 0.25f)),
-                                onClick = onClose
-                            )
-                            .padding(horizontal = 12.dp, vertical = 8.dp)
-                    )
-                }
             }
         }
     }
