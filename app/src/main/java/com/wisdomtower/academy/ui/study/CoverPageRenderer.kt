@@ -22,16 +22,19 @@ import kotlin.math.cos
 import kotlin.math.sin
 
 /**
- * Cover Page Generator, drawing code (owner orders 2026-10-16: 5 A4 templates, then 15 templates with Word style
- * page borders, then PREMIUM templates and colours).
+ * Cover Page Generator, drawing code.
  *
  * ONE drawing function ([drawCoverPage]) paints a page on an android.graphics.Canvas. The same function feeds the
  * on-screen preview (a Bitmap) and the PDF (android.graphics.pdf.PdfDocument, built into Android: no new dependency,
  * no permission), so the PDF is exactly what the preview shows. The page is A4 at 72 dpi: 595 x 842 points.
  *
- * VARIATIONS = template (21 layouts, the last 6 are PREMIUM: Royal, Executive, Heritage, Prestige, Aurora, Luxe)
- * x page border (19 choices) x colour (18). Every template has a default border; the student can pick another one.
- * A border (anything but "None") paints a 24 pt paper margin and draws the border inside it, over the template.
+ * 2026-10-23 redesign (owner order): the 11 weak templates (Classic, Banner, Elegant, Bold, Split, Minimal, Dark, Royal,
+ * Executive, Heritage, Prestige) were deleted and replaced by 5 new premium ones (Gallery, Crest, Noir, Prism, Orbit).
+ * The 11 plain borders (Default, Thin, Thick, Double, Thick-Thin, Triple, Dashed, Dotted, Rounded, Corners, Shadow) were
+ * deleted and replaced by 7 decorative ones (Leaves, Laurel, Hearts, Flowers, Vine, Clovers, Lace).
+ *
+ * VARIATIONS = template (15) x page border (15) x colour (18). Border index 0 = None. A border paints a 24 pt paper
+ * margin and draws the border inside it, over the template.
  *
  * No text is invented: in the PREVIEW an empty field shows a faint grey hint, in the PDF it is left out.
  * Status: written, NOT compiled by the author, not seen on a device.
@@ -55,37 +58,28 @@ data class CoverPageData(
 data class CoverTemplate(val name: String, val premium: Boolean = false)
 
 val COVER_TEMPLATES = listOf(
-    CoverTemplate("Classic"),
-    CoverTemplate("Banner"),
+    CoverTemplate("Gallery", true),
+    CoverTemplate("Crest", true),
+    CoverTemplate("Noir", true),
+    CoverTemplate("Prism", true),
+    CoverTemplate("Orbit", true),
+    CoverTemplate("Aurora", true),
+    CoverTemplate("Luxe", true),
     CoverTemplate("Sidebar"),
-    CoverTemplate("Elegant"),
-    CoverTemplate("Bold"),
-    CoverTemplate("Split"),
-    CoverTemplate("Minimal"),
     CoverTemplate("Circles"),
     CoverTemplate("Corporate"),
     CoverTemplate("Watermark"),
     CoverTemplate("Geometric"),
-    CoverTemplate("Dark"),
     CoverTemplate("Ribbon"),
     CoverTemplate("Wave"),
-    CoverTemplate("Stripe"),
-    CoverTemplate("Royal", true),
-    CoverTemplate("Executive", true),
-    CoverTemplate("Heritage", true),
-    CoverTemplate("Prestige", true),
-    CoverTemplate("Aurora", true),
-    CoverTemplate("Luxe", true)
+    CoverTemplate("Stripe")
 )
 
-/** Border choices. Index 0 = the template's own default border, 1 = no border. */
+/** Border choices. Index 0 = no border. */
 val COVER_BORDERS = listOf(
-    "Default", "None", "Thin", "Thick", "Double", "Thick-Thin", "Triple", "Dashed", "Dotted", "Rounded",
-    "Corners", "Shadow", "Greek key", "Stars", "Zigzag", "Scallop", "Diamonds", "Checker", "Pearls"
+    "None", "Greek key", "Stars", "Zigzag", "Scallop", "Diamonds", "Checker", "Pearls",
+    "Leaves", "Laurel", "Hearts", "Flowers", "Vine", "Clovers", "Lace"
 )
-
-// Default border of each template (same order as COVER_TEMPLATES). The premium ones draw their own frames.
-private val DEFAULT_BORDER = intArrayOf(4, 1, 1, 10, 1, 1, 2, 1, 2, 5, 1, 6, 1, 1, 1, 1, 1, 1, 1, 1, 1)
 
 data class CoverAccent(val name: String, val color: Int)
 
@@ -127,20 +121,32 @@ private val DARK_PAL = Pal(Color.WHITE, Color.argb(210, 255, 255, 255), Color.ar
 // Public API
 // ---------------------------------------------------------------------------------------------------------------
 
+private fun prismFrom(accent: Int): Int = mix(accent, Color.BLACK, 0.62f)
+private fun prismTo(accent: Int): Int = mix(accent, Color.BLACK, 0.12f)
+
 /** Paper colour under the border margin, per template. */
 private fun paperOf(t: Int, accent: Int): Int {
     return when (t) {
-        3, 15, 17 -> CREAM
-        11 -> darkTint(accent)
-        18 -> prestigeBg(accent)
+        0 -> accent
+        1 -> CREAM
+        2 -> prestigeBg(accent)
         else -> Color.WHITE
     }
+}
+
+/** Paper paint under the border margin (Prism is a gradient, the rest are flat colours). */
+private fun paperPaintOf(t: Int, accent: Int): Paint {
+    if (t == 3) {
+        return gradientPaint(0f, 0f, COVER_PAGE_W.toFloat(), COVER_PAGE_H.toFloat(), prismFrom(accent), prismTo(accent))
+    }
+    return fillPaint(paperOf(t, accent))
 }
 
 /** Border colour, per template (gold on the dark and ornate ones). */
 private fun borderColorOf(t: Int, accent: Int): Int {
     return when (t) {
-        11, 15, 17, 18, 20 -> GOLD
+        0, 1, 2, 6 -> GOLD
+        3 -> GOLD_LIGHT
         else -> accent
     }
 }
@@ -158,30 +164,23 @@ fun drawCoverPage(
     val d = resolve(data, preview)
     val t = if (template in COVER_TEMPLATES.indices) template else 0
     when (t) {
-        1 -> tplBanner(c, d, logo, accent, preview)
-        2 -> tplSidebar(c, d, logo, accent, preview)
-        3 -> tplElegant(c, d, logo, accent, preview)
-        4 -> tplBold(c, d, logo, accent, preview)
-        5 -> tplSplit(c, d, logo, accent, preview)
-        6 -> tplMinimal(c, d, logo, accent, preview)
-        7 -> tplCircles(c, d, logo, accent, preview)
-        8 -> tplCorporate(c, d, logo, accent, preview)
-        9 -> tplWatermark(c, d, logo, accent, preview)
-        10 -> tplGeometric(c, d, logo, accent, preview)
-        11 -> tplDark(c, d, logo, accent, preview)
+        1 -> tplCrest(c, d, logo, accent, preview)
+        2 -> tplNoir(c, d, logo, accent, preview)
+        3 -> tplPrism(c, d, logo, accent, preview)
+        4 -> tplOrbit(c, d, logo, accent, preview)
+        5 -> tplAurora(c, d, logo, accent, preview)
+        6 -> tplLuxe(c, d, logo, accent, preview)
+        7 -> tplSidebar(c, d, logo, accent, preview)
+        8 -> tplCircles(c, d, logo, accent, preview)
+        9 -> tplCorporate(c, d, logo, accent, preview)
+        10 -> tplWatermark(c, d, logo, accent, preview)
+        11 -> tplGeometric(c, d, logo, accent, preview)
         12 -> tplRibbon(c, d, logo, accent, preview)
         13 -> tplWave(c, d, logo, accent, preview)
         14 -> tplStripe(c, d, logo, accent, preview)
-        15 -> tplRoyal(c, d, logo, accent, preview)
-        16 -> tplExecutive(c, d, logo, accent, preview)
-        17 -> tplHeritage(c, d, logo, accent, preview)
-        18 -> tplPrestige(c, d, logo, accent, preview)
-        19 -> tplAurora(c, d, logo, accent, preview)
-        20 -> tplLuxe(c, d, logo, accent, preview)
-        else -> tplClassic(c, d, logo, accent, preview)
+        else -> tplGallery(c, d, logo, accent, preview)
     }
-    val style = if (border <= 0 || border >= COVER_BORDERS.size) DEFAULT_BORDER[t] else border
-    applyBorder(c, style, borderColorOf(t, accent), paperOf(t, accent))
+    applyBorder(c, border, borderColorOf(t, accent), paperPaintOf(t, accent))
 }
 
 /** Renders the page to a Bitmap (scale 1.0 = 595 x 842 px). Used for the preview and the template thumbnails. */
@@ -389,6 +388,32 @@ private fun triangle(c: Canvas, x1: Float, y1: Float, x2: Float, y2: Float, x3: 
     path.lineTo(x3, y3)
     path.close()
     c.drawPath(path, fillPaint(color))
+}
+
+/** Rectangle with the four corners cut off at 45 degrees (k = size of the cut). */
+private fun chamfer(l: Float, t: Float, r: Float, b: Float, k: Float): Path {
+    val p = Path()
+    p.moveTo(l + k, t)
+    p.lineTo(r - k, t)
+    p.lineTo(r, t + k)
+    p.lineTo(r, b - k)
+    p.lineTo(r - k, b)
+    p.lineTo(l + k, b)
+    p.lineTo(l, b - k)
+    p.lineTo(l, t + k)
+    p.close()
+    return p
+}
+
+/** A tall window with a round top. */
+private fun archPath(cx: Float, top: Float, half: Float, bottom: Float): Path {
+    val p = Path()
+    p.moveTo(cx - half, bottom)
+    p.lineTo(cx - half, top + half)
+    p.arcTo(RectF(cx - half, top, cx + half, top + 2f * half), 180f, 180f, false)
+    p.lineTo(cx + half, bottom)
+    p.close()
+    return p
 }
 
 private fun makeLayout(text: String, p: TextPaint, w: Float, align: Layout.Alignment): StaticLayout {
@@ -622,7 +647,7 @@ private fun centeredFooter(c: Canvas, d: Doc, x: Float, w: Float, top: Float, ru
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Page borders (Word style). The border sits in a 24 pt paper margin painted over the template.
+// Page borders. The border sits in a 24 pt paper margin painted over the template.
 // ---------------------------------------------------------------------------------------------------------------
 
 private const val MARGIN = 24f
@@ -667,73 +692,61 @@ private fun starPath(cx: Float, cy: Float, r: Float): Path {
     return path
 }
 
-private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
-    if (style == 1) return
+/** A leaf growing from (x, y), pointing along [angle] degrees (0 = along the edge), [len] long and [wid] wide. */
+private fun leaf(c: Canvas, x: Float, y: Float, angle: Float, len: Float, wid: Float, paint: Paint) {
+    val p = Path()
+    p.moveTo(0f, 0f)
+    p.quadTo(len * 0.5f, -wid, len, 0f)
+    p.quadTo(len * 0.5f, wid, 0f, 0f)
+    p.close()
+    c.save()
+    c.translate(x, y)
+    c.rotate(angle)
+    c.drawPath(p, paint)
+    c.restore()
+}
+
+/** A heart centred on (cx, cy); [s] is about a third of its width. */
+private fun heart(c: Canvas, cx: Float, cy: Float, s: Float, paint: Paint) {
+    val p = Path()
+    p.moveTo(cx, cy + s * 0.95f)
+    p.cubicTo(cx - s * 1.8f, cy - s * 0.1f, cx - s * 0.7f, cy - s * 1.3f, cx, cy - s * 0.35f)
+    p.cubicTo(cx + s * 0.7f, cy - s * 1.3f, cx + s * 1.8f, cy - s * 0.1f, cx, cy + s * 0.95f)
+    p.close()
+    c.drawPath(p, paint)
+}
+
+/** Five round petals around a centre dot. */
+private fun flower(c: Canvas, cx: Float, cy: Float, r: Float, petal: Paint, center: Paint) {
+    for (k in 0 until 5) {
+        val ang = Math.toRadians((-90 + k * 72).toDouble())
+        c.drawCircle(cx + (r * cos(ang)).toFloat(), cy + (r * sin(ang)).toFloat(), r * 0.62f, petal)
+    }
+    c.drawCircle(cx, cy, r * 0.45f, center)
+}
+
+/** Four round lobes (a quatrefoil). */
+private fun clover(c: Canvas, cx: Float, cy: Float, r: Float, paint: Paint) {
+    val o = r * 0.55f
+    c.drawCircle(cx - o, cy, o, paint)
+    c.drawCircle(cx + o, cy, o, paint)
+    c.drawCircle(cx, cy - o, o, paint)
+    c.drawCircle(cx, cy + o, o, paint)
+}
+
+private fun applyBorder(c: Canvas, style: Int, color: Int, paper: Paint) {
+    if (style <= 0 || style >= COVER_BORDERS.size) return
     val w = COVER_PAGE_W.toFloat()
     val h = COVER_PAGE_H.toFloat()
     val m = MARGIN
-    val paper = fillPaint(bg)
     c.drawRect(0f, 0f, w, m, paper)
     c.drawRect(0f, h - m, w, h, paper)
     c.drawRect(0f, m, m, h - m, paper)
     c.drawRect(w - m, m, w, h - m, paper)
     val fill = fillPaint(color)
+    val soft = fillPaint(mix(color, Color.WHITE, 0.72f))
     when (style) {
-        2 -> strokeRect(c, 12f, 12f, w - 12f, h - 12f, color, 1.2f)
-        3 -> strokeRect(c, 12f, 12f, w - 12f, h - 12f, color, 4.2f)
-        4 -> {
-            strokeRect(c, 7f, 7f, w - 7f, h - 7f, color, 2.4f)
-            strokeRect(c, 15f, 15f, w - 15f, h - 15f, color, 0.9f)
-        }
-        5 -> {
-            strokeRect(c, 8f, 8f, w - 8f, h - 8f, color, 4.4f)
-            strokeRect(c, 16f, 16f, w - 16f, h - 16f, color, 1f)
-        }
-        6 -> {
-            strokeRect(c, 5f, 5f, w - 5f, h - 5f, color, 1f)
-            strokeRect(c, 11f, 11f, w - 11f, h - 11f, color, 3.4f)
-            strokeRect(c, 18f, 18f, w - 18f, h - 18f, color, 1f)
-        }
-        7 -> {
-            val dash = strokePaint(color, 2.2f)
-            dash.pathEffect = DashPathEffect(floatArrayOf(9f, 5f), 0f)
-            c.drawRect(11f, 11f, w - 11f, h - 11f, dash)
-            strokeRect(c, 18f, 18f, w - 18f, h - 18f, color, 0.8f)
-        }
-        8 -> {
-            val dots = strokePaint(color, 3.2f)
-            dots.strokeCap = Paint.Cap.ROUND
-            dots.pathEffect = DashPathEffect(floatArrayOf(0.1f, 6.5f), 0f)
-            c.drawRect(12f, 12f, w - 12f, h - 12f, dots)
-        }
-        9 -> {
-            c.drawRoundRect(RectF(7f, 7f, w - 7f, h - 7f), 16f, 16f, strokePaint(color, 2.4f))
-            c.drawRoundRect(RectF(15f, 15f, w - 15f, h - 15f), 10f, 10f, strokePaint(color, 0.9f))
-        }
-        10 -> {
-            strokeRect(c, 12f, 12f, w - 12f, h - 12f, color, 0.8f)
-            val len = 40f
-            val corners = listOf(
-                floatArrayOf(8f, 8f, 1f, 1f),
-                floatArrayOf(w - 8f, 8f, -1f, 1f),
-                floatArrayOf(8f, h - 8f, 1f, -1f),
-                floatArrayOf(w - 8f, h - 8f, -1f, -1f)
-            )
-            val bracket = strokePaint(color, 3.2f)
-            for (k in corners) {
-                val path = Path()
-                path.moveTo(k[0], k[1] + k[3] * len)
-                path.lineTo(k[0], k[1])
-                path.lineTo(k[0] + k[2] * len, k[1])
-                c.drawPath(path, bracket)
-                diamond(c, k[0], k[1], 5.5f, color)
-            }
-        }
-        11 -> {
-            strokeRect(c, 16f, 16f, w - 8f, h - 8f, Color.argb(95, 90, 90, 90), 2f)
-            strokeRect(c, 12f, 12f, w - 12f, h - 12f, color, 2f)
-        }
-        12 -> {
+        1 -> {
             // Greek key (meander): a line along the edge with stepped hooks pointing inward
             edges(c, 6f) { len ->
                 val u = 3.6f
@@ -756,7 +769,7 @@ private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
                 }
             }
         }
-        13 -> {
+        2 -> {
             edges(c, 4f) { len ->
                 val n = max(1, (len / 16f).toInt())
                 val s = len / n
@@ -766,7 +779,7 @@ private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
                 }
             }
         }
-        14 -> {
+        3 -> {
             edges(c, 5f) { len ->
                 val n = max(1, (len / 14f).toInt())
                 val s = len / n
@@ -781,7 +794,7 @@ private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
                 }
             }
         }
-        15 -> {
+        4 -> {
             edges(c, 6f) { len ->
                 val n = max(1, (len / 16f).toInt())
                 val s = len / n
@@ -791,7 +804,7 @@ private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
                 }
             }
         }
-        16 -> {
+        5 -> {
             edges(c, 8f) { len ->
                 val n = max(1, (len / 14f).toInt())
                 val s = len / n
@@ -801,7 +814,7 @@ private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
                 }
             }
         }
-        17 -> {
+        6 -> {
             edges(c, 8f) { len ->
                 val sq = 6f
                 val n = max(1, (len / sq).toInt())
@@ -817,7 +830,7 @@ private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
                 c.drawLine(0f, 2f * sq, len, 2f * sq, strokePaint(color, 0.8f))
             }
         }
-        18 -> {
+        7 -> {
             edges(c, 9f) { len ->
                 val n = max(1, (len / 11f).toInt())
                 val s = len / n
@@ -827,85 +840,344 @@ private fun applyBorder(c: Canvas, style: Int, color: Int, bg: Int) {
                 }
             }
         }
-        else -> strokeRect(c, 12f, 12f, w - 12f, h - 12f, color, 1.2f)
+        8 -> {
+            // Leaves: a fine stem with leaves sprouting on alternate sides
+            edges(c, 5f) { len ->
+                val n = max(1, (len / 15f).toInt())
+                val s = len / n
+                c.drawLine(0f, 9f, len, 9f, strokePaint(color, 0.8f))
+                for (i in 0 until n) {
+                    val a = if (i % 2 == 0) 38f else -38f
+                    leaf(c, i * s + s / 2f - 6f, 9f, a, 12f, 3.8f, fill)
+                }
+            }
+        }
+        9 -> {
+            // Laurel: pairs of leaves along the stem, like a wreath
+            edges(c, 6f) { len ->
+                val n = max(1, (len / 12f).toInt())
+                val s = len / n
+                c.drawLine(0f, 9f, len, 9f, strokePaint(color, 0.9f))
+                for (i in 0 until n) {
+                    val x = i * s + s / 2f - 4f
+                    leaf(c, x, 9f, 36f, 11f, 3.4f, fill)
+                    leaf(c, x, 9f, -36f, 11f, 3.4f, fill)
+                }
+            }
+        }
+        10 -> {
+            // Hearts with small dots between them
+            edges(c, 6f) { len ->
+                val n = max(1, (len / 17f).toInt())
+                val s = len / n
+                for (i in 0 until n) {
+                    heart(c, i * s + s / 2f, 10f, 4.3f, fill)
+                    c.drawCircle(i * s, 10f, 1.3f, fill)
+                }
+                c.drawCircle(len, 10f, 1.3f, fill)
+            }
+        }
+        11 -> {
+            // Flowers on a fine line, with small dots between them
+            edges(c, 6f) { len ->
+                val n = max(1, (len / 22f).toInt())
+                val s = len / n
+                c.drawLine(0f, 10f, len, 10f, strokePaint(color, 0.6f))
+                for (i in 0 until n) {
+                    flower(c, i * s + s / 2f, 10f, 4.6f, fill, soft)
+                    c.drawCircle(i * s, 10f, 1.4f, fill)
+                }
+                c.drawCircle(len, 10f, 1.4f, fill)
+            }
+        }
+        12 -> {
+            // Vine: a wavy stem with leaves on both sides
+            edges(c, 5f) { len ->
+                val n = max(1, (len / 26f).toInt())
+                val s = len / n
+                val stem = Path()
+                var t = 0f
+                stem.moveTo(0f, 9f)
+                while (t <= len) {
+                    stem.lineTo(t, 9f + 3.2f * sin(t / s * 2f * Math.PI.toFloat()))
+                    t += 2f
+                }
+                c.drawPath(stem, strokePaint(color, 1.1f))
+                for (i in 0 until n) {
+                    leaf(c, (i + 0.25f) * s, 12.2f, 62f, 9f, 3f, fill)
+                    leaf(c, (i + 0.75f) * s, 5.8f, -62f, 9f, 3f, fill)
+                }
+            }
+        }
+        13 -> {
+            // Clovers on a fine line
+            edges(c, 6f) { len ->
+                val n = max(1, (len / 17f).toInt())
+                val s = len / n
+                c.drawLine(0f, 9f, len, 9f, strokePaint(color, 0.6f))
+                for (i in 0 until n) {
+                    clover(c, i * s + s / 2f, 9f, 3.8f, fill)
+                }
+            }
+        }
+        14 -> {
+            // Lace: a fine line, hanging arcs, and a dot under each arc
+            edges(c, 6f) { len ->
+                val n = max(1, (len / 14f).toInt())
+                val s = len / n
+                val arc = strokePaint(color, 1.3f)
+                c.drawLine(0f, 0f, len, 0f, strokePaint(color, 0.8f))
+                for (i in 0 until n) {
+                    c.drawArc(RectF(i * s, -s / 2f, (i + 1) * s, s / 2f), 0f, 180f, false, arc)
+                    c.drawCircle(i * s + s / 2f, s / 2f + 4.5f, 1.7f, fill)
+                }
+            }
+        }
+    }
+}
+
+// ===============================================================================================================
+// NEW premium templates (2026-10-23): Gallery, Crest, Noir, Prism, Orbit
+// ===============================================================================================================
+
+// ---------------------------------------------------------------------------------------------------------------
+// Gallery: colour mat with a white panel, cut corners and a fine gold inner line, centred
+// ---------------------------------------------------------------------------------------------------------------
+
+private fun tplGallery(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
+    val W = COVER_PAGE_W.toFloat()
+    val H = COVER_PAGE_H.toFloat()
+    val center = Layout.Alignment.ALIGN_CENTER
+    c.drawColor(accent)
+    c.drawPath(chamfer(30f, 30f, W - 30f, H - 30f, 28f), fillPaint(Color.WHITE))
+    c.drawPath(chamfer(40f, 40f, W - 40f, H - 40f, 22f), strokePaint(GOLD, 1.2f))
+    val x = 80f
+    val w = W - 160f
+    var y = 78f
+    if (drawLogo(c, logo, x, y, w, 84f, preview, 0.5f)) y += 84f + 18f
+    y = drawBlock(c, d.uni.up(), x, y, w, tp(18f, accent, bold = true, spacing = 0.14f), center)
+    y += 10f
+    c.drawRect(W / 2f - 36f, y, W / 2f + 36f, y + 2.4f, goldPaint(W / 2f - 36f, y, W / 2f + 36f, y))
+    y += 16f
+    y = drawBlock(c, d.dept, x, y, w, tp(13.5f, MUTED), center)
+    y += 46f
+    y = drawBlock(c, d.title, x, y, w, tp(29f, INK, bold = true), center)
+    y += 28f
+    drawPeople(c, d, x, y, w, H - 205f, accent, false, true, true)
+    footer(c, d, x, w, H - 168f, GOLD_DEEP, MUTED, INK, false)
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Crest: cream paper, a colour arch window with the logo and a gold outline, serif title
+// ---------------------------------------------------------------------------------------------------------------
+
+private fun tplCrest(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
+    val W = COVER_PAGE_W.toFloat()
+    val H = COVER_PAGE_H.toFloat()
+    val center = Layout.Alignment.ALIGN_CENTER
+    val cx = W / 2f
+    c.drawColor(CREAM)
+    c.drawPath(archPath(cx, 46f, 100f, 262f), fillPaint(accent))
+    c.drawPath(archPath(cx, 38f, 108f, 270f), strokePaint(GOLD, 1.6f))
+    c.drawPath(archPath(cx, 54f, 92f, 262f), strokePaint(withAlpha(GOLD, 170), 0.7f))
+    if (drawBadgeLogo(c, logo, cx, 150f, 46f, preview)) {
+        c.drawCircle(cx, 150f, 51f, strokePaint(GOLD, 1.6f))
+    }
+    val x = 80f
+    val w = W - 160f
+    var y = 296f
+    y = drawBlock(c, d.uni.up(), x, y, w, tp(18f, accent, bold = true, serif = true, spacing = 0.16f), center)
+    y += 8f
+    diamondRule(c, cx, y + 6f, 90f, GOLD)
+    y += 24f
+    y = drawBlock(c, d.dept, x, y, w, tp(13.5f, INK, serif = true, italic = true), center)
+    y += 34f
+    y = drawBlock(c, d.title, x, y, w, tp(27f, INK, bold = true, serif = true), center)
+    y += 24f
+    drawPeople(c, d, x, y, w, H - 215f, accent, true, false, true)
+    centeredFooter(c, d, x, w, H - 178f, GOLD, MUTED, INK)
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Noir: near-black page, double gold frame with diamond corners, gold foil bar, white serif title
+// ---------------------------------------------------------------------------------------------------------------
+
+private fun tplNoir(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
+    val W = COVER_PAGE_W.toFloat()
+    val H = COVER_PAGE_H.toFloat()
+    val center = Layout.Alignment.ALIGN_CENTER
+    c.drawColor(prestigeBg(accent))
+    strokeRect(c, 30f, 30f, W - 30f, H - 30f, GOLD, 1.2f)
+    strokeRect(c, 36f, 36f, W - 36f, H - 36f, GOLD, 0.5f)
+    diamond(c, 30f, 30f, 6f, GOLD)
+    diamond(c, W - 30f, 30f, 6f, GOLD)
+    diamond(c, 30f, H - 30f, 6f, GOLD)
+    diamond(c, W - 30f, H - 30f, 6f, GOLD)
+    c.drawRect(W / 2f - 60f, 28.5f, W / 2f + 60f, 31.5f, goldPaint(W / 2f - 60f, 0f, W / 2f + 60f, 0f))
+    c.drawRect(W / 2f - 60f, H - 31.5f, W / 2f + 60f, H - 28.5f, goldPaint(W / 2f - 60f, 0f, W / 2f + 60f, 0f))
+    val x = 80f
+    val w = W - 160f
+    var y = 78f
+    if (drawBadgeLogo(c, logo, W / 2f, y + 46f, 44f, preview)) {
+        c.drawCircle(W / 2f, y + 46f, 50f, strokePaint(GOLD, 1.6f))
+        y += 112f
+    }
+    y = drawBlock(c, d.uni.up(), x, y, w, tp(18f, GOLD, bold = true, serif = true, spacing = 0.2f), center)
+    y += 8f
+    diamondRule(c, W / 2f, y + 6f, 90f, GOLD)
+    y += 24f
+    y = drawBlock(c, d.dept, x, y, w, tp(13.5f, Color.argb(220, 255, 255, 255), serif = true, italic = true), center)
+    y += 42f
+    y = drawBlock(c, d.title, x, y, w, tp(29f, Color.WHITE, bold = true, serif = true), center)
+    y += 28f
+    drawPeople(c, d, x, y, w, H - 215f, GOLD, true, false, true, DARK_PAL)
+    centeredFooter(c, d, x, w, H - 178f, GOLD, GOLD, Color.WHITE)
+}
+
+// ---------------------------------------------------------------------------------------------------------------
+// Prism: deep colour gradient page, soft glass circles and glass cards, white heavy title
+// ---------------------------------------------------------------------------------------------------------------
+
+private fun tplPrism(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
+    val W = COVER_PAGE_W.toFloat()
+    val H = COVER_PAGE_H.toFloat()
+    val normal = Layout.Alignment.ALIGN_NORMAL
+    c.drawRect(0f, 0f, W, H, gradientPaint(0f, 0f, W, H, prismFrom(accent), prismTo(accent)))
+    c.drawCircle(W - 50f, 130f, 210f, fillPaint(Color.argb(22, 255, 255, 255)))
+    c.drawCircle(W - 50f, 130f, 150f, strokePaint(Color.argb(40, 255, 255, 255), 1.2f))
+    c.drawCircle(70f, H - 130f, 180f, fillPaint(Color.argb(16, 255, 255, 255)))
+    c.drawRect(0f, 0f, W, 6f, goldPaint(0f, 0f, W, 0f))
+    val x = 52f
+    val w = W - 104f
+    val hasBadge = drawBadgeLogo(c, logo, x + 34f, 92f, 34f, preview)
+    val tx = if (hasBadge) x + 88f else x
+    var ty = 72f
+    ty = drawBlock(c, d.uni.up(), tx, ty, W - 52f - tx, tp(15f, Color.WHITE, bold = true, spacing = 0.08f), normal)
+    ty += 5f
+    drawBlock(c, d.dept, tx, ty, W - 52f - tx, tp(11.5f, Color.argb(225, 255, 255, 255)), normal)
+    var y = 190f
+    y = drawBlock(c, d.title, x, y, w, tp(34f, Color.WHITE, black = true), normal)
+    y += 14f
+    c.drawRect(x, y, x + 70f, y + 4f, goldPaint(x, y, x + 70f, y))
+    y += 30f
+    val bottom = H - 168f
+    if (bottom - y > 80f) {
+        val card = RectF(x, y, W - 52f, bottom)
+        c.drawRoundRect(card, 20f, 20f, fillPaint(Color.argb(30, 255, 255, 255)))
+        c.drawRoundRect(card, 20f, 20f, strokePaint(Color.argb(70, 255, 255, 255), 0.8f))
+        drawPeople(c, d, x + 20f, y + 18f, w - 40f, bottom - 14f, GOLD_LIGHT, false, false, false, DARK_PAL)
+    }
+    if (!d.to.blank || !d.date.blank) {
+        val card = RectF(x, H - 142f, W - 52f, H - 60f)
+        c.drawRoundRect(card, 18f, 18f, fillPaint(Color.argb(30, 255, 255, 255)))
+        c.drawRoundRect(card, 18f, 18f, strokePaint(Color.argb(70, 255, 255, 255), 0.8f))
+        drawTwoCol(c, d, x + 22f, H - 122f, w - 44f, Color.argb(200, 255, 255, 255), Color.WHITE, false, 14f)
     }
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Template 1: Classic (centred, serif; default border Double)
+// Orbit: white page, concentric rings and a solid disc in two corners, modern left-aligned type
 // ---------------------------------------------------------------------------------------------------------------
 
-private fun tplClassic(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val center = Layout.Alignment.ALIGN_CENTER
-    c.drawColor(Color.WHITE)
-    val x = 72f
-    val w = W - 144f
-    var y = 66f
-    if (drawLogo(c, logo, x, y, w, 96f, preview, 0.5f)) y += 96f + 16f
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(21f, accent, bold = true, serif = true, spacing = 0.06f), center)
-    y += 8f
-    hRule(c, W / 2f - 35f, W / 2f + 35f, y, accent, 1.4f)
-    y += 12f
-    y = drawBlock(c, d.dept, x, y, w, tp(15f, INK, serif = true), center)
-    y += 40f
-    y = drawBlock(c, d.title, x, y, w, tp(25f, INK, bold = true, serif = true), center)
-    y += 26f
-    drawPeople(c, d, x, y, w, H - 190f, accent, true, false, true)
-    footer(c, d, x, w, H - 166f, accent, MUTED, INK, true)
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 2: Banner (colour header, logo on a white badge)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplBanner(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
+private fun tplOrbit(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
     val H = COVER_PAGE_H.toFloat()
     val normal = Layout.Alignment.ALIGN_NORMAL
     c.drawColor(Color.WHITE)
-    val band = Path()
-    band.moveTo(0f, 0f)
-    band.lineTo(W, 0f)
-    band.lineTo(W, 178f)
-    band.lineTo(0f, 214f)
-    band.close()
-    c.drawPath(band, fillPaint(accent))
-    val stripe = Path()
-    stripe.moveTo(0f, 214f)
-    stripe.lineTo(W, 178f)
-    stripe.lineTo(W, 190f)
-    stripe.lineTo(0f, 226f)
-    stripe.close()
-    c.drawPath(stripe, fillPaint(withAlpha(accent, 90)))
-    c.drawRect(0f, H - 10f, W, H, fillPaint(accent))
-
-    val hasBadge = drawBadgeLogo(c, logo, 83f, 89f, 43f, preview)
-    val tx = if (hasBadge) 146f else 40f
-    val tw = W - tx - 36f
-    var ty = 58f
-    ty = drawBlock(c, d.uni.up(), tx, ty, tw, tp(18f, Color.WHITE, bold = true, spacing = 0.05f), normal)
-    ty += 6f
-    drawBlock(c, d.dept, tx, ty, tw, tp(12.5f, Color.argb(230, 255, 255, 255)), normal)
-
-    val x = 46f
-    val w = W - 92f
-    var y = 258f
-    c.drawRect(x, y, x + 54f, y + 5f, fillPaint(accent))
-    y += 20f
-    y = drawBlock(c, d.title, x, y, w, tp(30f, INK, bold = true), normal)
-    y += 24f
-    drawPeople(c, d, x, y, w, H - 168f, accent, false, true, false)
-    if (!d.to.blank || !d.date.blank) {
-        c.drawRoundRect(RectF(x, H - 150f, W - 46f, H - 54f), 14f, 14f, fillPaint(SOFT_GRAY))
-        drawTwoCol(c, d, x + 22f, H - 132f, w - 44f, MUTED, INK, false, 14f)
+    var r = 70f
+    while (r <= 300f) {
+        c.drawCircle(W - 30f, 40f, r, strokePaint(withAlpha(accent, 70), 1.2f))
+        r += 38f
     }
+    c.drawCircle(W - 30f, 40f, 48f, fillPaint(withAlpha(accent, 235)))
+    r = 60f
+    while (r <= 230f) {
+        c.drawCircle(30f, H - 30f, r, strokePaint(withAlpha(accent, 38), 1.2f))
+        r += 34f
+    }
+    c.drawCircle(30f, H - 30f, 30f, fillPaint(withAlpha(GOLD, 220)))
+    val x = 56f
+    val w = W - 112f
+    var y = 72f
+    if (drawLogo(c, logo, x, y, 64f, 64f, preview, 0f)) y += 64f + 20f
+    y = drawBlock(c, d.uni.up(), x, y, w - 110f, tp(17f, accent, bold = true, spacing = 0.1f), normal)
+    y += 6f
+    y = drawBlock(c, d.dept, x, y, w - 110f, tp(12.5f, MUTED), normal)
+    y = max(y + 70f, 290f)
+    y = drawBlock(c, d.title, x, y, w, tp(36f, INK, black = true), normal)
+    y += 14f
+    c.drawRect(x, y, x + 60f, y + 4f, fillPaint(accent))
+    y += 32f
+    drawPeople(c, d, x, y, w, H - 175f, accent, false, true, false)
+    footer(c, d, x, w, H - 150f, accent, MUTED, INK, false)
 }
 
 // ---------------------------------------------------------------------------------------------------------------
-// Template 3: Sidebar (colour band on the left)
+// Kept templates (unchanged): Aurora, Luxe, Sidebar, Circles, Corporate, Watermark, Geometric, Ribbon, Wave, Stripe
 // ---------------------------------------------------------------------------------------------------------------
+
+private fun tplAurora(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
+    val W = COVER_PAGE_W.toFloat()
+    val H = COVER_PAGE_H.toFloat()
+    val normal = Layout.Alignment.ALIGN_NORMAL
+    c.drawColor(Color.WHITE)
+    val hdr = Path()
+    hdr.moveTo(0f, 0f)
+    hdr.lineTo(W, 0f)
+    hdr.lineTo(W, 300f)
+    hdr.quadTo(W * 0.7f, 360f, W * 0.4f, 316f)
+    hdr.quadTo(W * 0.18f, 284f, 0f, 332f)
+    hdr.close()
+    c.drawPath(hdr, gradientPaint(0f, 0f, W, 340f, mix(accent, Color.BLACK, 0.45f), mix(accent, Color.WHITE, 0.2f)))
+    c.drawCircle(W - 40f, 60f, 130f, fillPaint(Color.argb(28, 255, 255, 255)))
+    c.drawCircle(W - 120f, 190f, 80f, fillPaint(Color.argb(22, 255, 255, 255)))
+    c.drawCircle(60f, 250f, 60f, fillPaint(Color.argb(18, 255, 255, 255)))
+    c.drawRect(0f, 0f, W, 6f, goldPaint(0f, 0f, W, 0f))
+    val x = 52f
+    val w = W - 104f
+    val hasBadge = drawBadgeLogo(c, logo, x + 34f, 86f, 34f, preview)
+    val tx = if (hasBadge) x + 86f else x
+    var ty = 62f
+    ty = drawBlock(c, d.uni.up(), tx, ty, W - 52f - tx, tp(15f, Color.WHITE, bold = true, spacing = 0.08f), normal)
+    ty += 5f
+    drawBlock(c, d.dept, tx, ty, W - 52f - tx, tp(11.5f, Color.argb(225, 255, 255, 255)), normal)
+    drawBlock(c, d.title, x, 170f, w, tp(32f, Color.WHITE, bold = true), normal)
+    drawPeople(c, d, x, 376f, w, H - 190f, accent, false, true, false)
+    if (!d.to.blank || !d.date.blank) {
+        c.drawRoundRect(RectF(x + 2f, H - 144f + 5f, W - 52f + 2f, H - 56f + 5f), 16f, 16f, fillPaint(Color.argb(34, 0, 0, 0)))
+        c.drawRoundRect(RectF(x, H - 144f, W - 52f, H - 56f), 16f, 16f, fillPaint(Color.WHITE))
+        c.drawRoundRect(RectF(x, H - 144f, W - 52f, H - 56f), 16f, 16f, strokePaint(Color.argb(60, 120, 126, 140), 0.8f))
+        c.drawRect(x + 14f, H - 144f, x + 70f, H - 141f, goldPaint(x + 14f, 0f, x + 70f, 0f))
+        drawTwoCol(c, d, x + 24f, H - 124f, w - 48f, MUTED, INK, false, 14f)
+    }
+}
+
+private fun tplLuxe(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
+    val W = COVER_PAGE_W.toFloat()
+    val H = COVER_PAGE_H.toFloat()
+    val center = Layout.Alignment.ALIGN_CENTER
+    c.drawColor(Color.WHITE)
+    c.drawRect(0f, 0f, W, 12f, goldPaint(0f, 0f, W, 0f))
+    c.drawRect(0f, H - 12f, W, H, goldPaint(0f, 0f, W, 0f))
+    c.drawRect(0f, 12f, W, 15f, fillPaint(accent))
+    c.drawRect(0f, H - 15f, W, H - 12f, fillPaint(accent))
+    strokeRect(c, 40f, 40f, W - 40f, H - 40f, GOLD, 1.2f)
+    strokeRect(c, 45f, 45f, W - 45f, H - 45f, accent, 0.5f)
+    val x = 78f
+    val w = W - 156f
+    var y = 76f
+    if (drawLogo(c, logo, x, y, w, 88f, preview, 0.5f)) y += 88f + 18f
+    y = drawBlock(c, d.uni.up(), x, y, w, tp(18f, accent, bold = true, serif = true, spacing = 0.2f), center)
+    y += 8f
+    diamondRule(c, W / 2f, y + 6f, 80f, GOLD)
+    y += 24f
+    y = drawBlock(c, d.dept, x, y, w, tp(13f, MUTED, serif = true, italic = true), center)
+    y += 44f
+    y = drawBlock(c, d.title, x, y, w, tp(29f, INK, bold = true, serif = true), center)
+    y += 28f
+    drawPeople(c, d, x, y, w, H - 215f, accent, true, false, true)
+    centeredFooter(c, d, x, w, H - 178f, GOLD, MUTED, INK)
+}
 
 private fun tplSidebar(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
@@ -950,151 +1222,6 @@ private fun tplSidebar(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: B
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Template 4: Elegant (cream paper, serif italics; default border Corners)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplElegant(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val center = Layout.Alignment.ALIGN_CENTER
-    c.drawColor(CREAM)
-    val x = 76f
-    val w = W - 152f
-    var y = 70f
-    if (logo != null || preview) {
-        c.drawCircle(W / 2f, y + 50f, 52f, strokePaint(accent, 1f))
-        drawLogo(c, logo, W / 2f - 38f, y + 12f, 76f, 76f, preview, 0.5f)
-        y += 116f
-    }
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(17f, accent, bold = true, serif = true, spacing = 0.14f), center)
-    y += 8f
-    diamondRule(c, W / 2f, y + 6f, 90f, accent)
-    y += 22f
-    y = drawBlock(c, d.dept, x, y, w, tp(14.5f, INK, serif = true, italic = true), center)
-    y += 38f
-    y = drawBlock(c, d.title, x, y, w, tp(27f, INK, serif = true, italic = true), center)
-    y += 26f
-    drawPeople(c, d, x, y, w, H - 205f, accent, true, false, true)
-    if (!d.to.blank || !d.date.blank) {
-        var fy = H - 170f
-        diamondRule(c, W / 2f, fy, 90f, accent)
-        fy += 18f
-        if (!d.to.blank) {
-            fy = drawBlock(c, Fld("SUBMITTED TO", false), x, fy, w, tp(9f, MUTED, bold = true, serif = true, spacing = 0.14f), center)
-            fy += 4f
-            fy = drawBlock(c, d.to, x, fy, w, tp(14.5f, INK, serif = true, bold = true), center)
-            fy += 14f
-        }
-        if (!d.date.blank) {
-            fy = drawBlock(c, Fld("SUBMISSION DATE", false), x, fy, w, tp(9f, MUTED, bold = true, serif = true, spacing = 0.14f), center)
-            fy += 4f
-            drawBlock(c, d.date, x, fy, w, tp(14.5f, INK, serif = true, bold = true), center)
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 5: Bold (big heavy title, colour footer block)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplBold(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val normal = Layout.Alignment.ALIGN_NORMAL
-    c.drawColor(Color.WHITE)
-    c.drawRect(0f, 0f, W, 16f, fillPaint(accent))
-    val x = 50f
-    val w = W - 100f
-    var y = 52f
-    val ls = 64f
-    val drew = drawLogo(c, logo, x, y, ls, ls, preview, 0f)
-    val tx = if (drew) x + ls + 16f else x
-    val tw = W - 50f - tx
-    var ty = y + 6f
-    ty = drawBlock(c, d.uni.up(), tx, ty, tw, tp(13f, INK, bold = true, spacing = 0.1f), normal)
-    ty += 4f
-    ty = drawBlock(c, d.dept, tx, ty, tw, tp(11f, MUTED), normal)
-    y = max(y + (if (drew) ls else 0f), ty) + 58f
-    y = drawBlock(c, d.title, x, y, w, tp(38f, INK, black = true), normal)
-    y += 14f
-    c.drawRect(x, y, x + 96f, y + 8f, fillPaint(accent))
-    y += 34f
-    drawPeople(c, d, x, y, w, H - 150f, accent, false, false, false)
-    if (!d.to.blank || !d.date.blank) {
-        c.drawRect(0f, H - 118f, W, H, fillPaint(accent))
-        drawTwoCol(c, d, x, H - 92f, w, Color.argb(200, 255, 255, 255), Color.WHITE, false, 14.5f)
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 6: Split (colour top with a diagonal edge, title in white)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplSplit(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val normal = Layout.Alignment.ALIGN_NORMAL
-    c.drawColor(Color.WHITE)
-    val band = Path()
-    band.moveTo(0f, 0f)
-    band.lineTo(W, 0f)
-    band.lineTo(W, 300f)
-    band.lineTo(0f, 360f)
-    band.close()
-    c.drawPath(band, fillPaint(accent))
-    val edge = Path()
-    edge.moveTo(0f, 360f)
-    edge.lineTo(W, 300f)
-    edge.lineTo(W, 316f)
-    edge.lineTo(0f, 376f)
-    edge.close()
-    c.drawPath(edge, fillPaint(withAlpha(accent, 80)))
-    val x = 50f
-    val w = W - 100f
-    val hasBadge = drawBadgeLogo(c, logo, x + 36f, 86f, 36f, preview)
-    val tx = if (hasBadge) x + 90f else x
-    var ty = 56f
-    ty = drawBlock(c, d.uni.up(), tx, ty, W - 50f - tx, tp(16f, Color.WHITE, bold = true, spacing = 0.06f), normal)
-    ty += 4f
-    drawBlock(c, d.dept, tx, ty, W - 50f - tx, tp(11.5f, Color.argb(225, 255, 255, 255)), normal)
-    drawBlock(c, d.title, x, 176f, w, tp(32f, Color.WHITE, bold = true), normal)
-    drawPeople(c, d, x, 412f, w, H - 170f, accent, false, true, false)
-    footer(c, d, x, w, H - 130f, accent, MUTED, INK, false)
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 7: Minimal (thin vertical line, light type; default border Thin)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplMinimal(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val normal = Layout.Alignment.ALIGN_NORMAL
-    c.drawColor(Color.WHITE)
-    val lx = 64f
-    c.drawRect(lx, 70f, lx + 2f, H - 70f, fillPaint(accent))
-    c.drawRect(lx - 4f, 66f, lx + 6f, 76f, fillPaint(accent))
-    val x = 100f
-    val w = W - x - 60f
-    var y = 76f
-    if (drawLogo(c, logo, x, y, 64f, 64f, preview, 0f)) y += 64f + 18f
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(11.5f, accent, bold = true, spacing = 0.18f), normal)
-    y += 5f
-    y = drawBlock(c, d.dept, x, y, w, tp(11.5f, MUTED, light = true), normal)
-    y = max(y + 70f, 290f)
-    y = drawBlock(c, d.title, x, y, w, tp(36f, INK, light = true), normal)
-    y += 14f
-    c.drawRect(x, y, x + 60f, y + 3f, fillPaint(accent))
-    y += 34f
-    drawPeople(c, d, x, y, w, H - 170f, accent, false, false, false)
-    drawTwoCol(c, d, x, H - 128f, w, MUTED, INK, false, 14f)
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 8: Circles (soft translucent circles)
-// ---------------------------------------------------------------------------------------------------------------
-
 private fun tplCircles(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
     val H = COVER_PAGE_H.toFloat()
@@ -1121,10 +1248,6 @@ private fun tplCircles(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: B
         drawTwoCol(c, d, x + 24f, H - 132f, w - 44f, MUTED, INK, false, 14f)
     }
 }
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 9: Corporate (top strip, boxed title; default border Thin)
-// ---------------------------------------------------------------------------------------------------------------
 
 private fun tplCorporate(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
@@ -1160,10 +1283,6 @@ private fun tplCorporate(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview:
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Template 10: Watermark (faint big logo behind the text; default border Thick-Thin)
-// ---------------------------------------------------------------------------------------------------------------
-
 private fun tplWatermark(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
     val H = COVER_PAGE_H.toFloat()
@@ -1189,10 +1308,6 @@ private fun tplWatermark(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview:
     footer(c, d, x, w, H - 166f, accent, MUTED, INK, false)
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Template 11: Geometric (triangles in two corners)
-// ---------------------------------------------------------------------------------------------------------------
-
 private fun tplGeometric(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
     val H = COVER_PAGE_H.toFloat()
@@ -1217,37 +1332,6 @@ private fun tplGeometric(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview:
         drawTwoCol(c, d, 120f, H - 190f, W - 240f, MUTED, INK, false, 14f)
     }
 }
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 12: Dark (page tinted with the chosen colour, gold lines; default border Triple in gold)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplDark(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val center = Layout.Alignment.ALIGN_CENTER
-    c.drawColor(darkTint(accent))
-    c.drawRect(0f, 0f, W, 6f, fillPaint(GOLD))
-    c.drawRect(0f, H - 6f, W, H, fillPaint(GOLD))
-    val x = 74f
-    val w = W - 148f
-    var y = 70f
-    if (drawBadgeLogo(c, logo, W / 2f, y + 46f, 46f, preview)) y += 108f
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(20f, GOLD, bold = true, serif = true, spacing = 0.1f), center)
-    y += 8f
-    diamondRule(c, W / 2f, y + 6f, 80f, GOLD)
-    y += 22f
-    y = drawBlock(c, d.dept, x, y, w, tp(14f, Color.WHITE, serif = true), center)
-    y += 44f
-    y = drawBlock(c, d.title, x, y, w, tp(28f, Color.WHITE, bold = true, serif = true), center)
-    y += 28f
-    drawPeople(c, d, x, y, w, H - 190f, GOLD, true, false, true, DARK_PAL)
-    footer(c, d, x, w, H - 168f, GOLD, GOLD, Color.WHITE, true)
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 13: Ribbon (hanging ribbon with the logo)
-// ---------------------------------------------------------------------------------------------------------------
 
 private fun tplRibbon(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
@@ -1278,10 +1362,6 @@ private fun tplRibbon(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Bo
     drawPeople(c, d, x, y, w, H - 165f, accent, false, true, false)
     footer(c, d, x, w, H - 130f, accent, MUTED, INK, false)
 }
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 14: Wave (wavy colour header and footer)
-// ---------------------------------------------------------------------------------------------------------------
 
 private fun tplWave(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
@@ -1331,10 +1411,6 @@ private fun tplWave(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Bool
     }
 }
 
-// ---------------------------------------------------------------------------------------------------------------
-// Template 15: Stripe (full-width colour bar behind the title)
-// ---------------------------------------------------------------------------------------------------------------
-
 private fun tplStripe(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
     val W = COVER_PAGE_W.toFloat()
     val H = COVER_PAGE_H.toFloat()
@@ -1360,231 +1436,4 @@ private fun tplStripe(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Bo
     }
     drawPeople(c, d, x, y, w, H - 170f, accent, false, true, true)
     footer(c, d, x, w, H - 130f, accent, MUTED, INK, false)
-}
-
-// ===============================================================================================================
-// PREMIUM templates (owner order 2026-10-16: more premium feel). Gold foil gradients, ornate frames, deep tones.
-// ===============================================================================================================
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 16: Royal (thick colour frame, gold hairlines, corner diamonds, crest ring around the logo)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplRoyal(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val center = Layout.Alignment.ALIGN_CENTER
-    c.drawColor(accent)
-    c.drawRect(26f, 26f, W - 26f, H - 26f, fillPaint(CREAM))
-    strokeRect(c, 34f, 34f, W - 34f, H - 34f, GOLD, 1.6f)
-    strokeRect(c, 39f, 39f, W - 39f, H - 39f, GOLD, 0.6f)
-    diamond(c, 34f, 34f, 6f, GOLD)
-    diamond(c, W - 34f, 34f, 6f, GOLD)
-    diamond(c, 34f, H - 34f, 6f, GOLD)
-    diamond(c, W - 34f, H - 34f, 6f, GOLD)
-    val x = 80f
-    val w = W - 160f
-    var y = 78f
-    if (logo != null || preview) {
-        c.drawCircle(W / 2f, y + 48f, 50f, strokePaint(GOLD, 2f))
-        c.drawCircle(W / 2f, y + 48f, 45f, strokePaint(accent, 0.8f))
-        drawLogo(c, logo, W / 2f - 32f, y + 16f, 64f, 64f, preview, 0.5f)
-        y += 114f
-    }
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(19f, accent, bold = true, serif = true, spacing = 0.12f), center)
-    y += 8f
-    diamondRule(c, W / 2f, y + 6f, 96f, GOLD)
-    y += 24f
-    y = drawBlock(c, d.dept, x, y, w, tp(14f, INK, serif = true, italic = true), center)
-    y += 40f
-    y = drawBlock(c, d.title, x, y, w, tp(28f, INK, bold = true, serif = true), center)
-    y += 26f
-    drawPeople(c, d, x, y, w, H - 215f, accent, true, true, true)
-    if (!d.to.blank || !d.date.blank) {
-        diamondRule(c, W / 2f, H - 180f, 96f, GOLD)
-        drawTwoCol(c, d, x, H - 160f, w, MUTED, INK, true, 14f)
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 17: Executive (colour spine with a gold edge, gold rules, heavy title, grey footer card)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplExecutive(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val normal = Layout.Alignment.ALIGN_NORMAL
-    c.drawColor(Color.WHITE)
-    c.drawRect(0f, 0f, 24f, H, fillPaint(accent))
-    c.drawRect(24f, 0f, 29f, H, goldPaint(0f, 0f, 0f, H))
-    val x = 72f
-    val w = W - x - 54f
-    var y = 62f
-    val ls = 64f
-    val drew = drawLogo(c, logo, W - 54f - ls, y, ls, ls, preview, 1f)
-    val tw = if (drew) w - ls - 18f else w
-    var ty = drawBlock(c, d.uni.up(), x, y + 4f, tw, tp(15f, accent, bold = true, spacing = 0.16f), normal)
-    ty += 5f
-    ty = drawBlock(c, d.dept, x, ty, tw, tp(12f, MUTED, light = true), normal)
-    y = max(y + (if (drew) ls else 0f), ty) + 14f
-    c.drawRect(x, y, x + w, y + 1.6f, goldPaint(x, y, x + w, y))
-    y = max(y + 90f, 280f)
-    c.drawRect(x, y, x + 46f, y + 5f, goldPaint(x, y, x + 46f, y))
-    y += 20f
-    y = drawBlock(c, d.title, x, y, w, tp(34f, INK, black = true), normal)
-    y += 28f
-    drawPeople(c, d, x, y, w, H - 175f, accent, false, true, false)
-    if (!d.to.blank || !d.date.blank) {
-        c.drawRect(x, H - 146f, x + w, H - 62f, fillPaint(SOFT_GRAY))
-        c.drawRect(x, H - 146f, x + 5f, H - 62f, goldPaint(x, H - 146f, x, H - 62f))
-        drawTwoCol(c, d, x + 24f, H - 126f, w - 44f, MUTED, INK, false, 14f)
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 18: Heritage (certificate style: triple frame, round corner studs, gold seal, spaced capital title)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplHeritage(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val center = Layout.Alignment.ALIGN_CENTER
-    c.drawColor(CREAM)
-    strokeRect(c, 20f, 20f, W - 20f, H - 20f, accent, 3.4f)
-    strokeRect(c, 29f, 29f, W - 29f, H - 29f, GOLD, 1.2f)
-    strokeRect(c, 34f, 34f, W - 34f, H - 34f, accent, 0.7f)
-    val studs = listOf(
-        floatArrayOf(29f, 29f),
-        floatArrayOf(W - 29f, 29f),
-        floatArrayOf(29f, H - 29f),
-        floatArrayOf(W - 29f, H - 29f)
-    )
-    for (s in studs) {
-        c.drawCircle(s[0], s[1], 9f, fillPaint(CREAM))
-        c.drawCircle(s[0], s[1], 9f, strokePaint(GOLD, 1.5f))
-        diamond(c, s[0], s[1], 3.6f, accent)
-    }
-    val x = 80f
-    val w = W - 160f
-    var y = 70f
-    if (logo != null || preview) {
-        c.drawCircle(W / 2f, y + 54f, 56f, strokePaint(GOLD, 2.4f))
-        c.drawCircle(W / 2f, y + 54f, 51f, strokePaint(accent, 0.8f))
-        drawLogo(c, logo, W / 2f - 35f, y + 19f, 70f, 70f, preview, 0.5f)
-        y += 128f
-    }
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(16f, accent, bold = true, serif = true, spacing = 0.18f), center)
-    y += 8f
-    diamondRule(c, W / 2f, y + 6f, 96f, GOLD)
-    y += 24f
-    y = drawBlock(c, d.dept, x, y, w, tp(13.5f, INK, serif = true, italic = true), center)
-    y += 36f
-    y = drawBlock(c, d.title.up(), x, y, w, tp(23f, INK, bold = true, serif = true, spacing = 0.1f), center)
-    y += 10f
-    hRule(c, W / 2f - 50f, W / 2f + 50f, y, GOLD, 1.8f)
-    y += 26f
-    drawPeople(c, d, x, y, w, H - 215f, accent, true, false, true)
-    centeredFooter(c, d, x, w, H - 178f, GOLD, MUTED, INK)
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 19: Prestige (near black page, gold spine, left aligned serif, large white title)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplPrestige(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val normal = Layout.Alignment.ALIGN_NORMAL
-    c.drawColor(prestigeBg(accent))
-    c.drawRect(0f, 0f, W, 8f, goldPaint(0f, 0f, W, 0f))
-    c.drawRect(0f, H - 8f, W, H, goldPaint(0f, 0f, W, 0f))
-    c.drawRect(56f, 70f, 59f, H - 70f, goldPaint(0f, 70f, 0f, H - 70f))
-    val x = 88f
-    val w = W - x - 56f
-    var y = 74f
-    if (drawBadgeLogo(c, logo, x + 38f, y + 38f, 36f, preview)) {
-        c.drawCircle(x + 38f, y + 38f, 40f, strokePaint(GOLD, 1.6f))
-        y += 100f
-    }
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(17f, GOLD, bold = true, serif = true, spacing = 0.16f), normal)
-    y += 6f
-    y = drawBlock(c, d.dept, x, y, w, tp(12.5f, Color.argb(215, 255, 255, 255), serif = true, italic = true), normal)
-    y = max(y + 70f, 290f)
-    c.drawRect(x, y, x + 54f, y + 3f, goldPaint(x, y, x + 54f, y))
-    y += 18f
-    y = drawBlock(c, d.title, x, y, w, tp(34f, Color.WHITE, bold = true, serif = true), normal)
-    y += 30f
-    drawPeople(c, d, x, y, w, H - 175f, GOLD, true, false, false, DARK_PAL)
-    footer(c, d, x, w, H - 146f, GOLD, GOLD, Color.WHITE, true)
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 20: Aurora (gradient header with a curved edge and soft glow circles, floating footer card)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplAurora(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val normal = Layout.Alignment.ALIGN_NORMAL
-    c.drawColor(Color.WHITE)
-    val hdr = Path()
-    hdr.moveTo(0f, 0f)
-    hdr.lineTo(W, 0f)
-    hdr.lineTo(W, 300f)
-    hdr.quadTo(W * 0.7f, 360f, W * 0.4f, 316f)
-    hdr.quadTo(W * 0.18f, 284f, 0f, 332f)
-    hdr.close()
-    c.drawPath(hdr, gradientPaint(0f, 0f, W, 340f, mix(accent, Color.BLACK, 0.45f), mix(accent, Color.WHITE, 0.2f)))
-    c.drawCircle(W - 40f, 60f, 130f, fillPaint(Color.argb(28, 255, 255, 255)))
-    c.drawCircle(W - 120f, 190f, 80f, fillPaint(Color.argb(22, 255, 255, 255)))
-    c.drawCircle(60f, 250f, 60f, fillPaint(Color.argb(18, 255, 255, 255)))
-    c.drawRect(0f, 0f, W, 6f, goldPaint(0f, 0f, W, 0f))
-    val x = 52f
-    val w = W - 104f
-    val hasBadge = drawBadgeLogo(c, logo, x + 34f, 86f, 34f, preview)
-    val tx = if (hasBadge) x + 86f else x
-    var ty = 62f
-    ty = drawBlock(c, d.uni.up(), tx, ty, W - 52f - tx, tp(15f, Color.WHITE, bold = true, spacing = 0.08f), normal)
-    ty += 5f
-    drawBlock(c, d.dept, tx, ty, W - 52f - tx, tp(11.5f, Color.argb(225, 255, 255, 255)), normal)
-    drawBlock(c, d.title, x, 170f, w, tp(32f, Color.WHITE, bold = true), normal)
-    drawPeople(c, d, x, 376f, w, H - 190f, accent, false, true, false)
-    if (!d.to.blank || !d.date.blank) {
-        c.drawRoundRect(RectF(x + 2f, H - 144f + 5f, W - 52f + 2f, H - 56f + 5f), 16f, 16f, fillPaint(Color.argb(34, 0, 0, 0)))
-        c.drawRoundRect(RectF(x, H - 144f, W - 52f, H - 56f), 16f, 16f, fillPaint(Color.WHITE))
-        c.drawRoundRect(RectF(x, H - 144f, W - 52f, H - 56f), 16f, 16f, strokePaint(Color.argb(60, 120, 126, 140), 0.8f))
-        c.drawRect(x + 14f, H - 144f, x + 70f, H - 141f, goldPaint(x + 14f, 0f, x + 70f, 0f))
-        drawTwoCol(c, d, x + 24f, H - 124f, w - 48f, MUTED, INK, false, 14f)
-    }
-}
-
-// ---------------------------------------------------------------------------------------------------------------
-// Template 21: Luxe (gold foil bars top and bottom, double gold and colour frame, centred serif)
-// ---------------------------------------------------------------------------------------------------------------
-
-private fun tplLuxe(c: Canvas, d: Doc, logo: Bitmap?, accent: Int, preview: Boolean) {
-    val W = COVER_PAGE_W.toFloat()
-    val H = COVER_PAGE_H.toFloat()
-    val center = Layout.Alignment.ALIGN_CENTER
-    c.drawColor(Color.WHITE)
-    c.drawRect(0f, 0f, W, 12f, goldPaint(0f, 0f, W, 0f))
-    c.drawRect(0f, H - 12f, W, H, goldPaint(0f, 0f, W, 0f))
-    c.drawRect(0f, 12f, W, 15f, fillPaint(accent))
-    c.drawRect(0f, H - 15f, W, H - 12f, fillPaint(accent))
-    strokeRect(c, 40f, 40f, W - 40f, H - 40f, GOLD, 1.2f)
-    strokeRect(c, 45f, 45f, W - 45f, H - 45f, accent, 0.5f)
-    val x = 78f
-    val w = W - 156f
-    var y = 76f
-    if (drawLogo(c, logo, x, y, w, 88f, preview, 0.5f)) y += 88f + 18f
-    y = drawBlock(c, d.uni.up(), x, y, w, tp(18f, accent, bold = true, serif = true, spacing = 0.2f), center)
-    y += 8f
-    diamondRule(c, W / 2f, y + 6f, 80f, GOLD)
-    y += 24f
-    y = drawBlock(c, d.dept, x, y, w, tp(13f, MUTED, serif = true, italic = true), center)
-    y += 44f
-    y = drawBlock(c, d.title, x, y, w, tp(29f, INK, bold = true, serif = true), center)
-    y += 28f
-    drawPeople(c, d, x, y, w, H - 215f, accent, true, false, true)
-    centeredFooter(c, d, x, w, H - 178f, GOLD, MUTED, INK)
 }
