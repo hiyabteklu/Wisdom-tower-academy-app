@@ -45,6 +45,13 @@ class BookLockedException(message: String) : IllegalStateException(message)
  * Offline: every successful answer is saved as a small JSON file in the app's private storage; when the
  * phone cannot reach the server the saved copy is returned (`fromCache = true`).
  *
+ * OFFLINE STATUS (O5b, 2026-10-23, docs/OFFLINE_STATUS_PLAN.md): when a hub list was never opened on this phone (no saved
+ * list file) and the server cannot be reached, [list] now builds the rows from the saved catalog
+ * ([ResourceCatalogIndex.getSaved]: id, title, chapter, hub, type, item count) and returns them with `fromCache = true`,
+ * instead of the "Check your internet connection" failure. The Books hub is left out on purpose (a catalog row has no
+ * file address). Such a row opens only when the item itself was saved before; otherwise the reader says it needs the
+ * internet. A saved list file is still used first, exactly as before. Online behaviour is unchanged.
+ *
  * F4 (2026-10-12, owner report problem 4: "opening material should be instant"): [getResource] is now
  * cache-first (a saved item opens at once and is refreshed quietly in the background for the next visit;
  * `refresh = true` forces a real download, used by the Download buttons), and [list] gives up on a slow
@@ -139,6 +146,9 @@ object LearningContentRepository {
      * `freshman/physics`, `grade/9/biology`) in one hub ([hub], for example `short-notes`).
      * Rows are always light (security slice S2). [full] is IGNORED: heavy content (`body_md`, `meta`) only comes
      * through [getResource].
+     *
+     * OFFLINE STATUS (O5b): a failed read with no saved list file falls back to rows built from the saved catalog
+     * ([catalogRows]), returned with `fromCache = true`; only when that finds nothing is the old failure returned.
      */
     suspend fun list(
         context: Context,
@@ -160,9 +170,61 @@ object LearningContentRepository {
             if (cached != null) {
                 ContentListResult.Success(cached.objects().map(::rowToResource), true)
             } else {
-                ContentListResult.Failure(if (e is IOException) NO_INTERNET else LOAD_FAILED)
+                val fromCatalog = runCatching { catalogRows(context, scopePath, hub) }.getOrDefault(emptyList())
+                if (fromCatalog.isNotEmpty()) {
+                    ContentListResult.Success(fromCatalog, true)
+                } else {
+                    ContentListResult.Failure(if (e is IOException) NO_INTERNET else LOAD_FAILED)
+                }
             }
         }
+    }
+
+    /**
+     * OFFLINE STATUS (O5b): rows for a hub that was never opened on this phone, built from the saved catalog
+     * ([ResourceCatalogIndex.getSaved], no network). Same scope and hub matching as [fetchRows] (ECE sem-1 / sem-2,
+     * slug fallback, math alias, `references` = `short-notes`). The Books hub returns nothing (a catalog row has no
+     * `storage_path`). Order: chapter (none last), then title (the real `sort_order` is not in the catalog). Fields the
+     * catalog does not have stay empty: no file address, no body, empty meta. Empty list = nothing saved or no match.
+     */
+    private suspend fun catalogRows(context: Context, scopePath: String, hub: String): List<LearningResource> {
+        if (hub == "books") return emptyList()
+        val index = ResourceCatalogIndex.getSaved(context) ?: return emptyList()
+        val ece = ECE_SCOPE.matchEntire(scopePath)
+        val accepted: Set<String> = when {
+            ece != null -> {
+                val other = if (ece.groupValues[1] == "sem-1") "sem-2" else "sem-1"
+                setOf(scopePath, "ece/$other/${ece.groupValues[2]}")
+            }
+            scopePath == "freshman/math-natural" || scopePath == "freshman/mathematics" ->
+                setOf("freshman/math-natural", "freshman/mathematics")
+            else -> setOf(scopePath)
+        }
+        fun hubMatches(h: String): Boolean =
+            if (hub == "short-notes") h == "short-notes" || h == "references" else h == hub
+        var matches = index.items.filter { it.scopePath in accepted && hubMatches(it.hub) }
+        if (matches.isEmpty() && ece != null) {
+            val slug = ece.groupValues[2].lowercase()
+            matches = index.items.filter { it.scopePath.lowercase().contains(slug) && hubMatches(it.hub) }
+        }
+        return matches
+            .sortedWith(compareBy<CatalogItem>({ it.chapter ?: Int.MAX_VALUE }, { it.title.orEmpty() }))
+            .mapIndexed { i, c ->
+                LearningResource(
+                    id = c.id,
+                    packageId = c.packageId,
+                    scopePath = c.scopePath,
+                    hub = if (c.hub == "references") "short-notes" else c.hub,
+                    title = c.title.orEmpty(),
+                    chapter = c.chapter,
+                    sortOrder = i,
+                    contentType = c.contentType.orEmpty(),
+                    storagePath = null,
+                    bodyMd = null,
+                    metaJson = "{}",
+                    itemCount = c.itemCount
+                )
+            }
     }
 
     /**
