@@ -16,7 +16,6 @@ import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -26,7 +25,6 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -57,7 +55,6 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -98,10 +95,13 @@ private const val MAX_ZOOM = 3f
  * (up and down is the normal scroll), double tap to zoom in to 2x or back to 1x. Pages are drawn at 1.5x the
  * screen width so a zoomed page stays reasonably sharp; at 3x it is softer (hypothesis, not tested).
  *
- * D6c (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. Only two colours needed a change: the title in the top bar is [WisdomInk]
- * (white at night) and the grey box shown while a page is still drawing is a [WisdomInk] tint (white 6 percent at night, so
- * night is identical). The page itself stays white on purpose (it is the book), and the "Page n / m" pill keeps its dark
- * fill with white text in both modes because it sits on top of a white page.
+ * D6c (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. The grey box shown while a page is still drawing is a [WisdomInk] tint
+ * (white 6 percent at night). The page itself stays white on purpose (it is the book), and the "Page n / m" pill keeps its
+ * dark fill with white text in both modes because it sits on top of a white page.
+ *
+ * Owner request 2026-10-24: NO top row any more (back arrow + book title). The pages start right under the app bar and use
+ * the whole height. Leaving is done with the phone Back button / gesture (handled by `StudyWorkspaceScreen`, it returns to the
+ * list). [onBack] and [title] stay in the signature but are not drawn.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -143,24 +143,6 @@ fun PdfReaderScreen(
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         Column(modifier = Modifier.fillMaxSize()) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 12.dp, vertical = 4.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                ScreenBackButton(onBack)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = title,
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = WisdomInk,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
             val readyFile = file
             val failure = error
             when {
