@@ -139,7 +139,9 @@ private fun formatSavedAt(ms: Long): String =
  * recommendation texts. [computeStatus] is NOT run on an empty list for the skeleton (it would print 0 hours, a 0-day
  * streak and a "Zero Study Sessions" alert, which is a claim, not a fact), so no Standing, no Retention panel and no
  * alerts. Slice O3 (2026-10-23): the empty skeleton also shows the "By subject" panel (`progressKnown = false`: empty rows
- * with dashes) and the "Today & this week" panel, each with its own offline states. Online behaviour is unchanged.
+ * with dashes) and the "Today & this week" panel, each with its own offline states. Slice O5a (2026-10-23): when the
+ * internet comes back ([rememberNetworkReturnCount] goes up) the screen reads the numbers again by itself. Online behaviour
+ * is unchanged.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -163,8 +165,10 @@ fun NativeStatusScreen(
     // OFFLINE STATUS (O2): true when the rows are the saved copy of the latest sync, and when it was saved
     var fromCache by remember { mutableStateOf(false) }
     var savedAtMs by remember { mutableStateOf<Long?>(null) }
+    // OFFLINE STATUS (O5a): goes up when the internet comes back, which reads the numbers again
+    val netBack = rememberNetworkReturnCount()
 
-    LaunchedEffect(isLoggedIn, reloadKey) {
+    LaunchedEffect(isLoggedIn, reloadKey, netBack) {
         if (!isLoggedIn) {
             loading = false
             return@LaunchedEffect
