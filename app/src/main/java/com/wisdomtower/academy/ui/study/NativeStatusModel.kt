@@ -17,6 +17,10 @@ import kotlin.math.roundToInt
  * screen shows a dash. Not ported because they cannot be measured from `learning_progress`: reading speed (WPM) and the
  * reading-method diagnostic, solve pace, the weekly percent of the target (the table has lifetime seconds per item, no
  * per-day log), the weekday chart.
+ *
+ * 2026-10-23 (docs/STATUS_CARD_PLAN.md, slice 2b): WORDS ONLY. The standing names, the alert texts, the retention texts and
+ * the tips were rewritten in plain, human language (owner: the old words sounded like a machine). No number, rule or
+ * threshold changed.
  */
 data class StatusTrack(
     val id: String,
@@ -152,12 +156,13 @@ fun computeStatus(rows: List<ProgressRow>, track: StatusTrack): StatusSummary {
         }
     }
 
+    // Plain standing words (2026-10-23). Only displayed, never compared anywhere else.
     val tier: String? = accuracy?.let { a ->
         when {
-            a >= track.eliteAccuracy -> "Elite Scholar Rank"
-            a >= track.honorsAccuracy -> "Honors Distinction"
-            a < track.passAccuracy -> "Critical Review Required"
-            else -> "Solid Foundational"
+            a >= track.eliteAccuracy -> "Top performer"
+            a >= track.honorsAccuracy -> "Strong"
+            a < track.passAccuracy -> "Needs work"
+            else -> "On track"
         }
     }
 
@@ -169,16 +174,16 @@ fun computeStatus(rows: List<ProgressRow>, track: StatusTrack): StatusSummary {
         retentionIndex = idx
         when {
             idx >= 80 -> {
-                retentionRating = "High Long-Term Retention"
-                retentionExplanation = "Your quiz accuracy and focused session duration demonstrate strong cognitive consolidation. Concepts drilled recently have high recall probability in timed exam conditions."
+                retentionRating = "You remember well"
+                retentionExplanation = "You answer most questions right and you stay focused while you study. That is what makes things stick. What you practised recently should come back to you in the exam."
             }
             idx < 62 -> {
-                retentionRating = "Memory Decay Risk"
-                retentionExplanation = "Memory decay risk detected. Accuracy shows sharp drop-offs when questions are attempted after multi-day reading gaps. Immediate active recall drills are required."
+                retentionRating = "You may be forgetting"
+                retentionExplanation = "Your answers get worse when you come back to a topic after a few days. Try questions on it today, without looking at the notes first."
             }
             else -> {
-                retentionRating = "Moderate Retention"
-                retentionExplanation = "Moderate retention observed. You understand core concepts when tested promptly, but without 48-hour spaced retrieval drills, recall drops significantly on cumulative exams."
+                retentionRating = "You remember some"
+                retentionExplanation = "You know the basics when you are tested soon after studying. If you go back to a topic after two days, it will stay with you much longer."
             }
         }
     }
@@ -186,32 +191,32 @@ fun computeStatus(rows: List<ProgressRow>, track: StatusTrack): StatusSummary {
     val recommendations = listOf(
         StatusRecommendation(
             id = "rec-active-recall",
-            category = "Recall Technique",
-            title = "Shift from Passive Re-Reading to Active Retrieval",
-            description = "Re-reading notes creates an illusion of competence. Testing yourself with closed-book flashcards or question drills triples long-term neural recall.",
-            actionableStep = "After every 20 minutes of reading, close the chapter and answer at least 8 practice questions immediately."
+            category = "Test yourself",
+            title = "Test yourself instead of re-reading",
+            description = "Reading the same notes again feels like learning, but it is not. Answering questions without looking is what really sticks.",
+            actionableStep = "After every 20 minutes of reading, close the chapter and answer at least 8 practice questions."
         ),
         StatusRecommendation(
             id = "rec-pomodoro-focus",
-            category = "Focus Calibration",
-            title = "Calibrate Study Blocks to 25-Minute Focus Sprints",
-            description = (if (focus != null) "Data confirms your focus ratio is $focus%. " else "") +
-                "Long unstructured study sessions lead to cognitive fatigue and mind-wandering.",
-            actionableStep = "Use the built-in Pomodoro timer: 25 minutes of strict single-task focus followed by a non-negotiable 5-minute mental break."
+            category = "Stay focused",
+            title = "Study in 25-minute rounds",
+            description = (if (focus != null) "You stayed focused for $focus% of your study time. " else "") +
+                "Long sessions with no break make you tired and your mind starts to wander.",
+            actionableStep = "Use the Timer: 25 minutes on one thing only, then a real 5-minute break."
         ),
         StatusRecommendation(
             id = "rec-spaced-repetition",
-            category = "Routine",
-            title = "Review Within the Critical 24-Hour Memory Window",
-            description = "According to the Ebbinghaus forgetting curve, up to 70% of new material is forgotten within 48 hours unless reviewed once within the first 24 hours.",
-            actionableStep = "Dedicate the first 10 minutes of every daily study session to reviewing yesterday's questions before opening new chapters."
+            category = "Daily habit",
+            title = "Review yesterday before you start new things",
+            description = "Most people forget a large part of new material within two days unless they go over it once the next day.",
+            actionableStep = "Start each study day with 10 minutes on yesterday's questions, then open the new chapter."
         ),
         StatusRecommendation(
             id = "rec-exam-pacing",
-            category = "Time & Pacing",
-            title = "Practice Elimination Pacing Under Timed Countdown",
-            description = "The benchmark pace for ${track.name} is ${formatStatusNumber(track.targetMinutesPerQuestion)} min/question.",
-            actionableStep = "In multiple-choice questions, train yourself to eliminate 2 incorrect distractor choices within the first 20 seconds."
+            category = "Exam speed",
+            title = "Practise with a countdown",
+            description = "For ${track.name}, aim for about ${formatStatusNumber(track.targetMinutesPerQuestion)} minutes per question.",
+            actionableStep = "In multiple-choice questions, cross out two wrong choices in the first 20 seconds."
         )
     )
 
@@ -221,9 +226,9 @@ fun computeStatus(rows: List<ProgressRow>, track: StatusTrack): StatusSummary {
             StatusAlert(
                 id = "stop-inactivity-gap",
                 severity = "Warning",
-                signal = "Zero Study Sessions Logged This Week",
-                observedData = "0.0 hours recorded toward your ${formatStatusNumber(track.weeklyTargetHours)}-hour target for ${track.name}. Zero active sessions detected in this period.",
-                immediateAction = "Open a chapter in your Learning Hub today and complete an initial 20-minute study interval."
+                signal = "No study time yet",
+                observedData = "0 hours so far toward your ${formatStatusNumber(track.weeklyTargetHours)}-hour weekly goal for ${track.name}.",
+                immediateAction = "Open any chapter today and study for 20 minutes."
             )
         )
     }
@@ -232,9 +237,9 @@ fun computeStatus(rows: List<ProgressRow>, track: StatusTrack): StatusSummary {
             StatusAlert(
                 id = "stop-unreviewed-misses",
                 severity = "Critical",
-                signal = "Low Question Drill Accuracy (< 60%)",
-                observedData = "Recorded accuracy is ${formatStatusNumber(accuracy)}% ($correct correct out of $attempted attempts). Advancing without reviewing missed items solidifies mistakes.",
-                immediateAction = "Pause new drill sets. Open missed questions and read the step-by-step solution derivation before re-attempting."
+                signal = "Many wrong answers (under 60% right)",
+                observedData = "You got ${formatStatusNumber(accuracy)}% right ($correct of $attempted). Moving on without fixing mistakes keeps the mistakes.",
+                immediateAction = "Stop new questions for now. Open the ones you missed, read the solution step by step, then try again."
             )
         )
     }
@@ -243,9 +248,9 @@ fun computeStatus(rows: List<ProgressRow>, track: StatusTrack): StatusSummary {
             StatusAlert(
                 id = "stop-idle-distraction",
                 severity = "Warning",
-                signal = "High Off-Focus / Passive Dwell Ratio",
-                observedData = "Active focus ratio is measured at $focus%. More than 40% of session time was spent idle or in background tabs.",
-                immediateAction = "Use 25-minute Pomodoro focus blocks with fullscreen reading mode to eliminate tab-switching distractions."
+                signal = "Too much time off focus",
+                observedData = "You stayed focused for $focus% of your study time. More than 40% went to waiting, or to the app being in the background.",
+                immediateAction = "Try 25-minute rounds in full-screen reading mode, with your phone notifications off."
             )
         )
     }
@@ -254,21 +259,21 @@ fun computeStatus(rows: List<ProgressRow>, track: StatusTrack): StatusSummary {
             StatusAlert(
                 id = "stop-broken-streak",
                 severity = "Warning",
-                signal = "Study Cadence Stalled (0-Day Streak)",
-                observedData = "Recent multi-day lapse detected since last logged study activity. Inconsistent intervals compound forgetting rates.",
-                immediateAction = "Complete at least one short 15-minute flashcard or question bank review today to restore your active streak."
+                signal = "Your streak stopped (0 days)",
+                observedData = "You have not studied for a few days. Long gaps make you forget more.",
+                immediateAction = "Do one short 15-minute round of flashcards or questions today to start your streak again."
             )
         )
     }
     if (alerts.isEmpty()) {
-        val focusPart = if (focus != null) "$focus% focus ratio and a " else "a "
+        val focusPart = if (focus != null) "$focus% focus and a " else "a "
         alerts.add(
             StatusAlert(
                 id = "signal-healthy-habits",
                 severity = "Warning",
-                signal = "Study Cadence Verified: No Destructive Anomalies",
-                observedData = "Current verified metrics: ${formatStatusNumber(hours)}h logged, $focusPart$streak-day streak. Data shows consistent learning discipline.",
-                immediateAction = "Maintain your active recall cycle and schedule a comprehensive chapter mock exam every weekend."
+                signal = "Nothing to worry about",
+                observedData = "So far: ${formatStatusNumber(hours)} hours studied, $focusPart$streak-day streak. You are studying steadily.",
+                immediateAction = "Keep testing yourself, and take one full mock exam each weekend."
             )
         )
     }
