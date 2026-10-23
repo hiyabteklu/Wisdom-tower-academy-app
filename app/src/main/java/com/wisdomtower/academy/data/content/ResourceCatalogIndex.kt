@@ -37,6 +37,9 @@ data class CatalogIndex(val items: List<CatalogItem>, val fetchedAtMs: Long)
  * and exam. One public read (anon key, published rows only, like `ResourceScopeIndex`, which stays untouched), cached in
  * the app files folder for 24 h, older cache used offline. Never logs bodies, only HTTP status codes. Never throws.
  *
+ * OFFLINE STATUS (O5b, 2026-10-23): [getSaved] returns the saved copy only (any age, never touches the network) so the
+ * hub lists can draw their rows offline from it (see `LearningContentRepository.list`).
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 object ResourceCatalogIndex {
@@ -69,6 +72,9 @@ object ResourceCatalogIndex {
             cached
         }
     }
+
+    /** OFFLINE STATUS (O5b): the saved copy of any age, read from the phone only (no network). Null when nothing was saved yet. */
+    suspend fun getSaved(context: Context): CatalogIndex? = withContext(Dispatchers.IO) { readCache(context) }
 
     private fun optStr(o: JSONObject, key: String): String? =
         if (o.isNull(key)) null else o.optString(key, "").ifBlank { null }
