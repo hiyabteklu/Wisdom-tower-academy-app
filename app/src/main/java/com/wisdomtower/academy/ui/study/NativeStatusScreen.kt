@@ -489,7 +489,7 @@ fun NativeStatusScreen(
                                 title = sig.signal,
                                 bodyLabel = "Observed Data: ",
                                 body = sig.observedData,
-                                boxLabel = "Immediate Corrective Action:",
+                                boxLabel = "Do this today:",
                                 boxText = sig.immediateAction
                             )
                         }
@@ -567,7 +567,7 @@ private fun StHudCards(summary: StatusSummary?, track: StatusTrack, dailyGoalMin
         accent = focusAccent,
         big = if (focus != null) "$focus%" else "—",
         unit = null,
-        line = "Focus Dwell Ratio",
+        line = "Time you stayed focused",
         footer = null
     )
     StHudCard(
@@ -611,7 +611,7 @@ private fun StRecommendationsPanel(recommendations: List<StatusRecommendation>, 
                 title = rec.title,
                 bodyLabel = null,
                 body = rec.description,
-                boxLabel = "Actionable Step:",
+                boxLabel = "Next step:",
                 boxText = rec.actionableStep
             )
         }
