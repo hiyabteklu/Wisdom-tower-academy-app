@@ -116,10 +116,10 @@ private fun sbFormatSavedAt(ms: Long): String =
 /**
  * My Status V2 (B2): the "My status" board that goes ABOVE the hub list of a course page (wired in B3). Collapsed = one
  * glass card: title, an expand chevron and ONE row of four rings (Completion, Accuracy, Focus, Flashcards known) with the
- * existing [StatusRing] and HUD colours. Expanded = stat tiles (reading time, exams, last active) and, right below them in
- * the same page flow, the chapters list and the exam attempts list ([StatusDetailInline]; no popup, no button). Tapping a
- * chapter or an attempt opens its details in place with a Back arrow. Everything stays above the hubs. Real numbers only:
- * unknown = dash (G4).
+ * existing [StatusRing] and HUD colours. Expanded = [StatusSubjectDetailInline]: stat tiles (reading time, exams, last
+ * active) and, right below them in the same page flow, the chapters list and the exam attempts list (no popup, no button).
+ * Tapping a chapter or an attempt opens its details in place with a Back arrow. Everything stays above the hubs. Real
+ * numbers only: unknown = dash (G4).
  * [reloadKey]: change it (for example when the student returns from a hub) to read the numbers again; a failed reload keeps
  * the numbers already shown.
  *
@@ -246,27 +246,40 @@ fun StatusSubjectBoard(
                     SbRing("Flashcards known", t.flashKnownPct)
                 }
 
-                if (expanded) {
-                    Text("${t.itemsOpened} of ${t.itemsTotal} items opened", fontSize = 12.sp, color = WisdomMuted)
-                    val tiles = ArrayList<Pair<String, String>>()
-                    tiles.add("Reading time" to sbDuration(t.readingSeconds))
-                    tiles.add("Exams taken" to "${b.exams.attemptsTaken}")
-                    b.exams.bestPct?.let { tiles.add("Best exam score" to "$it%") }
-                    b.exams.latestPct?.let { tiles.add("Latest exam score" to "$it%") }
-                    b.exams.averagePct?.let { tiles.add("Average exam score" to "$it%") }
-                    tiles.add("Last active" to sbDate(t.lastActiveIso))
-                    for (pair in tiles.chunked(2)) {
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                            for (p in pair) SbTile(p.first, p.second, Modifier.weight(1f))
-                            if (pair.size == 1) Spacer(Modifier.weight(1f))
-                        }
-                    }
-                    // chapters + exam attempts open right here (no button, no popup); tap one for its details
-                    if (b.chapters.isNotEmpty() || b.exams.attempts.isNotEmpty()) {
-                        StatusDetailInline(title = title, breakdown = b)
-                    }
-                }
+                if (expanded) StatusSubjectDetailInline(title = title, breakdown = b)
             }
+        }
+    }
+}
+
+/**
+ * The expanded content of ONE subject's status, drawn right in the page flow (no popup): items opened, the stat tiles in a
+ * 2-column grid (reading time, exams taken, best / latest / average score, last active) and, right below them, the chapters
+ * list and the exam attempts list ([StatusDetailInline]; tap one for its details in place, with a Back arrow). Real numbers
+ * only: unknown = dash (G4). Shared by the course-page board ([StatusSubjectBoard]) and the "By subject" rows of Your status
+ * ([StatusSubjectsPanel]).
+ */
+@Composable
+fun StatusSubjectDetailInline(title: String, breakdown: SubjectBreakdown) {
+    val t = breakdown.totals
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Text("${t.itemsOpened} of ${t.itemsTotal} items opened", fontSize = 12.sp, color = WisdomMuted)
+        val tiles = ArrayList<Pair<String, String>>()
+        tiles.add("Reading time" to sbDuration(t.readingSeconds))
+        tiles.add("Exams taken" to "${breakdown.exams.attemptsTaken}")
+        breakdown.exams.bestPct?.let { tiles.add("Best exam score" to "$it%") }
+        breakdown.exams.latestPct?.let { tiles.add("Latest exam score" to "$it%") }
+        breakdown.exams.averagePct?.let { tiles.add("Average exam score" to "$it%") }
+        tiles.add("Last active" to sbDate(t.lastActiveIso))
+        for (pair in tiles.chunked(2)) {
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                for (p in pair) SbTile(p.first, p.second, Modifier.weight(1f))
+                if (pair.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+        // chapters + exam attempts open right here (no button, no popup); tap one for its details
+        if (breakdown.chapters.isNotEmpty() || breakdown.exams.attempts.isNotEmpty()) {
+            StatusDetailInline(title = title, breakdown = breakdown)
         }
     }
 }

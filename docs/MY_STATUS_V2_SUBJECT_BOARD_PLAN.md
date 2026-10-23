@@ -40,3 +40,4 @@ Learning > any course (for example Economics): above the 6 hub cards there is a 
 | B2 board | open |
 | B3 wire it | open |
 | S6 day log (weekday chart, daily-goal ring) | still blocked on owner question B of `MY_STATUS_V2_PLAN.md` |
+| B4 "By subject" rows open inline, no popup (Your status) | done 2026-10-23, NOT compiled. See `docs/SESSION_2026-10-23_STATUS_B4.md`. The board now shows chapters and exams inline too (no "Chapters and exams" button), see `docs/SESSION_2026-10-22_STATUS_B3.md`. Leftover: `StatusSubjectIcon.kt`, `OpenCardWithStatus.kt` and the popup `StatusDetailCard` are unused, deleting them is an owner decision. |

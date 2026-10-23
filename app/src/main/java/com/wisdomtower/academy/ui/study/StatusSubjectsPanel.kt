@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.study
 
+import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,7 +15,8 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -66,15 +68,17 @@ private fun ssFormatSavedAt(ms: Long): String =
 
 /**
  * My Status V2 (S3): the "By subject" panel inside "Your status". One row per picked subject (T8 picks; with no picks, every
- * subject that has activity): mini completion ring, subject name, items opened X of Y, and a small gauge icon. Tapping the row
- * or the icon opens [StatusDetailCard]. Real numbers only (G4). [rows] = the progress rows the status screen already loaded
+ * subject that has activity): mini completion ring, subject name, items opened X of Y, and a small expand chevron. Tapping the
+ * row or the chevron opens that subject's details RIGHT BELOW the row, in the page (no popup, slice B4): the stat tiles, the
+ * chapters list and the exam attempts list ([StatusSubjectDetailInline], shared with the My status board). One subject is open
+ * at a time; tapping it again closes it. Real numbers only (G4). [rows] = the progress rows the status screen already loaded
  * (already filtered to the picks). Catalog = [ResourceCatalogIndex], exams = [ExamAttemptsReader].
  *
  * OFFLINE STATUS (2026-10-23, docs/OFFLINE_STATUS_PLAN.md slice O3): the panel always draws. (1) Catalog and exam attempts
  * available (the exam read may be the saved copy, then one amber line says when it was saved): the rows as before.
  * (2) Either is missing, or [progressKnown] is false (the status screen could not read the progress, so its empty skeleton
  * is shown): a notice with Retry, then one EMPTY row per picked subject (name from the packed subject list, empty ring,
- * dashes instead of "x of y items opened", no detail card). Nothing is counted as zero. With no picks there are no names to
+ * dashes instead of "x of y items opened", nothing to open). Nothing is counted as zero. With no picks there are no names to
  * draw: "Nothing to show yet." plus the notice. Online behaviour is unchanged. Slice O5a: the panel also reads again by
  * itself when the internet comes back.
  *
@@ -90,6 +94,7 @@ fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?, progre
     var entries by remember { mutableStateOf<List<SubjectEntry>>(emptyList()) }
     var skeletonNames by remember { mutableStateOf<List<String>>(emptyList()) }
     var savedAtMs by remember { mutableStateOf<Long?>(null) }
+    // the subject whose details are open below its row (null = all closed)
     var openKey by remember { mutableStateOf<String?>(null) }
     // OFFLINE STATUS (O5a): goes up when the internet comes back, which reads the exam attempts again
     val netBack = rememberNetworkReturnCount()
@@ -169,14 +174,19 @@ fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?, progre
                         lineHeight = 16.sp
                     )
                 }
-                entries.forEach { e -> SubjectRow(e) { openKey = e.key } }
+                entries.forEach { e ->
+                    val isOpen = openKey == e.key
+                    // the row and, when open, its details right below it (no popup)
+                    Column(
+                        modifier = Modifier.fillMaxWidth().animateContentSize(),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        SubjectRow(e, isOpen) { openKey = if (isOpen) null else e.key }
+                        if (isOpen) StatusSubjectDetailInline(title = e.name, breakdown = e.breakdown)
+                    }
+                }
             }
         }
-    }
-
-    val open = entries.firstOrNull { it.key == openKey }
-    if (open != null) {
-        StatusDetailCard(title = open.name, breakdown = open.breakdown, onDismiss = { openKey = null })
     }
 }
 
@@ -202,13 +212,13 @@ private fun SkeletonSubjectRow(name: String) {
         )
         Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(name, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk, lineHeight = 19.sp)
-            Text("\u2014 of \u2014 items opened", fontSize = 11.sp, color = WisdomMuted)
+            Text("— of — items opened", fontSize = 11.sp, color = WisdomMuted)
         }
     }
 }
 
 @Composable
-private fun SubjectRow(entry: SubjectEntry, onClick: () -> Unit) {
+private fun SubjectRow(entry: SubjectEntry, expanded: Boolean, onClick: () -> Unit) {
     val t = entry.breakdown.totals
     val pct = t.completionPct?.roundToInt()
     Row(
@@ -242,7 +252,12 @@ private fun SubjectRow(entry: SubjectEntry, onClick: () -> Unit) {
                 .clickable { onClick() },
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.Speed, contentDescription = "Open ${entry.name} status", tint = WisdomAccentSky, modifier = Modifier.size(18.dp))
+            Icon(
+                if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = if (expanded) "Hide ${entry.name} status details" else "Show ${entry.name} status details",
+                tint = WisdomAccentSky,
+                modifier = Modifier.size(22.dp)
+            )
         }
     }
 }
