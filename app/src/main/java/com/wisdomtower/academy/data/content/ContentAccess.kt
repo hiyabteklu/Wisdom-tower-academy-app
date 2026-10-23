@@ -77,33 +77,72 @@ data class CourseAccess(
  * Books" is one `chapter:` row. No row = the level above decides. Clearing a lock = deleting its row.
  *
  * [hubGate] is what a hub card tap checks; [itemGate] is what a row tap in a hub list checks.
+ *
+ * TELEGRAM PAID BUILD (S1, `docs/PLAN_TELEGRAM_PAID_NATIVE_V2.md` section 2; [paid] true only when
+ * `BuildConfig.PAID_UI`): the model is simpler. Only `item:`, `chapter:` and `package:` rows count (the most specific
+ * wins; `scope:` and `hub:` rows are ignored; no package row = the static rule, [packageMode]). Locks never hide
+ * anything: [hubGate] is always Open, only rows get a gate. A student who owns the package has every row open.
+ * The Play build ([paid] false) runs the old code above, unchanged.
  */
 class CourseLocks internal constructor(
     private val scope: String?,
     private val signedIn: Boolean,
     private val owned: Boolean,
     private val courseMode: HubLockMode,
-    private val rows: Map<String, HubLockMode>
+    private val rows: Map<String, HubLockMode>,
+    private val paid: Boolean = false,
+    private val packageMode: HubLockMode = courseMode
 ) {
     private fun gateOf(mode: HubLockMode): HubGate = CourseAccess(mode, signedIn, owned).gate
+
+    /** Paid build: owned = everything open; else Open / Coming soon / Package required by the mode. */
+    private fun paidGateOf(mode: HubLockMode): HubGate = when {
+        owned -> HubGate.Open
+        mode == HubLockMode.Open -> HubGate.Open
+        mode == HubLockMode.ComingSoon -> HubGate.ComingSoon
+        !signedIn -> HubGate.Open // the native screens show their own "Sign in to open"
+        else -> HubGate.PackageRequired
+    }
 
     /** Mode of one hub: its own `hub:` row, else the course / package / static mode. */
     fun hubMode(hubId: String): HubLockMode =
         scope?.let { rows["hub:$it:$hubId"] } ?: courseMode
 
-    /** What a tap on the hub card does. */
-    fun hubGate(hubId: String): HubGate = gateOf(hubMode(hubId))
+    /** What a tap on the hub card does. Paid build: hub cards are never closed. */
+    fun hubGate(hubId: String): HubGate = if (paid) HubGate.Open else gateOf(hubMode(hubId))
 
     /**
      * The gate of ONE material when an `item:` or `chapter:` row exists for it, else null (null = no extra
      * lock: the hub gate, already checked on the hub card, is the only rule). Item row beats chapter row.
+     *
+     * Paid build: never null. item row, else chapter row, else the package mode, then the owned / signed-in rule.
      */
     fun itemGate(hubId: String, chapter: Int?, itemId: String): HubGate? {
+        if (paid) {
+            val mode = rows["item:$itemId"]
+                ?: (if (scope != null && chapter != null) rows["chapter:$scope:$hubId:$chapter"] else null)
+                ?: packageMode
+            return paidGateOf(mode)
+        }
         rows["item:$itemId"]?.let { return gateOf(it) }
         if (scope != null && chapter != null) {
             rows["chapter:$scope:$hubId:$chapter"]?.let { return gateOf(it) }
         }
         return null
+    }
+
+    /**
+     * Paid build only: numbers of the chapters of [hubId] that have a Coming soon `chapter:` row. The hub list adds a
+     * placeholder row "Chapter N: Coming soon" for each one that has no items (an empty chapter made by the admin).
+     * Empty list in the Play build.
+     */
+    fun comingSoonChapters(hubId: String): List<Int> {
+        if (!paid || scope == null) return emptyList()
+        val prefix = "chapter:$scope:$hubId:"
+        return rows.entries
+            .filter { it.value == HubLockMode.ComingSoon && it.key.startsWith(prefix) }
+            .mapNotNull { it.key.removePrefix(prefix).toIntOrNull() }
+            .sorted()
     }
 }
 
@@ -125,6 +164,12 @@ class CourseLocks internal constructor(
  * The old "free mode" switch and the "free for registered" list are gone from the decision. Offline or server
  * trouble: the last answer for the same student is reused, else NOTHING is owned (a paid package stays closed rather
  * than opening by mistake). Lock rows are read separately and a read error never closes an open course.
+ *
+ * TELEGRAM PAID BUILD (S1, 2026-10-23, `docs/PLAN_TELEGRAM_PAID_NATIVE_V2.md`): ownership there ignores the global
+ * `enforced` flag (both apps share one database; the flag is for the Play app) and uses ONLY the list of owned packages
+ * (`ownsPaid`). Read from the live function (2026-10-23): `packages` is always the student's real list (enrollments and
+ * access grants), whatever `enforced` says, so this is safe. The Telegram build also reads every `package:` row, so
+ * the row of an ECE semester is found by its own package id (see `buildLocks`).
  *
  * OFFLINE-LOCK FIX (2026-10-23, owner: "content that is free for me becomes Package required after I have been offline
  * for some time or killed the app; opening data for 5 seconds fixes it"): CAUSE (read from this file). The last
@@ -243,19 +288,9 @@ object ContentAccess {
      */
     suspend fun resolveLocks(basePath: String, signedIn: Boolean): CourseLocks {
         val base = normalize(basePath)
-        val unlockIds = unlockPackageIds(base)
-        val (pkg, scope) = inferPackageAndScope(base, unlockIds)
+        val (pkg, scope) = inferPackageAndScope(base, unlockPackageIds(base))
         val rows = courseRows(pkg, scope)
-        val courseMode = scope?.let { rows?.get("scope:$it") }
-            ?: pkg?.let { rows?.get("package:$it") }
-            ?: staticLockMode(base)
-        return CourseLocks(
-            scope,
-            signedIn,
-            ownsFrom(liveAccess(signedIn), signedIn, unlockIds),
-            courseMode,
-            rows ?: emptyMap()
-        )
+        return buildLocks(base, signedIn, rows, liveAccess(signedIn))
     }
 
     /**
@@ -264,18 +299,47 @@ object ContentAccess {
      */
     fun staticLocks(basePath: String, signedIn: Boolean): CourseLocks {
         val base = normalize(basePath)
+        val (pkg, scope) = inferPackageAndScope(base, unlockPackageIds(base))
+        val rows = cachedCourseRows(pkg, scope)
+        return buildLocks(base, signedIn, rows, cachedAccess())
+    }
+
+    /**
+     * Puts the lock rows and the ownership answer of one course together. Play build: exactly the old rules (course
+     * mode from the scope / package row, ownership with the `enforced` flag). Telegram build (`PAID_UI`, S1): package mode
+     * from the row of the package that is SOLD for this course ([PaidCheckout.packageIdForScope], so an ECE semester
+     * uses its own row), else the static rule; ownership from the owned-packages list only ([ownsPaid]).
+     */
+    private fun buildLocks(
+        base: String,
+        signedIn: Boolean,
+        rows: Map<String, HubLockMode>?,
+        access: PackageAccess?
+    ): CourseLocks {
         val unlockIds = unlockPackageIds(base)
         val (pkg, scope) = inferPackageAndScope(base, unlockIds)
-        val rows = cachedCourseRows(pkg, scope)
         val courseMode = scope?.let { rows?.get("scope:$it") }
             ?: pkg?.let { rows?.get("package:$it") }
             ?: staticLockMode(base)
+        if (!BuildConfig.PAID_UI) {
+            return CourseLocks(
+                scope,
+                signedIn,
+                ownsFrom(access, signedIn, unlockIds),
+                courseMode,
+                rows ?: emptyMap()
+            )
+        }
+        val paidPackage = scope?.let { PaidCheckout.packageIdForScope(it) } ?: pkg
+        val packageMode = paidPackage?.let { rows?.get("package:$it") } ?: staticLockMode(base)
         return CourseLocks(
             scope,
             signedIn,
-            ownsFrom(cachedAccess(), signedIn, unlockIds),
+            ownsPaid(access, signedIn, unlockIds),
             courseMode,
-            rows ?: emptyMap()
+            rows ?: emptyMap(),
+            true,
+            packageMode
         )
     }
 
@@ -371,6 +435,20 @@ object ContentAccess {
     private fun ownsFrom(access: PackageAccess?, signedIn: Boolean, unlockIds: List<String>): Boolean {
         if (!signedIn || access == null) return false
         if (!access.enforced) return true
+        if (ALL_PACKAGES in access.packages) return true
+        return unlockIds.any { id ->
+            id in access.packages ||
+                (id.startsWith("ece-y3-sem-") && access.packages.any { it.startsWith("ece-y3-sem-") })
+        }
+    }
+
+    /**
+     * TELEGRAM BUILD (S1): same as [ownsFrom] but WITHOUT the global `enforced` flag (that flag belongs to the Play app,
+     * both apps share one database). Owned only if the answer lists the package (or `__all__`); the two ECE semesters
+     * count as one, like the server. No answer yet (offline, nothing saved) = nothing owned.
+     */
+    private fun ownsPaid(access: PackageAccess?, signedIn: Boolean, unlockIds: List<String>): Boolean {
+        if (!signedIn || access == null) return false
         if (ALL_PACKAGES in access.packages) return true
         return unlockIds.any { id ->
             id in access.packages ||
@@ -572,7 +650,8 @@ object ContentAccess {
     /**
      * Every lock row that can matter inside one course: its package row, its scope row, all its `hub:` and
      * `chapter:` rows (key prefix) and every `item:` row (item keys carry only the material id; there are only as
-     * many as the admin locked one by one). Null when nothing could be read and nothing is cached or saved.
+     * many as the admin locked one by one). Telegram build (S1): also every `package:` row (a dozen at most), because an
+     * ECE semester is sold under its own package id. Null when nothing could be read and nothing is cached or saved.
      */
     private suspend fun courseRows(pkg: String?, scope: String?): Map<String, HubLockMode>? =
         withContext(Dispatchers.IO) {
@@ -583,6 +662,7 @@ object ContentAccess {
             try {
                 val parts = ArrayList<String>()
                 pkg?.let { parts.add("lock_key.eq.\"package:$it\"") }
+                if (BuildConfig.PAID_UI) parts.add("lock_key.like.\"package:*\"")
                 scope?.let {
                     parts.add("lock_key.eq.\"scope:$it\"")
                     parts.add("lock_key.like.\"hub:$it:*\"")

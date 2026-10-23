@@ -91,6 +91,39 @@ private const val SIZE_UNKNOWN = -1f
 /** Soft red used for "remove" and failure texts. D6b: a getter (night FDA4AF as before, day deep rose) so it follows the switch. */
 private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRose)
 
+/** One row of the hub list: a real material, or (Telegram build) an empty chapter the admin set to Coming soon. */
+private sealed interface HubListEntry {
+    data class Real(val item: LearningResource) : HubListEntry
+    data class SoonChapter(val chapter: Int) : HubListEntry
+}
+
+/**
+ * The materials in their order, plus a placeholder row for each Coming soon chapter in [soonChapters] that has no
+ * material. A placeholder goes before the first material of a later chapter, else at the end.
+ */
+private fun buildHubEntries(items: List<LearningResource>, soonChapters: List<Int>): List<HubListEntry> {
+    val have = items.mapNotNull { it.chapter }.toSet()
+    val missing = soonChapters.filter { it !in have }
+    if (missing.isEmpty()) return items.map { HubListEntry.Real(it) }
+    val out = ArrayList<HubListEntry>()
+    var next = 0
+    for (item in items) {
+        val c = item.chapter
+        if (c != null) {
+            while (next < missing.size && missing[next] < c) {
+                out.add(HubListEntry.SoonChapter(missing[next]))
+                next++
+            }
+        }
+        out.add(HubListEntry.Real(item))
+    }
+    while (next < missing.size) {
+        out.add(HubListEntry.SoonChapter(missing[next]))
+        next++
+    }
+    return out
+}
+
 /**
  * Native list of the items inside one learning hub of one course (books, notes, flashcards, question banks, exams).
  * Rows, per-item Download button, "Download all (n)" / "Remove saved (n)", offline marks, granular admin locks
@@ -100,6 +133,11 @@ private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRos
  * COMPACT HEADER (owner request 2026-10-22): no round back button and no course-title + hub-title block. ONE small muted
  * line names the hub (the course was already shown on the previous screen). Back = phone back key / gesture, handled by
  * the [BackHandler] in StudyWorkspaceScreen. [courseTitle] is kept so the caller does not change.
+ *
+ * TELEGRAM PAID BUILD (S1, `docs/PLAN_TELEGRAM_PAID_NATIVE_V2.md`): the list is never closed; only rows get the lock icon
+ * (the gate of each row comes from [CourseLocks.itemGate]). A chapter the admin made empty and set to Coming soon shows as
+ * a row "Chapter N: Coming soon" even with no materials ([CourseLocks.comingSoonChapters]). A tap on an Owned-only row still
+ * shows the old "Package required" pop-up until S2 replaces it with the native purchase flow.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -137,6 +175,9 @@ fun HubItemListScreen(
 
     // GRANULAR LOCKS: the pop-up for a tapped locked row (gate + the row's title)
     var lockedPopup by remember { mutableStateOf<Pair<HubGate, String>?>(null) }
+
+    // S1 (Telegram build): empty chapters set to Coming soon (empty list in the Play build)
+    val soonChapters = locks?.comingSoonChapters(hubId).orEmpty()
 
     /** The extra lock (chapter or item row) on one material, or null when it is open. */
     fun lockOf(item: LearningResource): HubGate? =
@@ -285,15 +326,17 @@ fun HubItemListScreen(
                     MessageCard(title = null, message = current.message, onRetry = { reload += 1 })
                 }
 
-                current is ContentListResult.Success && current.items.isEmpty() -> item(key = "hub_list_empty") {
-                    MessageCard(
-                        title = null,
-                        message = "No published materials in this hub yet. Check back soon.",
-                        onRetry = null
-                    )
-                }
+                current is ContentListResult.Success && current.items.isEmpty() && soonChapters.isEmpty() ->
+                    item(key = "hub_list_empty") {
+                        MessageCard(
+                            title = null,
+                            message = "No published materials in this hub yet. Check back soon.",
+                            onRetry = null
+                        )
+                    }
 
                 current is ContentListResult.Success -> {
+                    val entries = buildHubEntries(current.items, soonChapters)
                     item(key = "hub_list_tools") {
                         DownloadTools(
                             todo = current.items.count { it.id !in downloaded && lockOf(it) == null },
@@ -303,31 +346,52 @@ fun HubItemListScreen(
                             onRemoveAll = { confirmRemove = current.items.filter { it.id in downloaded } }
                         )
                     }
-                    items(current.items, key = { it.id }) { item ->
-                        val isNew = item.id !in seen
-                        val rowIndex = current.items.indexOf(item)
-                        val rowLock = lockOf(item)
-                        Box(modifier = Modifier.wisdomReveal("hub_${hubId}_${item.id}", rowIndex)) {
-                        ItemRow(
-                            item = item,
-                            hubId = hubId,
-                            isNew = isNew && rowLock == null,
-                            isDownloaded = item.id in downloaded,
-                            knownSize = if (hubId == "books") fileSizeMap[item.id] else null,
-                            progress = busy[item.id],
-                            hasFailed = item.id in failed,
-                            lockedGate = rowLock,
-                            onDownload = { startDownload(item) },
-                            onRemove = { confirmRemove = listOf(item) }
-                        ) {
-                            if (rowLock != null) {
-                                lockedPopup = rowLock to item.title
-                            } else {
-                                seen = seen + item.id
-                                seenPrefs.edit().putStringSet("ids", seen.toSet()).apply()
-                                onOpenItem(item)
+                    items(
+                        entries,
+                        key = { entry ->
+                            when (entry) {
+                                is HubListEntry.Real -> entry.item.id
+                                is HubListEntry.SoonChapter -> "soon_chapter_${entry.chapter}"
                             }
                         }
+                    ) { entry ->
+                        val rowIndex = entries.indexOf(entry)
+                        when (entry) {
+                            is HubListEntry.SoonChapter -> {
+                                Box(modifier = Modifier.wisdomReveal("hub_${hubId}_soon_${entry.chapter}", rowIndex)) {
+                                    SoonChapterRow(chapter = entry.chapter) {
+                                        lockedPopup = HubGate.ComingSoon to "Chapter ${entry.chapter}"
+                                    }
+                                }
+                            }
+
+                            is HubListEntry.Real -> {
+                                val item = entry.item
+                                val isNew = item.id !in seen
+                                val rowLock = lockOf(item)
+                                Box(modifier = Modifier.wisdomReveal("hub_${hubId}_${item.id}", rowIndex)) {
+                                    ItemRow(
+                                        item = item,
+                                        hubId = hubId,
+                                        isNew = isNew && rowLock == null,
+                                        isDownloaded = item.id in downloaded,
+                                        knownSize = if (hubId == "books") fileSizeMap[item.id] else null,
+                                        progress = busy[item.id],
+                                        hasFailed = item.id in failed,
+                                        lockedGate = rowLock,
+                                        onDownload = { startDownload(item) },
+                                        onRemove = { confirmRemove = listOf(item) }
+                                    ) {
+                                        if (rowLock != null) {
+                                            lockedPopup = rowLock to item.title
+                                        } else {
+                                            seen = seen + item.id
+                                            seenPrefs.edit().putStringSet("ids", seen.toSet()).apply()
+                                            onOpenItem(item)
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -494,6 +558,42 @@ private fun ToolPill(
         ) {
             leadingIcon?.invoke()
             Text(text = text, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = color)
+        }
+    }
+}
+
+/** S1 (Telegram build): the row of an empty chapter that the admin set to Coming soon. Lock icon, tap = Coming soon message. */
+@Composable
+private fun SoonChapterRow(chapter: Int, onClick: () -> Unit) {
+    WisdomGlassCard(
+        modifier = Modifier.fillMaxWidth(),
+        cornerRadius = 16.dp,
+        onClick = onClick
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Chapter $chapter: Coming soon",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = WisdomInk,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Icon(
+                imageVector = Icons.Filled.Lock,
+                contentDescription = "Locked",
+                tint = WisdomMuted,
+                modifier = Modifier
+                    .padding(end = 8.dp)
+                    .size(20.dp)
+            )
         }
     }
 }
