@@ -38,12 +38,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.onSizeChanged
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
@@ -86,7 +86,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * [GameResultsRepository.save] and the result screen shows the save line. A blank [scopePath] saves nothing.
  * Atmosphere (slice W1): nebula glow, drifting stars and lane glow in the level colour (DefenseAtmosphere.kt).
  * Enemies (slice W2): level skin, portal flash at the far edge, armor plates, Hard boss with a health bar (DefenseArt.kt).
- * Cockpit (slice W3): turret and four answer bullets in an arch (DefenseCockpit.kt); the 2x2 cards below stay as the
+ * Cockpit (slice W3): the four answers and the cannon (DefenseCockpit.kt); the 2x2 cards below stay as the
  * fallback for very narrow screens (under COCKPIT_MIN_WIDTH).
  * Juice (slice W4): combo, banners and score numbers live in DefenseEffects.kt; the only hook here is the frame loop,
  * where the engine step is multiplied by fx.timeScale (slow-motion on the last kill).
@@ -94,19 +94,19 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
  * [currentLevel] (starts as [level]), so the next level starts here without the hub; results are saved with the level
  * that was played.
  * Slice W7b: a dying boss is drawn at boss size (the engine's dying enemy carries a boss flag).
- * Slice W7c: with the cockpit shown, the shot starts at the turret barrel (just below the battlefield, see
- * [TURRET_TIP_BELOW]) instead of the crystal, and the turret's own muzzle flash replaces the crystal flash. With the
- * 2x2 fallback cards nothing changes (shot from the crystal, crystal flash).
  * Slice W7d: "Next level" also saves the new level as the last level used for this game ([GameLevelPrefs]), the same
  * value the level picker pre-selects, so the hub's "last level used" follows.
  * Slice W5 (power-ups, owner yes 2026-10-22): on Medium and Hard, 3 correct answers in a row earn a Freeze (enemies stand
  * still 3 s) and 5 in a row earn a Shield (absorbs one wall hit). The chip strip is [DefensePowerUps], laid over the
- * bottom of the battlefield (no layout change). A frozen field gets an icy tint and frame, an active Shield a glowing
- * line along the wall, and a blocked hit a short white flash. Rules live in [WisdomDefenseEngine].
+ * bottom-left of the battlefield (no layout change). A frozen field gets an icy tint and frame, an active Shield a
+ * glowing line along the wall, and a blocked hit a short white flash. Rules live in [WisdomDefenseEngine].
+ *
+ * 2026-10-24 (one gun): the tower with the crystal on the wall is gone (DefenseWall.kt draws just the wall and a floor
+ * grid). The only gun is the cannon in the cockpit: its barrel reaches up over the wall, turns toward the nearest
+ * enemy (`aimRef` holds the angle, written here while the battlefield is drawn and read by the cockpit), kicks back and
+ * flashes on every shot, and every shot starts at its muzzle ([defenseCannonTip]). The answers are two mirrored
+ * columns of two on both sides of the cannon.
  */
-
-/** How far below the battlefield canvas the turret barrel tip is (8 dp cockpit padding + about 78 dp inside it). */
-private val TURRET_TIP_BELOW = 86.dp
 
 @Composable
 fun WisdomDefenseScreen(
@@ -119,8 +119,6 @@ fun WisdomDefenseScreen(
     GameFullScreenEffect()
     val context = LocalContext.current
     val view = LocalView.current
-    // W7c: same rule as the BoxWithConstraints below (the cockpit is as wide as the screen).
-    val cockpitOn = LocalConfiguration.current.screenWidthDp.dp >= COCKPIT_MIN_WIDTH
     // Retry starts a fresh engine and fresh effects for the same set (and the same level).
     var attempt by remember { mutableIntStateOf(0) }
     // W6: the level being played; "Next level" on the result changes it.
@@ -140,6 +138,8 @@ fun WisdomDefenseScreen(
     val reduceMotion = remember { GameTheme.reduceMotion(context) }
     val fx = remember(set.id, attempt) { DefenseEffects(GameParticleSystem.create(context), lowEnd, reduceMotion) }
     fx.dens = LocalDensity.current.density
+    // Cannon barrel angle in degrees (0 = straight up). Written while the battlefield is drawn, read by the cockpit.
+    val aimRef = remember(set.id, attempt) { floatArrayOf(0f) }
     var frame by remember { mutableIntStateOf(0) }
     var clock by remember { mutableFloatStateOf(0f) }
     val questionSlide = remember { Animatable(1f) }
@@ -287,6 +287,7 @@ fun WisdomDefenseScreen(
 
                     // Question panel (slides in for every new question).
                     val q = engine.current
+                    val questionShape = RoundedCornerShape(16.dp)
                     Box(
                         Modifier
                             .fillMaxWidth()
@@ -295,14 +296,29 @@ fun WisdomDefenseScreen(
                                 alpha = questionSlide.value
                                 translationY = (1f - questionSlide.value) * -24.dp.toPx()
                             }
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(Color(0x990E1A2B))
-                            .border(1.dp, WisdomCyan.copy(alpha = 0.35f), RoundedCornerShape(16.dp))
+                            .clip(questionShape)
+                            .background(
+                                brush = Brush.horizontalGradient(
+                                    listOf(Color(0xCC0B1A2C), Color(0xCC133350), Color(0xCC0B1A2C))
+                                ),
+                                shape = questionShape
+                            )
+                            .border(
+                                width = 1.5.dp,
+                                brush = Brush.horizontalGradient(
+                                    listOf(
+                                        WisdomCyan.copy(alpha = 0.15f),
+                                        WisdomCyan.copy(alpha = 0.70f),
+                                        WisdomCyan.copy(alpha = 0.15f)
+                                    )
+                                ),
+                                shape = questionShape
+                            )
                             .padding(horizontal = 16.dp, vertical = 12.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = q?.question ?: "…",
+                            text = q?.question ?: "\u2026",
                             color = WisdomInk,
                             fontWeight = FontWeight.Bold,
                             fontSize = 17.sp,
@@ -327,7 +343,7 @@ fun WisdomDefenseScreen(
                         )
                     }
 
-                    // Battlefield. The answer cards sit below it, so nothing covers the wall any more.
+                    // Battlefield. The answer panels sit below it, so nothing covers the wall any more.
                     Box(Modifier.weight(1f).fillMaxWidth().padding(horizontal = 8.dp)) {
                         Canvas(
                             Modifier
@@ -346,7 +362,8 @@ fun WisdomDefenseScreen(
                             translate(left = shake.x, top = shake.y) {
                                 drawDefenseLaneGlow(w, h, clk, atmosphereTint, reduceMotion)
                                 drawDefenseField(w, h, clk)
-                                drawDefenseEmpire(w, h, clk)
+                                if (!lowEnd) drawDefenseGrid(w, h, clk)
+                                drawDefenseWall(w, h, clk)
 
                                 // Far enemies first, so near ones are drawn on top.
                                 val ordered = engine.enemies.sortedBy { it.progress }
@@ -392,17 +409,28 @@ fun WisdomDefenseScreen(
                                     )
                                 }
 
+                                // Cannon aim: the barrel (drawn by the cockpit) turns toward the nearest enemy.
+                                val cannonPivot = defenseCannonPivot(w, h)
+                                val wantDeg = if (nearest != null) {
+                                    val ex = defenseLaneX(w, nearest.id, nearest.progress)
+                                    val ey = defenseLaneY(h, nearest.progress) - defenseUnit(w, h, nearest.progress)
+                                    defenseAimDegrees(cannonPivot, ex, ey)
+                                } else {
+                                    0f
+                                }
+                                aimRef[0] += (wantDeg - aimRef[0]) * 0.22f
+
                                 // Shot with a fading trail. Neutral colour: right or wrong shows on impact.
-                                // W7c: with the cockpit it leaves the turret barrel below the battlefield (this
-                                // draws a little outside the canvas, which Compose does not clip; if a phone does
-                                // clip it, the shot simply appears at the bottom edge).
+                                // It leaves the cannon muzzle, which is below the battlefield canvas (this draws a
+                                // little outside the canvas, which Compose does not clip).
                                 val sp = engine.shotProgress
                                 if (sp != null && nearest != null) {
                                     val tx = defenseLaneX(w, nearest.id, nearest.progress)
                                     val tu = defenseUnit(w, h, nearest.progress)
                                     val ty = defenseLaneY(h, nearest.progress) - tu * 1.0f
-                                    val fromX = w * 0.5f
-                                    val fromY = if (cockpitOn) h + TURRET_TIP_BELOW.toPx() else defenseMuzzleY(h)
+                                    val tip = defenseCannonTip(w, h, aimRef[0])
+                                    val fromX = tip.x
+                                    val fromY = tip.y
                                     val core = 3.5.dp.toPx()
                                     for (k in 8 downTo 1) {
                                         val tp = sp - k * 0.03f
@@ -455,7 +483,8 @@ fun WisdomDefenseScreen(
                             }
                         }
 
-                        // W5: power-up chips over the bottom of the battlefield (Medium and Hard only).
+                        // W5: power-up chips over the bottom-left of the battlefield (Medium and Hard only). They sit
+                        // at the side so the cannon barrel does not cover them.
                         if (engine.powerUpsOn) {
                             DefensePowerUps(
                                 streak = engine.streak,
@@ -477,20 +506,18 @@ fun WisdomDefenseScreen(
                                         frame++
                                     }
                                 },
-                                modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 6.dp)
+                                modifier = Modifier.align(Alignment.BottomStart).padding(start = 6.dp, bottom = 8.dp)
                             )
                         }
                     }
 
-                    // Answers: W3 cockpit (turret + four bullets in an arch) on normal widths, the old 2x2 cards on
-                    // very narrow screens.
+                    // Answers: the cockpit (cannon in the middle, two answers on each side) on normal widths, the old
+                    // 2x2 cards on very narrow screens.
                     val choices = q?.choices.orEmpty()
                     if (choices.size == 4) {
                         val firing = engine.shotProgress != null
                         val fireChoice: (Int) -> Unit = { index ->
                             if (engine.fire(index)) {
-                                // W7c: the cockpit turret has its own flash; the crystal flash only for the 2x2 cards.
-                                if (!cockpitOn) fx.fireMuzzle()
                                 GameAudio.play(GameAudio.Sfx.Shot)
                                 GameHaptics.tap(view, true)
                                 frame++
@@ -506,7 +533,13 @@ fun WisdomDefenseScreen(
                                     clock = clock,
                                     reduceMotion = reduceMotion,
                                     onFire = fireChoice,
-                                    modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 12.dp)
+                                    modifier = Modifier.padding(
+                                        start = 12.dp,
+                                        end = 12.dp,
+                                        top = COCKPIT_TOP_PADDING,
+                                        bottom = 12.dp
+                                    ),
+                                    aim = aimRef
                                 )
                             } else {
                                 // 2x2 answer cards (fallback).
@@ -692,7 +725,7 @@ private fun AnswerCard(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (locked) "✕" else letter,
+                    text = if (locked) "\u2715" else letter,
                     color = if (locked) GameTheme.wrong else WisdomCyan,
                     fontSize = 12.sp,
                     fontWeight = FontWeight.Bold
