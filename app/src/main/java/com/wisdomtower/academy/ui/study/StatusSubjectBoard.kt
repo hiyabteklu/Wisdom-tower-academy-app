@@ -126,6 +126,7 @@ private fun sbFormatSavedAt(ms: Long): String =
  * expanded rows and the "Chapters and exams" card use the same copy. (2) Nothing can be read and nothing is saved (or the
  * catalog was never saved): the title, a connect notice with Retry and the four EMPTY rings (dashes). No chevron, no detail
  * rows and no "Chapters and exams" button, because there is nothing real to open. Online behaviour is unchanged.
+ * Slice O5a: the board also reads again by itself when the internet comes back ([rememberNetworkReturnCount]).
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -141,8 +142,10 @@ fun StatusSubjectBoard(
     var retry by remember { mutableStateOf(0) }
     var expanded by rememberSaveable { mutableStateOf(false) }
     var showCard by remember { mutableStateOf(false) }
+    // OFFLINE STATUS (O5a): goes up when the internet comes back, which reads the numbers again
+    val netBack = rememberNetworkReturnCount()
 
-    LaunchedEffect(scopePath, reloadKey, retry) {
+    LaunchedEffect(scopePath, reloadKey, retry, netBack) {
         val r = loadSubjectBreakdown(context, scopePath)
         state = if (r is SubjectBoardLoad.Failed && state is SubjectBoardLoad.Ready) state else r
     }
