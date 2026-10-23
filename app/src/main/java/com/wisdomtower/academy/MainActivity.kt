@@ -256,6 +256,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
@@ -1588,6 +1589,9 @@ fun MainScreen(
     // Immediate cold-start / process-death check for offline
     LaunchedEffect(Unit) {
         FcmTokenRegistrar.checkAndRegisterToken(context)
+        // O3: start-up cover. The cover is composed in the first composition; wait for one frame, then release the
+        // system splash, so the first frame the student sees already has the cover over the bars.
+        androidx.compose.runtime.withFrameNanos { }
         onReady()
         delay(MIN_SPLASH_DISPLAY_MS)
         minSplashElapsed = true
@@ -1884,6 +1888,8 @@ fun MainScreen(
             onFinished = {
                 setOnboardingCompleted(context)
                 showOnboarding = false
+                // O3: start-up cover again until the first page renders (fail-safe 3.5 s applies again)
+                isInitialLoading = true
                 requestNotificationPermission()
             }
         )
@@ -4258,6 +4264,43 @@ fun MainScreen(
                     activity?.finish()
                 }
             )
+        }
+
+        // O3: start-up cover (marker: O3: start-up cover). Full screen, above the top bar, the bottom nav and every overlay.
+        // Draws the chosen app background, a big loader, and swallows ALL touches so nothing underneath can be tapped
+        // or scrolled while the app starts. Ends when isInitialLoading ends (first page rendered, or the 3.5 s
+        // fail-safe), then fades out in 220 ms. No enter animation: it must be there from the first frame.
+        AnimatedVisibility(
+            visible = isInitialLoading,
+            enter = androidx.compose.animation.EnterTransition.None,
+            exit = fadeOut(tween(220, easing = FastOutSlowInEasing)),
+            modifier = Modifier
+                .fillMaxSize()
+                .zIndex(1000f)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .appBackdrop()
+                    .pointerInput(Unit) {
+                        awaitPointerEventScope {
+                            while (true) {
+                                val event = awaitPointerEvent()
+                                event.changes.forEach { it.consume() }
+                            }
+                        }
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                FuturisticGearRings(
+                    size = 160.dp,
+                    brandSize = 92.dp,
+                    numTicks = 16,
+                    tickInnerRatio = 0.68f,
+                    tickOuterRatio = 0.88f,
+                    tickWidth = 4.dp
+                )
+            }
         }
     }
 }
