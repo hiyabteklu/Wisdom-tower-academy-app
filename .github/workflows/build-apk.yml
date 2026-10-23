@@ -168,6 +168,28 @@ jobs:
             ls -lh ./Wisdom-tower-academy.apk
           fi
 
+      - name: Build Telegram APK (paid UI on)
+        id: telegram
+        continue-on-error: true
+        env:
+          CI: "true"
+          KEYSTORE_BASE64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PATH: ${{ env.KEYSTORE_PATH }}
+          STORE_PASSWORD: ${{ env.STORE_PASSWORD }}
+          KEY_PASSWORD: ${{ env.KEY_PASSWORD }}
+          KEY_ALIAS: ${{ env.KEY_ALIAS }}
+        run: |
+          set -o pipefail
+          ./gradlew assembleRelease -PpaidUi=true --stacktrace --no-daemon 2>&1 | tee build-telegram.log
+          APK_PATH=$(find app/build/outputs/apk/release -name "*.apk" 2>/dev/null | head -n 1)
+          echo "Telegram APK path: $APK_PATH"
+          if [ -z "$APK_PATH" ]; then
+            echo "ERROR: No Telegram APK found"
+            exit 1
+          fi
+          cp "$APK_PATH" ./Wisdom-tower-academy-telegram.apk
+          ls -lh ./Wisdom-tower-academy-telegram.apk
+
       - name: Upload Play Store AAB artifact
         uses: actions/upload-artifact@v4
         with:
@@ -183,9 +205,27 @@ jobs:
           path: Wisdom-tower-academy.apk
           retention-days: 30
 
+      - name: Upload Telegram APK artifact
+        if: hashFiles('Wisdom-tower-academy-telegram.apk') != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: Wisdom-tower-academy-TELEGRAM-APK
+          path: Wisdom-tower-academy-telegram.apk
+          retention-days: 30
+
+      - name: Upload Telegram build.log
+        if: steps.telegram.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-telegram
+          path: build-telegram.log
+          retention-days: 7
+          if-no-files-found: ignore
+
       - name: Summary
         if: success()
         run: |
           echo "### Production Play Store Build Ready" >> $GITHUB_STEP_SUMMARY
           echo "- **Wisdom-tower-academy.aab**: Upload this file directly to Google Play Console." >> $GITHUB_STEP_SUMMARY
           echo "- **Wisdom-tower-academy.apk**: Direct testing release APK." >> $GITHUB_STEP_SUMMARY
+          echo "- **Wisdom-tower-academy-telegram.apk**: Telegram build (paid UI on). NEVER upload it to Play Store." >> $GITHUB_STEP_SUMMARY
