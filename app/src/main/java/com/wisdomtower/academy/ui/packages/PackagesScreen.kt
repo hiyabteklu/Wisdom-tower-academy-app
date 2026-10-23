@@ -12,7 +12,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,7 +19,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.wisdomtower.academy.data.content.PackagePrices
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomInk
 
@@ -30,8 +28,8 @@ import com.wisdomtower.academy.ui.theme.WisdomInk
  * Every card is the shared [OpenCard] (picture, title, Open button) in a two-column grid.
  * D3 (day mode): the headings use [WisdomInk] (white at night, deep navy by day) instead of Color.White.
  *
- * TELEGRAM BUILD (slice P2): under each card [PackagePriceTag] shows the admin dashboard price; it draws nothing in
- * the Play build, so the Play layout is unchanged. The prices are read once when the screen opens.
+ * NO PRICES HERE (owner order 2026-10-23): the app stays clean, the student browses freely. A price appears only in
+ * the "Package required" pop-up when a locked chapter is tapped (Telegram build, `docs/TELEGRAM_PAID_BUILD_PLAN.md`).
  */
 @Composable
 fun PackagesScreen(
@@ -43,9 +41,6 @@ fun PackagesScreen(
     val grades = remember(packageList) { packageList.filter { it.group == "grades" } }
     val branches = remember(packageList) { packageList.filter { it.group == "branch" } }
     val specials = remember(packageList) { packageList.filter { it.group == "special" } }
-
-    // Does nothing in the Play build (PackagePrices.refresh returns at once when PAID_UI is false).
-    LaunchedEffect(Unit) { PackagePrices.refresh() }
 
     Box(modifier = modifier.fillMaxSize()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
@@ -83,10 +78,7 @@ fun PackagesScreen(
                     )
                 }
                 openGrid("grades", grades) { p ->
-                    Column {
-                        OpenCard(p.name, p.assetImage) { onSelectPackage(p) }
-                        PackagePriceTag(p.id)
-                    }
+                    OpenCard(p.name, p.assetImage) { onSelectPackage(p) }
                 }
             }
 
@@ -101,10 +93,7 @@ fun PackagesScreen(
                     )
                 }
                 openGrid("branches", branches) { p ->
-                    Column {
-                        OpenCard(p.name, p.assetImage) { onSelectPackage(p) }
-                        PackagePriceTag(p.id)
-                    }
+                    OpenCard(p.name, p.assetImage) { onSelectPackage(p) }
                 }
             }
 
@@ -119,10 +108,7 @@ fun PackagesScreen(
                     )
                 }
                 openGrid("specials", specials) { p ->
-                    Column {
-                        OpenCard(p.name, p.assetImage) { onSelectPackage(p) }
-                        PackagePriceTag(p.id)
-                    }
+                    OpenCard(p.name, p.assetImage) { onSelectPackage(p) }
                 }
             }
 
