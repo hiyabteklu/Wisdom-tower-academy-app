@@ -4,6 +4,12 @@ import com.wisdomtower.academy.ui.theme.WisdomAccentRose
 import com.wisdomtower.academy.ui.theme.WisdomOnInk
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.AppThemeMode
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -29,6 +35,8 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -44,13 +52,16 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontStyle
@@ -91,6 +102,10 @@ import kotlinx.coroutines.launch
  * OWNER DECISION 2026-10-23 (Contact only): an "Other ways to reach us" card was ADDED under the contact
  * form (Telegram @wisdom_tower2, phone 0900763030, support@wisdomtower.tech). These are extra channels,
  * the form and its text are unchanged. This is an intended difference from the website contact page.
+ *
+ * OWNER DECISION 2026-10-24 (FAQ only): the "Coming soon" FAQ is replaced by the native FAQ written by the
+ * owner (10 questions, FAQ_ENTRIES below). The text is the owner's own, supplied in chat, and is NOT from the
+ * website (the website FAQ page is still "Coming soon"). Do not reword it without the owner's say.
  */
 
 @Composable
@@ -790,68 +805,381 @@ fun ContactScreen(
 }
 
 /* =========================================================================================
-   3. FAQ  (website-reference/src/app/academy/faq/page.tsx is a "Coming soon" page)
-   The earlier native FAQ had five invented questions and answers (offline, payments, GPA ...).
-   They are gone: the website has no FAQ content yet. Show what the website shows.
+   3. FAQ  (OWNER DECISION 2026-10-24: native FAQ written by the owner, replaces the "Coming soon" card;
+   see the top comment). Ten questions as tap-to-open cards: a numbered badge, the question, a chevron
+   that turns, and the answer sliding open. One card is open at a time; the first one starts open.
+   The text lives in FAQ_ENTRIES (right below). Colours are read while composing (they follow day / night).
 ========================================================================================= */
+
+/** One piece of an answer. In [Para] and in the items of [Group], text between two ** marks is shown bold. */
+private sealed interface FaqPart {
+    data class Para(val text: String) : FaqPart
+    data class Group(val title: String, val items: List<String>) : FaqPart
+    data class Leads(val items: List<Pair<String, String>>) : FaqPart
+    data class Contact(val email: String, val phone: String) : FaqPart
+}
+
+private data class FaqEntry(val question: String, val parts: List<FaqPart>)
+
+private val FAQ_ENTRIES: List<FaqEntry> = listOf(
+    FaqEntry(
+        question = "Does it work offline?",
+        parts = listOf(
+            FaqPart.Para("Yes. Once you download your materials, you can study without any connection. Your progress and exam attempts are saved on your phone and sync automatically the next time you're online, so nothing is lost.")
+        )
+    ),
+    FaqEntry(
+        question = "I've been using the website. Do I need to create a new account?",
+        parts = listOf(
+            FaqPart.Para("No. Log in with your existing account and everything is right where you left it, with all your progress and status intact.")
+        )
+    ),
+    FaqEntry(
+        question = "There's so much here. How do I find my way around?",
+        parts = listOf(
+            FaqPart.Para("Open **Account** and select your educational level. The app moves your level's package into the **Learning** section for you. Open it and tick the courses you're taking this term, so your progress tracker records only what you're studying. Your reports are only as accurate as your setup, so choose the right level, pick your subjects and complete your profile.")
+        )
+    ),
+    FaqEntry(
+        question = "Which programs and levels are covered?",
+        parts = listOf(
+            FaqPart.Para("Freshman, Grade 9–12, ECE Engineering, COC, UAT, GAT, Exit Exam and Remedial. Pick yours and you'll see only what's relevant to you.")
+        )
+    ),
+    FaqEntry(
+        question = "What will I actually find inside?",
+        parts = listOf(
+            FaqPart.Group(
+                "Learning material",
+                listOf(
+                    "Books, short notes and flashcards",
+                    "Question banks and an exam for every chapter",
+                    "Real past-year exams, fully worked",
+                    "Formula sheets and summaries"
+                )
+            ),
+            FaqPart.Group(
+                "Study tools",
+                listOf(
+                    "GPA calculator and scientific calculator",
+                    "Study planner with notifications",
+                    "Pomodoro timer",
+                    "Daily target board and notebook",
+                    "Progress tracker by subject, chapter and exam, with a weekly status report and recommendations for your weak subjects"
+                )
+            ),
+            FaqPart.Group(
+                "AI support",
+                listOf(
+                    "AI tutor",
+                    "AI note summaries",
+                    "\"Explain with AI\" on solutions",
+                    "Easy cover page maker"
+                )
+            ),
+            FaqPart.Para("...and more on the way.")
+        )
+    ),
+    FaqEntry(
+        question = "How will I know when new material arrives?",
+        parts = listOf(
+            FaqPart.Para("New items are tagged **New** in the list, and we send a notification for every update, so you never miss anything.")
+        )
+    ),
+    FaqEntry(
+        question = "What can I ask of you?",
+        parts = listOf(
+            FaqPart.Leads(
+                listOf(
+                    "A ready-made schedule." to "If filling in the planner feels like a chore, send us a rough draft or a screenshot of your class timetable. We'll push a complete schedule straight into your planner.",
+                    "Material you need." to "Suggest anything you want added, or ask us to solve and include a past-year question."
+                )
+            )
+        )
+    ),
+    FaqEntry(
+        question = "Do I need to update the app to get new content?",
+        parts = listOf(
+            FaqPart.Para("No. New material appears in the app on its own. You only need a new version when the app itself gets new features.")
+        )
+    ),
+    FaqEntry(
+        question = "Why can't I take screenshots of the study material?",
+        parts = listOf(
+            FaqPart.Para("It protects the authors and teachers behind the content, and it keeps the material trusted and premium. Everything that's yours, like your notes, progress and planner, stays yours.")
+        )
+    ),
+    FaqEntry(
+        question = "What if something breaks when I need it most?",
+        parts = listOf(
+            FaqPart.Para("Tell us right away. A student who can't open their notes the night before an exam is an emergency to us, not a ticket in a queue."),
+            FaqPart.Contact(email = "Support@wisdomtower.tech", phone = "0900763030")
+        )
+    )
+)
+
+/** Text with **bold** spans (every second chunk between ** marks). */
+private fun faqRich(text: String, boldColor: Color): AnnotatedString = buildAnnotatedString {
+    text.split("**").forEachIndexed { i, chunk ->
+        if (i % 2 == 1) {
+            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = boldColor)) { append(chunk) }
+        } else {
+            append(chunk)
+        }
+    }
+}
+
+/** A dot in the accent colour followed by a line of text. */
+@Composable
+private fun FaqBullet(text: AnnotatedString, accent: Color) {
+    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .padding(top = 7.dp)
+                .size(6.dp)
+                .clip(CircleShape)
+                .background(accent)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = text,
+            fontSize = 13.sp,
+            color = WisdomMuted,
+            lineHeight = 19.sp,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun FaqPartView(part: FaqPart, accent: Color) {
+    when (part) {
+        is FaqPart.Para -> {
+            Text(
+                text = faqRich(part.text, WisdomInk),
+                fontSize = 13.sp,
+                color = WisdomMuted,
+                lineHeight = 19.sp
+            )
+        }
+
+        is FaqPart.Group -> {
+            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                Eyebrow(part.title, accent)
+                part.items.forEach { line ->
+                    FaqBullet(text = faqRich(line, WisdomInk), accent = accent)
+                }
+            }
+        }
+
+        is FaqPart.Leads -> {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                part.items.forEach { (lead, body) ->
+                    FaqBullet(
+                        text = buildAnnotatedString {
+                            withStyle(SpanStyle(fontWeight = FontWeight.Bold, color = WisdomInk)) { append(lead) }
+                            append(" ")
+                            append(body)
+                        },
+                        accent = accent
+                    )
+                }
+            }
+        }
+
+        is FaqPart.Contact -> {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ContactChannelRow(
+                    icon = Icons.Default.Email,
+                    label = "Email support",
+                    value = part.email,
+                    uri = "mailto:" + part.email.lowercase()
+                )
+                ContactChannelRow(
+                    icon = Icons.Default.Phone,
+                    label = "Call for inquiries",
+                    value = part.phone,
+                    uri = "tel:" + part.phone
+                )
+            }
+        }
+    }
+}
+
+/** One tap-to-open question card. */
+@Composable
+private fun FaqCard(
+    index: Int,
+    entry: FaqEntry,
+    accent: Color,
+    expanded: Boolean,
+    onToggle: () -> Unit
+) {
+    val rotation by animateFloatAsState(targetValue = if (expanded) 180f else 0f, label = "faq_chevron")
+
+    WisdomGlassCard(
+        modifier = Modifier
+            .fillMaxWidth()
+            .wisdomReveal(key = "faq_item_" + index, index = index + 2),
+        cornerRadius = 18.dp,
+        borderColor = if (expanded) accent.copy(alpha = 0.55f) else WisdomGlassBorder
+    ) {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onToggle)
+                    .padding(14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(34.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = if (expanded) 0.28f else 0.15f))
+                        .border(BorderStroke(1.dp, accent.copy(alpha = 0.45f)), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = (index + 1).toString().padStart(2, '0'),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accent
+                    )
+                }
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = entry.question,
+                    fontSize = 14.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = WisdomInk,
+                    lineHeight = 19.sp,
+                    modifier = Modifier.weight(1f)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Icon(
+                    imageVector = Icons.Default.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = accent,
+                    modifier = Modifier
+                        .size(24.dp)
+                        .rotate(rotation)
+                )
+            }
+
+            AnimatedVisibility(
+                visible = expanded,
+                enter = expandVertically() + fadeIn(),
+                exit = shrinkVertically() + fadeOut()
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 14.dp, end = 14.dp, bottom = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(accent.copy(alpha = 0.25f))
+                    )
+                    entry.parts.forEach { part ->
+                        FaqPartView(part = part, accent = accent)
+                    }
+                }
+            }
+        }
+    }
+}
 
 @Composable
 fun FaqScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var openIndex by rememberSaveable { mutableStateOf(0) }
+    val accents = listOf(WisdomCyan, WisdomAccentAmber, WisdomAccentEmerald, WisdomAccentRose)
+
     Box(modifier = modifier.fillMaxSize()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             item(key = "header") {
                 DrawerHeaderBar(title = "FAQ", onBack = onBack)
             }
 
-            item(key = "coming_soon") {
+            item(key = "faq_hero") {
                 WisdomGlassCard(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .wisdomReveal(key = "faq_card", index = 1),
-                    cornerRadius = 24.dp
+                        .wisdomReveal(key = "faq_hero", index = 1),
+                    cornerRadius = 24.dp,
+                    borderColor = WisdomAccentAmber.copy(alpha = 0.3f)
                 ) {
-                    Column(
+                    Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(horizontal = 20.dp, vertical = 24.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                            .padding(18.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Eyebrow("Academy program", WisdomMuted)
-                        Text("FAQ", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = WisdomAccentAmber)
-                        Text(
-                            "Answers to common questions about programs, enrollment, and study support.",
-                            fontSize = 13.sp,
-                            color = WisdomMuted,
-                            lineHeight = 18.sp
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            "Coming soon",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = WisdomInk,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
-                        Text(
-                            "We're building the full FAQ experience. Materials and enrollment options will appear here shortly.",
-                            fontSize = 12.sp,
-                            color = WisdomMuted,
-                            lineHeight = 17.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.fillMaxWidth()
-                        )
+                        Box(
+                            modifier = Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(WisdomAccentAmber.copy(alpha = 0.15f))
+                                .border(BorderStroke(1.dp, WisdomAccentAmber.copy(alpha = 0.4f)), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = WisdomAccentAmber,
+                                modifier = Modifier.size(26.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(14.dp))
+                        Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Eyebrow("Academy program", WisdomMuted)
+                            Text("FAQ", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = WisdomAccentAmber)
+                            Text(
+                                "Answers to common questions about programs, enrollment, and study support.",
+                                fontSize = 13.sp,
+                                color = WisdomMuted,
+                                lineHeight = 18.sp
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(WisdomAccentAmber.copy(alpha = 0.15f))
+                                    .border(BorderStroke(1.dp, WisdomAccentAmber.copy(alpha = 0.4f)), CircleShape)
+                                    .padding(horizontal = 10.dp, vertical = 4.dp)
+                            ) {
+                                Text(
+                                    text = FAQ_ENTRIES.size.toString() + " questions",
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = WisdomAccentAmber
+                                )
+                            }
+                        }
                     }
                 }
+            }
+
+            items(FAQ_ENTRIES.size, key = { "faq_$it" }) { i ->
+                FaqCard(
+                    index = i,
+                    entry = FAQ_ENTRIES[i],
+                    accent = accents[i % accents.size],
+                    expanded = openIndex == i,
+                    onToggle = { openIndex = if (openIndex == i) -1 else i }
+                )
             }
 
             item(key = "bottom_space") {
