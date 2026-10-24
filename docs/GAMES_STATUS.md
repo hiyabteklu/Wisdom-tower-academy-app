@@ -29,6 +29,10 @@
 4. Owner phone-test fixes for P1 and the W slices, as he reports them.
 5. Optional, not started: the `level` tag on questions (`GAMES_COOL_PLAN.md` section 3), leaderboards for game results, game minutes in "Your status", a real face-down Match mode.
 
+### Defense visual follow-up — 2026-10-24
+- W8 (environment depth): `DefenseAtmosphere.kt` now draws a restrained distant fortress skyline with subtle window lights and slow parallax at the outer horizon. It sits behind the road and enemy layers; no assets or dependencies added. Commit `96fd96f`.
+- State: `[~]` written; CI status not yet available; not tested on a phone. Owner check: play Defense and confirm the skyline adds depth without competing with questions, enemies, or the road. If the build is red, fix the first compiler error before continuing.
+
 ## Other tasks (not games)
 - Owner order 2026-10-21 (`docs/PARKED_2026-10-21.md`): every other plan is PARKED (competition C0 to C10, notifications v2, admin console redesign, day mode, Play Store prep, UI motion, native content leftovers). Their status boards were not re-verified and do not show current state: `docs/COMPETITION_STATUS.md` stops at 2026-10-15.
 - Game course navigation on the WEBSITE (`docs/GAME_COURSE_NAV_PLAN.md`, owner order 2026-10-22): NOTHING implemented. Its log says next is G0 (inspect, no code). It is a separate task from the native games above.
