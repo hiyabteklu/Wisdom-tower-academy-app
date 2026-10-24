@@ -443,6 +443,13 @@ internal fun DrawScope.drawDefenseCannon(shotProgress: Float?, clock: Float, red
             cornerRadius = CornerRadius(3f * d),
             style = Stroke(width = 1.2f * d)
         )
+        // Narrow metallic highlight gives the barrel a clearer cylindrical, machined finish.
+        drawLine(
+            Color.White.copy(alpha = 0.24f),
+            Offset(cx - bw * 0.22f, top + 7f * d),
+            Offset(cx - bw * 0.22f, pivot.y - 13f * d),
+            strokeWidth = 1.5f * d
+        )
         // Energy rings along the tube.
         for (k in 0..2) {
             val y = top + 26f * d + k * 15f * d
