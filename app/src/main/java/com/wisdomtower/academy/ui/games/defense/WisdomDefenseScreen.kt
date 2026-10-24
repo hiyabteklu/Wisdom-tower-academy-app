@@ -432,21 +432,36 @@ fun WisdomDefenseScreen(
                                     val fromX = tip.x
                                     val fromY = tip.y
                                     val core = 3.5.dp.toPx()
+                                    // Layered, tapered energy trail: segmented beams read as motion better than
+                                    // floating dots, while the white-hot head stays easy to track on the field.
                                     for (k in 8 downTo 1) {
-                                        val tp = sp - k * 0.03f
-                                        if (tp > 0f) {
+                                        val tailT = (sp - k * 0.035f).coerceAtLeast(0f)
+                                        val headT = (sp - (k - 1) * 0.035f).coerceAtLeast(0f)
+                                        if (sp > 0f && headT > tailT) {
                                             val f = 1f - k / 9f
-                                            drawCircle(
-                                                WisdomCyan.copy(alpha = 0.55f * f),
-                                                core * (0.3f + 0.7f * f),
-                                                Offset(fromX + (tx - fromX) * tp, fromY + (ty - fromY) * tp)
+                                            val tail = Offset(
+                                                fromX + (tx - fromX) * tailT,
+                                                fromY + (ty - fromY) * tailT
+                                            )
+                                            val head = Offset(
+                                                fromX + (tx - fromX) * headT,
+                                                fromY + (ty - fromY) * headT
+                                            )
+                                            drawLine(
+                                                color = WisdomCyan.copy(alpha = 0.18f + 0.62f * f),
+                                                start = tail,
+                                                end = head,
+                                                strokeWidth = core * (0.35f + 0.65f * f)
                                             )
                                         }
                                     }
                                     val sx = fromX + (tx - fromX) * sp
                                     val sy = fromY + (ty - fromY) * sp
-                                    drawCircle(WisdomCyan.copy(alpha = 0.35f), core * 2.4f, Offset(sx, sy))
-                                    drawCircle(Color.White, core, Offset(sx, sy))
+                                    val shot = Offset(sx, sy)
+                                    drawCircle(WisdomCyan.copy(alpha = 0.16f), core * 3.2f, shot)
+                                    drawCircle(WisdomCyan.copy(alpha = 0.48f), core * 1.8f, shot)
+                                    drawCircle(Color.White.copy(alpha = 0.95f), core * 0.72f, shot)
+                                    drawCircle(Color.White, core * 0.42f, shot)
                                 }
 
                                 fx.drawWorld(this)
