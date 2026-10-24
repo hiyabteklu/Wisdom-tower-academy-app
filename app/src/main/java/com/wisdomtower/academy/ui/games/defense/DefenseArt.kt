@@ -402,7 +402,10 @@ private fun DrawScope.drawBat(x: Float, foot: Float, u: Float, clk: Float, seed:
     for (s in floatArrayOf(-1f, 1f)) {
         // Faint second wing at another flap phase: reads as wing blur.
         drawPath(wingPath(s, sin(clk * 14f + seed + 1.3f)), wingCol.a(0.30f))
-        drawPath(wingPath(s, flap), wingCol)
+        val wing = wingPath(s, flap)
+        drawPath(wing, wingCol)
+        // Fine edge light keeps the thin wings readable against the dark battlefield.
+        drawPath(wing, Color(0xFFE9D5FF).a(0.48f * al), style = Stroke(width = (u * 0.035f).coerceAtLeast(0.8f)))
     }
     val bodyTop = skin.batTop.a(al)
     val bodyBottom = skin.batBottom.a(al)
