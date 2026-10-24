@@ -481,6 +481,19 @@ private fun DrawScope.drawGolem(
         size = Size(u * 1.9f, u * 1.45f),
         cornerRadius = CornerRadius(u * 0.2f)
     )
+    // A narrow cool highlight gives the stone torso a bevel without making it look metallic.
+    drawLine(
+        Color.White.a(0.22f * al),
+        Offset(x - u * 0.76f, bodyTop + u * 0.18f),
+        Offset(x - u * 0.76f, bodyTop + u * 1.12f),
+        strokeWidth = u * 0.045f
+    )
+    drawLine(
+        Color(0xFF0F172A).a(0.22f * al),
+        Offset(x + u * 0.78f, bodyTop + u * 0.22f),
+        Offset(x + u * 0.78f, bodyTop + u * 1.20f),
+        strokeWidth = u * 0.05f
+    )
     // shoulders
     drawRoundRect(light, Offset(x - u * 1.35f, bodyTop - u * 0.05f), Size(u * 0.6f, u * 0.6f), CornerRadius(u * 0.15f))
     drawRoundRect(light, Offset(x + u * 0.75f, bodyTop - u * 0.05f), Size(u * 0.6f, u * 0.6f), CornerRadius(u * 0.15f))
