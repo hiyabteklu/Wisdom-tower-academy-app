@@ -83,7 +83,6 @@ import com.wisdomtower.academy.data.auth.ProfileSubjectsSync
 import com.wisdomtower.academy.data.content.MySubjectsStore
 import com.wisdomtower.academy.data.model.UserProfile
 import com.wisdomtower.academy.ui.auth.NativeSignInScreen
-import com.wisdomtower.academy.ui.competition.CompetitionPointsCard
 import com.wisdomtower.academy.ui.settings.MySubjectsEditor
 import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
@@ -194,12 +193,15 @@ private val PillOnAccent: Color get() = dayNight(Color(0xFF06101F), WisdomDarkOn
 /**
  * Native PROFILE screen (the bottom tab was called "Account").
  * - Signed-out: native sign-in / create-account screen (ui/auth/NativeSignInScreen.kt).
- * - Signed-in: completion gauge, competition points, then FIVE cards, then ONE Save button, Log Out last:
+ * - Signed-in: completion gauge, then FIVE cards, then ONE Save button, Log Out last:
  *     1. Personal Details            (first name, last name, phone)
  *     2. Academic Level & Institution (level, university or school, region)
  *     3. My Subjects                 (what "Your status" counts)
  *     4. Study Goals & Targets       (daily minutes only)
  *     5. Study Schedule              (preferred study window)
+ *
+ * 2026-10-24 (owner order): the Competition Points card that used to sit at the top of this screen was removed. It loaded
+ * late and pushed the page down. Competition points now live in "Your status" (ui/study/StatusCompetitionPanel.kt).
  *
  * 2026-10-19 (owner order): Study Goals and My Subjects were moved here from Settings, and the duplicate
  * "Target Exam" field (it wrote the same `target_exam` column as the Settings field) is now ONE field.
@@ -254,10 +256,6 @@ fun AccountScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            item(key = "competition_points") {
-                CompetitionPointsCard()
-            }
-
             // ADMIN-entry: shown only for admins (database check); above the profile panel so Log Out stays last
             item(key = "admin_entry") {
                 AdminEntryButton(userKey = userEmail, onOpen = { onNavigateToUrl("/admin") })
