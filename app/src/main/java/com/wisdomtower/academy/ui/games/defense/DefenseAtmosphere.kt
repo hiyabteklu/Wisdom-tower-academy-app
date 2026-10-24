@@ -16,6 +16,7 @@ import kotlin.math.sin
  * - [defenseAtmosphereTint]: Easy teal, Medium violet, Hard ember red.
  * - [drawDefenseAtmosphere]: two slow nebula glows and layered stars drifting toward the wall (parallax: far stars slow
  *   and small, near stars faster and bigger). [lowEnd] uses fewer stars; [reduceMotion] freezes the drift and twinkle.
+ * - Low-contrast fortress silhouettes sit at the horizon edges, with restrained window lights and a slow parallax drift.
  * - [drawDefenseLaneGlow]: soft glowing edges of the lane in the level colour (same lane shape as drawDefenseField:
  *   top half-width 0.11 w, bottom half-width 0.40 w, centred).
  *
@@ -69,6 +70,30 @@ internal fun DrawScope.drawDefenseAtmosphere(
         radius = r2,
         center = c2
     )
+
+    // Distant fortress skyline: low-contrast silhouettes give the lane a world to sit inside.
+    // Keep them on the outer edges and below the glow so the question and enemy silhouettes stay dominant.
+    val skylineShift = if (reduceMotion) 0f else drift * 0.006f
+    for (side in 0..1) {
+        val sign = if (side == 0) 1f else -1f
+        for (i in 0..4) {
+            val seed = side * 11 + i
+            val xBase = if (side == 0) w * (0.015f + i * 0.052f) else w * (0.985f - i * 0.052f)
+            val x = xBase + sign * skylineShift * w * (i + 1)
+            val bw = w * (0.035f + starRand(seed, 7) * 0.025f)
+            val bh = h * (0.07f + starRand(seed, 8) * 0.12f)
+            val baseY = h * (0.39f + starRand(seed, 9) * 0.07f)
+            val body = Color(0xFF101C31).copy(alpha = 0.50f + starRand(seed, 10) * 0.16f)
+            drawRect(body, Offset(x - bw / 2f, baseY - bh), Size(bw, bh))
+            // Small stepped roof makes the silhouettes read as fortress structures, not random blocks.
+            drawRect(body, Offset(x - bw * 0.34f, baseY - bh - bw * 0.12f), Size(bw * 0.68f, bw * 0.12f))
+            val windowColor = tint.copy(alpha = if (reduceMotion) 0.20f else 0.14f + 0.08f * (0.5f + 0.5f * sin(clock * 0.7f + seed)))
+            if (bw > w * 0.04f) {
+                drawRect(windowColor, Offset(x - bw * 0.18f, baseY - bh * 0.65f), Size(bw * 0.12f, bh * 0.10f))
+                drawRect(windowColor, Offset(x + bw * 0.06f, baseY - bh * 0.65f), Size(bw * 0.12f, bh * 0.10f))
+            }
+        }
+    }
 
     // Stars in 3 layers
     val count = if (lowEnd) 18 else 40
