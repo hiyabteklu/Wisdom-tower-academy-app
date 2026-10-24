@@ -336,6 +336,12 @@ private fun DrawScope.drawSlime(x: Float, foot: Float, u: Float, clk: Float, see
             endY = foot
         )
     )
+    // A restrained rim catches the light and separates the slime from the road at small sizes.
+    drawPath(
+        body,
+        Color.White.a(0.28f * al),
+        style = Stroke(width = (u * 0.045f).coerceAtLeast(1f))
+    )
     drawOval(
         Color.White.a(0.35f * al),
         Offset(x - bw * 0.6f, top + bh * 0.12f),
