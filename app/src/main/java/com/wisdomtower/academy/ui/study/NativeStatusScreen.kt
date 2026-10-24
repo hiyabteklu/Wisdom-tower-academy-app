@@ -146,6 +146,11 @@ private fun formatSavedAt(ms: Long): String =
  * STATUS CARD S2 (2026-10-23, docs/STATUS_CARD_PLAN.md): one new line in the loaded branch, [StatusWeekBlock] ("Your week"
  * plain sentences), placed right after the HUD cards. Nothing else changed in this file.
  *
+ * COMPETITION POINTS (2026-10-24, owner order): [StatusCompetitionPanel] is now a panel of this screen (it used to be a card
+ * floating at the top of Profile that loaded late and pushed the page down). It sits after "Today & this week" and before
+ * "Retention & Exam Accuracy", in the loaded screen and in the offline skeleton. It loads its own data and keeps a saved
+ * copy, so it does not move the layout when the answer arrives. Nothing else changed in this file.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -380,6 +385,8 @@ fun NativeStatusScreen(
                     // OFFLINE STATUS (O3): subject rows (empty, names from the packed list) and the day panel (its own saved copy)
                     StatusSubjectsPanel(rows = emptyList(), educationLevel = educationLevel, progressKnown = false)
                     StatusDayPanel(dailyGoalMinutes = dailyGoalMinutes)
+                    // Competition points (own saved copy, own offline states)
+                    StatusCompetitionPanel()
                     val fixedRecommendations = remember(track) { computeStatus(emptyList(), track).recommendations }
                     StRecommendationsPanel(recommendations = fixedRecommendations, name = name)
                 } else {
@@ -401,6 +408,9 @@ fun NativeStatusScreen(
 
                     // My Status V2 (S6d): today ring + 7-day bars from study_day_log
                     StatusDayPanel(dailyGoalMinutes = dailyGoalMinutes) // MYSTATUS-S6
+
+                    // Competition points: real points and exam entries from the database (own saved copy, no pop-in)
+                    StatusCompetitionPanel()
 
                     // 3. Retention & exam accuracy
                     StPanel(borderColor = StPanelBorder) {
