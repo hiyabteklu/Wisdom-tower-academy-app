@@ -136,6 +136,27 @@ internal fun DrawScope.drawDefenseField(w: Float, h: Float, clock: Float) {
             strokeWidth = 2f + 4f * t0
         )
     }
+
+    // Short inset lane markers add a sense of road scale and forward motion without
+    // turning the battlefield into a busy grid. Their spacing expands with perspective.
+    val roadPhase = (clock * 0.48f) % 1f
+    for (i in 0 until 7) {
+        val t0 = (i + roadPhase) / 7f
+        val t1 = (t0 + (0.13f / 7f) * (0.45f + t0)).coerceAtMost(1f)
+        val half0 = topHalf + (botHalf - topHalf) * t0
+        val half1 = topHalf + (botHalf - topHalf) * t1
+        val inset0 = half0 * 0.78f
+        val inset1 = half1 * 0.78f
+        val markerAlpha = 0.035f + 0.075f * t0
+        for (side in floatArrayOf(-1f, 1f)) {
+            drawLine(
+                Color(0xFF67E8F9).a(markerAlpha),
+                Offset(cx + side * inset0, h * t0),
+                Offset(cx + side * inset1, h * t1),
+                strokeWidth = 0.8f + 1.4f * t0
+            )
+        }
+    }
 }
 
 /** Empire: battlement wall, tower with a glowing crystal, pulsing shield arch. */
