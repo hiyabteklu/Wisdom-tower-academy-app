@@ -164,6 +164,51 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url) && !url.includes("placeholder");
 }
 
+export type BrowserDeviceRegistration =
+  | { ok: true }
+  | { ok: false; reason: "device_already_registered" | "verification_failed" };
+
+/** Registers this browser before the website accepts an authenticated session. */
+export async function registerBrowserDevice(
+  session: { access_token: string } | null | undefined
+): Promise<BrowserDeviceRegistration> {
+  if (typeof window === "undefined" || !session?.access_token) {
+    return { ok: false, reason: "verification_failed" };
+  }
+  try {
+    const storageKey = "wt-browser-installation-v1";
+    let installationId = window.localStorage.getItem(storageKey);
+    if (!installationId || !/^[0-9a-f-]{36}$/i.test(installationId)) {
+      installationId = window.crypto.randomUUID();
+      window.localStorage.setItem(storageKey, installationId);
+    }
+    const material = new TextEncoder().encode(window.location.origin + ":" + installationId);
+    const digest = await window.crypto.subtle.digest("SHA-256", material);
+    const deviceHash = Array.from(new Uint8Array(digest))
+      .map((byte) => byte.toString(16).padStart(2, "0"))
+      .join("");
+    const response = await fetch(supabaseUrl + "/functions/v1/register-device", {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: "Bearer " + session.access_token,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        device_hash: deviceHash,
+        device_label: "Wisdom Tower website browser",
+      }),
+    });
+    const payload = await response.json().catch(() => null);
+    if (response.ok && payload?.ok === true) return { ok: true };
+    if (response.status === 403 && payload?.reason === "device_already_registered") {
+      return { ok: false, reason: "device_already_registered" };
+    }
+    return { ok: false, reason: "verification_failed" };
+  } catch {
+    return { ok: false, reason: "verification_failed" };
+  }
+}
 export async function recoverSession() {
   try {
     const { data, error } = await supabase.auth.getSession();
@@ -172,10 +217,18 @@ export async function recoverSession() {
     if (data.session) {
       const expiresAt = data.session.expires_at ?? 0;
       const soon = Math.floor(Date.now() / 1000) + 60;
+      let activeSession = data.session;
       if (expiresAt < soon) {
-        const { data: refreshed } = await supabase.auth.refreshSession();
-        return refreshed.session ?? data.session;
+        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+        if (refreshError || !refreshed.session) return null;
+        activeSession = refreshed.session;
       }
+      const deviceCheck = await registerBrowserDevice(activeSession);
+      if (!deviceCheck.ok) {
+        await supabase.auth.signOut({ scope: "local" });
+        return null;
+      }
+      return activeSession;
     }
     return data.session;
   } catch (e) {
