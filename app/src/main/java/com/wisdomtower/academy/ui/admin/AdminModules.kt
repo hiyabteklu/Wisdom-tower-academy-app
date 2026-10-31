@@ -13,11 +13,13 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.VpnKey
 import androidx.compose.ui.graphics.vector.ImageVector
 
 /** Which live count (if any) a module tile shows as a badge. Same rule as the website: shown only when above zero. */
-internal enum class AdminCountKind { NONE, SCHOLARS, PAYMENTS, INQUIRIES }
+internal enum class AdminCountKind { NONE, SCHOLARS, PAYMENTS, INQUIRIES, EXAM_FLAGS, DEVICE_ATTEMPTS }
 
 /**
  * One admin module. ids, labels and aliases are copied from website-reference/src/app/admin/page.tsx
@@ -36,6 +38,8 @@ internal data class AdminModule(
 
 internal val ADMIN_MODULES: List<AdminModule> = listOf(
     AdminModule("overview", "Overview", Icons.Filled.Dashboard),
+    AdminModule("exam-integrity", "Exam Integrity", Icons.Filled.Security, AdminCountKind.EXAM_FLAGS, listOf("integrity", "exam-review")),
+    AdminModule("device-security", "Device Security", Icons.Filled.Smartphone, AdminCountKind.DEVICE_ATTEMPTS, listOf("devices", "device")),
     AdminModule("notifications", "Push Broadcasts", Icons.Filled.Notifications, aliases = listOf("notification")),
     AdminModule("competitions", "Competitions", Icons.Filled.EmojiEvents, aliases = listOf("competition", "contests", "contest")),
     AdminModule("users", "Scholars & Users", Icons.Filled.People, AdminCountKind.SCHOLARS, listOf("user")),
@@ -64,6 +68,6 @@ internal fun adminModuleForTab(raw: String?): AdminModule? {
 internal val NATIVE_ADMIN_MODULE_IDS: Set<String> =
     setOf(
         "inquiries", "payments", "users", "overview", "grants", "locks", "catalog", "content",
-        "notifications", "competitions", "free-resources", "database", "game-sets"
+        "notifications", "competitions", "free-resources", "database", "game-sets", "exam-integrity", "device-security"
     )
 
