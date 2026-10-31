@@ -20,13 +20,19 @@ class DbTableStatus(
  * ADMIN-native N10b. READ-ONLY database status for the admin console. It replaces the website Database and SQL Hub
  * in the app. The only thing it does is ask Supabase for the exact row count of each tracked table with a HEAD
  * request (no rows are read, nothing is written, no SQL is run). The table names, labels and descriptions are the
- * ones of TRACKED_TABLES in website-reference/src/components/admin/DatabaseHubPanel.tsx.
+ * ones of TRACKED_TABLES in website-reference/src/components/admin/DatabaseHubPanel.tsx, except the AI cache row
+ * (see below).
  * NOT carried over on purpose: the master SQL script and its Copy button, the Open SQL Editor link, the setup
  * steps, and the two fixed text cards about row level security and student ids (they were not read from the
  * database).
  * What a row count can show is limited by the signed-in account's own row level security, like on the website.
- * Follow-up 2026-10-19: tables in NO_ADMIN_READ have no read policy for admins (checked live), so their count would
- * always be 0 and look like an empty table; they show no count instead.
+ *
+ * Follow-up 2026-10-31 (owner: the 10th table must show a count, and the AI cache looked empty):
+ *  - `api_rate_limits` and `ai_explanations` now have an admin-only SELECT policy (migration
+ *    `admin_read_ai_cache_and_rate_limits`, checked live), so the old NO_ADMIN_READ list is empty and the 10th card
+ *    shows its real row count instead of "No permission".
+ *  - The AI cache card counted `question_explanations`, a table the app and the live route never write (0 rows
+ *    forever). The live cache of the route `/api/ai/explain` is `ai_explanations`, so that is what is counted now.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -40,14 +46,14 @@ object DatabaseStatusRepository {
         Tracked("access_grants", "Manual Access Grants", "Direct admin-granted access, scholarship passes, beta testing overrides"),
         Tracked("content_locks", "Content Access Locks", "Fine-grained chapter/hub locks, coming soon toggles, purchase gates"),
         Tracked("academic_results", "Quiz & Exam Scores", "Student test submissions, scores, percentages, and progress history"),
-        Tracked("question_explanations", "AI Explanations Cache", "Cached Groq/OpenAI tutor explanations for zero-latency queries"),
+        Tracked("ai_explanations", "AI Explanations Cache", "Shared AI answers and summaries: asked once, then served to every student from here"),
         Tracked("inquiries", "Contact & Inquiries", "Student help inquiries, contact form messages, and support records"),
         Tracked("free_resource_items", "Free Resource Hub", "Scholarships, campus guides, success stories, and university articles"),
         Tracked("api_rate_limits", "API Rate Limiting", "Protection against brute force on AI endpoints and checkouts")
     )
 
-    /** Tables that admins cannot read (no read policy). A HEAD count on them is always 0, which would mislead. */
-    private val NO_ADMIN_READ: Set<String> = setOf("api_rate_limits")
+    /** Tables that admins cannot read (no read policy). Empty now: every tracked table has an admin read policy. */
+    private val NO_ADMIN_READ: Set<String> = emptySet()
 
     /** All tracked tables, asked at the same time. Never throws. */
     suspend fun check(): List<DbTableStatus> = coroutineScope {
