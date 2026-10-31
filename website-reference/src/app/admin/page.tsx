@@ -156,6 +156,7 @@ function AdminDashboardInner() {
   const [newInquiriesCount, setNewInquiriesCount] = useState<number>(0);
   const [usersCount, setUsersCount] = useState<number>(0);
   const [examFlagsCount, setExamFlagsCount] = useState<number>(0);
+  const [blockedDeviceCount, setBlockedDeviceCount] = useState<number>(0);
 
   // Sync tab from URL on load / browser back-forward / refresh
   useEffect(() => {
@@ -225,6 +226,8 @@ function AdminDashboardInner() {
         if (usersRes.count != null) setUsersCount(usersRes.count);
         const { data: integrityRows } = await supabase.rpc("admin_exam_integrity_report");
         if (Array.isArray(integrityRows)) setExamFlagsCount(integrityRows.filter((row: { reviewed_at?: string | null }) => !row.reviewed_at).length);
+        const { count: blockedCount } = await supabase.from("account_device_events").select("event_id", { count: "exact", head: true }).eq("event_type", "blocked_new_device");
+        if (blockedCount != null) setBlockedDeviceCount(blockedCount);
       } catch (e) {
         console.warn("[admin badge counts]", e);
       }
@@ -278,10 +281,10 @@ function AdminDashboardInner() {
         badgeColor: "bg-cyan-500/20 text-cyan-300 border-cyan-400/40",
       },
       { id: "database", label: "Database & SQL Hub", icon: Database },
-      { id: "devices", label: "Registered Devices", icon: Smartphone },
+      { id: "devices", label: "Registered Devices", icon: Smartphone, badge: blockedDeviceCount > 0 ? blockedDeviceCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
       { id: "exam-integrity", label: "Exam Integrity", icon: Shield, badge: examFlagsCount > 0 ? examFlagsCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
     ],
-    [pendingPaymentsCount, newInquiriesCount, usersCount, examFlagsCount]
+    [pendingPaymentsCount, newInquiriesCount, usersCount, examFlagsCount, blockedDeviceCount]
   );
 
   const filteredTabs = useMemo(() => {
