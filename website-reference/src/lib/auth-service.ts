@@ -389,12 +389,6 @@ export async function loginScholar(
       return { success: false, code: "generic_error", message: deviceCheck.message };
     }
 
-    const deviceCheck = await registerBrowserDevice(data.session.access_token);
-    if (!deviceCheck.ok) {
-      await supabase.auth.signOut();
-      return { success: false, code: "generic_error", message: deviceCheck.message };
-    }
-
     const user = data.session.user;
     persistScholarSession(
       {
@@ -500,6 +494,12 @@ export async function registerScholar(params: {
           ? "Account created. Please confirm your email from the message we sent, then sign in."
           : "Your account was created. Please sign in with it.",
       };
+    }
+
+    const deviceCheck = await registerBrowserDevice(data.session.access_token);
+    if (!deviceCheck.ok) {
+      await supabase.auth.signOut();
+      return { success: false, code: "generic_error", message: deviceCheck.message };
     }
 
     const user = data.session.user;
