@@ -19,6 +19,7 @@ import AccessGrantsPanel from "@/components/admin/AccessGrantsPanel";
 import DatabaseHubPanel from "@/components/admin/DatabaseHubPanel";
 import NotificationsPanel from "@/components/admin/NotificationsPanel";
 import CompetitionsAdminPanel from "@/components/admin/CompetitionsAdminPanel";
+import DeviceManagementPanel from "@/components/admin/DeviceManagementPanel";
 import BrandLoader from "@/components/BrandLoader";
 import {
   LogOut,
@@ -42,6 +43,7 @@ import {
   CheckCircle2,
   Bell,
   Trophy,
+  Smartphone,
 } from "lucide-react";
 
 type AcademyTab =
@@ -56,7 +58,8 @@ type AcademyTab =
   | "catalog"
   | "free-resources"
   | "inquiries"
-  | "database";
+  | "database"
+  | "devices";
 
 const VALID_TABS: AcademyTab[] = [
   "overview",
@@ -71,6 +74,7 @@ const VALID_TABS: AcademyTab[] = [
   "free-resources",
   "inquiries",
   "database",
+  "devices",
 ];
 
 const ADMIN_TAB_STORAGE_KEY = "wt-admin-active-tab";
@@ -102,6 +106,8 @@ const TAB_ALIASES: Record<string, AcademyTab> = {
   inquiry: "inquiries",
   database: "database",
   db: "database",
+  devices: "devices",
+  device: "devices",
 };
 
 function parseTab(raw: string | null | undefined): AcademyTab | null {
@@ -263,6 +269,7 @@ function AdminDashboardInner() {
         badgeColor: "bg-cyan-500/20 text-cyan-300 border-cyan-400/40",
       },
       { id: "database", label: "Database & SQL Hub", icon: Database },
+      { id: "devices", label: "Registered Devices", icon: Smartphone },
     ],
     [pendingPaymentsCount, newInquiriesCount, usersCount]
   );
@@ -422,6 +429,7 @@ function AdminDashboardInner() {
           {academyTab === "free-resources" && <FreeResourcesPanel />}
           {academyTab === "inquiries" && <InquiriesPanel />}
           {academyTab === "database" && <DatabaseHubPanel />}
+          {academyTab === "devices" && <DeviceManagementPanel />}
         </section>
       </main>
     </div>
