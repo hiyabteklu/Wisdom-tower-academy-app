@@ -1,5 +1,10 @@
 package com.wisdomtower.academy.data.auth
 
+import android.content.Context
+import android.os.Build
+import android.provider.Settings
+import java.security.MessageDigest
+
 import com.wisdomtower.academy.BuildConfig
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +34,7 @@ enum class AuthFailureKind {
     WEAK_PASSWORD,
     INVALID_INPUT,
     NETWORK,
+    DEVICE_ALREADY_REGISTERED,
     OTHER
 }
 
@@ -97,7 +103,7 @@ object SupabaseAuthClient {
 
     // ---------- public API ----------
 
-    suspend fun signIn(identifier: String, password: String): SupabaseAuthResult = safely {
+    suspend fun signIn(identifier: String, password: String, context: Context): SupabaseAuthResult = safely {
         val id = try {
             identityFrom(identifier)
         } catch (e: InvalidIdentifierException) {
@@ -109,10 +115,11 @@ object SupabaseAuthClient {
         if (password.isEmpty()) {
             return@safely SupabaseAuthResult.Failure(AuthFailureKind.INVALID_INPUT, "Please enter your password.")
         }
-        tokenCall(
+        val result = tokenCall(
             "/auth/v1/token?grant_type=password",
             JSONObject().put("email", id.email).put("password", password)
         )
+        if (result is SupabaseAuthResult.Success) registerDevice(context, result) else result
     }
 
     /**
@@ -123,7 +130,8 @@ object SupabaseAuthClient {
         fullName: String,
         identifier: String,
         password: String,
-        educationLevel: String
+        educationLevel: String,
+        context: Context
     ): SupabaseAuthResult = safely {
         val name = fullName.trim()
         if (name.isEmpty()) {
@@ -190,6 +198,8 @@ object SupabaseAuthClient {
             } else {
                 signedIn
             }
+        } else if (signedIn is SupabaseAuthResult.Success) {
+            registerDevice(context, signedIn)
         } else {
             signedIn
         }
@@ -204,6 +214,44 @@ object SupabaseAuthClient {
             "/auth/v1/token?grant_type=refresh_token",
             JSONObject().put("refresh_token", refreshToken)
         )
+    }
+
+
+    private fun registerDevice(context: Context, session: SupabaseAuthResult.Success): SupabaseAuthResult {
+        val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
+            ?.takeIf { it.isNotBlank() }
+            ?: return SupabaseAuthResult.Failure(AuthFailureKind.OTHER, "This phone could not be identified. Please try again.")
+        val deviceHash = MessageDigest.getInstance("SHA-256")
+            .digest("${context.packageName}:$androidId".toByteArray(Charsets.UTF_8))
+            .joinToString("") { "%02x".format(it) }
+        val deviceLabel = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(80)
+        val accessToken = JSONObject(session.sessionJson).optString("access_token")
+        val body = JSONObject()
+            .put("device_hash", deviceHash)
+            .put("device_label", deviceLabel)
+            .toString()
+            .toRequestBody(JSON_MEDIA)
+        val request = Request.Builder()
+            .url("$supabaseUrl/functions/v1/register-device")
+            .addHeader("apikey", anonKey)
+            .addHeader("Authorization", "Bearer $accessToken")
+            .post(body)
+            .build()
+        http.newCall(request).execute().use { response ->
+            val responseText = response.body?.string().orEmpty()
+            val responseJson = runCatching { JSONObject(responseText) }.getOrNull()
+            if (response.isSuccessful && responseJson?.optBoolean("ok") == true) return session
+            if (responseJson?.optString("reason") == "device_already_registered") {
+                return SupabaseAuthResult.Failure(
+                    AuthFailureKind.DEVICE_ALREADY_REGISTERED,
+                    "This account is already registered on another phone. Contact Wisdom Tower Academy support to request a device reset."
+                )
+            }
+            return SupabaseAuthResult.Failure(
+                AuthFailureKind.NETWORK,
+                "We couldn't verify this phone. Please check your connection and try again."
+            )
+        }
     }
 
     // ---------- internals ----------
