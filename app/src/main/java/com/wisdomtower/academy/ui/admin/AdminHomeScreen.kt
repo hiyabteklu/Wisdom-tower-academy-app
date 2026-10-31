@@ -166,6 +166,8 @@ internal fun AdminHomeScreen(
                             AdminCountKind.SCHOLARS -> counts?.scholars
                             AdminCountKind.PAYMENTS -> counts?.pendingPayments
                             AdminCountKind.INQUIRIES -> counts?.newInquiries
+                            AdminCountKind.EXAM_FLAGS -> counts?.pendingExamReviews
+                            AdminCountKind.DEVICE_ATTEMPTS -> counts?.pendingDeviceAttempts
                             AdminCountKind.NONE -> null
                         }
                         val badge = raw?.takeIf { it > 0 }
@@ -348,6 +350,8 @@ private fun AdminModuleTile(
             val tone = when (module.countKind) {
                 AdminCountKind.PAYMENTS -> WisdomAccentAmber
                 AdminCountKind.INQUIRIES -> WisdomCyan
+                AdminCountKind.EXAM_FLAGS -> AdminRose
+                AdminCountKind.DEVICE_ATTEMPTS -> WisdomAccentAmber
                 else -> WisdomInk
             }
             val badgeShape = RoundedCornerShape(50)
