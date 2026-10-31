@@ -49,7 +49,7 @@ Continue the native Admin Console work by adding an in-app dashboard for exam ac
 - 6ac23c33 — Compose ColumnScope correction
 - a94b8257 — pending-review badges on home tiles
 - 3819c2fd — SQL source for device event review RPC
-- 1c75dc11 — update native admin plan
+- 1c75dc11 — update native admin plan\n- 9df2462b — fix Compose ColumnScope import\n- facfc223 — update native admin acceptance checklist
 
 ## Next
 Run a non-release Android CI/compile check, then verify as an admin on the owner's phone:
