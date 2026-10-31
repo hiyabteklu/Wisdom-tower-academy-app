@@ -377,6 +377,18 @@
   }
 
   /* ---------- events ---------- */
+  // Ranked-exam copy/cut actions are recorded for admin review; they are not blocked.
+  function reportIntegrity(kind, detail) {
+    if (!ranked || submitted || submitting) return;
+    send("onIntegrityFlag", { kind: kind, detail: detail || {} });
+  }
+  document.addEventListener("copy", function () {
+    reportIntegrity("copy_attempt", { source: "exam_text_selection", action: "copy" });
+  }, true);
+  document.addEventListener("cut", function () {
+    reportIntegrity("copy_attempt", { source: "exam_text_selection", action: "cut" });
+  }, true);
+
   root.addEventListener("click", function (e) {
     var el = e.target;
     while (el && el !== root && !(el.getAttribute && el.getAttribute("data-act"))) el = el.parentNode;
