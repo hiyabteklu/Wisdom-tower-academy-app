@@ -66,6 +66,9 @@ data class AdminSecurityList<T>(
  * Native Admin Console security data. All RPCs use the signed-in admin JWT; the database functions enforce admin access.
  * Never use the service-role key in this client.
  */
+private fun JSONObject.safeString(key: String, fallback: String = ""): String =
+    if (isNull(key)) fallback else optString(key, fallback)
+
 object AdminSecurityRepository {
     suspend fun examIntegrity(): AdminSecurityList<ExamIntegrityAttempt> {
         val reply = AdminSupabase.rpc("admin_exam_integrity_report")
@@ -98,12 +101,12 @@ object AdminSecurityRepository {
             AdminSecurityList((0 until json.length()).mapNotNull { i ->
                 json.optJSONObject(i)?.let {
                     RegisteredAccountDevice(
-                        userId = it.optString("user_id"),
-                        email = it.optString("email"),
-                        fullName = it.optString("full_name"),
-                        deviceLabel = it.optString("device_label"),
-                        registeredAt = it.optString("registered_at"),
-                        lastSeenAt = it.optString("last_seen_at")
+                        userId = it.safeString("user_id"),
+                        email = it.safeString("email"),
+                        fullName = it.safeString("full_name"),
+                        deviceLabel = it.safeString("device_label"),
+                        registeredAt = it.safeString("registered_at"),
+                        lastSeenAt = it.safeString("last_seen_at")
                     )
                 }
             })
@@ -125,10 +128,10 @@ object AdminSecurityRepository {
                         email = it.optString("email"),
                         fullName = it.optString("full_name"),
                         deviceLabel = it.optString("device_label"),
-                        eventType = it.optString("event_type"),
-                        createdAt = it.optString("created_at"),
-                        reviewedAt = it.optString("reviewed_at"),
-                        reviewNote = it.optString("review_note")
+                        eventType = it.safeString("event_type"),
+                        createdAt = it.safeString("created_at"),
+                        reviewedAt = it.safeString("reviewed_at"),
+                        reviewNote = it.safeString("review_note")
                     )
                 }
             })
@@ -174,34 +177,34 @@ object AdminSecurityRepository {
             eventsJson.optJSONObject(i)?.let { event ->
                 val detail = event.optJSONObject("detail")
                 ExamIntegrityEvent(
-                    id = event.optString("id"),
-                    kind = event.optString("kind"),
-                    createdAt = event.optString("created_at"),
+                    id = event.safeString("id"),
+                    kind = event.safeString("kind"),
+                    createdAt = event.safeString("created_at"),
                     awayMs = if (event.isNull("away_ms")) null else event.optLong("away_ms"),
                     detail = detail?.toString().orEmpty()
                 )
             }
         }
         return ExamIntegrityAttempt(
-            entryId = row.optString("entry_id"),
-            userId = row.optString("user_id"),
-            studentName = row.optString("student_name", "Student"),
-            email = row.optString("email"),
-            studentId = row.optString("student_id"),
-            examTitle = row.optString("competition_title"),
-            mode = row.optString("mode"),
-            status = row.optString("attempt_status"),
-            startedAt = row.optString("started_at"),
-            submittedAt = row.optString("submitted_at"),
+            entryId = row.safeString("entry_id"),
+            userId = row.safeString("user_id"),
+            studentName = row.safeString("student_name", "Student"),
+            email = row.safeString("email"),
+            studentId = row.safeString("student_id"),
+            examTitle = row.safeString("competition_title"),
+            mode = row.safeString("mode"),
+            status = row.safeString("attempt_status"),
+            startedAt = row.safeString("started_at"),
+            submittedAt = row.safeString("submitted_at"),
             score = if (row.isNull("score")) null else row.optInt("score"),
             totalCount = if (row.isNull("total_count")) null else row.optInt("total_count"),
             flagCount = row.optInt("flag_count"),
             leaveCount = row.optInt("leave_count"),
             totalAwayMs = row.optLong("total_away_ms"),
             longestAwayMs = row.optLong("longest_away_ms"),
-            lastFlagAt = row.optString("last_flag_at"),
-            reviewedAt = row.optString("reviewed_at"),
-            reviewNote = row.optString("review_note"),
+            lastFlagAt = row.safeString("last_flag_at"),
+            reviewedAt = row.safeString("reviewed_at"),
+            reviewNote = row.safeString("review_note"),
             events = events
         )
     }
