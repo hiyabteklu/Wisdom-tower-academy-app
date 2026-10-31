@@ -201,12 +201,31 @@ export async function registerBrowserDevice(
     });
     const payload = await response.json().catch(() => null);
     if (response.ok && payload?.ok === true) return { ok: true };
+
+    // Password sign-in has already created this Auth session. Revoke the rejected
+    // session server-side before returning a failed registration result.
+    await revokeBrowserAuthSession(session.access_token);
     if (response.status === 403 && payload?.reason === "device_already_registered") {
       return { ok: false, reason: "device_already_registered" };
     }
     return { ok: false, reason: "verification_failed" };
   } catch {
+    await revokeBrowserAuthSession(session.access_token);
     return { ok: false, reason: "verification_failed" };
+  }
+}
+
+async function revokeBrowserAuthSession(accessToken: string): Promise<void> {
+  try {
+    await fetch(supabaseUrl + "/auth/v1/logout?scope=local", {
+      method: "POST",
+      headers: {
+        apikey: supabaseAnonKey,
+        Authorization: "Bearer " + accessToken,
+      },
+    });
+  } catch {
+    // The caller still fails closed locally if the Auth endpoint is unreachable.
   }
 }
 export async function recoverSession() {
