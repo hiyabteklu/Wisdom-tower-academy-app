@@ -248,6 +248,7 @@ function AdminDashboardInner() {
   }[] = useMemo(
     () => [
       { id: "overview", label: "Overview", icon: LayoutDashboard },
+      { id: "exam-integrity", label: "Exam Integrity", icon: Shield, badge: examFlagsCount > 0 ? examFlagsCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
       {
         id: "notifications",
         label: "Push Broadcasts",
@@ -282,7 +283,7 @@ function AdminDashboardInner() {
       },
       { id: "database", label: "Database & SQL Hub", icon: Database },
       { id: "devices", label: "Registered Devices", icon: Smartphone, badge: blockedDeviceCount > 0 ? blockedDeviceCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
-      { id: "exam-integrity", label: "Exam Integrity", icon: Shield, badge: examFlagsCount > 0 ? examFlagsCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
+
     ],
     [pendingPaymentsCount, newInquiriesCount, usersCount, examFlagsCount, blockedDeviceCount]
   );
@@ -373,6 +374,19 @@ function AdminDashboardInner() {
 
       {/* Main Workspace */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+        {examFlagsCount > 0 && (
+          <button
+            type="button"
+            onClick={() => goTab("exam-integrity")}
+            className="mb-5 flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/[0.08] px-4 py-3 text-left transition-colors hover:bg-rose-500/[0.13]"
+          >
+            <span className="flex items-center gap-3">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-400/15 text-rose-200"><Shield className="h-4 w-4" /></span>
+              <span><span className="block text-sm font-bold text-rose-100">Exam activity needs review</span><span className="block text-xs text-rose-100/60">Open the integrity dashboard to inspect flagged ranked attempts and student exit timelines.</span></span>
+            </span>
+            <span className="inline-flex items-center gap-2 rounded-xl border border-rose-300/30 bg-rose-400/15 px-3 py-2 text-sm font-extrabold text-rose-100"><span className="tabular-nums">{examFlagsCount}</span> awaiting review <span aria-hidden="true">→</span></span>
+          </button>
+        )}
         {/* Horizontal Navigation Command Strip */}
         <div className="mb-6 space-y-3">
           <div className="flex items-center justify-between gap-3 flex-wrap">
