@@ -1,4 +1,4 @@
-import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured, registerBrowserDevice } from "@/lib/supabase";
 import { authEmailFromIdentifier } from "@/lib/authIdentity";
 import { applyDefaultPackagesForLevel } from "@/lib/academic-levels";
 import type { User } from "@supabase/supabase-js";
@@ -389,6 +389,17 @@ export async function loginScholar(
       return { success: false, code: "generic_error", message: deviceCheck.message };
     }
 
+    const deviceCheck = await registerBrowserDevice(data.session);
+    if (!deviceCheck.ok) {
+      await supabase.auth.signOut({ scope: "local" });
+      return {
+        success: false,
+        code: "generic_error",
+        message: deviceCheck.reason === "device_already_registered"
+          ? "This account is already registered on another device. Contact Wisdom Tower Academy support to request a device reset."
+          : "Browser verification failed. Please check your connection and try again.",
+      };
+    }
     const user = data.session.user;
     persistScholarSession(
       {
