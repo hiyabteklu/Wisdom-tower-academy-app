@@ -49,7 +49,7 @@ export default function DeviceManagementPanel() {
       <div><h3 className="font-bold text-white">Recent device activity</h3><p className="text-xs text-white/50">Latest 100 events, including blocked sign-ins and administrator resets.</p></div>
       {events.length === 0 ? <p className="rounded-xl border border-dashed border-white/15 p-5 text-sm text-white/50">No device activity recorded yet.</p> : events.map(event => <div key={event.event_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3">
         <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{event.full_name || event.email || event.user_id}</p><p className="text-xs text-white/55">{event.email || ""} · {event.device_label}</p></div>
-        <div className="text-right"><p className={"text-xs font-bold " + (event.event_type === "blocked_new_device" ? "text-rose-300" : event.event_type === "admin_reset" ? "text-amber-300" : "text-emerald-300")}>{event.event_type.replaceAll("_", " ")}</p><p className="text-[11px] text-white/40">{new Date(event.created_at).toLocaleString()}</p></div>
+        <div className="text-right"><p className={"text-xs font-bold " + (event.event_type === "blocked_new_device" ? "text-rose-300" : event.event_type === "admin_reset" ? "text-amber-300" : "text-emerald-300")}>{event.event_type.replace(/_/g, " ")}</p><p className="text-[11px] text-white/40">{new Date(event.created_at).toLocaleString()}</p></div>
       </div>)}
     </section>
   </div>;
