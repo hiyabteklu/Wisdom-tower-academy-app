@@ -257,6 +257,12 @@ object SupabaseAuthClient {
             val responseText = response.body?.string().orEmpty()
             val responseJson = runCatching { JSONObject(responseText) }.getOrNull()
             if (response.isSuccessful && responseJson?.optBoolean("ok") == true) return session
+
+            // The password grant created a temporary Auth session before the device check.
+            // Revoke that local session when registration is rejected or cannot be verified,
+            // so the rejected installation does not retain a usable refresh session.
+            revokeLocalAuthSession(accessToken)
+
             if (responseJson?.optString("reason") == "device_already_registered") {
                 return SupabaseAuthResult.Failure(
                     AuthFailureKind.DEVICE_ALREADY_REGISTERED,
@@ -267,6 +273,18 @@ object SupabaseAuthClient {
                 AuthFailureKind.NETWORK,
                 "We couldn't verify this phone. Please check your connection and try again."
             )
+        }
+    }
+
+    private fun revokeLocalAuthSession(accessToken: String) {
+        runCatching {
+            val request = Request.Builder()
+                .url("$supabaseUrl/auth/v1/logout?scope=local")
+                .addHeader("apikey", anonKey)
+                .addHeader("Authorization", "Bearer $accessToken")
+                .post(ByteArray(0).toRequestBody(null))
+                .build()
+            http.newCall(request).execute().use { /* consume and close response */ }
         }
     }
 
