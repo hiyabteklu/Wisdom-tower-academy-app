@@ -13,34 +13,24 @@ import okhttp3.Request
 import java.util.concurrent.TimeUnit
 
 /**
- * The three REAL counts the website admin home reads (website-reference/src/app/admin/page.tsx):
- * pending payments (orders.status = pending_verification), new inquiries (inquiries.status = new), scholars (profiles).
- * A count that could not be read is null (the screen shows a dash), never a made-up number.
+ * Real admin dashboard counts. A failed read is null, never a fabricated zero.
  */
 data class AdminCounts(
     val scholars: Int?,
     val pendingPayments: Int?,
-    val newInquiries: Int?
+    val newInquiries: Int?,
+    val pendingExamReviews: Int? = null,
+    val pendingDeviceAttempts: Int? = null
 )
 
-/**
- * ADMIN-native N1. Reads the counts with the signed-in admin's own token through PostgREST (HEAD plus Prefer count=exact,
- * the same request supabase-js sends for `head: true, count: "exact"`). Row-level security decides what is visible,
- * so a student gets nothing. No secret key is used. Same token handling as AdminAccess.kt (refresh, retry once on 401).
- *
- * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
- */
 object AdminCountsRepository {
     private const val TAG = "AdminCounts"
-
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
-
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
-
     private val EMPTY = AdminCounts(null, null, null)
 
     private class CountReply(val code: Int, val total: Int?)
@@ -56,19 +46,16 @@ object AdminCountsRepository {
             .head()
             .build()
         http.newCall(request).execute().use { resp ->
-            // Content-Range looks like 0-4/5 or */0: the number after the slash is the total.
             val total = resp.header("Content-Range")?.substringAfter('/', "")?.trim()?.toIntOrNull()
             return CountReply(resp.code, total)
         }
     }
 
-    private fun safeCount(path: String, token: String): CountReply {
-        return try {
-            headCount(path, token)
-        } catch (e: Exception) {
-            Log.w(TAG, "count failed: ${e.javaClass.simpleName}")
-            CountReply(-1, null)
-        }
+    private fun safeCount(path: String, token: String): CountReply = try {
+        headCount(path, token)
+    } catch (e: Exception) {
+        Log.w(TAG, "count failed: ${e.javaClass.simpleName}")
+        CountReply(-1, null)
     }
 
     private fun okTotal(reply: CountReply): Int? = if (reply.code in 200..299) reply.total else null
@@ -81,11 +68,7 @@ object AdminCountsRepository {
         val i = inq.await()
         val u = usr.await()
         Fetched(
-            counts = AdminCounts(
-                scholars = okTotal(u),
-                pendingPayments = okTotal(p),
-                newInquiries = okTotal(i)
-            ),
+            counts = AdminCounts(okTotal(u), okTotal(p), okTotal(i)),
             unauthorized = p.code == 401 || i.code == 401 || u.code == 401
         )
     }
@@ -93,14 +76,17 @@ object AdminCountsRepository {
     suspend fun load(): AdminCounts = withContext(Dispatchers.IO) {
         try {
             AuthStateManager.refreshIfNeeded()
-            val token = AuthStateManager.currentUser.value?.accessToken
+            var token = AuthStateManager.currentUser.value?.accessToken
             if (token.isNullOrBlank()) return@withContext EMPTY
-            val first = fetchAll(token)
-            if (first.unauthorized && AuthStateManager.refreshIfNeeded(force = true)) {
-                val token2 = AuthStateManager.currentUser.value?.accessToken
-                if (!token2.isNullOrBlank()) {\n                    val refreshed = fetchAll(token2).counts\n                    return@withContext refreshed.copy(\n                        pendingExamReviews = AdminSecurityRepository.pendingExamStudentCount(),\n                        pendingDeviceAttempts = AdminSecurityRepository.pendingDeviceStudentCount()\n                    )\n                }
+            var result = fetchAll(token)
+            if (result.unauthorized && AuthStateManager.refreshIfNeeded(force = true)) {
+                token = AuthStateManager.currentUser.value?.accessToken
+                if (!token.isNullOrBlank()) result = fetchAll(token)
             }
-            first.counts
+            result.counts.copy(
+                pendingExamReviews = AdminSecurityRepository.pendingExamStudentCount(),
+                pendingDeviceAttempts = AdminSecurityRepository.pendingDeviceStudentCount()
+            )
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
