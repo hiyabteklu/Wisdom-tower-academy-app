@@ -123,6 +123,12 @@ object AdminSupabase {
             }
         }
 
+    /** Call an admin-only Postgres RPC with the current user's JWT. The database remains the authorization boundary. */
+    suspend fun rpc(functionName: String, jsonBody: String = "{}"): AdminHttpResult {
+        require(functionName.matches(Regex("^[a-z][a-z0-9_]*$"))) { "Invalid RPC name" }
+        return request("POST", "rpc/$functionName", jsonBody, null)
+    }
+
     /** path is everything after /rest/v1/, e.g. inquiries?select=id&limit=5 */
     suspend fun get(path: String): AdminHttpResult = request("GET", path, null, null)
 
