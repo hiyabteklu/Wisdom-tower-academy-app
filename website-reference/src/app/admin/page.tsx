@@ -20,6 +20,7 @@ import DatabaseHubPanel from "@/components/admin/DatabaseHubPanel";
 import NotificationsPanel from "@/components/admin/NotificationsPanel";
 import CompetitionsAdminPanel from "@/components/admin/CompetitionsAdminPanel";
 import DeviceManagementPanel from "@/components/admin/DeviceManagementPanel";
+import ExamIntegrityPanel from "@/components/admin/ExamIntegrityPanel";
 import BrandLoader from "@/components/BrandLoader";
 import {
   LogOut,
@@ -59,7 +60,8 @@ type AcademyTab =
   | "free-resources"
   | "inquiries"
   | "database"
-  | "devices";
+  | "devices"
+  | "exam-integrity";
 
 const VALID_TABS: AcademyTab[] = [
   "overview",
@@ -75,6 +77,7 @@ const VALID_TABS: AcademyTab[] = [
   "inquiries",
   "database",
   "devices",
+  "exam-integrity",
 ];
 
 const ADMIN_TAB_STORAGE_KEY = "wt-admin-active-tab";
@@ -108,6 +111,9 @@ const TAB_ALIASES: Record<string, AcademyTab> = {
   db: "database",
   devices: "devices",
   device: "devices",
+  "exam-integrity": "exam-integrity",
+  integrity: "exam-integrity",
+  exam: "exam-integrity",
 };
 
 function parseTab(raw: string | null | undefined): AcademyTab | null {
@@ -149,6 +155,7 @@ function AdminDashboardInner() {
   const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0);
   const [newInquiriesCount, setNewInquiriesCount] = useState<number>(0);
   const [usersCount, setUsersCount] = useState<number>(0);
+  const [examFlagsCount, setExamFlagsCount] = useState<number>(0);
 
   // Sync tab from URL on load / browser back-forward / refresh
   useEffect(() => {
@@ -212,10 +219,13 @@ function AdminDashboardInner() {
           supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_verification"),
           supabase.from("inquiries").select("id", { count: "exact", head: true }).eq("status", "new"),
           supabase.from("profiles").select("id", { count: "exact", head: true }),
+          supabase.from("competition_entries").select("id", { count: "exact", head: true }).eq("mode", "ranked").not("id", "is", null),
         ]);
         if (ordersRes.count != null) setPendingPaymentsCount(ordersRes.count);
         if (inqRes.count != null) setNewInquiriesCount(inqRes.count);
         if (usersRes.count != null) setUsersCount(usersRes.count);
+        const { count: flagCount } = await supabase.from("competition_flags").select("id", { count: "exact", head: true });
+        if (flagCount != null) setExamFlagsCount(flagCount);
       } catch (e) {
         console.warn("[admin badge counts]", e);
       }
@@ -270,8 +280,9 @@ function AdminDashboardInner() {
       },
       { id: "database", label: "Database & SQL Hub", icon: Database },
       { id: "devices", label: "Registered Devices", icon: Smartphone },
+      { id: "exam-integrity", label: "Exam Integrity", icon: Shield, badge: examFlagsCount > 0 ? examFlagsCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
     ],
-    [pendingPaymentsCount, newInquiriesCount, usersCount]
+    [pendingPaymentsCount, newInquiriesCount, usersCount, examFlagsCount]
   );
 
   const filteredTabs = useMemo(() => {
@@ -430,6 +441,7 @@ function AdminDashboardInner() {
           {academyTab === "inquiries" && <InquiriesPanel />}
           {academyTab === "database" && <DatabaseHubPanel />}
           {academyTab === "devices" && <DeviceManagementPanel />}
+          {academyTab === "exam-integrity" && <ExamIntegrityPanel />}
         </section>
       </main>
     </div>
