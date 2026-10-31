@@ -98,7 +98,7 @@ object AdminCountsRepository {
             val first = fetchAll(token)
             if (first.unauthorized && AuthStateManager.refreshIfNeeded(force = true)) {
                 val token2 = AuthStateManager.currentUser.value?.accessToken
-                if (!token2.isNullOrBlank()) return@withContext fetchAll(token2).counts
+                if (!token2.isNullOrBlank()) {\n                    val refreshed = fetchAll(token2).counts\n                    return@withContext refreshed.copy(\n                        pendingExamReviews = AdminSecurityRepository.pendingExamStudentCount(),\n                        pendingDeviceAttempts = AdminSecurityRepository.pendingDeviceStudentCount()\n                    )\n                }
             }
             first.counts
         } catch (e: CancellationException) {
