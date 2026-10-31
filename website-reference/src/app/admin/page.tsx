@@ -223,8 +223,8 @@ function AdminDashboardInner() {
         if (ordersRes.count != null) setPendingPaymentsCount(ordersRes.count);
         if (inqRes.count != null) setNewInquiriesCount(inqRes.count);
         if (usersRes.count != null) setUsersCount(usersRes.count);
-        const { count: flagCount } = await supabase.from("competition_flags").select("id", { count: "exact", head: true });
-        if (flagCount != null) setExamFlagsCount(flagCount);
+        const { data: integrityRows } = await supabase.rpc("admin_exam_integrity_report");
+        if (Array.isArray(integrityRows)) setExamFlagsCount(integrityRows.filter((row: { reviewed_at?: string | null }) => !row.reviewed_at).length);
       } catch (e) {
         console.warn("[admin badge counts]", e);
       }
