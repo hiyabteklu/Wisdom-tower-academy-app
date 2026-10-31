@@ -17,7 +17,7 @@ The paid Android app uses one registered Android installation per student accoun
 - This currently protects the native Android sign-in path. Website/browser sign-in and any alternate authentication paths must be integrated before claiming account sharing is blocked across every client.
 - Existing sessions created before this feature are not automatically registered until the student signs in again.
 - Device registration does not by itself revoke a previously issued Supabase session. A production admin reset workflow must revoke the old Auth session (global sign-out) before allowing the replacement device to claim the slot.
-- Website admin console now has a `Registered Devices` section backed by the admin-only RPCs.
+- Website admin console now has a `Registered Devices` section backed by the admin-only RPCs, including the latest 100 registration, blocked-login and reset events.
 - Do not enable active-device checks in `open_book` / `open_resource` until all supported clients register devices, or existing website users may be locked out.
 - Device fingerprints are app-scoped Android identifiers, not hardware attestation. Factory reset, device cloning/rooting, or a determined attacker may bypass them. This is a deterrent to casual account sharing, not DRM.
 
