@@ -40,12 +40,12 @@ Colours only from `ui/theme/Color.kt` tokens (they follow day and night mode). G
 
 ## 6. Acceptance checklist (owner's phone)
 1. Account > Admin Console opens the native grid between the app's top bar and bottom navigation; only the app's own top bar is above it.
-2. The three counts and the badges match the website admin home; a failed read shows a dash, not a number.
-3. Every one of the 12 tiles opens; native ones open natively, the rest open their website panel under a back bar; Back returns to the grid; Back on the grid closes the admin.
+2. The home counts and all module badges match their admin RPC results; a failed read shows a dash or no badge, not a fabricated zero.
+3. Every one of the 15 tiles opens; native ones open natively, the rest open their website panel under a back bar; Back returns to the grid; Back on the grid closes the admin.
 4. The search icon filters the tiles; the Refresh icon reloads the counts.
 5. Deep links: a notification linking to `/admin?tab=competitions` opens Competitions directly, Back goes to the grid.
 6. Scrolling is smooth in the grid; no sideways movement.
-7. Student accounts still do not see the Admin Console button.
+7. Exam Integrity shows per-attempt leave count, total away time, longest absence and the leave/return timeline; reviewed attempts retain their review note.\n8. Device Security shows registered device model and last-seen time, pending blocked sign-ins, review notes and a confirmed reset action.\n9. Student accounts still do not see the Admin Console button, and all admin RPCs reject non-admin users.
 
 ## 7. Security modules added (2026-10-31)
 The native console now includes two additional Compose modules, available from the Account > Admin Console grid:
