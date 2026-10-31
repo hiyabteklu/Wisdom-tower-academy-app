@@ -156,6 +156,59 @@ internal fun AdminHomeScreen(
                 }
             }
 
+            val examReviewCount = counts?.pendingExamReviews ?: 0
+            val deviceAttemptCount = counts?.pendingDeviceAttempts ?: 0
+            if (examReviewCount > 0 || deviceAttemptCount > 0) {
+                item(key = "security-attention") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(16.dp))
+                            .background(WisdomAccentAmber.copy(alpha = 0.07f))
+                            .border(1.dp, WisdomAccentAmber.copy(alpha = 0.24f), RoundedCornerShape(16.dp))
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            "SECURITY REVIEW QUEUE",
+                            color = WisdomAccentAmber,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        if (examReviewCount > 0) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        adminModuleForTab("exam-integrity")?.let(onOpenModule)
+                                    }
+                                    .padding(vertical = 8.dp, horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Exam attempts awaiting review", color = WisdomTextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                AdminAttentionBadge(examReviewCount, WisdomAccentAmber)
+                            }
+                        }
+                        if (deviceAttemptCount > 0) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(10.dp))
+                                    .clickable {
+                                        adminModuleForTab("device-security")?.let(onOpenModule)
+                                    }
+                                    .padding(vertical = 8.dp, horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text("Blocked sign-ins awaiting review", color = WisdomTextPrimary, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                AdminAttentionBadge(deviceAttemptCount, WisdomAccentAmber)
+                            }
+                        }
+                    }
+                }
+            }
+
             items(rows) { row ->
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -281,6 +334,22 @@ private fun AdminIconChip(icon: ImageVector, size: Int, modifier: Modifier = Mod
             modifier = Modifier.size((size * 0.55f).dp)
         )
     }
+}
+
+@Composable
+private fun AdminAttentionBadge(count: Int, tone: Color) {
+    val shape = RoundedCornerShape(50)
+    Text(
+        text = count.toString(),
+        color = tone,
+        fontSize = 12.sp,
+        fontWeight = FontWeight.ExtraBold,
+        modifier = Modifier
+            .clip(shape)
+            .background(tone.copy(alpha = 0.15f))
+            .border(1.dp, tone.copy(alpha = 0.4f), shape)
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+    )
 }
 
 @Composable
