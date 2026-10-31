@@ -383,12 +383,6 @@ export async function loginScholar(
       return describeSignInError(error ?? {});
     }
 
-    const deviceCheck = await registerBrowserDevice(data.session.access_token);
-    if (!deviceCheck.ok) {
-      await supabase.auth.signOut();
-      return { success: false, code: "generic_error", message: deviceCheck.message };
-    }
-
     const deviceCheck = await registerBrowserDevice(data.session);
     if (!deviceCheck.ok) {
       await supabase.auth.signOut({ scope: "local" });
@@ -507,12 +501,17 @@ export async function registerScholar(params: {
       };
     }
 
-    const deviceCheck = await registerBrowserDevice(data.session.access_token);
+    const deviceCheck = await registerBrowserDevice(data.session);
     if (!deviceCheck.ok) {
-      await supabase.auth.signOut();
-      return { success: false, code: "generic_error", message: deviceCheck.message };
+      await supabase.auth.signOut({ scope: "local" });
+      return {
+        success: false,
+        code: "generic_error",
+        message: deviceCheck.reason === "device_already_registered"
+          ? "This account is already registered on another device. Contact Wisdom Tower Academy support to request a device reset."
+          : "Browser verification failed. Please check your connection and try again.",
+      };
     }
-
     const user = data.session.user;
     persistScholarSession(
       {
