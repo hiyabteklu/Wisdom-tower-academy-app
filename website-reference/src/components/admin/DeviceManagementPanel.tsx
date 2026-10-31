@@ -227,16 +227,19 @@ export default function DeviceManagementPanel() {
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-2">
                 <p className="font-semibold text-white">{event.full_name || "Student"}</p>
-                {event.reviewed_at
-                  ? <span className="rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-200">Reviewed</span>
-                  : <span className="rounded-md border border-rose-400/25 bg-rose-400/10 px-2 py-0.5 text-[10px] font-bold text-rose-200">Needs review</span>}
+                {event.event_type === "blocked_new_device"
+                  ? event.reviewed_at
+                    ? <span className="rounded-md border border-emerald-400/25 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold text-emerald-200">Reviewed</span>
+                    : <span className="rounded-md border border-rose-400/25 bg-rose-400/10 px-2 py-0.5 text-[10px] font-bold text-rose-200">Needs review</span>
+                  : <span className="rounded-md border border-white/10 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold text-white/55">Logged</span>}
               </div>
               <p className="text-xs text-white/50">{event.email || event.user_id}</p>
+              <p className="mt-1 text-xs font-semibold text-rose-200">{event.event_type === "blocked_new_device" ? "Blocked second-device sign-in" : event.event_type.replace(/_/g, " ")}</p>
               <p className="mt-1 text-sm text-cyan-200">{event.device_label}</p>
               <p className="mt-1 text-[11px] text-white/40">{formatDate(event.created_at)}</p>
               {event.review_note && <p className="mt-2 text-xs text-emerald-100/70">Review note: {event.review_note}</p>}
             </div>
-            {!event.reviewed_at && (
+            {event.event_type === "blocked_new_device" && !event.reviewed_at && (
               <button disabled={busy === "event:" + event.event_id}
                 onClick={() => void markReviewed(event)}
                 className="min-h-10 rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-3 py-2 text-xs font-bold text-emerald-200 disabled:opacity-50">
