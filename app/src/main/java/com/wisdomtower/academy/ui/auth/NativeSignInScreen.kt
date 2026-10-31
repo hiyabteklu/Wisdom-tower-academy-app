@@ -80,6 +80,7 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.LiveRegionMode
 import androidx.compose.ui.semantics.Role
@@ -214,6 +215,7 @@ fun NativeSignInScreen(
 
     val scope = rememberCoroutineScope()
     val focus = LocalFocusManager.current
+    val appContext = LocalContext.current.applicationContext
 
     fun switchMode(target: AuthMode) {
         mode = target
@@ -238,7 +240,7 @@ fun NativeSignInScreen(
             focus.clearFocus()
             loading = true
             scope.launch {
-                when (val result = SupabaseAuthClient.signIn(id, password)) {
+                when (val result = SupabaseAuthClient.signIn(id, password, appContext)) {
                     is SupabaseAuthResult.Success -> onSuccess(result)
                     is SupabaseAuthResult.Failure -> {
                         loading = false
@@ -271,7 +273,7 @@ fun NativeSignInScreen(
         focus.clearFocus()
         loading = true
         scope.launch {
-            when (val result = SupabaseAuthClient.signUp(fullName.trim(), id, password, finalLevel)) {
+            when (val result = SupabaseAuthClient.signUp(fullName.trim(), id, password, finalLevel, appContext)) {
                 is SupabaseAuthResult.Success -> onSuccess(result)
                 is SupabaseAuthResult.Failure -> {
                     loading = false
