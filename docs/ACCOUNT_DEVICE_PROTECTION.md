@@ -10,7 +10,7 @@ The paid Android app uses one registered Android installation per student accoun
 - `public.register_device_session`: service-role-only atomic registration. First device claims the slot; same device may sign in again; a different fingerprint is rejected.
 - `public.admin_list_account_devices` and `public.admin_reset_account_device`: admin-gated database procedures. Reset deletes the old Auth session row as well as the device registration, so the old refresh session cannot reclaim the slot.
 - Supabase Edge Function `register-device` (JWT verification enabled): validates the bearer token with Supabase Auth, reads the JWT session_id, and calls the registration procedure using the service role on the server.
-- Android `SupabaseAuthClient`: after password sign-in and sign-up, hashes the app-scoped Android ID and calls `register-device`. The raw Android ID and access token are not stored in the registry or logged.
+- Android `SupabaseAuthClient`: after password sign-in and sign-up, creates or reads a random installation GUID from `context.noBackupFilesDir`, hashes it with the app package name using SHA-256, and calls `register-device`. The raw GUID and access token are not stored in the registry or logged. The GUID is not backed up and resets on uninstall or app-data clearing.
 - Native sign-in passes application context into the auth client. A second-device rejection is shown as a normal sign-in error.
 
 ## Important limits / not yet complete
@@ -21,7 +21,7 @@ The paid Android app uses one registered Android installation per student accoun
 - The website `Exam Integrity` section lists flagged ranked-exam attempts, displays leave count, total away time and longest absence on each row, and shows recent leave/return events directly in the list. All timestamps are rendered in Ethiopia time (EAT). The tab badge counts distinct students awaiting review.
 - Do not enable active-device checks in `open_book` / `open_resource` until all supported clients register devices, or existing website users may be locked out.
 - Device fingerprints are app-scoped Android identifiers, not hardware attestation. Factory reset, device cloning/rooting, or a determined attacker may bypass them. This is a deterrent to casual account sharing, not DRM.
-- The model label is manufacturer/model only. The Android ID is hashed before transmission and the raw value is not stored. Disclose the collection and account-security purpose in the privacy policy and Play Console Data safety section; do not add IMEI, serial number, SIM identifiers, MAC address or location collection.
+- The model label is manufacturer/model only. The random installation GUID is hashed before transmission and the raw value remains in app-private non-backed-up storage. Disclose the collection and account-security purpose in the privacy policy and Play Console Data safety section; do not add IMEI, serial number, SIM identifiers, MAC address or location collection.
 
 ## Verification still required
 1. Compile the Android app with the repository's GitHub Actions workflow.
