@@ -2,8 +2,9 @@ package com.wisdomtower.academy.data.auth
 
 import android.content.Context
 import android.os.Build
-import android.provider.Settings
 import java.security.MessageDigest
+import java.io.File
+import java.util.UUID
 
 import com.wisdomtower.academy.BuildConfig
 import kotlinx.coroutines.CancellationException
@@ -68,6 +69,7 @@ object SupabaseAuthClient {
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
+    private val installationIdLock = Any()
 
     private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     private val EMAIL_REGEX = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
@@ -217,12 +219,26 @@ object SupabaseAuthClient {
     }
 
 
+    /**
+     * A random app-installation GUID is stored only in the app's private, non-backed-up directory.
+     * It is not a hardware identifier and is reset if the app is uninstalled or its data is cleared.
+     */
+    private fun getOrCreateInstallationId(context: Context): String = synchronized(installationIdLock) {
+        val file = File(context.noBackupFilesDir, "wt_installation_id")
+        val stored = runCatching { file.readText().trim() }.getOrNull()
+        if (!stored.isNullOrBlank()) {
+            val valid = runCatching { UUID.fromString(stored).toString() == stored }.getOrDefault(false)
+            if (valid) return@synchronized stored
+        }
+        val generated = UUID.randomUUID().toString()
+        file.writeText(generated)
+        generated
+    }
+
     private fun registerDevice(context: Context, session: SupabaseAuthResult.Success): SupabaseAuthResult {
-        val androidId = Settings.Secure.getString(context.contentResolver, Settings.Secure.ANDROID_ID)
-            ?.takeIf { it.isNotBlank() }
-            ?: return SupabaseAuthResult.Failure(AuthFailureKind.OTHER, "This phone could not be identified. Please try again.")
+        val installationId = getOrCreateInstallationId(context)
         val deviceHash = MessageDigest.getInstance("SHA-256")
-            .digest("${context.packageName}:$androidId".toByteArray(Charsets.UTF_8))
+            .digest("${context.packageName}:$installationId".toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
         val deviceLabel = "${Build.MANUFACTURER} ${Build.MODEL}".trim().take(80)
         val accessToken = JSONObject(session.sessionJson).optString("access_token")
