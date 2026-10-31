@@ -253,7 +253,8 @@ object SupabaseAuthClient {
             .addHeader("Authorization", "Bearer $accessToken")
             .post(body)
             .build()
-        http.newCall(request).execute().use { response ->
+        try {
+            http.newCall(request).execute().use { response ->
             val responseText = response.body?.string().orEmpty()
             val responseJson = runCatching { JSONObject(responseText) }.getOrNull()
             if (response.isSuccessful && responseJson?.optBoolean("ok") == true) return session
@@ -273,6 +274,10 @@ object SupabaseAuthClient {
                 AuthFailureKind.NETWORK,
                 "We couldn't verify this phone. Please check your connection and try again."
             )
+            }
+        } catch (e: IOException) {
+            revokeLocalAuthSession(accessToken)
+            throw e
         }
     }
 
