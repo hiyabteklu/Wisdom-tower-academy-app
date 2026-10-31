@@ -89,6 +89,7 @@ object LearningContentRepository {
     private const val NO_INTERNET = "Check your internet connection and try again."
     private const val LOAD_FAILED = "Unable to load materials right now. Please try again."
     private const val LOCKED_MESSAGE = "This material is locked. Unlock it with your package or ask the admin."
+    private const val DEVICE_NOT_ACTIVE_MESSAGE = "This account is registered on another device. Contact Wisdom Tower Academy support to request a device reset."
     private const val SIGN_IN_MESSAGE = "Sign in to open this paid file."
 
     /** `storage_path` prefix of a paid PDF in the private Appwrite bucket (free books use `appwrite:`). */
@@ -139,6 +140,7 @@ object LearningContentRepository {
         class Row(val row: JSONObject) : Door()
         object Gone : Door()
         object Locked : Door()
+        object DeviceNotActive : Door()
     }
 
     /**
@@ -259,6 +261,7 @@ object LearningContentRepository {
                     is Door.Row -> ContentItemResult.Found(rowToResource(door.row), false)
                     is Door.Gone -> ContentItemResult.NotFound
                     is Door.Locked -> ContentItemResult.Failure(LOCKED_MESSAGE)
+                    is Door.DeviceNotActive -> ContentItemResult.Failure(DEVICE_NOT_ACTIVE_MESSAGE)
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -326,6 +329,7 @@ object LearningContentRepository {
                 if (url.startsWith("https://")) url else throw IllegalStateException("Bad file address")
             }
             reply.first == 401 -> throw BookLockedException(SIGN_IN_MESSAGE)
+            status == "device_not_active" -> throw BookLockedException(DEVICE_NOT_ACTIVE_MESSAGE)
             reply.first == 403 || status == "locked" -> throw BookLockedException(LOCKED_MESSAGE)
             else -> {
                 Log.w(TAG, "book-url failed: HTTP ${reply.first}")
@@ -451,6 +455,7 @@ object LearningContentRepository {
             "ok" -> answer.optJSONObject("row")?.let { Door.Row(it) } ?: Door.Gone
             "not_found" -> Door.Gone
             "locked" -> Door.Locked
+            "device_not_active" -> Door.DeviceNotActive
             else -> legacyOrRefuse(id, client)
         }
     }
