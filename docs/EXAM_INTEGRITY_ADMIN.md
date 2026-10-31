@@ -11,6 +11,7 @@ This is a review queue, not an automatic cheating verdict. Incoming calls, Andro
 - Each attempt shows student, competition, status, score, leave count, total away time, longest away interval, and total flags.
 - Event timeline shows each leave/return with timestamps and computed away duration. An unmatched leave is shown as having no return duration.
 - Admin can mark an attempt reviewed and optionally save a note. This does not disqualify the student or alter the leaderboard.
+- The same review queue is available as a native Jetpack Compose screen in the Android Admin Console. It supports Needs review / All / Reviewed filters and student, email, student-ID or exam search. The native Admin Console home also shows a prominent security-review queue with pending counts and direct links to both security modules.
 
 ## Database
 Migration `admin_exam_integrity_dashboard` adds review metadata to `competition_entries` and creates:
