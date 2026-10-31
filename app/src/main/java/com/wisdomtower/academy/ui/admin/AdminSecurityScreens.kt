@@ -95,6 +95,8 @@ internal fun ExamIntegrityAdminScreen(modifier: Modifier = Modifier) {
     var reviewTarget by remember { mutableStateOf<ExamIntegrityAttempt?>(null) }
     var reviewNote by rememberSaveable { mutableStateOf("") }
     var busyId by remember { mutableStateOf<String?>(null) }
+    var reviewFilter by rememberSaveable { mutableStateOf("pending") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(reload) {
@@ -109,6 +111,20 @@ internal fun ExamIntegrityAdminScreen(modifier: Modifier = Modifier) {
     val pending = all.filter { it.reviewedAt.isBlank() }
     val totalLeaves = all.sumOf { it.leaveCount }
     val totalAway = all.sumOf { it.totalAwayMs }
+    val visibleRows = all
+        .filter { row ->
+            when (reviewFilter) {
+                "pending" -> row.reviewedAt.isBlank()
+                "reviewed" -> row.reviewedAt.isNotBlank()
+                else -> true
+            }
+        }
+        .filter { row ->
+            val q = searchQuery.trim().lowercase()
+            q.isBlank() || listOf(row.studentName, row.email, row.studentId, row.examTitle)
+                .any { it.lowercase().contains(q) }
+        }
+        .sortedBy { if (it.reviewedAt.isBlank()) 0 else 1 }
 
     LazyColumn(
         modifier = modifier.fillMaxSize(),
@@ -141,7 +157,37 @@ internal fun ExamIntegrityAdminScreen(modifier: Modifier = Modifier) {
         if (!loading && rows != null && all.isEmpty()) item {
             SecurityMessage("No ranked exam activity has been flagged yet.")
         }
-        items(all, key = { it.entryId }) { row ->
+        if (all.isNotEmpty()) {
+            item(key = "exam-review-filters") {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { reviewFilter = "pending" }) {
+                            Text(if (reviewFilter == "pending") "• Needs review (" + pending.size + ")" else "Needs review (" + pending.size + ")")
+                        }
+                        TextButton(onClick = { reviewFilter = "all" }) {
+                            Text(if (reviewFilter == "all") "• All (" + all.size + ")" else "All (" + all.size + ")")
+                        }
+                        val reviewedCount = all.size - pending.size
+                        TextButton(onClick = { reviewFilter = "reviewed" }) {
+                            Text(if (reviewFilter == "reviewed") "• Reviewed (" + reviewedCount + ")" else "Reviewed (" + reviewedCount + ")")
+                        }
+                    }
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true,
+                        label = { Text("Search student or exam") }
+                    )
+                }
+            }
+        }
+        if (!loading && all.isNotEmpty() && visibleRows.isEmpty()) {
+            item(key = "exam-no-filter-results") {
+                SecurityMessage("No attempts match this filter or search.")
+            }
+        }
+        items(visibleRows, key = { it.entryId }) { row ->
             ExamAttemptCard(
                 row = row,
                 expanded = expandedId == row.entryId,
@@ -288,6 +334,8 @@ internal fun DeviceSecurityAdminScreen(modifier: Modifier = Modifier) {
     var reviewTarget by remember { mutableStateOf<AccountDeviceEvent?>(null) }
     var note by rememberSaveable { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    var eventFilter by rememberSaveable { mutableStateOf("pending") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(reload) {
@@ -301,6 +349,22 @@ internal fun DeviceSecurityAdminScreen(modifier: Modifier = Modifier) {
     }
 
     val pending = events.orEmpty().filter { it.eventType == "blocked_new_device" && it.reviewedAt.isBlank() }
+    val visibleDevices = devices.orEmpty().filter { device ->
+        val q = searchQuery.trim().lowercase()
+        q.isBlank() || listOf(device.fullName, device.email, device.deviceLabel).any { it.lowercase().contains(q) }
+    }
+    val visibleEvents = events.orEmpty()
+        .filter { event ->
+            when (eventFilter) {
+                "pending" -> event.eventType == "blocked_new_device" && event.reviewedAt.isBlank()
+                "reviewed" -> event.eventType == "blocked_new_device" && event.reviewedAt.isNotBlank()
+                else -> true
+            }
+        }
+        .filter { event ->
+            val q = searchQuery.trim().lowercase()
+            q.isBlank() || listOf(event.fullName, event.email, event.deviceLabel, event.eventType).any { it.lowercase().contains(q) }
+        }
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 72.dp),
@@ -326,9 +390,19 @@ internal fun DeviceSecurityAdminScreen(modifier: Modifier = Modifier) {
         }
         if (error.isNotBlank()) item { SecurityMessage(error, isError = true) }
         if (loading && devices == null) item { SecurityMessage("Loading device records…") }
+        item {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                label = { Text("Search student or device") }
+            )
+        }
         item { Text("REGISTERED DEVICES", color = WisdomMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
         if (devices != null && devices!!.isEmpty()) item { SecurityMessage("No student devices have registered through the updated Android app yet.") }
-        items(devices.orEmpty(), key = { it.userId }) { device ->
+        if (devices != null && devices!!.isNotEmpty() && visibleDevices.isEmpty()) item { SecurityMessage("No registered devices match this search.") }
+        items(visibleDevices, key = { it.userId }) { device ->
             SecurityCard {
                 Text(device.fullName.ifBlank { "Student" }, color = WisdomTextPrimary, fontSize = 15.sp, fontWeight = FontWeight.Bold)
                 Text(device.email, color = WisdomMuted, fontSize = 12.sp)
@@ -338,9 +412,26 @@ internal fun DeviceSecurityAdminScreen(modifier: Modifier = Modifier) {
                 Button(onClick = { resetTarget = device }) { Text("Reset registered phone") }
             }
         }
-        item { Text("BLOCKED SIGN-IN ATTEMPTS", color = WisdomMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+        item {
+            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text("DEVICE ACTIVITY", color = WisdomMuted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { eventFilter = "pending" }) {
+                        Text(if (eventFilter == "pending") "• Needs review (" + pending.size + ")" else "Needs review (" + pending.size + ")")
+                    }
+                    TextButton(onClick = { eventFilter = "all" }) {
+                        Text(if (eventFilter == "all") "• All (" + events.orEmpty().size + ")" else "All (" + events.orEmpty().size + ")")
+                    }
+                    val reviewedCount = events.orEmpty().count { it.eventType == "blocked_new_device" && it.reviewedAt.isNotBlank() }
+                    TextButton(onClick = { eventFilter = "reviewed" }) {
+                        Text(if (eventFilter == "reviewed") "• Reviewed (" + reviewedCount + ")" else "Reviewed (" + reviewedCount + ")")
+                    }
+                }
+            }
+        }
         if (events != null && events!!.isEmpty()) item { SecurityMessage("No device activity has been recorded.") }
-        items(events.orEmpty(), key = { it.eventId }) { event ->
+        if (events != null && events!!.isNotEmpty() && visibleEvents.isEmpty()) item { SecurityMessage("No activity matches this filter or search.") }
+        items(visibleEvents, key = { it.eventId }) { event ->
             SecurityCard {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(event.fullName.ifBlank { "Student" }, color = WisdomTextPrimary, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
