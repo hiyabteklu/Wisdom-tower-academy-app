@@ -715,6 +715,15 @@ fun NativeSignInScreen(
                         enabled = !loading && !(mode == AuthMode.SIGN_UP && !agreedToTerms),
                         onClick = { submit() }
                     )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    TappableText(
+                        text = "Account security: this app registers a private installation ID and phone model to protect your account. Privacy Policy.",
+                        links = listOf(LinkSpec("Privacy Policy") { onOpenPrivacy() }),
+                        baseColor = Slate400,
+                        fontSize = 10.sp,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp)
+                    )
 
                     // Footer: switch mode
                     Spacer(modifier = Modifier.height(20.dp))
