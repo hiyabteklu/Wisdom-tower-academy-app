@@ -7,6 +7,12 @@ alter table public.account_device_events
   add column if not exists reviewed_by uuid references auth.users(id) on delete set null,
   add column if not exists review_note text;
 
+create index if not exists account_device_events_user_id_idx
+  on public.account_device_events (user_id);
+
+create index if not exists account_device_events_reviewed_by_idx
+  on public.account_device_events (reviewed_by);
+
 create index if not exists account_device_events_pending_review_idx
   on public.account_device_events (created_at desc)
   where event_type = 'blocked_new_device' and reviewed_at is null;
