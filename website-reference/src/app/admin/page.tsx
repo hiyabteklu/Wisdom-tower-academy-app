@@ -226,8 +226,8 @@ function AdminDashboardInner() {
         if (usersRes.count != null) setUsersCount(usersRes.count);
         const { data: integrityRows } = await supabase.rpc("admin_exam_integrity_report");
         if (Array.isArray(integrityRows)) setExamFlagsCount(integrityRows.filter((row: { reviewed_at?: string | null }) => !row.reviewed_at).length);
-        const { count: blockedCount } = await supabase.from("account_device_events").select("event_id", { count: "exact", head: true }).eq("event_type", "blocked_new_device");
-        if (blockedCount != null) setBlockedDeviceCount(blockedCount);
+        const { data: deviceEvents } = await supabase.rpc("admin_list_account_device_events");
+        if (Array.isArray(deviceEvents)) setBlockedDeviceCount(deviceEvents.filter((event: { event_type?: string }) => event.event_type === "blocked_new_device").length);
       } catch (e) {
         console.warn("[admin badge counts]", e);
       }
