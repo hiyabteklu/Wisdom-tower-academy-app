@@ -47,5 +47,19 @@ Colours only from `ui/theme/Color.kt` tokens (they follow day and night mode). G
 6. Scrolling is smooth in the grid; no sideways movement.
 7. Student accounts still do not see the Admin Console button.
 
+## 7. Security modules added (2026-10-31)
+The native console now includes two additional Compose modules, available from the Account > Admin Console grid:
+
+- **Exam Integrity** (exam-integrity): reads admin_exam_integrity_report; shows pending review counts, flagged attempts, leave count, total time away, longest absence, score when available, and each event in the leave/return timeline. Admins can add a review note and mark an attempt reviewed through admin_review_exam_integrity.
+- **Device Security** (device-security): reads registered installations and device events through admin_list_account_devices and admin_list_account_device_events; shows model label, registration time, last-seen time, blocked new-device attempts and history. Admins can review a blocked attempt and reset a registered device. Reset requires confirmation and revokes the session using the existing admin_reset_account_device.
+- The home-grid badges count distinct students with pending exam reviews and distinct students with pending blocked-device attempts. If an RPC cannot be read, the badge is omitted rather than showing a fabricated zero.
+- New RPC admin_review_account_device_event(bigint,text) was applied live and documented at docs/sql/admin_review_account_device_event.sql. It requires an authenticated admin and only marks blocked-new-device events reviewed.
+- These are review signals, not findings of guilt. A background event can be caused by a call or other legitimate interruption. No automatic disqualification or score change is performed.
+- Android client calls use the signed-in user's JWT through AdminSupabase.rpc; no service-role key is included in the app.
+
+**Verification state:** code committed and live RPC created; Android compilation, admin-device runtime checks and owner phone review remain pending. Do not mark these modules release-verified until CI/build and the owner phone test are green.
+
 ## Status (append only; newest last)
 - 2026-10-18 | Claude (chat) | N1 written: native home grid, real counts, section bar, deep links, WebView fallback per module. Files: `ui/admin/AdminConsoleHost.kt` (NEW), `AdminHomeScreen.kt` (NEW), `AdminModules.kt` (NEW), `data/admin/AdminCounts.kt` (NEW), `AdminConsoleScreen.kt` (function renamed to `AdminWebSection`, internal, rest unchanged). `[~]` NOT compiled, NOT seen on a device. | NEXT: owner checks the CI run of this commit, then N2 (Inquiries).
+
+- 2026-10-31 | ChatGPT | Native security slice: added Exam Integrity and Device Security modules, pending-review home badges, authenticated RPC helper, and blocked-device review RPC. Code committed; live SQL applied. `[~]` NOT compiled or device-tested. | NEXT: run Android CI/build (not release APK), then owner verifies the two screens and badge counts.
