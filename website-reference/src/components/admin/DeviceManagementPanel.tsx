@@ -1,22 +1,29 @@
 "use client";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
 type Device = { user_id: string; email: string | null; full_name: string | null; device_label: string; registered_at: string; last_seen_at: string };
+type DeviceEvent = { event_id: number; user_id: string; email: string | null; full_name: string | null; device_label: string; event_type: string; created_at: string };
 
 export default function DeviceManagementPanel() {
   const [devices, setDevices] = useState<Device[]>([]);
+  const [events, setEvents] = useState<DeviceEvent[]>([]);
   const [message, setMessage] = useState("Loading devices...");
   const [busy, setBusy] = useState<string | null>(null);
 
-  async function load() {
-    const { data, error } = await supabase.rpc("admin_list_account_devices");
-    if (error) { setMessage(error.message); return; }
-    setDevices((data || []) as Device[]);
-    setMessage(data?.length ? "" : "No registered Android devices yet.");
-  }
+  const load = useCallback(async () => {
+    const [deviceResult, eventResult] = await Promise.all([
+      supabase.rpc("admin_list_account_devices"),
+      supabase.rpc("admin_list_account_device_events")
+    ]);
+    if (deviceResult.error) { setMessage(deviceResult.error.message); return; }
+    setDevices((deviceResult.data || []) as Device[]);
+    setEvents((eventResult.data || []) as DeviceEvent[]);
+    setMessage(deviceResult.data?.length ? "" : "No registered Android devices yet.");
+    if (eventResult.error) setMessage("Device list loaded; audit history could not be loaded: " + eventResult.error.message);
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); }, [load]);
 
   async function reset(device: Device) {
     if (!window.confirm("Reset the registered phone for " + (device.email || device.user_id) + "? This revokes the current session.")) return;
@@ -28,15 +35,22 @@ export default function DeviceManagementPanel() {
     else { setMessage("Device reset. The student can now sign in on a replacement phone."); await load(); }
   }
 
-  return <div className="space-y-4">
+  return <div className="space-y-6">
     <div className="flex items-center justify-between gap-3">
-      <div><h2 className="text-xl font-bold text-white">Registered student devices</h2><p className="text-sm text-white/60">One Android phone per student account.</p></div>
-      <button className="rounded-xl border border-white/15 px-4 py-2 text-sm" onClick={() => void load()}>Refresh</button>
+      <div><h2 className="text-xl font-bold text-white">Registered student devices</h2><p className="text-sm text-white/60">One Android phone per student account. A second phone is logged as a blocked attempt.</p></div>
+      <button className="min-h-11 rounded-xl border border-white/15 px-4 py-2 text-sm" onClick={() => void load()}>Refresh</button>
     </div>
     {message && <p className="rounded-xl border border-white/10 p-3 text-sm text-white/70">{message}</p>}
     {devices.map(device => <div key={device.user_id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-      <div className="min-w-0"><p className="font-semibold text-white">{device.full_name || "Student"}</p><p className="text-sm text-white/60">{device.email || device.user_id}</p><p className="text-sm text-cyan-200">{device.device_label}</p><p className="text-xs text-white/40">Last sign-in: {new Date(device.last_seen_at).toLocaleString()}</p></div>
-      <button disabled={busy === device.user_id} onClick={() => void reset(device)} className="rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-2 text-sm text-rose-200 disabled:opacity-50">{busy === device.user_id ? "Resetting..." : "Reset device"}</button>
+      <div className="min-w-0"><p className="font-semibold text-white">{device.full_name || "Student"}</p><p className="text-sm text-white/60">{device.email || device.user_id}</p><p className="text-sm text-cyan-200">{device.device_label}</p><p className="text-xs text-white/40">Registered: {new Date(device.registered_at).toLocaleString()} · Last sign-in: {new Date(device.last_seen_at).toLocaleString()}</p></div>
+      <button disabled={busy === device.user_id} onClick={() => void reset(device)} className="min-h-11 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-2 text-sm text-rose-200 disabled:opacity-50">{busy === device.user_id ? "Resetting..." : "Reset device"}</button>
     </div>)}
+    <section className="space-y-3 border-t border-white/10 pt-5">
+      <div><h3 className="font-bold text-white">Recent device activity</h3><p className="text-xs text-white/50">Latest 100 events, including blocked sign-ins and administrator resets.</p></div>
+      {events.length === 0 ? <p className="rounded-xl border border-dashed border-white/15 p-5 text-sm text-white/50">No device activity recorded yet.</p> : events.map(event => <div key={event.event_id} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-white/8 bg-white/[0.02] p-3">
+        <div className="min-w-0"><p className="truncate text-sm font-semibold text-white">{event.full_name || event.email || event.user_id}</p><p className="text-xs text-white/55">{event.email || ""} · {event.device_label}</p></div>
+        <div className="text-right"><p className={"text-xs font-bold " + (event.event_type === "blocked_new_device" ? "text-rose-300" : event.event_type === "admin_reset" ? "text-amber-300" : "text-emerald-300")}>{event.event_type.replaceAll("_", " ")}</p><p className="text-[11px] text-white/40">{new Date(event.created_at).toLocaleString()}</p></div>
+      </div>)}
+    </section>
   </div>;
 }
