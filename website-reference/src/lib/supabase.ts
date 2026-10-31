@@ -223,10 +223,21 @@ export async function recoverSession() {
         if (refreshError || !refreshed.session) return null;
         activeSession = refreshed.session;
       }
-      const deviceCheck = await registerBrowserDevice(activeSession);
-      if (!deviceCheck.ok) {
-        await supabase.auth.signOut({ scope: "local" });
-        return null;
+      // The Android WebView receives a session that was already registered by
+      // SupabaseAuthClient on the native installation. Do not register it again
+      // as a separate browser device: that would collide with the same account's
+      // Android device slot and sign the student out of the embedded website.
+      const isNativeAcademyApp =
+        typeof window !== "undefined" &&
+        (/wta-native|WisdomTowerApp/i.test(window.navigator.userAgent) ||
+          (window as Window & { __wtaNativeApp?: boolean }).__wtaNativeApp === true);
+
+      if (!isNativeAcademyApp) {
+        const deviceCheck = await registerBrowserDevice(activeSession);
+        if (!deviceCheck.ok) {
+          await supabase.auth.signOut({ scope: "local" });
+          return null;
+        }
       }
       return activeSession;
     }
