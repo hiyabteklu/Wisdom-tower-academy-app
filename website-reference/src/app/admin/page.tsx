@@ -219,7 +219,6 @@ function AdminDashboardInner() {
           supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_verification"),
           supabase.from("inquiries").select("id", { count: "exact", head: true }).eq("status", "new"),
           supabase.from("profiles").select("id", { count: "exact", head: true }),
-          supabase.from("competition_entries").select("id", { count: "exact", head: true }).eq("mode", "ranked").not("id", "is", null),
         ]);
         if (ordersRes.count != null) setPendingPaymentsCount(ordersRes.count);
         if (inqRes.count != null) setNewInquiriesCount(inqRes.count);
