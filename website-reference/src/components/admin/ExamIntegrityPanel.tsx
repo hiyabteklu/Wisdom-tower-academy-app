@@ -232,7 +232,7 @@ export default function ExamIntegrityPanel() {
                           {showAll ? "Show recent only" : "Show all " + events.length}
                         </button>
                       )}
-                      {!row.reviewed_at && (
+                      {!row.reviewed_at && events.length <= 4 && (
                         <button onClick={() => setExpanded(showAll ? null : row.entry_id)}
                           className="text-xs font-semibold text-white/55">
                           {showAll ? "Hide note" : "Add review note"}
