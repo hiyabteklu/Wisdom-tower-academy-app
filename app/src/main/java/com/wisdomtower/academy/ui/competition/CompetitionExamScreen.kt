@@ -3,6 +3,8 @@ package com.wisdomtower.academy.ui.competition
 import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
+import android.os.Build
+import android.view.MotionEvent
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -88,7 +90,8 @@ private val examSaveScope = CoroutineScope(SupervisorJob() + Dispatchers.Default
 private class ExamBridge(
     private val onAnswersJson: (String) -> Unit,
     private val onSubmitJson: (String) -> Unit,
-    private val onDoneCall: () -> Unit
+    private val onDoneCall: () -> Unit,
+    private val onIntegrityFlagJson: (String) -> Unit
 ) {
     private val main = Handler(Looper.getMainLooper())
 
@@ -105,6 +108,11 @@ private class ExamBridge(
     @JavascriptInterface
     fun onDone(json: String) {
         main.post { onDoneCall() }
+    }
+
+    @JavascriptInterface
+    fun onIntegrityFlag(json: String) {
+        main.post { onIntegrityFlagJson(json) }
     }
 }
 
@@ -256,11 +264,26 @@ fun CompetitionExamScreen(
     val latestAnswers by rememberUpdatedState<(String) -> Unit> { json -> applyPageAnswers(json) }
     val latestSubmit by rememberUpdatedState<(String) -> Unit> { json -> handleSubmit(json) }
     val latestDone by rememberUpdatedState<() -> Unit> { onFinished(submitResult) }
+    val latestIntegrityFlag by rememberUpdatedState<(String) -> Unit> { json ->
+        try {
+            val payload = JSONObject(json)
+            val kind = payload.optString("kind")
+            if (kind == "copy_attempt" && state.isRanked && !submittedOk) {
+                val detail = payload.optJSONObject("detail") ?: JSONObject()
+                examSaveScope.launch {
+                    CompetitionRepository.reportFlag(session.entryId, kind, detail)
+                }
+            }
+        } catch (_: Exception) {
+            // Ignore malformed integrity telemetry; it must never interrupt the exam.
+        }
+    }
     val bridge = remember {
         ExamBridge(
             onAnswersJson = { json -> latestAnswers(json) },
             onSubmitJson = { json -> latestSubmit(json) },
-            onDoneCall = { latestDone() }
+            onDoneCall = { latestDone() },
+            onIntegrityFlagJson = { json -> latestIntegrityFlag(json) }
         )
     }
 
@@ -328,7 +351,31 @@ fun CompetitionExamScreen(
         AndroidView(
             modifier = Modifier.fillMaxSize(),
             factory = { ctx ->
+                var obscuredGestureReported = false
                 WebView(ctx).apply {
+                    setOnTouchListener { _, event ->
+                        val fullyObscured = (event.flags and MotionEvent.FLAG_WINDOW_IS_OBSCURED) != 0
+                        val partiallyObscured = Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q &&
+                            (event.flags and MotionEvent.FLAG_WINDOW_IS_PARTIALLY_OBSCURED) != 0
+                        if ((fullyObscured || partiallyObscured) && !obscuredGestureReported &&
+                            state.isRanked && !submittedOk
+                        ) {
+                            obscuredGestureReported = true
+                            examSaveScope.launch {
+                                CompetitionRepository.reportFlag(
+                                    session.entryId,
+                                    "overlay_open",
+                                    JSONObject().put("source", "obscured_touch")
+                                )
+                            }
+                        }
+                        if (event.actionMasked == MotionEvent.ACTION_UP ||
+                            event.actionMasked == MotionEvent.ACTION_CANCEL
+                        ) {
+                            obscuredGestureReported = false
+                        }
+                        false
+                    }
                     setBackgroundColor(AppBackdrop.webViewColor(ctx))
                     settings.javaScriptEnabled = true
                     settings.allowFileAccess = true
