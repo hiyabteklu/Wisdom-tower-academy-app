@@ -432,7 +432,7 @@ private fun SecurityMiniStat(label: String, value: String, modifier: Modifier = 
 }
 
 @Composable
-private fun SecurityCard(modifier: Modifier = Modifier, content: @Composable Column.() -> Unit) {
+private fun SecurityCard(modifier: Modifier = Modifier, content: @Composable ColumnScope.() -> Unit) {
     Column(
         modifier = modifier.fillMaxWidth().clip(RoundedCornerShape(16.dp)).background(WisdomCard)
             .border(1.dp, WisdomBorderWhite, RoundedCornerShape(16.dp)).padding(14.dp),
