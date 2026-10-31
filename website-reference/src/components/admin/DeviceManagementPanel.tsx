@@ -148,11 +148,11 @@ export default function DeviceManagementPanel() {
           <p className="mt-1 text-3xl font-bold tabular-nums text-rose-200">{pendingCount}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-xs text-white/50">Blocked attempts in recent log</p>
+          <p className="text-xs text-white/50">Blocked attempts in loaded log</p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-white">{blockedEvents.length}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-          <p className="text-xs text-white/50">Reviewed attempts in recent log</p>
+          <p className="text-xs text-white/50">Reviewed attempts in loaded log</p>
           <p className="mt-1 text-3xl font-bold tabular-nums text-white">
             {blockedEvents.filter((event) => !!event.reviewed_at).length}
           </p>
