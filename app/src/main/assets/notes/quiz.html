@@ -175,6 +175,9 @@
  * window.wtBack() closes an open dialog and returns true, or returns false when the app should leave.
  * M10 (motion only): enterDir, pulseCi and ovlIn are one-shot flags read by draw() to play a short entrance on the
  * new question, a pulse on the picked choice and a fade on a newly opened dialog. Logic, texts and grading unchanged.
+ * E1 (docs/READER_EXAM_FLASHCARD_FIX_PLAN.md): draw() rebuilds everything with innerHTML, which used to reset the
+ * page scroll and the number strip to the start. draw() now remembers the page scroll and the strip scroll and puts
+ * them back, and the strip only moves (smoothly) when the current number is outside the visible part of it.
  */
 (function () {
   var root = document.getElementById("root");
@@ -280,7 +283,7 @@
     var c = counts();
     reportProgress();
     if (isExam && !saved) { saved = true; send("onSubmit", { score: c.score, total: Q.length, answers: answers }); }
-    draw();
+    draw(); window.scrollTo(0, 0);
   }
   function retake() {
     submitted = false; saved = false; answers = {}; flagged = {}; eliminated = {}; idx = 0; showSol = false;
@@ -497,6 +500,10 @@
 
   function draw() {
     if (!Q.length) { root.innerHTML = '<p class="msg">No questions yet.</p>'; return; }
+    /* E1: remember where the page and the number strip are, a redraw must never move them */
+    var keepY = window.pageYOffset || document.documentElement.scrollTop || 0;
+    var oldStrip = root.querySelector('.pills');
+    var keepX = oldStrip ? oldStrip.scrollLeft : 0;
     var c = counts();
     var h = topBar(c) + pills();
     if (!submitted) h += questionCard() + navBar();
@@ -504,6 +511,9 @@
     if (confirmOpen) h += confirmDialog(c);
     if (resultOpen) h += resultModal(c);
     root.innerHTML = h;
+    var strip = root.querySelector('.pills');
+    if (strip) strip.scrollLeft = keepX;
+    if (keepY > 0) window.scrollTo(0, keepY);
     if (resultOpen) animateGauge(c);
     /* M10: one-shot motion classes, added after the DOM is built and then cleared so a redraw never replays them */
     if (enterDir) {
@@ -521,9 +531,14 @@
       if (ov) ov.classList.add('in');
       ovlIn = false;
     }
+    /* E1: move the strip only when the current number is not fully in view (no jump to the start, no page scroll) */
     var curPill = root.querySelector('.pill.cur');
-    if (curPill && curPill.scrollIntoView) {
-      try { curPill.scrollIntoView({ behavior: 'smooth', block: 'nearest', inline: 'center' }); } catch (_) {}
+    if (strip && curPill) {
+      var sr = strip.getBoundingClientRect(), pr = curPill.getBoundingClientRect();
+      if (pr.left < sr.left + 6 || pr.right > sr.right - 6) {
+        var want = strip.scrollLeft + (pr.left - sr.left) - (sr.width - pr.width) / 2;
+        try { strip.scrollTo({ left: want, behavior: 'smooth' }); } catch (_) { strip.scrollLeft = want; }
+      }
     }
   }
 
@@ -547,12 +562,12 @@
     else if (act === "confirm") doSubmit();
     else if (act === "mode") { feedbackMode = el.getAttribute("data-m") === "completion" ? "completion" : "immediate"; send("onMode", { mode: feedbackMode }); draw(); }
     else if (act === "rclose") { resultOpen = false; draw(); }
-    else if (act === "rmissed") { reviewFilter = "missed"; resultOpen = false; draw(); }
-    else if (act === "rall") { reviewFilter = "all"; resultOpen = false; draw(); }
-    else if (act === "rflagged") { reviewFilter = "flagged"; resultOpen = false; draw(); }
+    else if (act === "rmissed") { reviewFilter = "missed"; resultOpen = false; draw(); window.scrollTo(0, 0); }
+    else if (act === "rall") { reviewFilter = "all"; resultOpen = false; draw(); window.scrollTo(0, 0); }
+    else if (act === "rflagged") { reviewFilter = "flagged"; resultOpen = false; draw(); window.scrollTo(0, 0); }
     else if (act === "retake") retake();
     else if (act === "scorecard") { resultOpen = true; ovlIn = true; draw(); }
-    else if (act === "filter") { reviewFilter = el.getAttribute("data-f"); draw(); }
+    else if (act === "filter") { reviewFilter = el.getAttribute("data-f"); draw(); window.scrollTo(0, 0); }
     else if (act === "rsol") { var n = Number(el.getAttribute("data-i")); reviewSol[n] = !reviewSol[n]; draw(); }
   });
 

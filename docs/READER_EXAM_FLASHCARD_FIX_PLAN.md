@@ -12,6 +12,12 @@
 2. Do the FIRST unticked slice only. Find the real code first (search the repo), do not guess file names.
 3. Push to `main`, tick the slice, write a short `docs/SESSION_<date>_<slice>.md`.
 
+## Where the code is (found in E1)
+- Practice and exams (question banks, exams, their review): `app/src/main/assets/notes/quiz.html` (one HTML page with its own JS, `draw()` rebuilds the whole page).
+- Competition exams: `app/src/main/assets/notes/competition_exam.html` (probably the same code, check).
+- Website copy (not a priority): `website-reference/src/components/learning/QuizExamViewer.tsx`.
+- Repo is now named `hiyabteklu/Wisdom-tower-academy-app` (the old name `...-packed` redirects, code search only works with the new name).
+
 ## The owner's 10 problems (his words, shortened)
 1. Book/PDF reader remembers the last page. Notes reader does not. He wants the same for notes.
 2. Flashcards: flip and swipe animations are wrong. Swipe/next/prev should have ONE animation, flip/tap a DIFFERENT one. Cards lack a 3D card feel. Flashcards feel awkward overall, rethink them.
@@ -25,21 +31,22 @@
 10. Sign in / sign up screen: fine on his phone (his phone is in a mini/desktop-like mode) but too big and confusing on other phones. The Sign in / Sign up switch is a square with round corners, it must be a PILL. Needs a cool, advanced look (not a flat form) and the brand/logo above it.
 
 ## Likely shared causes (check first, do not assume)
-- Problems 3 and 5 look like the SAME bug: something re-creates the question list or resets the current index to 0 when state changes (next pressed, solution opened, AI panel opened). Look for a screen that is rebuilt/reloaded instead of kept, a current-question value that is reset in a state update, or a navigator that scrolls to the start on every change. Fix once, test both.
+- Problems 3 and 5 were the SAME kind of bug (confirmed in E1): `draw()` rebuilds the page with `innerHTML`, which reset the number strip and the page scroll. Fixed in `quiz.html`.
 - Problems 4 and 7 both live in the same exam screen shell. Do them one after the other in the same files.
 - Problem 8 overlaps `docs/OFFLINE_STATUS_PLAN.md` (O1-O5). Reuse its saved-sync idea, do not build a second system.
 
 ## Slices (do in this order, one per chat)
 Order = most painful bugs first, biggest/riskiest last.
 
-- [ ] **E1 Question navigator jump (problem 3) + review returns to same question (problem 5)**
+- [x] **E1 Question navigator jump (problem 3) + review returns to same question (problem 5)** DONE for `quiz.html` on 2026-11-02, see `docs/SESSION_2026-11-02_E1_NAVIGATOR_REVIEW_SCROLL.md`. Owner still has to test on the phone with a new build.
   Keep the current question when Next/Prev/Solution/Explain with AI is pressed. Navigator scrolls ONLY to bring the current number into view (smooth, no jump to 1), and only when the number is off screen. Opening Solution/AI and coming back shows the same question and the same answer state.
   Owner test: exam with 40 questions, go to 23, press Next (board must not flicker, goes to 24). In review on question 20, press Solution and Explain with AI, close, still on 20.
+- [ ] **E1b Same fix in `competition_exam.html`** (competition exams). Copy the same three changes from `quiz.html` `draw()`: remember page scroll + strip scroll and restore them, move the strip only when the current number is off screen, scroll to top only when a new question / retake / submit / filter happens. Check the competition review too.
 - [ ] **E2 Start Exam button (problem 4)**
-  Exam opens on an intro screen (title, number of questions, time, rules) with a clear Start button. Timer starts only on Start. If the app is closed mid-exam keep the existing resume/integrity behaviour (read `EXAM_INTEGRITY_*` docs first, do not weaken them). Question banks (untimed) can keep a simple Start or open directly, say which in the session file.
+  Exam opens on an intro screen (title, number of questions, time, rules) with a clear Start button. Timer starts only on Start (in `quiz.html` the timer is started inside `setQuiz()` via `startTimer()`, move that call to the Start button; also `startedAt`). If the app is closed mid-exam keep the existing resume/integrity behaviour (read `EXAM_INTEGRITY_*` docs first, do not weaken them). Question banks (untimed) can keep a simple Start or open directly, say which in the session file. Check `competition_exam.html` too.
   Owner test: open an exam, nothing counts down until Start is pressed.
 - [ ] **E3 Clean floating Prev / Next / Submit (problem 7)**
-  Remove the footer block. Buttons float over the screen in a fixed place (same spot for short and long questions), pill/rounded style, with bottom padding on the question area so text is never hidden. Submit appears in the same place on the last question. Works in day and night looks (see `DAY_NIGHT_PLAN.md`) and with the system gesture bar.
+  Remove the footer block (in `quiz.html` it is `.nav` with `position: sticky`, built by `navBar()`). Buttons float over the screen in a fixed place (same spot for short and long questions), pill/rounded style, with bottom padding on the question area so text is never hidden. Submit appears in the same place on the last question. Works in day and night looks (see `DAY_NIGHT_PLAN.md`) and with the system gesture bar.
   Owner test: go through a short and a long question, buttons never move.
 - [ ] **N1 Notes reader remembers position (problem 1)**
   Save last scroll position (or last section) per note, restore on reopen, exactly like the PDF reader. Reuse whatever the PDF reader uses to save the page. Store locally (works offline). Optional second step, only if the app already syncs reading progress: sync it, otherwise do not add a table. If a note is edited and the saved position no longer fits, fall back to the top without errors.
@@ -71,7 +78,7 @@ Order = most painful bugs first, biggest/riskiest last.
 - None yet. (Slices above are expected to need no database change. If one does, list migration name + one line here.)
 
 ## Plan changes
-- (none yet)
+- 2026-11-02: added slice E1b (same fix in `competition_exam.html`), kept E1 as `quiz.html` only so each commit stays small.
 
 ## Next slice
-E1
+E1b
