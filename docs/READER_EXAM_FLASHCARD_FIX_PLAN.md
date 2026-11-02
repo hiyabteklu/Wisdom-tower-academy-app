@@ -45,7 +45,7 @@ Order = most painful bugs first, biggest/riskiest last.
 - [x] **E2 Start Exam button (problem 4)** DONE for `quiz.html` (hub exams) on 2026-11-02, see `docs/SESSION_2026-11-02_E2_START_EXAM.md`. Exams open on a start screen (title, questions, time, rules); the countdown and the time-used clock start only on Start Exam; Retake goes back to the start screen; question banks open directly. Owner still has to test on the phone with a new build.
   **Competition exams were left WITHOUT a Start screen on purpose** (their clock is fixed to the end of the competition and the entry already exists when the window opens). If the owner wants a "Start competition" step it must be added BEFORE the entry is created, in the competition hub. Owner decision needed, see "Plan changes".
   Owner test: open an exam, nothing counts down until Start is pressed.
-- [ ] **E3 Clean floating Prev / Next / Submit (problem 7)**
+- [x] **E3 Clean floating Prev / Next / Submit (problem 7)** DONE in `quiz.html` and `competition_exam.html` on 2026-11-02, see `docs/SESSION_2026-11-02_E3_FLOATING_NAV.md`. Prev / Next / Submit are one floating pill bar fixed to the bottom, same place for short and long questions; a spacer under the question keeps text visible; on the last question Next is disabled and Submit lights up in its place. Day look not verified on a device. Owner still has to test on the phone with a new build.
   Remove the footer block (in `quiz.html` it is `.nav` with `position: sticky`, built by `navBar()`; same in `competition_exam.html`). Buttons float over the screen in a fixed place (same spot for short and long questions), pill/rounded style, with bottom padding on the question area so text is never hidden. Submit appears in the same place on the last question. Works in day and night looks (see `DAY_NIGHT_PLAN.md`) and with the system gesture bar.
   Owner test: go through a short and a long question, buttons never move.
 - [ ] **N1 Notes reader remembers position (problem 1)**
@@ -82,4 +82,4 @@ Order = most painful bugs first, biggest/riskiest last.
 - 2026-11-02 (E2): no Start screen inside the competition exam window. Its countdown runs to the end of the competition and the entry already exists, so a Start screen would hide a running clock without moving the deadline. Open question for the owner: add a "Start competition" step in the competition hub before the entry is created? Not done unless he says yes.
 
 ## Next slice
-E3
+N1
