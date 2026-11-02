@@ -45,11 +45,17 @@
   .xbtn { position: absolute; right: 6px; width: 28px; height: 28px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: #64748b; font-size: .7rem; opacity: .6; padding: 0; }
   .xbtn.on { background: rgba(244,63,94,.2); color: #fda4af; border-color: rgba(251,113,133,.4); opacity: 1; }
 
-  .nav { flex: none; margin-top: auto; position: sticky; bottom: 0; background: #0a101d; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; }
+  /* E3: floating Prev / Next / Submit. Fixed to the bottom of the screen, so the buttons are in the SAME place for
+     short and long questions. .navpad keeps the last lines of a long question from hiding behind the buttons. */
+  .navpad { flex: none; height: calc(84px + env(safe-area-inset-bottom)); }
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; padding: 0 10px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; }
+  .navin { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 100%; max-width: 660px; box-sizing: border-box; padding: 6px; border-radius: 999px; background: rgba(10,16,29,.92); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 6px 20px rgba(0,0,0,.45); }
   .btn { font: 700 .85rem/1 -apple-system, Roboto, sans-serif; padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: transparent; color: #e2e8f0; }
+  .navin .btn { border-radius: 999px; padding: 11px 16px; }
   .btn:disabled { opacity: .4; }
   .btn.amber { background: #f59e0b; border-color: #f59e0b; color: #0a101d; }
   .btn.fin { margin-left: auto; border-color: rgba(52,211,153,.4); background: rgba(16,185,129,.15); color: #a7f3d0; }
+  .btn.fin.hot { background: #10b981; border-color: #10b981; color: #0a101d; font-weight: 800; }
 
   .ovl { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 50; background: rgba(2,6,23,.82); display: flex; align-items: center; justify-content: center; padding: 14px; overflow-y: auto; }
   .sheet { position: relative; width: 100%; max-width: 360px; box-sizing: border-box; border-radius: 24px; border: 1px solid rgba(255,255,255,.15); background: linear-gradient(180deg, #111a2e, #0c1426 60%, #080d19); padding: 20px; text-align: center; margin: auto; }
@@ -135,6 +141,9 @@
  * number = the shaking). draw() now remembers the page scroll and the strip scroll and puts them back, and the strip
  * only moves (smoothly) when the current number is outside the visible part of it. The page still goes to the top
  * on purpose when a new question opens (goTo), when the exam is first shown (setQuiz) and when the result arrives.
+ * E3 (same plan): Prev / Next / Submit are now one floating pill bar fixed to the bottom of the screen (navBar()),
+ * in the same place for short and long questions; a spacer (.navpad) under the question keeps text from hiding
+ * behind it. On the last question Next is disabled and Submit lights up in its place. Logic is unchanged.
  */
 (function () {
   var root = document.getElementById("root");
@@ -268,10 +277,12 @@
     return h + "</div>";
   }
 
+  /* E3: floating pill bar, fixed to the bottom; Submit lights up (same place) on the last question */
   function navBar() {
-    return '<div class="nav"><button class="btn" data-act="prev"' + (idx === 0 ? " disabled" : "") + '>\u2039 Prev</button>' +
-      '<button class="btn amber" data-act="next"' + (idx >= Q.length - 1 ? " disabled" : "") + '>Next \u203A</button>' +
-      '<button class="btn fin" data-act="finish">' + (ranked ? "Submit Exam" : "Finish Practice") + "</button></div>";
+    var last = idx >= Q.length - 1;
+    return '<div class="navpad"></div><div class="nav"><div class="navin"><button class="btn" data-act="prev"' + (idx === 0 ? " disabled" : "") + '>\u2039 Prev</button>' +
+      '<button class="btn amber" data-act="next"' + (last ? " disabled" : "") + '>Next \u203A</button>' +
+      '<button class="btn fin' + (last ? " hot" : "") + '" data-act="finish">' + (ranked ? "Submit Exam" : "Finish Practice") + "</button></div></div>";
   }
 
   function confirmDialog(c) {

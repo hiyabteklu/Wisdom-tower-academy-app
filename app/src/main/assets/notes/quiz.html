@@ -71,12 +71,17 @@
   .aibox .lbl { margin: 0 0 4px; font: 900 .68rem/1 -apple-system, Roboto, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #c4b5fd; font-style: normal; }
   .aibox .study-p { margin: .4em 0; }
 
-  /* bottom navigation */
-  .nav { position: sticky; bottom: 0; background: #0a101d; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); display: flex; align-items: center; gap: 8px; }
+  /* E3: floating Prev / Next / Submit. Fixed to the bottom of the screen, so the buttons are in the SAME place for
+     short and long questions. .navpad keeps the last lines of a long question from hiding behind the buttons. */
+  .navpad { height: calc(84px + env(safe-area-inset-bottom)); }
+  .nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; justify-content: center; padding: 0 10px calc(10px + env(safe-area-inset-bottom)); pointer-events: none; }
+  .navin { pointer-events: auto; display: flex; align-items: center; gap: 8px; width: 100%; max-width: 660px; box-sizing: border-box; padding: 6px; border-radius: 999px; background: rgba(10,16,29,.92); border: 1px solid rgba(255,255,255,.14); box-shadow: 0 6px 20px rgba(0,0,0,.45); }
   .btn { font: 700 .85rem/1 -apple-system, Roboto, sans-serif; padding: 11px 14px; border-radius: 12px; border: 1px solid rgba(255,255,255,.12); background: transparent; color: #e2e8f0; }
+  .navin .btn { border-radius: 999px; padding: 11px 16px; }
   .btn:disabled { opacity: .4; }
   .btn.amber { background: #f59e0b; border-color: #f59e0b; color: #0a101d; }
   .btn.fin { margin-left: auto; border-color: rgba(52,211,153,.4); background: rgba(16,185,129,.15); color: #a7f3d0; }
+  .btn.fin.hot { background: #10b981; border-color: #10b981; color: #0a101d; font-weight: 800; }
 
   /* dialogs */
   .ovl { position: fixed; top: 0; left: 0; right: 0; bottom: 0; z-index: 50; background: rgba(2,6,23,.82); display: flex; align-items: center; justify-content: center; padding: 14px; overflow-y: auto; }
@@ -190,6 +195,9 @@
  * countdown and the "time used" clock start only when Start Exam is pressed (startExam). Question banks (practice,
  * not an exam) still open directly. Retake of an exam goes back to the start screen. The start screen is not
  * a question, so swipe is off there and nothing is reported to the app until Start.
+ * E3 (same plan): Prev / Next / Submit are now one floating pill bar fixed to the bottom of the screen (navBar()),
+ * in the same place for short and long questions; a spacer (.navpad) under the question keeps text from hiding
+ * behind it. On the last question Next is disabled and Submit lights up in its place. Logic is unchanged.
  */
 (function () {
   var root = document.getElementById("root");
@@ -422,10 +430,12 @@
     return h + "</div>";
   }
 
+  /* E3: floating pill bar, fixed to the bottom; Submit lights up (same place) on the last question */
   function navBar() {
-    return '<div class="nav"><button class="btn" data-act="prev"' + (idx === 0 ? " disabled" : "") + '>\u2039 Prev</button>' +
-      '<button class="btn amber" data-act="next"' + (idx >= Q.length - 1 ? " disabled" : "") + '>Next \u203A</button>' +
-      '<button class="btn fin" data-act="finish">' + (isExam ? "Submit Exam" : "Finish Practice") + "</button></div>";
+    var last = idx >= Q.length - 1;
+    return '<div class="navpad"></div><div class="nav"><div class="navin"><button class="btn" data-act="prev"' + (idx === 0 ? " disabled" : "") + '>\u2039 Prev</button>' +
+      '<button class="btn amber" data-act="next"' + (last ? " disabled" : "") + '>Next \u203A</button>' +
+      '<button class="btn fin' + (last ? " hot" : "") + '" data-act="finish">' + (isExam ? "Submit Exam" : "Finish Practice") + "</button></div></div>";
   }
 
   /* E2: start screen of an exam; nothing counts down until Start Exam is pressed */
