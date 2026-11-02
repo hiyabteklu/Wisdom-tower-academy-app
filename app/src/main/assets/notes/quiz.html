@@ -104,6 +104,14 @@
   .wide.cy { background: #22d3ee; border-color: #22d3ee; color: #020617; font-weight: 800; }
   .xclose { position: absolute; top: 10px; right: 10px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: #94a3b8; font-size: 1.1rem; padding: 0; }
 
+  /* E2: exam start screen (the countdown only starts when Start Exam is pressed) */
+  .intro { border: 1px solid rgba(255,255,255,.12); border-radius: 16px; padding: 18px 16px; margin-top: 10px; text-align: center; background: linear-gradient(160deg, #131f38, #0e172a 60%, #0a101d); }
+  .intro h2 { margin: 6px 0 14px; font-size: 1.1rem; font-weight: 800; color: #fff; }
+  .intro .tiles { grid-template-columns: repeat(2, 1fr); }
+  .intro ul { list-style: none; margin: 0 0 16px; padding: 0; text-align: left; font-size: .8rem; color: #94a3b8; }
+  .intro li { position: relative; padding: 4px 0 4px 16px; }
+  .intro li::before { content: "\2022"; position: absolute; left: 4px; color: #fcd34d; }
+
   /* review */
   .rhead { border: 1px solid rgba(255,255,255,.12); border-radius: 12px; background: #0e172a; padding: 12px; margin-bottom: 10px; }
   .rhead .sc { font-size: 1rem; font-weight: 800; color: #fff; }
@@ -178,6 +186,10 @@
  * E1 (docs/READER_EXAM_FLASHCARD_FIX_PLAN.md): draw() rebuilds everything with innerHTML, which used to reset the
  * page scroll and the number strip to the start. draw() now remembers the page scroll and the strip scroll and puts
  * them back, and the strip only moves (smoothly) when the current number is outside the visible part of it.
+ * E2 (same plan): an EXAM (isExam) now opens on a start screen (title, number of questions, time, rules) and the
+ * countdown and the "time used" clock start only when Start Exam is pressed (startExam). Question banks (practice,
+ * not an exam) still open directly. Retake of an exam goes back to the start screen. The start screen is not
+ * a question, so swipe is off there and nothing is reported to the app until Start.
  */
 (function () {
   var root = document.getElementById("root");
@@ -186,6 +198,7 @@
   var submitted = false, saved = false, confirmOpen = false, resultOpen = false;
   var reviewFilter = "all", reviewSol = {}, shake = null;
   var startedAt = Date.now(), elapsedFinal = null, deadline = 0, timerId = null;
+  var started = true;
   var startX = null, startY = null;
   var ai = "", aiLoading = false, reviewAi = {}, reviewAiLoading = {}, pendingAi = {}, aiSeq = 0;
   var enterDir = "", pulseCi = -1, ovlIn = false;
@@ -244,7 +257,7 @@
   }
   function startTimer() {
     stopTimer();
-    if (!isExam || durationMin <= 0 || submitted) return;
+    if (!isExam || durationMin <= 0 || submitted || !started) return;
     deadline = Date.now() + durationMin * 60000;
     timerId = setInterval(tick, 1000);
   }
@@ -276,6 +289,11 @@
   };
 
   /* ---------- actions ---------- */
+  function startExam() {
+    if (started || submitted) return;
+    started = true; startedAt = Date.now(); elapsedFinal = null; enterDir = "r";
+    startTimer(); draw(); window.scrollTo(0, 0);
+  }
   function doSubmit() {
     if (submitted) return;
     submitted = true; elapsedFinal = elapsed(); stopTimer();
@@ -289,6 +307,7 @@
     submitted = false; saved = false; answers = {}; flagged = {}; eliminated = {}; idx = 0; showSol = false;
     lockedBySol = {}; reviewSol = {}; resultOpen = false; confirmOpen = false; reviewFilter = "all";
     ai = ""; aiLoading = false; reviewAi = {}; reviewAiLoading = {}; pendingAi = {};
+    started = !isExam;
     startedAt = Date.now(); elapsedFinal = null; enterDir = "r";
     startTimer(); draw(); window.scrollTo(0, 0);
     if (!isExam) reportProgress();
@@ -409,6 +428,23 @@
       '<button class="btn fin" data-act="finish">' + (isExam ? "Submit Exam" : "Finish Practice") + "</button></div>";
   }
 
+  /* E2: start screen of an exam; nothing counts down until Start Exam is pressed */
+  function introScreen() {
+    var timed = durationMin > 0, mins = Math.round(durationMin * 10) / 10;
+    var rules = ["You can move between questions, flag them and cross out choices.", "No answers or marks are shown until you submit."];
+    if (timed) {
+      rules.push("The countdown starts only when you press Start Exam.");
+      rules.push("The exam submits by itself when the time reaches 0:00.");
+    }
+    var li = "", i;
+    for (i = 0; i < rules.length; i++) li += "<li>" + rules[i] + "</li>";
+    return '<div class="intro"><span class="eyebrow">Exam</span>' + (title ? "<h2>" + esc(title) + "</h2>" : "<h2>Ready?</h2>") +
+      '<div class="tiles"><div class="tile g"><div class="k">Questions</div><p class="v">' + Q.length + '</p></div>' +
+      '<div class="tile"><div class="k">Time</div><p class="v">' + (timed ? mins + " min" : "No limit") + "</p></div></div>" +
+      "<ul>" + li + "</ul>" +
+      '<button class="btn wide cy" data-act="start">Start Exam</button></div>';
+  }
+
   function confirmDialog(c) {
     return '<div class="ovl"><div class="sheet"><h3>' + (isExam ? "Submit this exam?" : "Finish this practice?") + "</h3><p>Answered " + c.attempted + " of " + Q.length +
       " \u00B7 Skipped " + c.skipped + (c.flaggedCount > 0 ? " \u00B7 Flagged " + c.flaggedCount : "") +
@@ -500,6 +536,8 @@
 
   function draw() {
     if (!Q.length) { root.innerHTML = '<p class="msg">No questions yet.</p>'; return; }
+    /* E2: an exam that has not been started shows only the start screen (no top bar, no timer, no questions) */
+    if (isExam && !started && !submitted) { root.innerHTML = introScreen(); return; }
     /* E1: remember where the page and the number strip are, a redraw must never move them */
     var keepY = window.pageYOffset || document.documentElement.scrollTop || 0;
     var oldStrip = root.querySelector('.pills');
@@ -548,7 +586,8 @@
     while (el && el !== root && !(el.getAttribute && el.getAttribute("data-act"))) el = el.parentNode;
     if (!el || el === root) return;
     var act = el.getAttribute("data-act"), c;
-    if (act === "pick") pick(Number(el.getAttribute("data-ci")));
+    if (act === "start") startExam();
+    else if (act === "pick") pick(Number(el.getAttribute("data-ci")));
     else if (act === "elim") toggleElim(Number(el.getAttribute("data-ci")));
     else if (act === "flag") { flagged[idx] = !flagged[idx]; draw(); }
     else if (act === "sol") toggleSol();
@@ -578,7 +617,7 @@
     if (startX == null) return;
     var t = e.changedTouches[0], dx = t.clientX - startX, dy = t.clientY - startY;
     startX = null; startY = null;
-    if (submitted || confirmOpen || resultOpen) return;
+    if (submitted || confirmOpen || resultOpen || !started) return;
     if (Math.abs(dx) < 50 || Math.abs(dx) < Math.abs(dy) * 1.5) return;
     if (dx < 0 && idx < Q.length - 1) goTo(idx + 1);
     else if (dx > 0 && idx > 0) goTo(idx - 1);
@@ -606,6 +645,7 @@
       idx = 0; answers = {}; flagged = {}; eliminated = {}; lockedBySol = {}; showSol = false; submitted = false; saved = false;
       confirmOpen = false; resultOpen = false; reviewFilter = "all"; reviewSol = {}; shake = null; startedAt = Date.now(); elapsedFinal = null;
       ai = ""; aiLoading = false; reviewAi = {}; reviewAiLoading = {}; pendingAi = {};
+      started = !isExam;
       enterDir = "r";
       startTimer(); draw();
       if (!isExam && Q.length) reportProgress();

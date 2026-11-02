@@ -13,8 +13,8 @@
 3. Push to `main`, tick the slice, write a short `docs/SESSION_<date>_<slice>.md`.
 
 ## Where the code is (found in E1)
-- Practice and exams (question banks, exams, their review): `app/src/main/assets/notes/quiz.html` (one HTML page with its own JS, `draw()` rebuilds the whole page).
-- Competition exams: `app/src/main/assets/notes/competition_exam.html` (same `draw()` code, confirmed in E1b; it has no review page, the server grades).
+- Practice and exams (question banks, exams, their review): `app/src/main/assets/notes/quiz.html` (one HTML page with its own JS, `draw()` rebuilds the whole page). Kotlin host: `app/src/main/java/com/wisdomtower/academy/ui/study/QuizExamScreen.kt`.
+- Competition exams: `app/src/main/assets/notes/competition_exam.html` (same `draw()` code, confirmed in E1b; it has no review page, the server grades). Kotlin host: `app/src/main/java/com/wisdomtower/academy/ui/competition/CompetitionExamScreen.kt` (global deadline, autosave, integrity flags).
 - Website copy (not a priority): `website-reference/src/components/learning/QuizExamViewer.tsx`.
 - Repo is now named `hiyabteklu/Wisdom-tower-academy-app` (the old name `...-packed` redirects, code search only works with the new name).
 
@@ -42,11 +42,11 @@ Order = most painful bugs first, biggest/riskiest last.
   Keep the current question when Next/Prev/Solution/Explain with AI is pressed. Navigator scrolls ONLY to bring the current number into view (smooth, no jump to 1), and only when the number is off screen. Opening Solution/AI and coming back shows the same question and the same answer state.
   Owner test: exam with 40 questions, go to 23, press Next (board must not flicker, goes to 24). In review on question 20, press Solution and Explain with AI, close, still on 20.
 - [x] **E1b Same fix in `competition_exam.html`** (competition exams) DONE 2026-11-02, see `docs/SESSION_2026-11-02_E1B_COMPETITION_EXAM_SCROLL.md`. Same three changes as `quiz.html`. The competition exam has no review page (server grades), so nothing to fix there. Owner still has to test on the phone with a new build.
-- [ ] **E2 Start Exam button (problem 4)**
-  Exam opens on an intro screen (title, number of questions, time, rules) with a clear Start button. Timer starts only on Start (in `quiz.html` the timer is started inside `setQuiz()` via `startTimer()`, move that call to the Start button; also `startedAt`). If the app is closed mid-exam keep the existing resume/integrity behaviour (read `EXAM_INTEGRITY_*` docs first, do not weaken them). Question banks (untimed) can keep a simple Start or open directly, say which in the session file. Check `competition_exam.html` too.
+- [x] **E2 Start Exam button (problem 4)** DONE for `quiz.html` (hub exams) on 2026-11-02, see `docs/SESSION_2026-11-02_E2_START_EXAM.md`. Exams open on a start screen (title, questions, time, rules); the countdown and the time-used clock start only on Start Exam; Retake goes back to the start screen; question banks open directly. Owner still has to test on the phone with a new build.
+  **Competition exams were left WITHOUT a Start screen on purpose** (their clock is fixed to the end of the competition and the entry already exists when the window opens). If the owner wants a "Start competition" step it must be added BEFORE the entry is created, in the competition hub. Owner decision needed, see "Plan changes".
   Owner test: open an exam, nothing counts down until Start is pressed.
 - [ ] **E3 Clean floating Prev / Next / Submit (problem 7)**
-  Remove the footer block (in `quiz.html` it is `.nav` with `position: sticky`, built by `navBar()`). Buttons float over the screen in a fixed place (same spot for short and long questions), pill/rounded style, with bottom padding on the question area so text is never hidden. Submit appears in the same place on the last question. Works in day and night looks (see `DAY_NIGHT_PLAN.md`) and with the system gesture bar.
+  Remove the footer block (in `quiz.html` it is `.nav` with `position: sticky`, built by `navBar()`; same in `competition_exam.html`). Buttons float over the screen in a fixed place (same spot for short and long questions), pill/rounded style, with bottom padding on the question area so text is never hidden. Submit appears in the same place on the last question. Works in day and night looks (see `DAY_NIGHT_PLAN.md`) and with the system gesture bar.
   Owner test: go through a short and a long question, buttons never move.
 - [ ] **N1 Notes reader remembers position (problem 1)**
   Save last scroll position (or last section) per note, restore on reopen, exactly like the PDF reader. Reuse whatever the PDF reader uses to save the page. Store locally (works offline). Optional second step, only if the app already syncs reading progress: sync it, otherwise do not add a table. If a note is edited and the saved position no longer fits, fall back to the top without errors.
@@ -79,6 +79,7 @@ Order = most painful bugs first, biggest/riskiest last.
 
 ## Plan changes
 - 2026-11-02: added slice E1b (same fix in `competition_exam.html`), kept E1 as `quiz.html` only so each commit stays small.
+- 2026-11-02 (E2): no Start screen inside the competition exam window. Its countdown runs to the end of the competition and the entry already exists, so a Start screen would hide a running clock without moving the deadline. Open question for the owner: add a "Start competition" step in the competition hub before the entry is created? Not done unless he says yes.
 
 ## Next slice
-E2
+E3
