@@ -17,6 +17,19 @@ export const supabaseAnonKey =
 export const STORAGE_KEY = "wt-academy-auth-v1";
 
 /**
+ * The Android wrapper owns refresh-token rotation for its WebViews.
+ * Detect it from the user agent (set before any page scripts run), with the
+ * injected bridge flag as a secondary signal.
+ */
+function isNativeAcademyApp(): boolean {
+  if (typeof window === "undefined") return false;
+  return (
+    /wta-native|WisdomTowerApp/i.test(window.navigator.userAgent || "") ||
+    (window as Window & { __wtaNativeApp?: boolean }).__wtaNativeApp === true
+  );
+}
+
+/**
  * Checks if a JWT token is synthetic, placeholder, or has an invalid signature
  * that would fail cryptographic verification in PostgREST (causing "No suitable key or wrong key type").
  */
@@ -133,7 +146,8 @@ const authStorage: SupportedStorage = {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
-    autoRefreshToken: true,
+    // Never let Supabase JS race Android for a rotating refresh token.
+    autoRefreshToken: !isNativeAcademyApp(),
     detectSessionInUrl: true,
     flowType: "implicit",
     storage: authStorage,
@@ -232,32 +246,30 @@ export async function recoverSession() {
   try {
     const { data, error } = await supabase.auth.getSession();
     if (error) console.warn("[auth] getSession", error.message);
-    // Proactively refresh if session exists but access token may be stale
     if (data.session) {
-      const expiresAt = data.session.expires_at ?? 0;
-      const soon = Math.floor(Date.now() / 1000) + 60;
+      // Android is the sole refresh-token owner inside the native app. In a
+      // WebView, return the stored session as-is; Android refreshes it and
+      // synchronizes every rotated token through AUTH_BRIDGE_JS.
+      const nativeApp = isNativeAcademyApp();
       let activeSession = data.session;
-      if (expiresAt < soon) {
-        const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-        if (refreshError || !refreshed.session) return null;
-        activeSession = refreshed.session;
-      }
-      // The Android WebView receives a session that was already registered by
-      // SupabaseAuthClient on the native installation. Do not register it again
-      // as a separate browser device: that would collide with the same account's
-      // Android device slot and sign the student out of the embedded website.
-      const isNativeAcademyApp =
-        typeof window !== "undefined" &&
-        (/wta-native|WisdomTowerApp/i.test(window.navigator.userAgent) ||
-          (window as Window & { __wtaNativeApp?: boolean }).__wtaNativeApp === true);
 
-      if (!isNativeAcademyApp) {
+      if (!nativeApp) {
+        // Ordinary browsers refresh their own session when it is nearly expired.
+        const expiresAt = data.session.expires_at ?? 0;
+        const soon = Math.floor(Date.now() / 1000) + 60;
+        if (expiresAt < soon) {
+          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
+          if (refreshError || !refreshed.session) return null;
+          activeSession = refreshed.session;
+        }
+
         const deviceCheck = await registerBrowserDevice(activeSession);
         if (!deviceCheck.ok) {
           await supabase.auth.signOut({ scope: "local" });
           return null;
         }
       }
+
       return activeSession;
     }
     return data.session;
