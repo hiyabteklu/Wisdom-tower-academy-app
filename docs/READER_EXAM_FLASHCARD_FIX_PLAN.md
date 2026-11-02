@@ -48,7 +48,7 @@ Order = most painful bugs first, biggest/riskiest last.
 - [x] **E3 Clean floating Prev / Next / Submit (problem 7)** DONE in `quiz.html` and `competition_exam.html` on 2026-11-02, see `docs/SESSION_2026-11-02_E3_FLOATING_NAV.md`. Prev / Next / Submit are one floating pill bar fixed to the bottom, same place for short and long questions; a spacer under the question keeps text visible; on the last question Next is disabled and Submit lights up in its place. Day look not verified on a device. Owner still has to test on the phone with a new build.
   Remove the footer block (in `quiz.html` it is `.nav` with `position: sticky`, built by `navBar()`; same in `competition_exam.html`). Buttons float over the screen in a fixed place (same spot for short and long questions), pill/rounded style, with bottom padding on the question area so text is never hidden. Submit appears in the same place on the last question. Works in day and night looks (see `DAY_NIGHT_PLAN.md`) and with the system gesture bar.
   Owner test: go through a short and a long question, buttons never move.
-- [ ] **N1 Notes reader remembers position (problem 1)**
+- [x] **N1 Notes reader remembers position (problem 1)** DONE 2026-11-02, see `docs/SESSION_2026-11-02_N1_NOTES_POSITION.md`. The notes page reports its scroll position as a share of the page height; `NotesReaderScreen.kt` keeps it on the phone (SharedPreferences `notes_reader_state`, key `pos_<resourceId>`, like the PDF reader's `last_page_<id>`) and hands it back to the page when the note opens. Phone copy only, not synced (no table added). A note read to the end opens at the top. Not compiled, not tested on a device: owner still has to test with a new build.
   Save last scroll position (or last section) per note, restore on reopen, exactly like the PDF reader. Reuse whatever the PDF reader uses to save the page. Store locally (works offline). Optional second step, only if the app already syncs reading progress: sync it, otherwise do not add a table. If a note is edited and the saved position no longer fits, fall back to the top without errors.
   Owner test: scroll deep into a note, close, reopen, it opens where he stopped.
 - [ ] **F1 Flashcards rethink (problem 2)**
@@ -80,6 +80,7 @@ Order = most painful bugs first, biggest/riskiest last.
 ## Plan changes
 - 2026-11-02: added slice E1b (same fix in `competition_exam.html`), kept E1 as `quiz.html` only so each commit stays small.
 - 2026-11-02 (E2): no Start screen inside the competition exam window. Its countdown runs to the end of the competition and the entry already exists, so a Start screen would hide a running clock without moving the deadline. Open question for the owner: add a "Start competition" step in the competition hub before the entry is created? Not done unless he says yes.
+- 2026-11-02 (N1): notes position is kept on the phone only (no server sync, no new table). Open question for the owner: also sync it so a note opens at the same place on a second phone? Not done unless he says yes.
 
 ## Next slice
-N1
+F1
