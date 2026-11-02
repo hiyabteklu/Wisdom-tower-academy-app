@@ -12,7 +12,9 @@
    * its own explicit height (56vh, at least 300px), so it can never collapse to nothing. */
   html, body { margin: 0; padding: 0; background: #0a101d; }
   body { color: #cbd5e1; font: 16px/1.6 -apple-system, Roboto, "Segoe UI", sans-serif; -webkit-text-size-adjust: 100%; -webkit-tap-highlight-color: transparent; touch-action: pan-y; }
-  #root { box-sizing: border-box; padding: 6px 12px 16px; max-width: 640px; margin: 0 auto; overflow-wrap: anywhere; }
+  /* F1 (2026-11-02): a card sliding off the screen must never create a sideways page scroll, so #root clips sideways
+   * (hidden first for old WebViews, then clip, which keeps the vertical overflow visible). */
+  #root { box-sizing: border-box; padding: 6px 12px 16px; max-width: 640px; margin: 0 auto; overflow-wrap: anywhere; overflow-x: hidden; overflow-x: clip; }
   .msg { text-align: center; color: #94a3b8; padding: 40px 0; font-size: .95rem; margin: 0; }
 
   .chips { display: flex; flex-wrap: wrap; gap: 6px; font-size: .75rem; margin-bottom: 6px; }
@@ -21,27 +23,48 @@
   .chip.learning { border-color: rgba(251,191,36,.25); color: #fde68a; }
   .chip.again { border-color: rgba(251,113,133,.25); color: #fecdd3; }
 
-  /* M8 (2026-10-16): the flip turns the card around its vertical axis (rotateY, perspective on the slot). Still NO
-   * backface-visibility and NO preserve-3d: only ONE face is shown at a time and the faces are swapped while the card is
-   * edge-on (script below), so a missing 3D transform can never hide the answer (the F1d lesson).
-   *
-   * Owner request 2026-10-24: NO sideways movement and NO tilt any more (the card no longer follows the finger, no slide-in,
-   * no rotate). Changing the card (Previous, Next, a swipe, Again / Learning / Known) uses the SAME turn as the flip: the old
-   * card turns edge-on (.slot.leave), then the new card turns in (.slot.enter). Buttons and swipe look identical. */
-  .slot { position: relative; height: 56vh; min-height: 300px; perspective: 900px; cursor: pointer; }
+  /* F1 (docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02): TWO different motions, never mixed.
+   *  - FLIP (tap) = the card turns around its vertical axis with perspective (.flip.turn, 0.4 s). Still NO preserve-3d and
+   *    NO backface-visibility: only ONE face is shown at a time and the faces are swapped while the card is edge-on
+   *    (script below), so a missing 3D transform can never hide the answer (the F1d lesson). The perspective is part of
+   *    the transform itself (perspective(900px) rotateY()), so it works on this element without a 3D parent.
+   *  - CHANGE CARD (swipe, Previous, Next, Again / Learning / Known) = the card (.mover) slides and tilts out and fades, the
+   *    next card slides in from the other side with a slight tilt. The finger drags the card, and an early release springs
+   *    it back. Two cards are visible behind it (.stk) as a deck.
+   * This replaces the owner request of 2026-10-24 (no sideways move, same turn for everything): the owner's newer plan asks
+   * for slide for changing cards and the 3D turn only for the flip. To go back to the 10-24 look, see
+   * docs/SESSION_2026-11-02_F1_FLASHCARDS.md. */
+  .slot { position: relative; height: 56vh; min-height: 300px; margin-bottom: 26px; cursor: pointer; }
+  .stk { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 22px; border: 1px solid rgba(255,255,255,.1);
+         background: linear-gradient(160deg, #101a30, #0c1426 60%, #0a101d); transform-origin: 50% 100%; box-shadow: 0 8px 18px rgba(0,0,0,.3); }
+  .stk.s1 { transform: translateY(11px) scale(.955); opacity: .75; }
+  .stk.s2 { transform: translateY(22px) scale(.91); opacity: .45; }
+  .mover { position: absolute; top: 0; left: 0; right: 0; bottom: 0; will-change: transform; }
+  .mover.in-fwd { animation: fcInFwd .3s cubic-bezier(.22,1,.36,1); }
+  .mover.in-back { animation: fcInBack .3s cubic-bezier(.22,1,.36,1); }
+  .mover.in-fade { animation: fcFade .18s ease-out; }
   .flip { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
-  .flip.turn { animation: fcTurn .34s ease-in-out; }
-  .slot.leave .flip { transform: rotateY(90deg); transition: transform .14s ease-in; }
-  .slot.enter .flip { animation: fcTurnIn .2s ease-out; }
+  .flip.turn { animation: fcTurn .4s linear; }
+  .flip.turn .face { animation: fcShadow .4s ease-in-out; }
   .face { position: absolute; top: 0; left: 0; right: 0; bottom: 0; box-sizing: border-box; border-radius: 22px; padding: 18px 20px;
           border: 1px solid rgba(255,255,255,.12); background: linear-gradient(160deg, #131f38, #0e172a 60%, #0a101d);
-          display: flex; flex-direction: column; overflow-y: auto; }
+          box-shadow: 0 12px 26px rgba(0,0,0,.4); display: flex; flex-direction: column; overflow-y: auto; }
   .face.back { display: none; border-color: rgba(34,211,238,.35); }
   .flip.flipped .face.front { display: none; }
   .flip.flipped .face.back { display: flex; }
   @keyframes fcIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
-  @keyframes fcTurn { 0% { transform: rotateY(0deg); } 49.9% { transform: rotateY(90deg); } 50% { transform: rotateY(-90deg); } 100% { transform: rotateY(0deg); } }
-  @keyframes fcTurnIn { from { transform: rotateY(-90deg); } to { transform: rotateY(0deg); } }
+  @keyframes fcInFwd { from { opacity: 0; transform: translateX(52px) rotate(4deg); } to { opacity: 1; transform: none; } }
+  @keyframes fcInBack { from { opacity: 0; transform: translateX(-52px) rotate(-4deg); } to { opacity: 1; transform: none; } }
+  @keyframes fcFade { from { opacity: 0; } to { opacity: 1; } }
+  /* first half speeds up to edge-on, second half slows down; the faces are swapped at the 50 percent mark */
+  @keyframes fcTurn {
+    0% { transform: perspective(900px) rotateY(0deg); animation-timing-function: ease-in; }
+    49.9% { transform: perspective(900px) rotateY(90deg); }
+    50% { transform: perspective(900px) rotateY(-90deg); animation-timing-function: ease-out; }
+    100% { transform: perspective(900px) rotateY(0deg); }
+  }
+  /* the shadow shrinks while the card is edge-on and comes back */
+  @keyframes fcShadow { 0%, 100% { box-shadow: 0 12px 26px rgba(0,0,0,.4); } 50% { box-shadow: 0 2px 6px rgba(0,0,0,.2); } }
 
   .lbl { flex: 0 0 auto; margin: 0 0 8px; text-align: center; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; }
   .lbl.q { color: #c4b5fd; }
@@ -68,9 +91,9 @@
   .done .big { margin: 0 0 6px; font-size: 1.4rem; font-weight: 800; color: #fff; }
   .done .sub { margin: 0 0 18px; font-size: .95rem; color: #94a3b8; }
 
+  /* Remove animations in the phone settings: no turn, no slide, no drag; a changed card only fades in (.in-fade) */
   @media (prefers-reduced-motion: reduce) {
-    .done, .flip.turn, .slot.enter .flip { animation: none !important; }
-    .slot.leave .flip { transition: none !important; transform: none !important; }
+    .done, .flip.turn, .flip.turn .face, .mover.in-fwd, .mover.in-back { animation: none !important; }
   }
 </style>
 </head>
@@ -94,10 +117,15 @@ window.onerror = function (message) {
  * "Again" / "Learning" / "Known" (the owner's wording; the website says "Know"). The stats keys sent to the app
  * are unchanged (know, learning, again, seen, total, accuracy).
  * F1c: visible errors instead of a silent dark screen. F1d: no preserve-3d / backface. F1g: normal page flow, fixed card height.
- * Owner request 2026-10-24: the card no longer follows the finger (no sideways move, no tilt, no slide-in). A swipe of 60 px
- * or more still changes the card, and every card change (Previous, Next, swipe, Again / Learning / Known) plays the same
- * turn animation, so the buttons are animated too. To get a plain fade instead, change .slot.leave .flip and
- * .slot.enter .flip in the style block.
+ * Owner request 2026-10-24 (replaced on 2026-11-02, see the style block): the card did not follow the finger and every change
+ * used the flip's turn.
+ * F1 (2026-11-02, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, problem 2): two separate motions.
+ *   Tap = 3D flip (turn around the vertical axis, 0.4 s, faces swapped at edge-on).
+ *   Swipe / Previous / Next / Again / Learning / Known = ONE slide animation: the card slides out sideways with a tilt and
+ *   fades (0.22 s), the next card slides in from the other side (0.3 s). Swipe: the card follows the finger (with a slight
+ *   tilt); released at 60 px or more it slides out, released earlier it springs back. At the first / last card the drag has
+ *   resistance and always springs back. No flip while a swipe or a card change is running. Two cards are drawn behind the
+ *   top card while more cards follow. With "Remove animations" on, nothing moves: the card changes at once with a short fade.
  * Called from the app: window.setDeck(metaJsonText) with the row's `meta` JSON ({ "cards": [ { front, back } ] }).
  * Progress goes back to the app through window.WTBridge.onProgress(json) (the app saves it to learning_progress).
  */
@@ -141,7 +169,7 @@ window.onerror = function (message) {
     }
   }
 
-  /* enter = true: the new card turns in (after a card change); false: drawn at once */
+  /* enter: "fwd" (the new card slides in from the right), "back" (from the left), "fade" (reduced motion) or "" (drawn at once) */
   function draw(enter) {
     if (!cards.length) { root.innerHTML = '<p class="msg">No cards in this deck yet.</p>'; return; }
     var s = stats();
@@ -151,11 +179,13 @@ window.onerror = function (message) {
       return;
     }
     var c = cards[i];
+    var stack = (i + 2 < cards.length ? '<div class="stk s2"></div>' : "") + (i + 1 < cards.length ? '<div class="stk s1"></div>' : "");
     root.innerHTML =
       '<div class="chips"><span class="chip">' + (i + 1) + "/" + cards.length + '</span><span class="chip know">Known ' + s.know +
       '</span><span class="chip learning">Learning ' + s.learning + '</span><span class="chip again">Again ' + s.again + "</span></div>" +
-      '<div class="slot' + (enter && !reduced ? " enter" : "") + '" data-act="flip"><div class="flip' + (flipped ? " flipped" : "") + '" id="flip">' +
-      face("front", "Question", "q", c.front) + face("back", "Answer", "a", c.back) + "</div></div>" +
+      '<div class="slot" data-act="flip">' + stack + '<div class="mover' + (enter ? " in-" + enter : "") + '" id="mover">' +
+      '<div class="flip' + (flipped ? " flipped" : "") + '" id="flip">' +
+      face("front", "Question", "q", c.front) + face("back", "Answer", "a", c.back) + "</div></div></div>" +
       '<p class="hint">Swipe left/right to change card · Tap to flip</p>' +
       '<div class="bar"><div class="nav"><button class="btn" data-act="prev"' + (i === 0 ? " disabled" : "") + '>‹ Previous</button>' +
       '<button class="btn" data-act="next"' + (i >= cards.length - 1 ? " disabled" : "") + '>Next ›</button></div>' +
@@ -163,20 +193,27 @@ window.onerror = function (message) {
       '<button class="btn know" data-act="know">Known</button></div></div>';
   }
 
-  /* Card change: the old card turns edge-on (0.14 s), then apply() swaps the content and the new card turns in (0.2 s).
-   * Clicks and swipes are ignored while this runs (busy). With reduced motion the change is immediate. */
-  function swapCard(apply) {
+  /* which way the NEW card comes in: leaving to the left (dir -1) means the next card comes from the right */
+  function enterMode(dir) { return reduced ? "fade" : (dir < 0 ? "fwd" : "back"); }
+
+  /* Card change: the old card slides out to the side with a tilt and fades (0.22 s, from wherever the finger left it), then
+   * apply(mode) swaps the content and the new card slides in. dir -1 = out to the left (next card), 1 = out to the right
+   * (previous card). Clicks and swipes are ignored while this runs (busy). With reduced motion the change is immediate. */
+  function swapCard(dir, apply) {
     if (busy) return;
-    var slot = document.querySelector(".slot");
-    if (!slot || reduced) { apply(); return; }
+    var m = document.getElementById("mover");
+    if (!m || reduced) { apply(enterMode(dir)); return; }
     busy = true;
-    slot.classList.add("leave");
-    window.setTimeout(function () { busy = false; apply(); }, 140);
+    var w = Math.max(window.innerWidth || 360, 320);
+    m.style.transition = "transform .22s ease-in, opacity .22s ease-in";
+    m.style.transform = "translateX(" + (dir * w) + "px) rotate(" + (dir * 14) + "deg)";
+    m.style.opacity = "0";
+    window.setTimeout(function () { busy = false; apply(enterMode(dir)); }, 230);
   }
 
   function goTo(n) {
-    if (n < 0 || n >= cards.length) return;
-    swapCard(function () { i = n; flipped = false; draw(true); });
+    if (n < 0 || n >= cards.length || n === i) return;
+    swapCard(n > i ? -1 : 1, function (mode) { i = n; flipped = false; draw(mode); });
   }
 
   function grade(g) {
@@ -184,22 +221,28 @@ window.onerror = function (message) {
     grades[i] = g;
     report();
     if (i < cards.length - 1) {
-      swapCard(function () { i = i + 1; flipped = false; draw(true); });
+      swapCard(-1, function (mode) { i = i + 1; flipped = false; draw(mode); });
     } else {
-      done = true; draw(false);
+      done = true; draw("");
     }
   }
 
   function restart() {
-    grades = {}; done = false; i = 0; flipped = false; draw(false); report();
+    grades = {}; done = false; i = 0; flipped = false; draw(""); report();
   }
 
-  /* Flip: the card turns around its vertical axis (CSS animation "fcTurn", 0.34 s) and the faces are swapped while it is
-   * edge-on (0.17 s). The swap happens even if the animation never runs, so the answer always appears. */
+  /* Flip: the card turns around its vertical axis (CSS animation "fcTurn", 0.4 s) and the faces are swapped while it is
+   * edge-on (0.2 s). The swap happens even if the animation never runs, so the answer always appears. Not while a swipe or
+   * a card change is running. With reduced motion the faces swap at once. */
   function flipCard() {
+    if (busy || swiping) return;
     var f = document.getElementById("flip");
     if (!f) return;
     flipped = !flipped;
+    if (reduced) {
+      if (flipped) f.classList.add("flipped"); else f.classList.remove("flipped");
+      return;
+    }
     f.classList.remove("turn");
     void f.offsetWidth;
     f.classList.add("turn");
@@ -207,7 +250,7 @@ window.onerror = function (message) {
       var g = document.getElementById("flip");
       if (!g) return;
       if (flipped) g.classList.add("flipped"); else g.classList.remove("flipped");
-    }, 170);
+    }, 200);
   }
 
   root.addEventListener("click", function (e) {
@@ -223,8 +266,11 @@ window.onerror = function (message) {
     else if (act === "restart") restart();
   });
 
-  /* Swipe: nothing moves under the finger. A horizontal swipe of 60 px or more changes the card (same turn as the buttons);
-   * a vertical move is left to the page and the card scroll. */
+  /* Swipe: the card follows the finger (sideways, with a slight tilt). A horizontal swipe of 60 px or more changes the card with
+   * the slide animation; an earlier release springs back. Where there is no card in that direction the drag has resistance and
+   * always springs back. A vertical move is left to the page and the card scroll. */
+  function canGo(d) { return d < 0 ? i < cards.length - 1 : i > 0; }
+
   document.addEventListener("touchstart", function (e) {
     if (busy || done) { startX = null; return; }
     var t = e.touches[0];
@@ -240,6 +286,14 @@ window.onerror = function (message) {
       swiping = true;
     }
     dx = mx;
+    if (!reduced) {
+      var m = document.getElementById("mover");
+      if (m) {
+        var eff = canGo(mx) ? mx : mx * 0.25;
+        m.style.transition = "none";
+        m.style.transform = "translateX(" + eff + "px) rotate(" + (eff / 24) + "deg)";
+      }
+    }
   }, { passive: true });
 
   function endSwipe(cancelled) {
@@ -248,7 +302,14 @@ window.onerror = function (message) {
     if (!was) return;
     suppressClick = true;
     window.setTimeout(function () { suppressClick = false; }, 350);
-    if (cancelled || Math.abs(d) < 60) return;
+    if (cancelled || Math.abs(d) < 60 || !canGo(d)) {
+      var m = document.getElementById("mover");
+      if (m && !reduced) {
+        m.style.transition = "transform .32s cubic-bezier(.34,1.56,.64,1)";
+        m.style.transform = "translateX(0px) rotate(0deg)";
+      }
+      return;
+    }
     goTo(i + (d < 0 ? 1 : -1));
   }
   document.addEventListener("touchend", function () { endSwipe(false); }, { passive: true });
@@ -260,7 +321,7 @@ window.onerror = function (message) {
       var list = Array.isArray(meta && meta.cards) ? meta.cards : [];
       cards = list.map(function (c) { return { front: c && c.front, back: c && c.back }; });
       i = 0; flipped = false; grades = {}; done = false; busy = false;
-      draw(false);
+      draw("");
       if (cards.length) report();
     } catch (e) {
       root.innerHTML = '<p class="msg">Could not display this deck. (' + String(e && e.message || e).slice(0, 160) + ")</p>";
