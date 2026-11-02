@@ -64,6 +64,11 @@ class GrantOutcome(val ok: Boolean, val message: String)
  * does not rely on an ON CONFLICT rule (it reads the existing rows once, updates those and inserts the rest in one
  * request), and every refusal or zero-row change is reported instead of ignored.
  *
+ * Phone-registered students (2026-11-02): their profile has no e-mail, but their login e-mail is the synthetic
+ * address p<digits>@phone.wisdomtower.app (see SupabaseAuthClient / website authIdentity.ts). grant() now uses that
+ * address (access_grants.email is NOT NULL) together with the user id, and detail() reads their grants by user id.
+ * Access checks in the database match on user_id OR e-mail, so the grant takes effect.
+ *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
 object UsersRepository {
@@ -92,6 +97,18 @@ object UsersRepository {
 
     private fun packageLabel(row: JSONObject): String =
         row.text("package_name") ?: row.text("package_id") ?: "Package"
+
+    /**
+     * The e-mail to store on a grant. A real profile e-mail wins. A phone-registered student has none, so the
+     * synthetic login address is used (same format as SupabaseAuthClient: p + phone digits + @phone.wisdomtower.app).
+     * Empty string = the scholar has neither an e-mail nor a phone number.
+     */
+    private fun grantEmail(scholar: ScholarItem): String {
+        val real = scholar.email?.trim()?.lowercase().orEmpty()
+        if (real.isNotEmpty()) return real
+        val digits = scholar.phone.orEmpty().filter { it.isDigit() }
+        return if (digits.isEmpty()) "" else "p$digits@phone.wisdomtower.app"
+    }
 
     suspend fun list(): ScholarsResult {
         var limit = LIST_LIMIT
@@ -135,13 +152,17 @@ object UsersRepository {
         if (!results.ok) return StudentDetailResult.Failure(results.errorText())
         val enrolled = AdminSupabase.get("enrollments?select=*&user_id=eq.$uid&order=created_at.desc")
         if (!enrolled.ok) return StudentDetailResult.Failure(enrolled.errorText())
-        var grantsBody = "[]"
+        // With an e-mail the grants are read by e-mail (as the website does). A phone-registered student has no
+        // e-mail on the profile, so their grants are read by user id instead of showing none.
         val mail = email?.trim()?.lowercase().orEmpty()
-        if (mail.isNotEmpty()) {
-            val grants = AdminSupabase.get("access_grants?select=*&email=eq.${Uri.encode(mail)}")
-            if (!grants.ok) return StudentDetailResult.Failure(grants.errorText())
-            grantsBody = grants.body
+        val grantsPath = if (mail.isNotEmpty()) {
+            "access_grants?select=*&email=eq.${Uri.encode(mail)}"
+        } else {
+            "access_grants?select=*&user_id=eq.$uid"
         }
+        val grants = AdminSupabase.get(grantsPath)
+        if (!grants.ok) return StudentDetailResult.Failure(grants.errorText())
+        val grantsBody = grants.body
         return try {
             val scores = ArrayList<StudentScore>()
             val scoreRows = JSONArray(results.body)
@@ -237,9 +258,13 @@ object UsersRepository {
 
     /** packageId is ALL_PACKAGES_ID or one id from ADMIN_PACKAGES. Never throws. */
     suspend fun grant(scholar: ScholarItem, packageId: String, note: String): GrantOutcome {
-        val email = scholar.email?.trim()?.lowercase().orEmpty()
-        if (email.isEmpty()) return GrantOutcome(false, "User has no email associated with account")
+        val email = grantEmail(scholar)
+        if (email.isEmpty()) {
+            return GrantOutcome(false, "This scholar has no email or phone number on file, so a grant cannot be saved")
+        }
         if (!EMAIL_SHAPE.matches(email)) return GrantOutcome(false, "This account's email address is not valid")
+        // What the toast shows: the real e-mail, or the phone number for a phone-registered student.
+        val who = scholar.email?.trim()?.takeIf { it.isNotEmpty() } ?: scholar.phone?.takeIf { it.isNotBlank() } ?: email
         val pid = packageId.trim()
         if (pid.isEmpty()) return GrantOutcome(false, "Choose a package")
 
@@ -312,9 +337,9 @@ object UsersRepository {
             return GrantOutcome(false, "Grant saved, but the enrollment copy failed: $enrollError")
         }
         return if (isAll) {
-            GrantOutcome(true, "Granted full platform pass to $email (${targets.size} packages)")
+            GrantOutcome(true, "Granted full platform pass to $who (${targets.size} packages)")
         } else {
-            GrantOutcome(true, "Granted ${targets[0].second} to $email")
+            GrantOutcome(true, "Granted ${targets[0].second} to $who")
         }
     }
 }
