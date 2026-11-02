@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.annotation.SuppressLint
+import android.content.Context
 import android.os.SystemClock
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -56,6 +57,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import org.json.JSONObject
 
+/** Phone-only copy of where the student stopped reading each note (N1), one float per note: 0 to 1 of the scroll height. */
+private const val NOTES_STATE_PREFS = "notes_reader_state"
+
 /**
  * Saves started from the notes page must survive the student leaving the screen, so they run in this app-wide
  * scope, not in the screen's own scope (that one is cancelled on leaving).
@@ -97,6 +101,15 @@ private fun flushNoteProgress(resourceId: String, progress: NoteProgress) {
  * scrolled percent with `WTBridge.onProgress({ pct })` (100 from 95 percent on and after a Summary), saved to
  * `learning_progress` (the higher percent is kept by the repository); the reading time is added every 30 seconds
  * and once more when the screen is left. Nothing is saved for a signed-out student (the repository returns false).
+ *
+ * Reading position (N1, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02, owner: the book reader remembers the last
+ * page, the notes reader must too): the page reports where the student is with `WTBridge.onPosition({ frac })`
+ * (0 to 1 of the scroll height, a share so it still fits another screen width or text size). It is kept in the phone's
+ * SharedPreferences [NOTES_STATE_PREFS], key `pos_<resourceId>`, like the PDF reader keeps `last_page_<id>`, so it also
+ * works offline and for a signed-out student. On opening, the saved share is handed to the page with
+ * `window.setNote(text, frac)`, which scrolls there once the page is laid out. Not synced to the server on purpose:
+ * `learning_progress` has a `last_page` for books but nothing for a scroll share, and the plan says not to add a table.
+ * A note edited since then simply opens at the same share (clamped); a saved 0 or a note read to the end opens at the top.
  *
  * Loading look (owner request 2026-10-13): while the note is fetched and while the page lays itself out (the maths
  * is typeset and the lines change length, so the page would visibly jump), the app-start loader ([BrandSplashLoader])
@@ -142,6 +155,9 @@ fun NotesReaderScreen(
     val webRef = remember { arrayOfNulls<WebView>(1) }
     val progress = remember(resourceId) { NoteProgress() }
     var pageReady by remember(resourceId) { mutableStateOf(false) }
+    // N1: where the student stopped last time (read once when the note opens)
+    val statePrefs = remember { context.getSharedPreferences(NOTES_STATE_PREFS, Context.MODE_PRIVATE) }
+    val startFrac = remember(resourceId) { statePrefs.getFloat("pos_$resourceId", 0f).coerceIn(0f, 1f) }
 
     LaunchedEffect(resourceId, attempt) {
         result = null
@@ -208,6 +224,15 @@ fun NotesReaderScreen(
                 }
                 Unit
             },
+            onPosition = { json ->
+                try {
+                    val frac = JSONObject(json).optDouble("frac", 0.0).toFloat().coerceIn(0f, 1f)
+                    statePrefs.edit().putFloat("pos_$resourceId", frac).apply()
+                } catch (e: Exception) {
+                    // A bad position message must never break the reader.
+                }
+                Unit
+            },
             onReady = {
                 screenScope.launch(Dispatchers.Main) {
                     pageReady = true
@@ -244,6 +269,7 @@ fun NotesReaderScreen(
                         // The page is hidden while it lays itself out: fully hidden, then fully shown (BG-NOFADE).
                         NoteWebView(
                             body = r.item.bodyMd.orEmpty(),
+                            startFrac = startFrac,
                             bridge = bridge,
                             webRef = webRef,
                             modifier = Modifier
@@ -286,6 +312,7 @@ fun NotesReaderScreen(
 private class NotesBridge(
     private val onSummarize: (String) -> Unit,
     private val onProgress: (String) -> Unit,
+    private val onPosition: (String) -> Unit,
     private val onReady: () -> Unit
 ) {
     @JavascriptInterface
@@ -299,6 +326,11 @@ private class NotesBridge(
     }
 
     @JavascriptInterface
+    fun onPosition(json: String) {
+        onPosition.invoke(json)
+    }
+
+    @JavascriptInterface
     fun onReady() {
         onReady.invoke()
     }
@@ -306,7 +338,7 @@ private class NotesBridge(
 
 @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
-private fun NoteWebView(body: String, bridge: Any, webRef: Array<WebView?>, modifier: Modifier) {
+private fun NoteWebView(body: String, startFrac: Float, bridge: Any, webRef: Array<WebView?>, modifier: Modifier) {
     // JSONObject.quote gives a safe JavaScript string literal (quotes, backslashes, newlines escaped)
     val literal = remember(body) { JSONObject.quote(body) }
     key(literal) {
@@ -332,7 +364,8 @@ private fun NoteWebView(body: String, bridge: Any, webRef: Array<WebView?>, modi
 
                         override fun onPageFinished(view: WebView, url: String?) {
                             AppBackdrop.clearPageBackground(view)
-                            view.evaluateJavascript("window.setNote($literal);", null)
+                            // N1: the second argument is where the student stopped last time (0 = the top)
+                            view.evaluateJavascript("window.setNote($literal, $startFrac);", null)
                         }
 
                         // The note page never navigates away; ignore every link tap.
