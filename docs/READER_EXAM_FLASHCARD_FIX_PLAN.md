@@ -14,7 +14,7 @@
 
 ## Where the code is (found in E1)
 - Practice and exams (question banks, exams, their review): `app/src/main/assets/notes/quiz.html` (one HTML page with its own JS, `draw()` rebuilds the whole page).
-- Competition exams: `app/src/main/assets/notes/competition_exam.html` (probably the same code, check).
+- Competition exams: `app/src/main/assets/notes/competition_exam.html` (same `draw()` code, confirmed in E1b; it has no review page, the server grades).
 - Website copy (not a priority): `website-reference/src/components/learning/QuizExamViewer.tsx`.
 - Repo is now named `hiyabteklu/Wisdom-tower-academy-app` (the old name `...-packed` redirects, code search only works with the new name).
 
@@ -31,7 +31,7 @@
 10. Sign in / sign up screen: fine on his phone (his phone is in a mini/desktop-like mode) but too big and confusing on other phones. The Sign in / Sign up switch is a square with round corners, it must be a PILL. Needs a cool, advanced look (not a flat form) and the brand/logo above it.
 
 ## Likely shared causes (check first, do not assume)
-- Problems 3 and 5 were the SAME kind of bug (confirmed in E1): `draw()` rebuilds the page with `innerHTML`, which reset the number strip and the page scroll. Fixed in `quiz.html`.
+- Problems 3 and 5 were the SAME kind of bug (confirmed in E1): `draw()` rebuilds the page with `innerHTML`, which reset the number strip and the page scroll. Fixed in `quiz.html` (E1) and `competition_exam.html` (E1b).
 - Problems 4 and 7 both live in the same exam screen shell. Do them one after the other in the same files.
 - Problem 8 overlaps `docs/OFFLINE_STATUS_PLAN.md` (O1-O5). Reuse its saved-sync idea, do not build a second system.
 
@@ -41,7 +41,7 @@ Order = most painful bugs first, biggest/riskiest last.
 - [x] **E1 Question navigator jump (problem 3) + review returns to same question (problem 5)** DONE for `quiz.html` on 2026-11-02, see `docs/SESSION_2026-11-02_E1_NAVIGATOR_REVIEW_SCROLL.md`. Owner still has to test on the phone with a new build.
   Keep the current question when Next/Prev/Solution/Explain with AI is pressed. Navigator scrolls ONLY to bring the current number into view (smooth, no jump to 1), and only when the number is off screen. Opening Solution/AI and coming back shows the same question and the same answer state.
   Owner test: exam with 40 questions, go to 23, press Next (board must not flicker, goes to 24). In review on question 20, press Solution and Explain with AI, close, still on 20.
-- [ ] **E1b Same fix in `competition_exam.html`** (competition exams). Copy the same three changes from `quiz.html` `draw()`: remember page scroll + strip scroll and restore them, move the strip only when the current number is off screen, scroll to top only when a new question / retake / submit / filter happens. Check the competition review too.
+- [x] **E1b Same fix in `competition_exam.html`** (competition exams) DONE 2026-11-02, see `docs/SESSION_2026-11-02_E1B_COMPETITION_EXAM_SCROLL.md`. Same three changes as `quiz.html`. The competition exam has no review page (server grades), so nothing to fix there. Owner still has to test on the phone with a new build.
 - [ ] **E2 Start Exam button (problem 4)**
   Exam opens on an intro screen (title, number of questions, time, rules) with a clear Start button. Timer starts only on Start (in `quiz.html` the timer is started inside `setQuiz()` via `startTimer()`, move that call to the Start button; also `startedAt`). If the app is closed mid-exam keep the existing resume/integrity behaviour (read `EXAM_INTEGRITY_*` docs first, do not weaken them). Question banks (untimed) can keep a simple Start or open directly, say which in the session file. Check `competition_exam.html` too.
   Owner test: open an exam, nothing counts down until Start is pressed.
@@ -81,4 +81,4 @@ Order = most painful bugs first, biggest/riskiest last.
 - 2026-11-02: added slice E1b (same fix in `competition_exam.html`), kept E1 as `quiz.html` only so each commit stays small.
 
 ## Next slice
-E1b
+E2
