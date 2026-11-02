@@ -36,14 +36,22 @@
 <script src="richtext.js"></script>
 <script>
 /* Short-notes page (plan step N6). The renderer lives in richtext.js (shared with flashcards).
- * Called from the app: window.setNote(text).
+ * Called from the app: window.setNote(text, startFrac).
  * "Summary" (plan step N10): the page cannot reach the network, so it asks the app through
  * WTBridge.onSummarize({ id, text }) and the app answers with window.wtSummaryResult(id, text).
  * Reading progress (plan step N10, as the website's NotesViewer): the scrolled share of the page is reported
  * through WTBridge.onProgress({ pct }) (0 to 100, at most about every 2 seconds, 100 at once from 95 percent on
- * and after a successful Summary); the app saves it to learning_progress. */
+ * and after a successful Summary); the app saves it to learning_progress.
+ * N1 (docs/READER_EXAM_FLASHCARD_FIX_PLAN.md): the note remembers where the student stopped, like the PDF reader.
+ * The app passes the saved position as startFrac (0 to 1, share of the scrollable height; a share, not pixels, so it
+ * still fits when the text size or the screen width is different). When the page is laid out (fonts ready) it scrolls
+ * there, once more after 400 ms if the student has not touched the screen yet (maths and fonts can still change the
+ * height), and then reports every position through WTBridge.onPosition({ frac }) (trailing, every 300 ms at most).
+ * Nothing is reported before the restore, so the first screen (top) never overwrites the saved position. No saved
+ * position (0), a position at the very start or a note that was read to the end (98 percent or more) opens at the top. */
 var noteText = "", summary = "", loading = false, pendingId = "", seq = 0;
 var lastPct = -1, pendingPct = -1, progTimer = 0, sent100 = false;
+var posTimer = 0, canSavePos = false, userTouched = false;
 
 /* the AI writes math as \( ... \) and \[ ... \]; the shared renderer reads $ ... $ and $$ ... $$ */
 function aiText(s) {
@@ -79,8 +87,27 @@ function reportScroll() {
   if (!progTimer) progTimer = window.setTimeout(flushProgress, 2000);
 }
 
+/* N1: report the reading position (a share of the scrollable height) so the app can keep it on the phone */
+function sendPos() {
+  posTimer = 0;
+  if (!canSavePos || !noteText) return;
+  var h = Math.max(1, document.documentElement.scrollHeight - window.innerHeight);
+  var y = window.scrollY || document.documentElement.scrollTop || 0;
+  var frac = Math.max(0, Math.min(1, y / h));
+  if (window.WTBridge && window.WTBridge.onPosition) {
+    try { window.WTBridge.onPosition(JSON.stringify({ frac: frac })); } catch (e) { /* ignore */ }
+  }
+}
+
+function schedulePos() {
+  if (!canSavePos || posTimer) return;
+  posTimer = window.setTimeout(sendPos, 300);
+}
+
 window.addEventListener("scroll", reportScroll, { passive: true });
+window.addEventListener("scroll", schedulePos, { passive: true });
 window.addEventListener("resize", reportScroll, { passive: true });
+window.addEventListener("touchstart", function () { userTouched = true; }, { passive: true });
 
 function drawSummary() {
   var w = document.getElementById("sumwrap");
@@ -94,14 +121,18 @@ function drawSummary() {
   w.innerHTML = h;
 }
 
-window.setNote = function (text) {
+window.setNote = function (text, startFrac) {
   var note = document.getElementById("note");
   var root = document.getElementById("root");
+  var startF = Number(startFrac);
+  var restore = isFinite(startF) && startF > 0.01 && startF < 0.98;
   if (root) root.classList.remove("ready");
   noteText = String(text == null ? "" : text);
   summary = ""; loading = false; pendingId = "";
   lastPct = -1; pendingPct = -1; sent100 = false;
+  canSavePos = false; userTouched = false;
   if (progTimer) { window.clearTimeout(progTimer); progTimer = 0; }
+  if (posTimer) { window.clearTimeout(posTimer); posTimer = 0; }
   try {
     note.innerHTML = window.WTRich.render(text);
   } catch (e) {
@@ -110,12 +141,24 @@ window.setNote = function (text) {
   drawSummary();
   window.scrollTo(0, 0);
 
+  function applyPos() {
+    var h = Math.max(0, document.documentElement.scrollHeight - window.innerHeight);
+    if (h > 0) window.scrollTo(0, Math.round(startF * h));
+  }
+
   function notifyReady() {
     requestAnimationFrame(function () {
       requestAnimationFrame(function () {
+        try { if (restore) applyPos(); } catch (e) { /* a bad position must never break the note */ }
         if (root) root.classList.add("ready");
         if (window.WTBridge && window.WTBridge.onReady) {
           try { window.WTBridge.onReady(); } catch (e) { /* ignore */ }
+        }
+        canSavePos = true;
+        if (restore) {
+          window.setTimeout(function () {
+            if (!userTouched) { try { applyPos(); } catch (e) { /* ignore */ } }
+          }, 400);
         }
       });
     });
