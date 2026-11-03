@@ -19,15 +19,8 @@ replacements = [
     (
         "import androidx.compose.runtime.collectAsState\n",
         "import androidx.compose.runtime.collectAsState\n"
-        "import androidx.compose.runtime.LaunchedEffect\n"
-        "import androidx.compose.runtime.getValue\n"
-        "import androidx.compose.runtime.mutableStateOf\n"
-        "import androidx.compose.runtime.remember\n"
-        "import androidx.compose.runtime.setValue\n"
-        "import androidx.compose.ui.platform.LocalContext\n"
-        "import androidx.lifecycle.Lifecycle\n"
-        "import androidx.lifecycle.LifecycleEventObserver\n"
-        "import androidx.lifecycle.compose.LocalLifecycleOwner\n"
+        "import androidx.lifecycle.lifecycleScope\n"
+        "import kotlinx.coroutines.launch\n"
         "import com.wisdomtower.academy.data.update.UpdateRepository\n"
         "import com.wisdomtower.academy.data.update.AppRelease\n"
         "import com.wisdomtower.academy.ui.update.UpdatePrompt\n"
