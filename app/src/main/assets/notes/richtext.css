@@ -151,8 +151,8 @@ html.wt-day .msg { color: #4a5a70 !important; }
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-html.wt-motion-ready body,
-body.wt-motion-ready {
+/* All local learning pages share #root, so the arrival is wired without page-specific JS hooks. */
+#root {
   animation: wt-page-arrive 200ms cubic-bezier(.2,.75,.25,1) both;
 }
 button, [role="button"], .clickable {
@@ -163,8 +163,7 @@ button:active, [role="button"]:active, .clickable:active {
   transform: scale(.97);
 }
 @media (prefers-reduced-motion: reduce) {
-  html.wt-motion-ready body,
-  body.wt-motion-ready {
+  #root {
     animation: none;
   }
   button, [role="button"], .clickable {
