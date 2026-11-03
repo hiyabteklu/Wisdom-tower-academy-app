@@ -151,6 +151,13 @@ private fun formatSavedAt(ms: Long): String =
  * "Retention & Exam Accuracy", in the loaded screen and in the offline skeleton. It loads its own data and keeps a saved
  * copy, so it does not move the layout when the answer arrives. Nothing else changed in this file.
  *
+ * SAVED COPY FIRST (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md slice P1c, part c2b): the screen first draws the
+ * saved progress copy ([StudentProgressReader.fetchAllSaved], no network) through the same T8 filter as a live read, with
+ * NO "No connection" line (the server has not been asked yet), then reads the server in the background and replaces the
+ * numbers (nothing flickers when they are equal). The spinner only shows when nothing is saved; a failed refresh keeps the
+ * saved numbers; the amber saved-copy line only appears when the normal read really falls back to the copy. The filter
+ * step is the local function `applyRows` inside the effect (same code as before, now shared by both draws).
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -181,44 +188,73 @@ fun NativeStatusScreen(
             loading = false
             return@LaunchedEffect
         }
-        loading = true
-        failed = false
-        errorText = null
-        fromCache = false
-        savedAtMs = null
-        when (val result = StudentProgressReader.fetchAll()) {
-            is ProgressFetchResult.Success -> {
+
+        /**
+         * P1c c2b: the T8 "My Subjects" filter and the state the screen draws from, shared by the saved draw and the live
+         * draw (it is the body the old `Success` branch had). Returns false, changing nothing, when the subject list is
+         * needed but cannot be loaded; the caller decides what that means.
+         */
+        suspend fun applyRows(result: ProgressFetchResult.Success): Boolean {
+            val userId = AuthStateManager.currentUser.value?.id
+            val picks = if (userId != null) MySubjectsStore.load(context, userId, educationLevel) else null
+            if (picks == null || picks.keys.isEmpty()) {
+                // Nothing picked and no package for the Academic Level: count everything, say so.
                 fromCache = result.fromCache
                 savedAtMs = result.savedAtMs
-                val userId = AuthStateManager.currentUser.value?.id
-                val picks = if (userId != null) MySubjectsStore.load(context, userId, educationLevel) else null
-                if (picks == null || picks.keys.isEmpty()) {
-                    // Nothing picked and no package for the Academic Level: count everything, say so.
-                    rows = result.rows
-                    countedLine = "Counting all your study activity. Choose your subjects in Settings > My Subjects."
-                } else {
-                    val first = ResourceScopeIndex.get(context)
-                    // A record of a resource the cached map does not know (new content): refresh the map once.
-                    val index = if (first != null && result.rows.any { it.resourceId !in first.map }) {
-                        ResourceScopeIndex.get(context, forceRefresh = true) ?: first
-                    } else {
-                        first
-                    }
-                    if (index == null) {
-                        rows = null
-                        failed = true
-                        errorText = "Could not load your subject list. Check your internet connection and try again."
-                    } else {
-                        val counted = MySubjectsStore.filterRows(result.rows, index.map, picks.keys)
-                        rows = counted
-                        countedLine = buildCountedLine(picks.keys, result.rows.size - counted.size)
-                    }
+                rows = result.rows
+                countedLine = "Counting all your study activity. Choose your subjects in Settings > My Subjects."
+                return true
+            }
+            val first = ResourceScopeIndex.get(context)
+            // A record of a resource the cached map does not know (new content): refresh the map once.
+            val index = if (first != null && result.rows.any { it.resourceId !in first.map }) {
+                ResourceScopeIndex.get(context, forceRefresh = true) ?: first
+            } else {
+                first
+            }
+            if (index == null) return false
+            val counted = MySubjectsStore.filterRows(result.rows, index.map, picks.keys)
+            fromCache = result.fromCache
+            savedAtMs = result.savedAtMs
+            rows = counted
+            countedLine = buildCountedLine(picks.keys, result.rows.size - counted.size)
+            return true
+        }
+
+        // P1c c2b: the saved copy first (no network), drawn at once and WITHOUT the "No connection" line
+        var drewSaved = false
+        val saved = StudentProgressReader.fetchAllSaved()
+        if (saved != null && applyRows(saved)) {
+            fromCache = false
+            savedAtMs = null
+            failed = false
+            errorText = null
+            loading = false
+            drewSaved = true
+        }
+        if (!drewSaved) {
+            loading = true
+            failed = false
+            errorText = null
+            fromCache = false
+            savedAtMs = null
+        }
+
+        when (val result = StudentProgressReader.fetchAll()) {
+            is ProgressFetchResult.Success -> {
+                if (!applyRows(result) && !drewSaved) {
+                    rows = null
+                    failed = true
+                    errorText = "Could not load your subject list. Check your internet connection and try again."
                 }
             }
             else -> {
                 // Nothing could be read and nothing is saved: the screen draws the empty skeleton (see below).
-                rows = null
-                failed = true
+                // A failed refresh keeps the saved numbers that are already drawn.
+                if (!drewSaved) {
+                    rows = null
+                    failed = true
+                }
             }
         }
         loading = false
