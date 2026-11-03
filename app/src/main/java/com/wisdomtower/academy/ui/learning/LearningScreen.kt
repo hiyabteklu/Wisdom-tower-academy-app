@@ -91,6 +91,8 @@ import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomGlassFill
 import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.wisdomPress
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 
 /**
@@ -120,6 +122,9 @@ import com.wisdomtower.academy.ui.theme.wisdomReveal
  * S3 part 2 (2026-10-17, docs/SESSION_2026-10-17_S3_PART2_LEARNING.md): every plain clickable here (guest Sign In /
  * Create Account, "All Courses", "Browse Courses", the 8 tool tiles) now has role Button for TalkBack, and the small
  * ones have a 48 dp touch target. Looks unchanged. Icons next to a text label stay decorative.
+ *
+ * V7 (docs/SESSION_2026-11-03_V14_LEARNING_PRESS.md): Create Account, All Courses, Browse Courses and the 8 tool tiles
+ * now press in (shared wisdomPress / wisdomPressClickable) with the light tick. Actions and looks unchanged.
  *
  * Guest Scholar Banner if signed out.
  *
@@ -363,11 +368,11 @@ fun LearningScreen(
 
                                 Box(
                                     modifier = Modifier
+                                        .wisdomPressClickable(role = Role.Button) { onNavigateToUrl("/signup") }
                                         .minimumInteractiveComponentSize()
                                         .clip(RoundedCornerShape(50))
                                         .background(WisdomGlassFillStrong)
                                         .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.2f)), RoundedCornerShape(50))
-                                        .clickable(role = Role.Button) { onNavigateToUrl("/signup") }
                                         .padding(horizontal = 20.dp, vertical = 9.dp), // S5-signin: same size as the Sign In pill
                                     contentAlignment = Alignment.Center
                                 ) {
@@ -498,11 +503,11 @@ fun LearningScreen(
 
                     Box(
                         modifier = Modifier
+                            .wisdomPressClickable(role = Role.Button) { onNavigateToUrl("/packages") }
                             .minimumInteractiveComponentSize()
                             .clip(RoundedCornerShape(20.dp))
                             .background(WisdomGlassFill)
                             .border(BorderStroke(1.dp, WisdomGlassBorder), RoundedCornerShape(20.dp))
-                            .clickable(role = Role.Button) { onNavigateToUrl("/packages") }
                             .padding(horizontal = 10.dp, vertical = 4.dp)
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -556,10 +561,10 @@ fun LearningScreen(
                             )
                             Box(
                                 modifier = Modifier
+                                    .wisdomPressClickable(role = Role.Button) { onNavigateToUrl("/packages") }
                                     .minimumInteractiveComponentSize()
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(WisdomInk.copy(alpha = 0.1f))
-                                    .clickable(role = Role.Button) { onNavigateToUrl("/packages") }
                                     .padding(horizontal = 12.dp, vertical = 7.dp)
                             ) {
                                 Text(
@@ -608,14 +613,17 @@ private fun ToolTileButton(
     // The Cover Page tile (new, owner order 2026-10-16) has a cyan edge and a cyan-tinted icon plate so it stands out.
     val edge = if (highlight) WisdomCyan.copy(alpha = 0.65f) else WisdomGlassBorder
     val plate = if (highlight) WisdomCyan.copy(alpha = 0.18f) else WisdomGlassFillStrong
+    // V7: one interaction source feeds both the press-in scale (outermost modifier, so the whole tile squeezes) and the click
+    val tileSource = remember { MutableInteractionSource() }
     Box(
         modifier = Modifier
             .fillMaxWidth()
+            .wisdomPress(tileSource)
             .clip(RoundedCornerShape(16.dp))
             .background(WisdomGlassFill)
             .border(BorderStroke(1.dp, edge), RoundedCornerShape(16.dp))
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = tileSource,
                 indication = ripple(color = WisdomCyan.copy(alpha = 0.2f)),
                 role = Role.Button,
                 onClick = onClick
