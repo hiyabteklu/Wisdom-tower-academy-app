@@ -57,6 +57,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -755,7 +756,7 @@ private fun UniversityPicker(selected: String, onSelect: (String) -> Unit) {
                 .semantics(mergeDescendants = true) {
                     stateDescription = if (expanded) "Expanded" else "Collapsed"
                 }
-                .clickable(role = Role.DropdownList, onClick = { expanded = !expanded })
+                .wisdomPressClickable(role = Role.DropdownList, onClick = { expanded = !expanded })
                 .padding(horizontal = 14.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -829,7 +830,7 @@ private fun UniversityRow(name: String, selected: Boolean, onClick: () -> Unit) 
             .fillMaxWidth()
             .heightIn(min = 48.dp)
             .semantics { this.selected = selected }
-            .clickable(role = Role.RadioButton, onClick = onClick)
+            .wisdomPressClickable(role = Role.RadioButton, onClick = onClick)
             .padding(horizontal = 14.dp, vertical = 11.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
