@@ -61,6 +61,9 @@ class BookLockedException(message: String) : IllegalStateException(message)
  * with NO network, so the hub list screen can draw it at once and then call [list] in the background (which already uses
  * the short `fastHttp` pair when a saved list file exists). [list] itself is unchanged.
  *
+ * P1b (2026-11-03): [getHubCountsSaved] returns the saved hub counts of a course with NO network, so the course page can
+ * put the counts on the hub cards at once and then call [getHubCounts] in the background. [getHubCounts] is unchanged.
+ *
  * The sign-in check (real content needs a signed-in student) belongs to the screen that calls this.
  *
  * SECURITY S1 (2026-10-20, `docs/SECURITY_PLAN_CONTENT_ACCESS.md`): a single material (note text, cards, questions)
@@ -86,7 +89,7 @@ class BookLockedException(message: String) : IllegalStateException(message)
  * about 10 minutes) only when the file is not saved on the phone yet. Free books (`appwrite:<FILE_ID>`, public
  * bucket) work exactly as before.
  *
- * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1, S2, S4, S5b and P1a not compiled).
+ * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1, S2, S4, S5b, P1a and P1b not compiled).
  */
 object LearningContentRepository {
     private const val TAG = "LearningContent"
@@ -371,6 +374,28 @@ object LearningContentRepository {
             resp.code to resp.body?.string().orEmpty()
         }
     }
+
+    /**
+     * P1b (2026-11-03): the saved item counts of one course, read from the phone only (NO network, never waits). Same
+     * file [getHubCounts] writes after every successful read (`counts_<scopePath>`). Returns null when no counts were
+     * ever saved for this course or the file cannot be read. An empty saved map is returned as null too (an old empty
+     * answer must not hide the real numbers). The course page draws these at once and then calls [getHubCounts].
+     */
+    suspend fun getHubCountsSaved(context: Context, scopePath: String): Map<String, Int>? =
+        withContext(Dispatchers.IO) {
+            val raw = readCache(cacheFile(context, "counts_$scopePath")) ?: return@withContext null
+            val map = runCatching {
+                val json = JSONObject(raw)
+                val out = mutableMapOf<String, Int>()
+                val keys = json.keys()
+                while (keys.hasNext()) {
+                    val k = keys.next()
+                    out[k] = json.optInt(k, 0)
+                }
+                out.toMap()
+            }.getOrNull()
+            if (map.isNullOrEmpty()) null else map
+        }
 
     /**
      * T4 (2026-10-12): Returns the item count for each hub of one course/subject ([scopePath]).
