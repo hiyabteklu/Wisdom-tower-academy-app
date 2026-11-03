@@ -106,6 +106,31 @@ suspend fun loadSubjectBreakdown(context: Context, scopePath: String): SubjectBo
     }
 }
 
+/**
+ * SAVED COPY FIRST (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md slice P1c, part c2a): the same numbers as
+ * [loadSubjectBreakdown] but from the saved copies only (catalog [ResourceCatalogIndex.getSaved], progress
+ * [StudentProgressReader.fetchAllSaved], exam attempts [ExamAttemptsReader.fetchAllSaved]), with NO network. Returns null when
+ * any of the three is not saved, or the subject cannot be found in the saved catalog (then the normal read decides). The
+ * result carries NO `savedAtMs` on purpose: the server has not been asked yet, so the board must not claim "No connection";
+ * the normal read that follows sets the date line when it really falls back to the copy. Never throws.
+ */
+suspend fun loadSubjectBreakdownSaved(context: Context, scopePath: String): SubjectBoardLoad.Ready? {
+    return try {
+        val catalog = ResourceCatalogIndex.getSaved(context) ?: return null
+        val progress = StudentProgressReader.fetchAllSaved() ?: return null
+        val attempts = ExamAttemptsReader.fetchAllSaved() ?: return null
+        val path = scopePath.trim().trim('/')
+        val key = catalog.items.firstOrNull { it.scopePath.trim().trim('/') == path }?.subjectKey ?: return null
+        val b = StatusBreakdown.subjectStatus(key, catalog.items, StatusBreakdown.progressMap(progress.rows), attempts.rows)
+            ?: return null
+        SubjectBoardLoad.Ready(b)
+    } catch (e: CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
+    }
+}
+
 /** OFFLINE STATUS (O4): shown with the empty rings when nothing real can be drawn. */
 private const val BOARD_CONNECT_NOTICE = "Could not reach the server. Connect to the internet to see your status."
 
@@ -131,6 +156,10 @@ private fun sbFormatSavedAt(ms: Long): String =
  * real to open. Online behaviour is unchanged.
  * Slice O5a: the board also reads again by itself when the internet comes back ([rememberNetworkReturnCount]).
  *
+ * SAVED COPY FIRST (2026-11-03, slice P1c c2a): the first time the board opens (nothing shown yet) it draws the saved copy
+ * at once ([loadSubjectBreakdownSaved], no network, no "No connection" line), then reads the server in the background and
+ * replaces it. The spinner only shows when nothing is saved. A later reload (reloadKey) keeps what is shown, as before.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -148,6 +177,11 @@ fun StatusSubjectBoard(
     val netBack = rememberNetworkReturnCount()
 
     LaunchedEffect(scopePath, reloadKey, retry, netBack) {
+        // P1c: nothing shown yet -> the saved copy first, at once
+        if (state == null) {
+            val saved = loadSubjectBreakdownSaved(context, scopePath)
+            if (saved != null) state = saved
+        }
         val r = loadSubjectBreakdown(context, scopePath)
         state = if (r is SubjectBoardLoad.Failed && state is SubjectBoardLoad.Ready) state else r
     }
