@@ -1,7 +1,9 @@
 package com.wisdomtower.academy.data.content
 
 import android.content.Context
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -177,45 +179,60 @@ object BookFileStore {
         }
 
         val part = File(dir, "$safe.part")
-        val existingBytes = part.takeIf { it.exists() }?.length() ?: 0L
-        val requestBuilder = Request.Builder().url(realUrl).get()
-        if (existingBytes > 0L) requestBuilder.header("Range", "bytes=$existingBytes-")
-        http.newCall(requestBuilder.build()).execute().use { resp ->
-            val append = existingBytes > 0L && resp.code == 206
-            if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
-            if (append && !resp.header("Content-Range").orEmpty().startsWith("bytes $existingBytes-"))
-                throw java.io.IOException("Invalid resume range")
-            if (!append && existingBytes > 0L) part.delete()
-            val body = resp.body ?: throw IllegalStateException("Empty answer")
-            val rangeTotal = resp.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: 0L
-            val bodyLen = body.contentLength()
-            val total = when {
-                rangeTotal > 0L -> rangeTotal
-                bodyLen > 0L && append -> existingBytes + bodyLen
-                bodyLen > 0L -> bodyLen
-                else -> getCachedFileSize(context, key) ?: -1L
-            }
-            var done = if (append) existingBytes else 0L
-            onProgress(if (total > 0L) (done.toFloat() / total).coerceIn(0f, 1f) else -1f)
-            body.byteStream().use { input ->
-                java.io.FileOutputStream(part, append).use { out ->
-                    val buffer = ByteArray(64 * 1024)
-                    var lastReportedPct = -1
-                    while (true) {
-                        ensureActive()
-                        val read = input.read(buffer)
-                        if (read < 0) break
-                        out.write(buffer, 0, read)
-                        done += read
-                        if (total > 0L) {
-                            val pct = (done * 100 / total).toInt().coerceIn(0, 100)
-                            if (pct != lastReportedPct) {
-                                lastReportedPct = pct
-                                onProgress(pct / 100f)
+        var attempt = 0
+        while (true) {
+            attempt++
+            try {
+                val existingBytes = part.takeIf { it.exists() }?.length() ?: 0L
+                val requestBuilder = Request.Builder().url(realUrl).get()
+                if (existingBytes > 0L) requestBuilder.header("Range", "bytes=$existingBytes-")
+                http.newCall(requestBuilder.build()).execute().use { resp ->
+                    if (resp.code in 500..599 || resp.code == 408 || resp.code == 429) {
+                        throw java.io.IOException("Temporary server response: HTTP ${resp.code}")
+                    }
+                    val append = existingBytes > 0L && resp.code == 206
+                    if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
+                    if (append && !resp.header("Content-Range").orEmpty().startsWith("bytes $existingBytes-"))
+                        throw java.io.IOException("Invalid resume range")
+                    if (!append && existingBytes > 0L) part.delete()
+                    val body = resp.body ?: throw IllegalStateException("Empty answer")
+                    val rangeTotal = resp.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: 0L
+                    val bodyLen = body.contentLength()
+                    val total = when {
+                        rangeTotal > 0L -> rangeTotal
+                        bodyLen > 0L && append -> existingBytes + bodyLen
+                        bodyLen > 0L -> bodyLen
+                        else -> getCachedFileSize(context, key) ?: -1L
+                    }
+                    var done = if (append) existingBytes else 0L
+                    onProgress(if (total > 0L) (done.toFloat() / total).coerceIn(0f, 1f) else -1f)
+                    body.byteStream().use { input ->
+                        java.io.FileOutputStream(part, append).use { out ->
+                            val buffer = ByteArray(64 * 1024)
+                            var lastReportedPct = -1
+                            while (true) {
+                                ensureActive()
+                                val read = input.read(buffer)
+                                if (read < 0) break
+                                out.write(buffer, 0, read)
+                                done += read
+                                if (total > 0L) {
+                                    val pct = (done * 100 / total).toInt().coerceIn(0, 100)
+                                    if (pct != lastReportedPct) {
+                                        lastReportedPct = pct
+                                        onProgress(pct / 100f)
+                                    }
+                                }
                             }
                         }
                     }
                 }
+                break
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                if (attempt >= 3 || e !is java.io.IOException) throw e
+                delay(400L * attempt)
             }
         }
 

@@ -722,7 +722,7 @@ private fun ItemRow(
                             )
                         }
                     } else {
-                        Text(text = "Downloading\u2026", fontSize = 11.sp, color = WisdomCyan)
+                        Text(text = if (progress < 0f) "Connecting..." else "Downloading\u2026", fontSize = 11.sp, color = WisdomCyan)
                     }
                 } else if (hasFailed) {
                     Spacer(modifier = Modifier.height(4.dp))

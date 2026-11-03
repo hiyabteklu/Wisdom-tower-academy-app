@@ -124,7 +124,8 @@ fun PdfReaderScreen(
     cacheKey: String,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    resourceId: String? = null
+    resourceId: String? = null,
+    sizeBytes: Long? = null
 ) {
     val context = LocalContext.current
     val managerProgress by OfflineDownloadManager.progress.collectAsState()
@@ -142,7 +143,7 @@ fun PdfReaderScreen(
             return@LaunchedEffect
         }
         try {
-            file = OfflineDownloadManager.ensureBookFile(context, cacheKey, url) { progress = it }
+            file = OfflineDownloadManager.ensureBookFile(context, cacheKey, url, knownSizeBytes = sizeBytes) { progress = it }
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
@@ -199,7 +200,7 @@ fun PdfReaderScreen(
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = if (p != null) "Downloading book\u2026 ${(p.coerceIn(0f, 1f) * 100).toInt()}%" else "Loading book\u2026",
+                        text = when { p == null -> "Loading book\u2026"; p < 0f -> "Connecting..."; else -> "Downloading book\u2026 ${(p.coerceIn(0f, 1f) * 100).toInt()}%" },
                         fontSize = 13.sp,
                         color = WisdomMuted
                     )

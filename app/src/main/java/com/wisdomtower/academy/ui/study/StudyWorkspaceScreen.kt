@@ -288,7 +288,8 @@ fun StudyWorkspaceScreen(
                 cacheKey = shown.item.id,
                 onBack = { view = WorkspaceView.HubList(shown.hubId) },
                 modifier = modifier,
-                resourceId = shown.item.id
+                resourceId = shown.item.id,
+                sizeBytes = shown.item.sizeBytes
             )
 
             is WorkspaceView.Note -> NotesReaderScreen(

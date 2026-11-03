@@ -21,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap
 /** Process-lifetime download coordinator. Screen cancellation does not cancel accepted work. */
 object OfflineDownloadManager {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-    private val queue = Semaphore(1)
+    private val queue = Semaphore(2)
     private val jobs = ConcurrentHashMap<String, Job>()
     private val bookJobs = ConcurrentHashMap<String, Deferred<File>>()
     private val managedUrls = ConcurrentHashMap.newKeySet<String>()
@@ -48,7 +48,7 @@ object OfflineDownloadManager {
                     if (item.contentType == "pdf") {
                         val url = LearningContentRepository.appwriteViewUrl(item.storagePath)
                             ?: throw IllegalStateException("No file address")
-                        ensureBookFile(appContext, item.id, url)
+                        ensureBookFile(appContext, item.id, url, knownSizeBytes = item.sizeBytes)
                     } else {
                         queue.withPermit {
                             val result = LearningContentRepository.getResource(appContext, item.id, refresh = true)
@@ -75,8 +75,15 @@ object OfflineDownloadManager {
     }
 
     /** Starts or joins a PDF transfer in this process scope; a screen may stop awaiting without cancelling it. */
-    suspend fun ensureBookFile(context: Context, key: String, url: String, onProgress: (Float) -> Unit = {}): File {
+    suspend fun ensureBookFile(
+        context: Context,
+        key: String,
+        url: String,
+        knownSizeBytes: Long? = null,
+        onProgress: (Float) -> Unit = {}
+    ): File {
         val appContext = context.applicationContext
+        knownSizeBytes?.takeIf { it > 0L }?.let { BookFileStore.saveCachedSize(appContext, key, it) }
         val deferred = synchronized(bookJobs) {
             val active = bookJobs[key]
             if (active != null && active.isActive) return@synchronized active
