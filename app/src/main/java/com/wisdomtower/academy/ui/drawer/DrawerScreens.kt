@@ -56,6 +56,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -246,7 +247,7 @@ fun AboutScreen(
         "Explain with AI" to "Formative conceptual breakdowns on tricky exam problems"
     )
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().wisdomScreenEntrance()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
@@ -575,7 +576,7 @@ fun ContactScreen(
         unfocusedContainerColor = WisdomInk.copy(alpha = 0.06f)
     )
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().wisdomScreenEntrance()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
@@ -1101,7 +1102,7 @@ fun FaqScreen(
     var openIndex by rememberSaveable { mutableStateOf(0) }
     val accents = listOf(WisdomCyan, WisdomAccentAmber, WisdomAccentEmerald, WisdomAccentRose)
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().wisdomScreenEntrance()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
@@ -1229,7 +1230,7 @@ private fun LegalDocumentScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().wisdomScreenEntrance()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
