@@ -44,6 +44,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
 import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -177,6 +178,9 @@ private class TutorStreamHolder {
  * and clear-all use the day rose. NOT done here: the chat page itself (`assets/notes/tutor.html`: bubbles, text, math,
  * code) is a local WebView page and belongs to D8. Until D8 the page keeps its night colours by day, so the messages may
  * be hard to read by day; test the controls in this slice, the messages after D8.
+ *
+ * V6/V7 (docs/SESSION_2026-11-03_V17_TUTOR_MOTION.md): the chats list rows animate when a chat is added, deleted or moved
+ * (animateItem), and the menu icons, Chats toggle, New chat, Send, Stop and chat rows press in with the light tick.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -509,10 +513,10 @@ fun NativeTutorScreen(
                 MenuIcon(Icons.AutoMirrored.Filled.ArrowBack, "Back") { onBack() }
                 Row(
                     modifier = Modifier
+                        .wisdomPressClickable { showHistory = !showHistory }
                         .height(38.dp)
                         .clip(RoundedCornerShape(19.dp))
                         .background(if (showHistory) WisdomCyan.copy(alpha = 0.22f) else Color.Transparent)
-                        .clickable { showHistory = !showHistory }
                         .padding(horizontal = 10.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(5.dp)
@@ -577,11 +581,11 @@ fun NativeTutorScreen(
                 if (busy) {
                     Box(
                         modifier = Modifier
+                            .wisdomPressClickable { stop() }
                             .height(44.dp)
                             .clip(RoundedCornerShape(22.dp))
                             .background(WisdomAccentAmber.copy(alpha = 0.3f))
                             .border(BorderStroke(1.dp, WisdomAccentAmber.copy(alpha = 0.45f)), RoundedCornerShape(22.dp))
-                            .clickable { stop() }
                             .padding(horizontal = 18.dp),
                         contentAlignment = Alignment.Center
                     ) {
@@ -590,11 +594,11 @@ fun NativeTutorScreen(
                 } else {
                     Box(
                         modifier = Modifier
+                            .wisdomPressClickable { send(null) }
                             .size(44.dp)
                             .clip(CircleShape)
                             .background(WisdomCyan.copy(alpha = if (input.isBlank()) 0.22f else 0.65f))
-                            .border(BorderStroke(1.dp, FloatEdge), CircleShape)
-                            .clickable { send(null) },
+                            .border(BorderStroke(1.dp, FloatEdge), CircleShape),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
@@ -696,9 +700,9 @@ private fun applyInsets(web: WebView?, topDp: Float, bottomDp: Float) {
 private fun MenuIcon(icon: ImageVector, description: String, tint: Color = WisdomInk, onClick: () -> Unit) {
     Box(
         modifier = Modifier
+            .wisdomPressClickable { onClick() }
             .size(38.dp)
-            .clip(CircleShape)
-            .clickable { onClick() },
+            .clip(CircleShape),
         contentAlignment = Alignment.Center
     ) {
         Icon(
@@ -803,9 +807,9 @@ private fun HistoryPanel(
             }
             Box(
                 modifier = Modifier
+                    .wisdomPressClickable { onClose() }
                     .size(32.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .clickable { onClose() },
+                    .clip(RoundedCornerShape(10.dp)),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
@@ -819,10 +823,10 @@ private fun HistoryPanel(
 
         Box(
             modifier = Modifier
+                .wisdomPressClickable { onNew() }
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(14.dp))
                 .background(WisdomCyan)
-                .clickable { onNew() }
                 .padding(vertical = 11.dp),
             contentAlignment = Alignment.Center
         ) {
@@ -840,6 +844,8 @@ private fun HistoryPanel(
                 val questions = s.messages.count { it.role == "user" }
                 Row(
                     modifier = Modifier
+                        .animateItem()
+                        .wisdomPressClickable { onSelect(s.id) }
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(14.dp))
                         .background(if (isActive) WisdomCyan.copy(alpha = 0.15f) else WisdomGlassFill)
@@ -847,7 +853,6 @@ private fun HistoryPanel(
                             BorderStroke(1.dp, if (isActive) WisdomCyan.copy(alpha = 0.4f) else WisdomGlassBorder),
                             RoundedCornerShape(14.dp)
                         )
-                        .clickable { onSelect(s.id) }
                         .padding(horizontal = 10.dp, vertical = 9.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
