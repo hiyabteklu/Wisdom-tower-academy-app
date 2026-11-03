@@ -18,6 +18,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -74,6 +75,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -133,6 +135,19 @@ import kotlinx.coroutines.launch
  * TalkBack (S3 part 2b, 2026-10-17): roles and spoken states only (tabs, dropdown, level options,
  * buttons, terms checkbox name, tappable links as TalkBack actions, error notice announced).
  * No look, text or logic change.
+ *
+ * A1 (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, owner problem 10: fine on his phone, too big and confusing on
+ * other phones, the Sign in / Create Account switch must be a PILL, richer look, brand above the form):
+ *  - SIZE: the layout measures the room it gets ([BoxWithConstraints]) and derives ONE factor `fit` (1.0 on a roomy screen,
+ *    down to 0.80 on a narrow or short one: width / 400 dp and height / 780 dp, the smaller wins). The logo, the title, the
+ *    gaps, the card paddings and the button height are multiplied by it. Text fields keep Material's own height (they need
+ *    their touch size) and text stays in sp, so the system font size still works; the page scrolls, so a large font size or
+ *    display size never hides a field. The card width cap (448 dp, S8) is unchanged.
+ *  - SWITCH: the track and the sliding selected part are fully round (pill), the selected part is cyan tinted; each tab
+ *    is at least 44 dp high.
+ *  - LOOK: a soft cyan glow at the top of the screen and a faint cyan tint at the top of the card (night) on top of the
+ *    existing glass; the logo and the name stay above the card.
+ *  Texts, fields, validation and the sign in / sign up logic are NOT changed. One sign-in look (S5) is kept.
  *
  * STATUS: written, NOT yet compiled or tested on a device.
  */
@@ -313,8 +328,32 @@ fun NativeSignInScreen(
         return
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // A1: BoxWithConstraints so the layout can size itself to the room it really gets (see the header comment).
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        // 1.0 on a roomy screen, down to 0.80 on a narrow or short one. Only dp sizes use it; text stays in sp.
+        val fit = minOf(maxWidth.value / 400f, maxHeight.value / 780f).coerceIn(0.80f, 1f)
+        val gap = (16 * fit).dp
+
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
+
+        // A1: soft cyan glow at the top of the screen (on top of the chosen background, under everything else).
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .drawBehind {
+                    val center = Offset(size.width / 2f, 0f)
+                    val radius = size.width * 0.95f
+                    drawCircle(
+                        brush = Brush.radialGradient(
+                            colors = listOf(WisdomCyan.copy(alpha = 0.14f), Color.Transparent),
+                            center = center,
+                            radius = radius
+                        ),
+                        radius = radius,
+                        center = center
+                    )
+                }
+        )
 
         Column(
             modifier = Modifier
@@ -323,7 +362,7 @@ fun NativeSignInScreen(
                 .navigationBarsPadding()
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 24.dp),
+                .padding(horizontal = (16 * fit).dp, vertical = (24 * fit).dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Header branding: logo with a soft cyan glow behind it
@@ -334,7 +373,7 @@ fun NativeSignInScreen(
                         val r = size.minDimension * 1.4f
                         drawCircle(
                             brush = Brush.radialGradient(
-                                colors = listOf(WisdomCyan.copy(alpha = 0.22f), Color.Transparent),
+                                colors = listOf(WisdomCyan.copy(alpha = 0.26f), Color.Transparent),
                                 radius = r
                             ),
                             radius = r
@@ -342,18 +381,18 @@ fun NativeSignInScreen(
                     },
                 contentAlignment = Alignment.Center
             ) {
-                BrandLogo(size = 64.dp)
+                BrandLogo(size = (64 * fit).dp)
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height((14 * fit).dp))
             Text(
                 text = "Wisdom Tower Academy",
                 color = WisdomInk,
-                fontSize = 26.sp,
+                fontSize = (26 * fit).sp,
                 fontWeight = FontWeight.Black,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.graphicsLayer { alpha = enter }
             )
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height((22 * fit).dp))
 
             // Glass auth card
             val cardShape = RoundedCornerShape(28.dp)
@@ -370,7 +409,7 @@ fun NativeSignInScreen(
                         if (AppThemeMode.isDark) {
                             Brush.verticalGradient(
                                 listOf(
-                                    WisdomInk.copy(alpha = 0.09f),
+                                    WisdomCyan.copy(alpha = 0.10f),
                                     WisdomInk.copy(alpha = 0.03f)
                                 )
                             )
@@ -408,10 +447,17 @@ fun NativeSignInScreen(
                         )
                 )
 
-                Column(modifier = Modifier.padding(start = 24.dp, end = 24.dp, top = 28.dp, bottom = 20.dp)) {
-                    // Mode tabs: iOS style segmented control with a sliding pill
+                Column(
+                    modifier = Modifier.padding(
+                        start = (22 * fit).dp,
+                        end = (22 * fit).dp,
+                        top = (24 * fit).dp,
+                        bottom = (18 * fit).dp
+                    )
+                ) {
+                    // Mode tabs: pill shaped segmented control with a sliding pill
                     GlassModeTabs(mode = mode, onSelect = { switchMode(it) })
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height((20 * fit).dp))
 
                     // Full legal name (sign up only)
                     AnimatedVisibility(
@@ -427,7 +473,7 @@ fun NativeSignInScreen(
                                 placeholder = "e.g. Abebe Bikila",
                                 leadingIcon = Icons.Filled.School
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(gap))
                         }
                     }
 
@@ -440,7 +486,7 @@ fun NativeSignInScreen(
                         leadingIcon = if (identifier.contains("@")) Icons.Filled.Email else Icons.Filled.Phone,
                         keyboardType = KeyboardType.Email
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(gap))
 
                     // Academic level (sign up only)
                     AnimatedVisibility(
@@ -557,7 +603,7 @@ fun NativeSignInScreen(
                                     }
                                 }
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(gap))
 
                             AnimatedVisibility(
                                 visible = educationLevel == "Other",
@@ -572,7 +618,7 @@ fun NativeSignInScreen(
                                         placeholder = "e.g. Master's, College Diploma, Self-learner...",
                                         leadingIcon = Icons.Filled.School
                                     )
-                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Spacer(modifier = Modifier.height(gap))
                                 }
                             }
                         }
@@ -603,7 +649,7 @@ fun NativeSignInScreen(
                             }
                         } else null
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(gap))
 
                     // Confirm password + terms (sign up only)
                     AnimatedVisibility(
@@ -624,7 +670,7 @@ fun NativeSignInScreen(
                                 isPassword = true,
                                 showPassword = showPassword
                             )
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(gap))
 
                             val termsShape = RoundedCornerShape(14.dp)
                             Row(
@@ -661,7 +707,7 @@ fun NativeSignInScreen(
                                         .padding(end = 8.dp)
                                 )
                             }
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(gap))
                         }
                     }
 
@@ -702,7 +748,7 @@ fun NativeSignInScreen(
                                         )
                                     }
                                 }
-                                Spacer(modifier = Modifier.height(16.dp))
+                                Spacer(modifier = Modifier.height(gap))
                             }
                         }
                     }
@@ -713,6 +759,7 @@ fun NativeSignInScreen(
                         busyLabel = if (mode == AuthMode.SIGN_IN) "Signing In..." else "Creating Account...",
                         loading = loading,
                         enabled = !loading && !(mode == AuthMode.SIGN_UP && !agreedToTerms),
+                        verticalPadding = (15 * fit).dp,
                         onClick = { submit() }
                     )
                     Spacer(modifier = Modifier.height(10.dp))
@@ -726,14 +773,14 @@ fun NativeSignInScreen(
                     )
 
                     // Footer: switch mode
-                    Spacer(modifier = Modifier.height(20.dp))
+                    Spacer(modifier = Modifier.height((18 * fit).dp))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(1.dp)
                             .background(WisdomInk.copy(alpha = 0.08f))
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(gap))
                     if (mode == AuthMode.SIGN_IN) {
                         TappableText(
                             text = "Don't have an account? Create a free account",
@@ -783,15 +830,16 @@ fun NativeSignInScreen(
     }
 }
 
-/** iOS style segmented control: a glass pill slides between "Sign In" and "Create Account". */
+/**
+ * A1: pill shaped segmented control. The track and the sliding selected part are fully round (CircleShape = half of the
+ * height as the corner radius); the selected part has a cyan tint. It was a rounded rectangle (16 dp / 13 dp corners).
+ */
 @Composable
 private fun GlassModeTabs(
     mode: AuthMode,
     onSelect: (AuthMode) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val trackShape = RoundedCornerShape(16.dp)
-    val pillShape = RoundedCornerShape(13.dp)
     val bias by animateFloatAsState(
         targetValue = if (mode == AuthMode.SIGN_IN) -1f else 1f,
         animationSpec = spring(dampingRatio = 0.8f, stiffness = 380f),
@@ -800,9 +848,9 @@ private fun GlassModeTabs(
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .clip(trackShape)
+            .clip(CircleShape)
             .background(dayNight(Color.Black.copy(alpha = 0.22f), WisdomInk.copy(alpha = 0.08f)))
-            .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.08f)), trackShape)
+            .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.08f)), CircleShape)
     ) {
         // Sliding pill (sized by the labels row below, so it always matches its height)
         Box(modifier = Modifier.matchParentSize().padding(3.dp)) {
@@ -811,9 +859,13 @@ private fun GlassModeTabs(
                     .fillMaxWidth(0.5f)
                     .fillMaxHeight()
                     .align(BiasAlignment(horizontalBias = bias, verticalBias = 0f))
-                    .clip(pillShape)
-                    .background(WisdomInk.copy(alpha = 0.16f))
-                    .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.20f)), pillShape)
+                    .clip(CircleShape)
+                    .background(
+                        Brush.verticalGradient(
+                            listOf(WisdomCyan.copy(alpha = 0.34f), WisdomCyan.copy(alpha = 0.18f))
+                        )
+                    )
+                    .border(BorderStroke(1.dp, WisdomCyan.copy(alpha = 0.55f)), CircleShape)
             )
         }
         Row(modifier = Modifier.fillMaxWidth().padding(3.dp)) {
@@ -854,14 +906,16 @@ private fun ModeTab(
                 role = Role.Tab,
                 onClick = onClick
             )
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .heightIn(min = 44.dp)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Text(
             text = label,
             color = textColor,
             fontSize = 13.sp,
-            fontWeight = FontWeight.Bold
+            fontWeight = FontWeight.Bold,
+            textAlign = TextAlign.Center
         )
     }
 }
@@ -873,6 +927,7 @@ private fun GlassPrimaryButton(
     busyLabel: String,
     loading: Boolean,
     enabled: Boolean,
+    verticalPadding: androidx.compose.ui.unit.Dp,
     onClick: () -> Unit
 ) {
     val interaction = remember { MutableInteractionSource() }
@@ -910,7 +965,8 @@ private fun GlassPrimaryButton(
                 role = Role.Button,
                 onClick = onClick
             )
-            .padding(horizontal = 24.dp, vertical = 15.dp),
+            .heightIn(min = 48.dp)
+            .padding(horizontal = 24.dp, vertical = verticalPadding),
         horizontalArrangement = Arrangement.Center,
         verticalAlignment = Alignment.CenterVertically
     ) {
