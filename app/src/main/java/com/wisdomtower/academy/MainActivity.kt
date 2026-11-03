@@ -264,7 +264,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wisdomtower.academy.ui.theme.MyApplicationTheme
 import com.wisdomtower.academy.ui.theme.WisdomPushLayer
-import com.wisdomtower.academy.ui.theme.wisdomGrowFromCard
+import com.wisdomtower.academy.ui.theme.WisdomGrowLayer
 import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
 import com.wisdomtower.academy.ui.theme.wisdomStaggerIn
 import com.wisdomtower.academy.ui.theme.wisdomPressScale
@@ -3326,9 +3326,9 @@ fun MainScreen(
                             selectedPackage = pkg
                         }
                     )
-                    if (currentPkg != null) {
+                    WisdomGrowLayer(item = currentPkg, zIndexValue = 10f) { shownPkg -> // V5b shrink
                         PackageDetailScreen(
-                            pkg = currentPkg,
+                            pkg = shownPkg,
                             onBack = { leavePackage() },
                             onOpenSubjectWorkspace = { title, subtitle, path ->
                                 activeWorkspace = Triple(title, subtitle, path)
@@ -3338,7 +3338,7 @@ fun MainScreen(
                                 if (fullUrl.contains("tool=")) {
                                     navigateTo(fullUrl)
                                 } else {
-                                    activeWorkspace = Triple(currentPkg.name, "Academy Package", studyPath)
+                                    activeWorkspace = Triple(shownPkg.name, "Academy Package", studyPath)
                                 }
                             },
                             onUnlock = { checkoutPath ->
@@ -3346,10 +3346,9 @@ fun MainScreen(
                                 openToolOverlay(fullUrl, "Package Checkout")
                             },
                             isLoggedIn = isLoggedIn,
-                            backEnabled = activeWorkspace == null, // BACKFIX-S7
+                            backEnabled = activeWorkspace == null && currentPkg != null, // BACKFIX-S7
                             modifier = Modifier
                                 .fillMaxSize()
-                                .wisdomGrowFromCard(currentPkg.name) // V5 grow
                                 .appBackdrop()
                                 .zIndex(10f)
                         )
