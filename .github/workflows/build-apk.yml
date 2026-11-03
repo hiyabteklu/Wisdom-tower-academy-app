@@ -121,8 +121,12 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          VERSION_CODE=$(grep -E '^[[:space:]]*versionCode[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*=[[:space:]]*([0-9]+).*/\\1/')
-          VERSION_NAME=$(grep -E '^[[:space:]]*versionName[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\\1/')
+          VERSION_CODE="$(awk -F= '/^[[:space:]]*versionCode[[:space:]]*=/ { value=$2; gsub(/[[:space:]]/, "", value); print value; exit }' app/build.gradle.kts)"
+          VERSION_NAME="$(awk -F= '/^[[:space:]]*versionName[[:space:]]*=/ { value=$2; gsub(/[[:space:]]/, "", value); gsub(/^"/, "", value); gsub(/"$/, "", value); print value; exit }' app/build.gradle.kts)"
+          if ! [[ "$VERSION_CODE" =~ ^[0-9]+$ ]] || ! [[ "$VERSION_NAME" =~ ^[A-Za-z0-9._+-]+$ ]]; then
+            echo "::error::Could not parse valid versionCode/versionName from app/build.gradle.kts (code='$VERSION_CODE', name='$VERSION_NAME')."
+            exit 1
+          fi
           TAG="telegram-v${VERSION_NAME}-${VERSION_CODE}"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             gh release upload "$TAG" Wisdom-tower-academy-telegram.apk --repo "$GITHUB_REPOSITORY" --clobber
