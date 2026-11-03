@@ -57,6 +57,10 @@ class BookLockedException(message: String) : IllegalStateException(message)
  * `refresh = true` forces a real download, used by the Download buttons), and [list] gives up on a slow
  * network after a few seconds when it has a saved copy, instead of waiting 15 seconds.
  *
+ * P1a (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, owner problem 8): [listSaved] returns the saved list of a hub
+ * with NO network, so the hub list screen can draw it at once and then call [list] in the background (which already uses
+ * the short `fastHttp` pair when a saved list file exists). [list] itself is unchanged.
+ *
  * The sign-in check (real content needs a signed-in student) belongs to the screen that calls this.
  *
  * SECURITY S1 (2026-10-20, `docs/SECURITY_PLAN_CONTENT_ACCESS.md`): a single material (note text, cards, questions)
@@ -82,7 +86,7 @@ class BookLockedException(message: String) : IllegalStateException(message)
  * about 10 minutes) only when the file is not saved on the phone yet. Free books (`appwrite:<FILE_ID>`, public
  * bucket) work exactly as before.
  *
- * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1, S2, S4 and S5b not compiled).
+ * STATUS: written, NOT compiled, NOT tested on a device (plan step N1, `docs/NATIVE_CONTENT_PLAN.md`; S1, S2, S4, S5b and P1a not compiled).
  */
 object LearningContentRepository {
     private const val TAG = "LearningContent"
@@ -181,6 +185,21 @@ object LearningContentRepository {
             }
         }
     }
+
+    /**
+     * P1a (2026-11-03): the saved list of one hub, read from the phone only (NO network, never waits). It is the same
+     * file [list] writes after every successful read and falls back to after a failed one, so a hub list screen can
+     * draw it at once and call [list] afterwards to refresh. Returns null when no list was ever saved for this course
+     * and hub, when the file cannot be read, or when the saved list is empty (an old empty answer is not shown as
+     * "nothing published" before the server has been asked). Rows are the same light rows as [list] gives; no lock
+     * decision is made here (the screen still applies the lock rows and the checked door decides on open).
+     */
+    suspend fun listSaved(context: Context, scopePath: String, hub: String): List<LearningResource>? =
+        withContext(Dispatchers.IO) {
+            val raw = readCache(cacheFile(context, "list_${scopePath}_${hub}_light")) ?: return@withContext null
+            val rows = runCatching { JSONArray(raw).objects().map(::rowToResource) }.getOrNull()
+            if (rows.isNullOrEmpty()) null else rows
+        }
 
     /**
      * OFFLINE STATUS (O5b): rows for a hub that was never opened on this phone, built from the saved catalog
