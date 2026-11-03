@@ -28,6 +28,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -214,7 +215,7 @@ fun CompetitionsHubScreen(
     val rulesFor = contests.firstOrNull { it.id == confirmId }
 
     // the base of this screen: the list of contests (this is the part MainActivity layers on top of the tabs)
-    Column(modifier = modifier) {
+    Column(modifier = modifier.wisdomScreenEntrance()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
