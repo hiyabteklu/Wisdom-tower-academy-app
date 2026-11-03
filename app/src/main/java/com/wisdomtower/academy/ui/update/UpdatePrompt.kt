@@ -92,10 +92,14 @@ fun UpdatePrompt(
                     release.changelog.forEach { line -> Text("• $line", style = MaterialTheme.typography.bodyMedium) }
                 }
                 if (downloading) {
-                    LinearProgressIndicator(
-                        progress = { (progress ?: 0f).coerceIn(0f, 1f) },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                    if (progress == null) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    } else {
+                        LinearProgressIndicator(
+                            progress = { progress!!.coerceIn(0f, 1f) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
                     Text(progress?.let { "${(it * 100).toInt()}%" } ?: "Downloading…")
                 }
                 status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
