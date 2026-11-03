@@ -48,6 +48,7 @@ import com.wisdomtower.academy.ui.theme.WisdomGlassBorder
 import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToInt
@@ -100,6 +101,7 @@ fun StatusDetailCard(
         ) {
             Column(
                 modifier = Modifier
+                    .wisdomDialogEnter()
                     .fillMaxWidth()
                     .heightIn(max = 640.dp)
                     .clip(shape)
