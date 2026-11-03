@@ -3,6 +3,8 @@ package com.wisdomtower.academy.ui.admin
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -26,8 +28,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Phone
+import androidx.compose.material.icons.filled.Email
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -94,7 +104,7 @@ private val LEVEL_FILTERS: List<Pair<String, String>> = listOf(
 )
 
 @Composable
-internal fun UsersScreen(modifier: Modifier = Modifier) {
+internal fun UsersScreen(origin: String, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     var result by remember { mutableStateOf<ScholarsResult?>(null) }
     var loading by remember { mutableStateOf(true) }
@@ -106,6 +116,10 @@ internal fun UsersScreen(modifier: Modifier = Modifier) {
     var inspectUser by remember { mutableStateOf<ScholarItem?>(null) }
     var grantUser by remember { mutableStateOf<ScholarItem?>(null) }
     var grantBusy by remember { mutableStateOf(false) }
+    var pushUser by remember { mutableStateOf<ScholarItem?>(null) }
+    var pushTitle by rememberSaveable { mutableStateOf("Academy update") }
+    var pushMessage by rememberSaveable { mutableStateOf("") }
+    var pushBusy by remember { mutableStateOf(false) }
     var profileReload by remember { mutableIntStateOf(0) }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -153,6 +167,41 @@ internal fun UsersScreen(modifier: Modifier = Modifier) {
             toast = "Copied $value"
         } catch (e: Exception) {
             toast = "Could not copy"
+        }
+    }
+
+    fun openScholarCall(user: ScholarItem) {
+        val phone = user.phone?.trim().orEmpty()
+        if (phone.isBlank()) return
+        try { context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", phone, null))) }
+        catch (e: Exception) { toast = "Could not open the phone app" }
+    }
+    fun openScholarEmail(user: ScholarItem) {
+        val email = user.email?.trim().orEmpty()
+        if (email.isBlank()) return
+        try { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + email))) }
+        catch (e: Exception) { toast = "Could not open the email app" }
+    }
+    fun sendScholarPush(user: ScholarItem) {
+        val title = pushTitle.trim()
+        val message = pushMessage.trim()
+        if (title.isBlank() || message.isBlank()) { toast = "Enter a title and message"; return }
+        scope.launch {
+            pushBusy = true
+            val blocks = NotificationAuthoring.toBlocks(listOf(EditorBlock(NotificationAuthoring.newId(), "p", message)))
+            val content = NotificationAuthoring.toJson(blocks)
+            val reply = if (content == null) null else ComposerRepository.sendNow(
+                origin = origin, title = title, category = "admin", content = content,
+                url = null, audiences = emptyList(), target = user.id
+            )
+            pushBusy = false
+            if (reply?.error != null) toast = reply.error
+            else if (reply?.value != null) {
+                toast = if (reply.value!!.contains("Push sent to 0 device(s)", ignoreCase = true))
+                    "Sent, but no device registered yet" else reply.value!!
+                pushUser = null
+                pushMessage = ""
+            } else toast = "Could not prepare the notification"
         }
     }
 
@@ -311,7 +360,11 @@ internal fun UsersScreen(modifier: Modifier = Modifier) {
             }
 
             items(filtered, key = { it.id }) { scholar ->
-                ScholarRow(scholar = scholar, onOpen = { inspectUser = scholar })
+                ScholarRow(
+                    scholar = scholar, onOpen = { inspectUser = scholar },
+                    onPush = { pushUser = scholar; pushTitle = "Academy update"; pushMessage = "" },
+                    onCall = { openScholarCall(scholar) }, onEmail = { openScholarEmail(scholar) }
+                )
             }
         }
 
@@ -322,7 +375,10 @@ internal fun UsersScreen(modifier: Modifier = Modifier) {
                 reloadKey = profileReload,
                 onBack = { inspectUser = null },
                 onGrant = { grantUser = inspectTarget },
-                onCopyId = { value -> copyText("Student ID", value) }
+                onCopyId = { value -> copyText("Student ID", value) },
+                onPush = { pushUser = inspectTarget; pushTitle = "Academy update"; pushMessage = "" },
+                onCall = { inspectTarget?.let { openScholarCall(it) } },
+                onEmail = { inspectTarget?.let { openScholarEmail(it) } }
             )
         }
         if (grantTarget != null) {
@@ -331,6 +387,22 @@ internal fun UsersScreen(modifier: Modifier = Modifier) {
                 busy = grantBusy,
                 onBack = { if (!grantBusy) grantUser = null },
                 onConfirm = { packageId, note -> doGrant(grantTarget, packageId, note) }
+            )
+        }
+
+        val pushTarget = pushUser
+        if (pushTarget != null) {
+            AlertDialog(
+                onDismissRequest = { if (!pushBusy) pushUser = null },
+                title = { Text("Send push to " + nameOf(pushTarget)) },
+                text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = pushTitle, onValueChange = { pushTitle = it }, label = { Text("Notification title") }, singleLine = true)
+                    OutlinedTextField(value = pushMessage, onValueChange = { pushMessage = it }, label = { Text("Message") }, minLines = 3)
+                } },
+                confirmButton = { Button(onClick = { sendScholarPush(pushTarget) }, enabled = !pushBusy && pushTitle.isNotBlank() && pushMessage.isNotBlank()) {
+                    if (pushBusy) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Send")
+                } },
+                dismissButton = { TextButton(onClick = { if (!pushBusy) pushUser = null }, enabled = !pushBusy) { Text("Cancel") } }
             )
         }
 
@@ -396,7 +468,9 @@ private fun InfoPairRow(
 
 /** B3g: one short row per scholar (initials, name, e-mail, student id and level, arrow). A tap opens the profile panel. */
 @Composable
-private fun ScholarRow(scholar: ScholarItem, onOpen: () -> Unit) {
+private fun ScholarRow(
+    scholar: ScholarItem, onOpen: () -> Unit, onPush: () -> Unit, onCall: () -> Unit, onEmail: () -> Unit
+) {
     val shape = RoundedCornerShape(16.dp)
     val avatarShape = RoundedCornerShape(12.dp)
     Row(
@@ -450,11 +524,36 @@ private fun ScholarRow(scholar: ScholarItem, onOpen: () -> Unit) {
             )
         }
         Spacer(modifier = Modifier.width(8.dp))
-        Icon(
-            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-            contentDescription = null,
-            tint = WisdomMuted
-        )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight, contentDescription = null, tint = WisdomMuted)
+            ScholarQuickActions(scholar, onPush, onCall, onEmail)
+        }
+    }
+}
+
+@Composable
+private fun ScholarQuickActions(
+    scholar: ScholarItem, onPush: () -> Unit, onCall: () -> Unit, onEmail: () -> Unit, expanded: Boolean = false
+) {
+    Row(horizontalArrangement = Arrangement.spacedBy(if (expanded) 12.dp else 2.dp), verticalAlignment = Alignment.CenterVertically) {
+        IconButton(onClick = onPush, modifier = Modifier.size(48.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.Notifications, contentDescription = "Push to " + nameOf(scholar), tint = WisdomCyan)
+                if (expanded) Text("Push", color = WisdomMuted, fontSize = 10.sp)
+            }
+        }
+        if (!scholar.phone.isNullOrBlank()) IconButton(onClick = onCall, modifier = Modifier.size(48.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.Phone, contentDescription = "Call " + nameOf(scholar), tint = WisdomAccentEmerald)
+                if (expanded) Text("Call", color = WisdomMuted, fontSize = 10.sp)
+            }
+        }
+        if (!scholar.email.isNullOrBlank()) IconButton(onClick = onEmail, modifier = Modifier.size(48.dp)) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.Email, contentDescription = "Email " + nameOf(scholar), tint = WisdomAccentAmber)
+                if (expanded) Text("Email", color = WisdomMuted, fontSize = 10.sp)
+            }
+        }
     }
 }
 
@@ -552,7 +651,10 @@ private fun ProfilePanel(
     reloadKey: Int,
     onBack: () -> Unit,
     onGrant: () -> Unit,
-    onCopyId: (String) -> Unit
+    onCopyId: (String) -> Unit,
+    onPush: () -> Unit,
+    onCall: () -> Unit,
+    onEmail: () -> Unit
 ) {
     AdminDetailPanel(
         title = nameOf(scholar),
@@ -582,7 +684,10 @@ private fun ProfilePanel(
             }
         }
     ) {
-        ProfileBody(scholar = scholar, reloadKey = reloadKey, onCopyId = onCopyId)
+        Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            ScholarQuickActions(scholar, onPush, onCall, onEmail, expanded = true)
+            ProfileBody(scholar = scholar, reloadKey = reloadKey, onCopyId = onCopyId)
+        }
     }
 }
 

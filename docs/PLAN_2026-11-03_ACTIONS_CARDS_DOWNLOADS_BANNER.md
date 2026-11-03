@@ -5,7 +5,7 @@
 
 ## Order of work (one slice = one commit, tick here in the same commit)
 
-- [ ] **A1** Scholar list: quick actions (Push, Call, Email) on every row and in the profile panel
+- [x] **A1** — implemented and pushed; owner phone test pending. Scholar list: quick actions (Push, Call, Email) on every row and in the profile panel
 - [ ] **A2** Inquiries list: same actions, with Reply first
 - [ ] **C1** Book size shown immediately (like the title)
 - [ ] **D1** Downloads keep going when the student leaves the page (stay in the app)
@@ -114,8 +114,8 @@ Not in this plan (can come later if wanted): tap-through link or headline on the
 
 ## Live changes (Supabase)
 
-None yet. Add one line per migration here: name + what it does.
+None yet. A1 is app-only; no database change. Add one line per migration here: name + what it does.
 
 ## Plan changes
 
-None yet.
+- 2026-11-03 (A1): Added scholar Push / Call / Email actions in the directory and profile. Push reuses `ComposerRepository.sendNow` with the scholar user ID; Call opens the dialer and Email opens a mail composer. Zero-device responses are explained.
