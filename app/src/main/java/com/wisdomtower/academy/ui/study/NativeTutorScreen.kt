@@ -142,6 +142,15 @@ private class TutorStreamHolder {
  *    page stays alive underneath, so nothing reloads when the list is opened or closed.
  * Differences from the website: no avatar picture on the welcome screen and answers.
  *
+ * T1 (2026-11-02, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, owner: an AI tutor at the end of every note with the context of
+ * that chapter): when the tutor is opened by the "Ask AI tutor" button of the notes reader, [NativeToolRequests] holds the
+ * chapter text (and a short instruction). This screen takes it ONCE when it opens ([NativeToolRequests.takeTutorContext]),
+ * starts a NEW empty chat for it (the older chats stay in the list) and sends it to the website route as `courseContext`
+ * with every question of this visit, instead of the course title the shell passes ([courseContext]). The route appends it
+ * to the AI's system instruction, so the student does not have to explain what they are reading. Opened from the drawer
+ * or the Learning tab, there is no chapter text and nothing changes. If the student opens an OLDER chat from the list
+ * during the same visit, the chapter text is still sent with its questions.
+ *
  * Scroll freeze fix (owner report 2026-10-13): this screen calls [PauseShellWhileShown], which gives the local
  * WebView page the touch fix and quiets the hidden website WebView.
  *
@@ -176,6 +185,11 @@ fun NativeTutorScreen(
     modifier: Modifier = Modifier,
     courseContext: String? = null
 ) {
+    // T1: the chapter text of the note the student came from (taken once, so it is forgotten afterwards). Read BEFORE the
+    // C10 gate below so a blocked open cannot leave an old chapter behind for the next open.
+    val chapterContext = remember { NativeToolRequests.takeTutorContext() }
+    val effectiveContext = chapterContext ?: courseContext
+
     // C10 gate (owner decision 2026-10-15): no tutor while a ranked competition exam is open.
     if (ExamLockdown.active) {
         val gateContext = LocalContext.current
@@ -196,7 +210,14 @@ fun NativeTutorScreen(
     val scope = rememberCoroutineScope()
 
     val initial = remember {
-        TutorSessionStore.load(context) ?: TutorSessionStore.newSession().let { listOf(it) to it.id }
+        val loaded = TutorSessionStore.load(context)
+        if (chapterContext != null) {
+            // T1: a fresh chat for this chapter on top; the older chats stay in the list.
+            val fresh = TutorSessionStore.newSession()
+            (listOf(fresh) + (loaded?.first ?: emptyList())) to fresh.id
+        } else {
+            loaded ?: TutorSessionStore.newSession().let { listOf(it) to it.id }
+        }
     }
     var sessions by remember { mutableStateOf(initial.first) }
     var activeId by remember { mutableStateOf(initial.second) }
@@ -267,7 +288,7 @@ fun NativeTutorScreen(
         holder.job = scope.launch {
             var acc = ""
             try {
-                AiTutorRepository.stream(history, courseContext).collect { ev ->
+                AiTutorRepository.stream(history, effectiveContext).collect { ev ->
                     if (holder.token == token) {
                         when (ev) {
                             is TutorEvent.Chunk -> {
