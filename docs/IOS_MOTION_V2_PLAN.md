@@ -75,7 +75,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 |---|---|
 | Plan | WRITTEN and pushed 2026-11-03 |
 | V1 | CODE PUSHED; phone test pending |
-| V2 | PARTIAL CODE PUSHED; underlying screen recede integration pending |
+| V2 | CODE PUSHED: full-width spring overlay plus all five native tab layers recede 30% left and dim to 85% beneath active full-screen overlays |
 | V3 | NOT STARTED |
 | V4 | CODE PUSHED: overlap cross-dissolve plus per-tab SaveableStateHolder; rememberSaveable state and LazyListState scroll positions are retained; ordinary remember-only transient state is not |
 | V5 | NOT STARTED |
