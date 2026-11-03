@@ -3253,8 +3253,17 @@ fun MainScreen(
                     modifier = Modifier.fillMaxSize()
                 )
 
+                // V2 push depth: recede all native tabs beneath full-screen overlays.
+                val hasNativePush = activeWorkspace != null ||
+                    activeGuideSlug != null ||
+                    showCompetitions ||
+                    activeDrawerScreen != null ||
+                    showNotifications ||
+                    activeToolOverlayUrl != null ||
+                    adminConsoleUrl != null
+
                 // Native Home Screen (Phase A2 / B)
-                WisdomTabLayer(tab = 0, selectedIndex = selectedIndex) {
+                WisdomTabLayer(tab = 0, selectedIndex = selectedIndex, recede = hasNativePush) {
                     HomeScreen(
                         modifier = Modifier
                             .fillMaxSize()
@@ -3267,7 +3276,7 @@ fun MainScreen(
                 }
 
                 // Native Learning Landing Shell (Phase A4 / B)
-                WisdomTabLayer(tab = 1, selectedIndex = selectedIndex, active = activeStudyUrl == null) {
+                WisdomTabLayer(tab = 1, selectedIndex = selectedIndex, active = activeStudyUrl == null, recede = hasNativePush) {
                     LearningScreen(
                         modifier = Modifier
                             .fillMaxSize()
@@ -3299,7 +3308,7 @@ fun MainScreen(
                 }
 
                 // Native Packages Catalog & Landing Screens (Phase A3 / B)
-                WisdomTabLayer(tab = 2, selectedIndex = selectedIndex) {
+                WisdomTabLayer(tab = 2, selectedIndex = selectedIndex, recede = hasNativePush) {
                     val currentPkg = selectedPackage
                     if (currentPkg != null) {
                         PackageDetailScreen(
@@ -3369,7 +3378,7 @@ fun MainScreen(
                 }
 
                 // Native Account Command Center Shell (Phase A5 / B)
-                WisdomTabLayer(tab = 3, selectedIndex = selectedIndex) {
+                WisdomTabLayer(tab = 3, selectedIndex = selectedIndex, recede = hasNativePush) {
                     AccountScreen(
                         modifier = Modifier
                             .fillMaxSize()
@@ -3387,7 +3396,7 @@ fun MainScreen(
                 }
 
                 // Native Preferences & Settings Shell (Phase A5)
-                WisdomTabLayer(tab = 4, selectedIndex = selectedIndex) {
+                WisdomTabLayer(tab = 4, selectedIndex = selectedIndex, recede = hasNativePush) {
                     SettingsScreen(
                         modifier = Modifier
                             .fillMaxSize()
