@@ -39,6 +39,7 @@ import com.wisdomtower.academy.ui.theme.WisdomDark
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 
 /**
@@ -174,11 +175,7 @@ fun OpenCardLayout(
                             BorderStroke(1.dp, openEdge),
                             RoundedCornerShape(10.dp)
                         )
-                        .clickable(
-                            interactionSource = remember { MutableInteractionSource() },
-                            indication = ripple(color = openText.copy(alpha = 0.25f)),
-                            onClick = onClick
-                        )
+                        .wisdomPressClickable(onClick = onClick)
                         .padding(vertical = 8.dp, horizontal = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {
