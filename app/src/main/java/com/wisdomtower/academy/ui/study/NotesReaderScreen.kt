@@ -91,6 +91,16 @@ private fun flushNoteProgress(resourceId: String, progress: NoteProgress) {
 }
 
 /**
+ * T1: the text the AI tutor gets as its chapter context (sent to the website route as `courseContext`, which appends it to
+ * the tutor's instructions). It names the note, tells the tutor to stay on this chapter and to say so when a question goes
+ * beyond it, then gives the note text. Only the note title and the note text are in it: nothing about the student.
+ */
+private fun buildTutorContext(title: String, noteText: String): String =
+    "The student is studying the short note \"" + title.trim() + "\" right now. Answer their questions about THIS chapter first, " +
+        "using the note text below as your source. If a question goes beyond the note, say so briefly and then answer from " +
+        "your general knowledge.\n\nNOTE TEXT:\n" + noteText.trim()
+
+/**
  * Native reader for one short note (plan step N6): loads the full row from Supabase
  * ([LearningContentRepository.getResource], offline copy kept) and shows its `body_md` in the LOCAL page
  * `assets/notes/index.html` (the website's RichContent + KaTeX dialect, no website page).
@@ -101,6 +111,14 @@ private fun flushNoteProgress(resourceId: String, progress: NoteProgress) {
  * scrolled percent with `WTBridge.onProgress({ pct })` (100 from 95 percent on and after a Summary), saved to
  * `learning_progress` (the higher percent is kept by the repository); the reading time is added every 30 seconds
  * and once more when the screen is left. Nothing is saved for a signed-out student (the repository returns false).
+ *
+ * AI tutor button (T1 of docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02): next to Summary the page has "Ask AI tutor".
+ * It calls `WTBridge.onTutor({ text })` (the first 14000 characters of the note). This screen builds the chapter context
+ * ([buildTutorContext]: the note title and text, nothing about the student) and calls
+ * [NativeToolRequests.requestTutorWithContext]; MainActivity then shows the global tutor overlay, and `NativeTutorScreen`
+ * takes the context once, opens a fresh chat for it and sends it with every question. The note screen stays underneath, so
+ * Back from the tutor returns to the same place in the note. Uses no AI call of its own, no cache and no sign-in (the tutor
+ * route has none).
  *
  * Reading position (N1, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02, owner: the book reader remembers the last
  * page, the notes reader must too): the page reports where the student is with `WTBridge.onPosition({ frac })`
@@ -233,6 +251,20 @@ fun NotesReaderScreen(
                 }
                 Unit
             },
+            onTutor = { json ->
+                // T1: runs on the main thread (the request flags are Compose state read by MainActivity).
+                screenScope.launch {
+                    try {
+                        val text = JSONObject(json).optString("text", "")
+                        if (text.isNotBlank()) {
+                            NativeToolRequests.requestTutorWithContext(buildTutorContext(title, text))
+                        }
+                    } catch (e: Exception) {
+                        // A bad tutor message must never break the reader.
+                    }
+                }
+                Unit
+            },
             onReady = {
                 screenScope.launch(Dispatchers.Main) {
                     pageReady = true
@@ -313,6 +345,7 @@ private class NotesBridge(
     private val onSummarize: (String) -> Unit,
     private val onProgress: (String) -> Unit,
     private val onPosition: (String) -> Unit,
+    private val onTutor: (String) -> Unit,
     private val onReady: () -> Unit
 ) {
     @JavascriptInterface
@@ -328,6 +361,11 @@ private class NotesBridge(
     @JavascriptInterface
     fun onPosition(json: String) {
         onPosition.invoke(json)
+    }
+
+    @JavascriptInterface
+    fun onTutor(json: String) {
+        onTutor.invoke(json)
     }
 
     @JavascriptInterface
