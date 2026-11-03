@@ -164,6 +164,15 @@
     @keyframes ovlIn { from { opacity: 0; } to { opacity: 1; } }
     @keyframes sheetIn { from { opacity: 0; transform: scale(.94); } to { opacity: 1; transform: none; } }
   }
+
+  /* V11: keep exam controls instant and suppress decorative motion when Android requests reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    .qcard.in-f, .qcard.in-b, .qcard.in-r,
+    .choice.pop, .choice.shake,
+    .timer.warn, .ovl.in, .ovl.in .sheet {
+      animation: none !important;
+    }
+  }
 </style>
 </head>
 <body>
