@@ -85,6 +85,7 @@ import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomExpandable
 import com.wisdomtower.academy.ui.theme.wisdomPress
+import com.wisdomtower.academy.ui.theme.wisdomSelectionPop
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
@@ -745,6 +746,7 @@ private fun ToggleRow(
         Switch(
             checked = checked,
             onCheckedChange = null,
+            modifier = Modifier.wisdomSelectionPop(checked, from = 0.88f), // V7 controls pop
             colors = SwitchDefaults.colors(
                 checkedThumbColor = WisdomOnInk,
                 checkedTrackColor = WisdomInk,
