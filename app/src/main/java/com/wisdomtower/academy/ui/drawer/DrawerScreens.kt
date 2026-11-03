@@ -56,6 +56,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
@@ -483,7 +484,7 @@ private fun ContactChannelRow(icon: ImageVector, label: String, value: String, u
             .clip(shape)
             .background(WisdomInk.copy(alpha = 0.04f))
             .border(BorderStroke(1.dp, WisdomBorderWhite), shape)
-            .clickable { runCatching { uriHandler.openUri(uri) } }
+            .wisdomPressClickable(onClick = { runCatching { uriHandler.openUri(uri) } })
             .padding(horizontal = 12.dp, vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -627,7 +628,7 @@ fun ContactScreen(
                                 modifier = Modifier
                                     .clip(RoundedCornerShape(12.dp))
                                     .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.15f)), RoundedCornerShape(12.dp))
-                                    .clickable { status = "idle" }
+                                    .wisdomPressClickable(onClick = { status = "idle" })
                                     .padding(horizontal = 20.dp, vertical = 10.dp)
                             ) {
                                 Text("Send another", fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = WisdomInk)
@@ -1029,7 +1030,7 @@ private fun FaqCard(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable(onClick = onToggle)
+                    .wisdomPressClickable(onClick = onToggle)
                     .padding(14.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -1394,7 +1395,7 @@ private fun LegalBlockView(block: LegalBlock, accent: Color) {
                             text = label,
                             fontSize = 11.5.sp,
                             color = accent,
-                            modifier = Modifier.clickable { uriHandler.openUri(uri) }
+                            modifier = Modifier.wisdomPressClickable(onClick = { uriHandler.openUri(uri) })
                         )
                     }
                 }
