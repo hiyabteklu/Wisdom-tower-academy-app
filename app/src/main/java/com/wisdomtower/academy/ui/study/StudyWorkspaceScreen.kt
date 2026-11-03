@@ -138,6 +138,11 @@ internal fun safeHubUrl(basePath: String, hubId: String): String {
  * P4: every time the app comes back to the front while this page is open (for example after the student paid in the
  * website checkout and the admin or auto-verify unlocked the package), the locks and ownership are read again. The
  * ownership answer is cached 30 s inside `ContentAccess`, so a return after a real checkout always reads fresh.
+ *
+ * P1b (2026-11-03, `docs/READER_EXAM_FLASHCARD_FIX_PLAN.md`): the counts on the hub cards come from the saved counts of
+ * this course at once ([LearningContentRepository.getHubCountsSaved], no network); the server is asked in the background
+ * ([LearningContentRepository.getHubCounts]) and the cards change only when a number really changed. A failed or empty
+ * refresh never wipes counts that are already shown.
  */
 @Composable
 fun StudyWorkspaceScreen(
@@ -159,8 +164,16 @@ fun StudyWorkspaceScreen(
 
     val context = LocalContext.current
     var hubCounts by remember(contentScope) { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    // P1b: saved counts first (drawn at once), then the server in the background; change only when different.
     LaunchedEffect(contentScope) {
-        if (contentScope != null) hubCounts = LearningContentRepository.getHubCounts(context, contentScope)
+        if (contentScope != null) {
+            val saved = LearningContentRepository.getHubCountsSaved(context, contentScope)
+            if (saved != null && hubCounts.isEmpty()) hubCounts = saved
+            val fresh = LearningContentRepository.getHubCounts(context, contentScope)
+            // An empty answer (failed read, nothing saved) never wipes counts that are already on the cards.
+            if (fresh.isNotEmpty() && fresh != hubCounts) hubCounts = fresh
+            else if (fresh.isEmpty() && hubCounts.isEmpty()) hubCounts = fresh
+        }
     }
 
     val loggedIn by AuthStateManager.isLoggedIn.collectAsState()
