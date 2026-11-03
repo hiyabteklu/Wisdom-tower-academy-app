@@ -30,6 +30,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -61,7 +62,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.wisdomtower.academy.data.content.BookFileStore
+import com.wisdomtower.academy.data.content.OfflineDownloadManager
 import com.wisdomtower.academy.data.content.LearningProgressRepository
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -126,6 +127,7 @@ fun PdfReaderScreen(
     resourceId: String? = null
 ) {
     val context = LocalContext.current
+    val managerProgress by OfflineDownloadManager.progress.collectAsState()
     var progress by remember { mutableStateOf<Float?>(null) }
     var file by remember { mutableStateOf<File?>(null) }
     var error by remember { mutableStateOf<String?>(null) }
@@ -140,7 +142,7 @@ fun PdfReaderScreen(
             return@LaunchedEffect
         }
         try {
-            file = BookFileStore.ensureFile(context, cacheKey, url) { progress = it }
+            file = OfflineDownloadManager.ensureBookFile(context, cacheKey, url) { progress = it }
         } catch (e: CancellationException) {
             throw e
         } catch (e: IOException) {
@@ -188,7 +190,7 @@ fun PdfReaderScreen(
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    val p = progress
+                    val p = managerProgress[cacheKey] ?: progress
                     DownloadGauge(
                         state = DownloadState.DOWNLOADING,
                         progress = p,

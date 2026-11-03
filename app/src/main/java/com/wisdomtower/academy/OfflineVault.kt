@@ -547,7 +547,7 @@ class CachingInputStream(
             } catch (e: Exception) {
                 tempFile.delete()
             } finally {
-                if (url.isNotBlank()) {
+                if (url.isNotBlank() && !com.wisdomtower.academy.data.content.OfflineDownloadManager.isManagingUrl(url)) {
                     val finalTotal = if (totalSize > 0L) totalSize else totalSoFar
                     OfflineVault.updateProgress(url, finalTotal, finalTotal)
                     val norm = OfflineVault.normalizeUrl(url)
@@ -568,13 +568,10 @@ class CachingInputStream(
         } finally {
             try {
                 fos.close()
-                if (!completed) {
-                    tempFile.delete()
-                }
+                val managerOwns = com.wisdomtower.academy.data.content.OfflineDownloadManager.isManagingUrl(url)
+                if (!completed && !managerOwns) tempFile.delete()
+                if (url.isNotBlank() && !managerOwns) OfflineVault.clearProgress(url)
             } catch (_: Exception) {}
-            if (url.isNotBlank()) {
-                OfflineVault.clearProgress(url)
-            }
         }
     }
 }

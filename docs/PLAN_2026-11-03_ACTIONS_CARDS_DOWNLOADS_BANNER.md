@@ -8,7 +8,7 @@
 - [x] **A1** — implemented and pushed; owner phone test pending. Scholar list: quick actions (Push, Call, Email) on every row and in the profile panel
 - [x] **A2** — implemented and pushed; owner phone test pending. Inquiries list: same actions, with Reply first
 - [x] **C1** — database column, app caching, save-time HEAD capture, and old-book backfill implemented; phone/CI verification pending. Book size shown immediately (like the title)
-- [ ] **D1** Downloads keep going when the student leaves the page (stay in the app)
+- [x] **D1** — process-lifetime coordinator, cross-screen progress, and HTTP Range resume implemented; phone/CI verification pending. Downloads keep going when the student leaves the page (stay in the app)
 - [ ] **E1** Downloads start fast, also on a slow connection
 - [ ] **B1** Taller material cards (books, notes, question banks, all lists): title, type, description, size
 - [ ] **F1** Home welcome picture becomes dynamic (app side: cached remote picture, bundled one is the fallback)
@@ -118,6 +118,7 @@ Not in this plan (can come later if wanted): tap-through link or headline on the
 
 ## Plan changes
 
+- 2026-11-03 (D1): Added a process-lifetime download coordinator for hub materials and the PDF reader. Work continues after navigation, duplicate starts join active jobs, partial book files resume with HTTP Range, and manager-owned transfers are protected from WebView stream-close cleanup. Force-close survival remains out of scope.
 - 2026-11-03 (C1): Added `size_bytes` to material rows. The app reads it with the title and stores it in the existing offline list cache. Saving a book with a new Appwrite ID measures the file with HEAD; opening Admin > Course Content > Books backfills older rows with missing sizes.
 - 2026-11-03 (A2): Inquiry rows and details now offer Reply, Push, and Email. Reply opens the mail app with a prefilled subject; Push resolves the inquiry email to an Academy profile before using the existing targeted notification sender. Inquiry records contain no phone or user ID, so Call is not shown.
 - 2026-11-03 (A1): Added scholar Push / Call / Email actions in the directory and profile. Push reuses `ComposerRepository.sendNow` with the scholar user ID; Call opens the dialer and Email opens a mail composer. Zero-device responses are explained.

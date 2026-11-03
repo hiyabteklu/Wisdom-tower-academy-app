@@ -177,16 +177,29 @@ object BookFileStore {
         }
 
         val part = File(dir, "$safe.part")
-        val request = Request.Builder().url(realUrl).get().build()
-        http.newCall(request).execute().use { resp ->
+        val existingBytes = part.takeIf { it.exists() }?.length() ?: 0L
+        val requestBuilder = Request.Builder().url(realUrl).get()
+        if (existingBytes > 0L) requestBuilder.header("Range", "bytes=$existingBytes-")
+        http.newCall(requestBuilder.build()).execute().use { resp ->
+            val append = existingBytes > 0L && resp.code == 206
             if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
+            if (append && !resp.header("Content-Range").orEmpty().startsWith("bytes $existingBytes-"))
+                throw java.io.IOException("Invalid resume range")
+            if (!append && existingBytes > 0L) part.delete()
             val body = resp.body ?: throw IllegalStateException("Empty answer")
+            val rangeTotal = resp.header("Content-Range")?.substringAfterLast('/')?.toLongOrNull() ?: 0L
             val bodyLen = body.contentLength()
-            val total = if (bodyLen > 0L) bodyLen else (getCachedFileSize(context, key) ?: -1L)
+            val total = when {
+                rangeTotal > 0L -> rangeTotal
+                bodyLen > 0L && append -> existingBytes + bodyLen
+                bodyLen > 0L -> bodyLen
+                else -> getCachedFileSize(context, key) ?: -1L
+            }
+            var done = if (append) existingBytes else 0L
+            onProgress(if (total > 0L) (done.toFloat() / total).coerceIn(0f, 1f) else -1f)
             body.byteStream().use { input ->
-                part.outputStream().use { out ->
+                java.io.FileOutputStream(part, append).use { out ->
                     val buffer = ByteArray(64 * 1024)
-                    var done = 0L
                     var lastReportedPct = -1
                     while (true) {
                         ensureActive()

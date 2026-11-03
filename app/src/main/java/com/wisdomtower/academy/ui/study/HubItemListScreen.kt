@@ -64,6 +64,7 @@ import com.wisdomtower.academy.data.content.CourseLocks
 import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningResource
+import com.wisdomtower.academy.data.content.OfflineDownloadManager
 import com.wisdomtower.academy.data.content.SavedContent
 import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
@@ -178,8 +179,8 @@ fun HubItemListScreen(
     val downloadScope = rememberCoroutineScope()
     val downloadPrefs = remember { context.getSharedPreferences("wt_downloaded_resources", Context.MODE_PRIVATE) }
     var downloaded by remember { mutableStateOf<Set<String>>(downloadPrefs.getStringSet("ids", null)?.toSet() ?: emptySet()) }
-    var busy by remember { mutableStateOf<Map<String, Float>>(emptyMap()) }
-    var failed by remember { mutableStateOf<Set<String>>(emptySet()) }
+    val busy by OfflineDownloadManager.progress.collectAsState()
+    val failed by OfflineDownloadManager.failed.collectAsState()
 
     // T4 (2026-10-12): Real book file sizes (memory map keyed by resource id)
     var fileSizeMap by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
@@ -198,33 +199,9 @@ fun HubItemListScreen(
     fun lockOf(item: LearningResource): HubGate? =
         locks?.itemGate(hubId, item.chapter, item.id)?.takeIf { it != HubGate.Open }
 
-    /** Saves one item. The caller has already put the item into [busy]; this removes it again at the end. */
-    suspend fun runDownload(item: LearningResource) {
-        failed = failed - item.id
-        try {
-            downloadItem(context, item) { fraction ->
-                val newPct = (fraction.coerceIn(0f, 1f) * 100).toInt()
-                val oldPct = ((busy[item.id] ?: -1f).coerceIn(0f, 1f) * 100).toInt()
-                if (newPct != oldPct || busy[item.id] == null) {
-                    busy = busy + (item.id to fraction)
-                }
-            }
-            downloaded = downloaded + item.id
-            downloadPrefs.edit().putStringSet("ids", downloaded.toSet()).apply()
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            failed = failed + item.id
-        } finally {
-            busy = busy - item.id
-        }
-    }
-
     fun startDownload(item: LearningResource) {
-        if (item.id in busy) return
-        if (lockOf(item) != null) return
-        busy = busy + (item.id to SIZE_UNKNOWN)
-        downloadScope.launch { runDownload(item) }
+        if (item.id in busy || lockOf(item) != null) return
+        OfflineDownloadManager.start(context, item)
     }
 
     fun downloadAll(all: List<LearningResource>) {
@@ -232,15 +209,21 @@ fun HubItemListScreen(
         val todo = all.filter { it.id !in downloaded && it.id !in busy && lockOf(it) == null }
         if (todo.isEmpty()) return
         bulk = 0 to todo.size
-        downloadScope.launch {
-            try {
-                for ((index, item) in todo.withIndex()) {
-                    busy = busy + (item.id to SIZE_UNKNOWN)
-                    runDownload(item)
-                    bulk = (index + 1) to todo.size
+        todo.forEach { OfflineDownloadManager.start(context, it) }
+    }
+
+    LaunchedEffect(Unit) {
+        launch {
+            OfflineDownloadManager.completed.collect { id ->
+                downloaded = downloaded + id
+                downloadPrefs.edit().putStringSet("ids", downloaded.toSet()).apply()
+            }
+        }
+        launch {
+            OfflineDownloadManager.finished.collect {
+                bulk?.let { current ->
+                    bulk = if (current.first + 1 >= current.second) null else (current.first + 1) to current.second
                 }
-            } finally {
-                bulk = null
             }
         }
     }
@@ -253,7 +236,7 @@ fun HubItemListScreen(
             val ids = list.map { it.id }.toSet()
             downloaded = downloaded - ids
             downloadPrefs.edit().putStringSet("ids", downloaded.toSet()).apply()
-            failed = failed - ids
+            OfflineDownloadManager.clearFailures(ids)
         }
     }
 
