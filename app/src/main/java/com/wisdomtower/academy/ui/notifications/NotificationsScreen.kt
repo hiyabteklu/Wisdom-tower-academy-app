@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -153,7 +154,7 @@ fun NotificationsScreen(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(
-                modifier = Modifier.clickable { onBack() }.padding(vertical = 6.dp),
+                modifier = Modifier.wisdomPressClickable(onClick = onBack).padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(
@@ -168,7 +169,7 @@ fun NotificationsScreen(
             if (unreadCount > 0) {
                 Row(
                     modifier = Modifier
-                        .clickable { NotificationRepository.markAllRead() }
+                        .wisdomPressClickable(onClick = { NotificationRepository.markAllRead() })
                         .padding(vertical = 6.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -255,7 +256,7 @@ fun NotificationsScreen(
                                     BorderStroke(1.dp, if (selected) WisdomAccentSky else WisdomGlassBorder),
                                     RoundedCornerShape(12.dp)
                                 )
-                                .clickable { filter = f }
+                                .wisdomPressClickable(onClick = { filter = f })
                                 .padding(horizontal = 12.dp, vertical = 7.dp)
                         ) {
                             Text(
@@ -386,7 +387,7 @@ private fun NoticeRow(n: NativeNotificationItem, modifier: Modifier = Modifier, 
             .clip(RoundedCornerShape(16.dp))
             .background(if (n.read) WisdomGlassFillQuiet else WisdomGlassFillStrong)
             .border(BorderStroke(1.dp, WisdomGlassBorder), RoundedCornerShape(16.dp))
-            .clickable { onClick() }
+            .wisdomPressClickable(onClick = onClick)
             .padding(14.dp),
         verticalAlignment = Alignment.Top
     ) {
