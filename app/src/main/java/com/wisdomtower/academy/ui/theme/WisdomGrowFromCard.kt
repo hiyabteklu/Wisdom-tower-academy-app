@@ -110,7 +110,7 @@ private class GrowHolder<T> {
     var active = false
 }
 
-private fun GraphicsLayerScope.applyGrow(p: Float, box: Rect?, layerX: Float, layerY: Float) {
+internal fun GraphicsLayerScope.applyGrow(p: Float, box: Rect?, layerX: Float, layerY: Float) {
     if (p >= 1f || size.width <= 0f) {
         scaleX = 1f
         scaleY = 1f
