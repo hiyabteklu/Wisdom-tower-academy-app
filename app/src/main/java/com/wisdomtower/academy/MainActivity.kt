@@ -2616,7 +2616,9 @@ fun MainScreen(
                             webChromeClient = object : WebChromeClient() {
                                 override fun onProgressChanged(view: WebView?, newProgress: Int) {
                                     webProgress = newProgress
-                                    if (newProgress >= 85) {
+                                    // V9 cover until paint: a web page keeps the loader until onPageCommitVisible (first drawn frame);
+                                    // only the offline asset page is released by progress.
+                                    if (newProgress >= 85 && view?.url.orEmpty().startsWith("file://")) {
                                         stopNavigationLoading()
                                     }
                                     if (newProgress >= 60) {
@@ -3839,7 +3841,8 @@ fun MainScreen(
                                                 view?.evaluateJavascript(AI_TUTOR_CHROME_JS, null)
                                                 view?.evaluateJavascript(AUTH_BRIDGE_JS, null)
                                             }
-                                            if (newProgress >= 85) {
+                                            // V9 cover until paint: the overlay loader waits for onPageCommitVisible; progress releases only the offline page
+                                            if (newProgress >= 85 && isOfflinePage) {
                                                 activeToolOverlayLoading = false
                                             }
                                         }
@@ -3860,6 +3863,11 @@ fun MainScreen(
                                                 overlayShowingOffline = true
                                                 activeToolOverlayLoading = false
                                             }
+                                        }
+
+                                        override fun onPageCommitVisible(view: WebView?, url: String?) {
+                                            // V9 cover until paint: the first frame of the page is on screen, remove the loader
+                                            activeToolOverlayLoading = false
                                         }
 
                                         override fun onPageFinished(view: WebView?, url: String?) {
