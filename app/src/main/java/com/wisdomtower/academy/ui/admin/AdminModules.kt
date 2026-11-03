@@ -6,6 +6,7 @@ import androidx.compose.material.icons.filled.CreditCard
 import androidx.compose.material.icons.filled.Dashboard
 import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Inbox
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.LocalLibrary
 import androidx.compose.material.icons.filled.Lock
@@ -41,6 +42,7 @@ internal val ADMIN_MODULES: List<AdminModule> = listOf(
     AdminModule("exam-integrity", "Exam Integrity", Icons.Filled.Security, AdminCountKind.EXAM_FLAGS, listOf("integrity", "exam-review")),
     AdminModule("device-security", "Device Security", Icons.Filled.Smartphone, AdminCountKind.DEVICE_ATTEMPTS, listOf("devices", "device")),
     AdminModule("notifications", "Push Broadcasts", Icons.Filled.Notifications, aliases = listOf("notification")),
+    AdminModule("home-banner", "Home Banner", Icons.Filled.Image, aliases = listOf("banner")),
     AdminModule("competitions", "Competitions", Icons.Filled.EmojiEvents, aliases = listOf("competition", "contests", "contest")),
     AdminModule("users", "Scholars & Users", Icons.Filled.People, AdminCountKind.SCHOLARS, listOf("user")),
     AdminModule("payments", "Payments", Icons.Filled.CreditCard, AdminCountKind.PAYMENTS, listOf("payment")),
@@ -68,6 +70,6 @@ internal fun adminModuleForTab(raw: String?): AdminModule? {
 internal val NATIVE_ADMIN_MODULE_IDS: Set<String> =
     setOf(
         "inquiries", "payments", "users", "overview", "grants", "locks", "catalog", "content",
-        "notifications", "competitions", "free-resources", "database", "game-sets", "exam-integrity", "device-security"
+        "notifications", "competitions", "free-resources", "database", "game-sets", "exam-integrity", "device-security", "home-banner"
     )
 

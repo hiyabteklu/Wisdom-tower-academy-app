@@ -158,6 +158,44 @@ object AdminSupabase {
     suspend fun post(path: String, jsonBody: String, prefer: String): AdminHttpResult =
         request("POST", path, jsonBody, prefer)
 
+    suspend fun uploadStorageObject(
+        bucket: String, objectPath: String, bytes: ByteArray, contentType: String
+    ): AdminHttpResult = withContext(Dispatchers.IO) {
+        require(bucket.matches(Regex("^[a-z0-9-]+$")))
+        require(objectPath.matches(Regex("^[A-Za-z0-9._-]+$")))
+        try {
+            AuthStateManager.refreshIfNeeded()
+            var token = AuthStateManager.currentUser.value?.accessToken
+            if (token.isNullOrBlank()) return@withContext AdminHttpResult(-2, "")
+            fun send(accessToken: String): AdminHttpResult {
+                val request = Request.Builder()
+                    .url("$supabaseUrl/storage/v1/object/$bucket/$objectPath")
+                    .addHeader("apikey", anonKey)
+                    .addHeader("Authorization", "Bearer $accessToken")
+                    .addHeader("x-upsert", "true")
+                    .post(bytes.toRequestBody(contentType.toMediaType()))
+                    .build()
+                http.newCall(request).execute().use { response ->
+                    AdminHttpResult(response.code, response.body?.string().orEmpty())
+                }
+            }
+            var reply = send(token!!)
+            if (reply.code == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
+                token = AuthStateManager.currentUser.value?.accessToken
+                if (!token.isNullOrBlank()) reply = send(token!!)
+            }
+            reply
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(TAG, "Storage upload failed: ${e.javaClass.simpleName}")
+            AdminHttpResult(-1, "")
+        }
+    }
+
+    fun publicStorageUrl(bucket: String, objectPath: String): String =
+        "$supabaseUrl/storage/v1/object/public/$bucket/$objectPath"
+
     /** POST to a public website API route (no login header, same as the website panel). absoluteUrl is the full url. */
     suspend fun postPublic(absoluteUrl: String, jsonBody: String): AdminHttpResult =
         withContext(Dispatchers.IO) {

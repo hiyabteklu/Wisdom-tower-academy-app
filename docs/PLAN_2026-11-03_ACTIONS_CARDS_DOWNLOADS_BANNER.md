@@ -12,7 +12,7 @@
 - [x] **E1** — two concurrent transfers, immediate connecting state, and three-attempt retry implemented; phone/CI verification pending. Downloads start fast, also on a slow connection
 - [x] **B1** — taller material cards with editable descriptions, type labels, and status footer implemented; phone/CI verification pending. Taller material cards (books, notes, question banks, all lists): title, type, description, size
 - [x] **F1** — cached remote banner loader with version checks and bundled fallback implemented; phone/CI verification pending. Home welcome picture becomes dynamic (app side: cached remote picture, bundled one is the fallback)
-- [ ] **F2** Admin "Home Banner" control center (change picture, back to default)
+- [x] **F2** — admin control center, public-read bucket, and database-enforced admin writes implemented; phone/CI verification pending. Admin "Home Banner" control center (change picture, back to default)
 
 Why this order: A and C are small and visible, D/E fix the biggest daily annoyance, B is layout, F is the only slice that needs new Supabase pieces.
 
@@ -115,10 +115,13 @@ Not in this plan (can come later if wanted): tap-through link or headline on the
 ## Live changes (Supabase)
 
 - `learning_resources_size_bytes` — added nullable `size_bytes` to `learning_resources`, exposed it to student light-list reads, preserved the admin-only view, and granted authenticated admin writes.
-- `learning_resources_description` — added optional description text to `learning_resources`, exposed it to student light-list reads and the admin view, and granted authenticated admin writes. Add one line per migration here: name + what it does.
+- `learning_resources_description` — added optional description text to `learning_resources`, exposed it to student light-list reads and the admin view, and granted authenticated admin writes.
+- `academy_home_banner_control_center` — created the one-row public-read banner settings table and public-read `academy-home-banners` JPEG bucket (200 KB limit), with RLS policies restricting settings updates and storage writes to admins.
+- `academy_home_banner_privileges_lockdown` — revoked broad table privileges and granted only public SELECT plus authenticated admin column UPDATE on the banner settings row. Add one line per migration here: name + what it does.
 
 ## Plan changes
 
+- 2026-11-03 (F2): Added the native Home Banner admin module. Admins can preview the live image, choose and center-crop a 16:9 photo, resize/compress it to 1280×720 under 200 KB, confirm publish, or confirm restore-default. Uploads use the admin JWT and storage RLS; settings updates are protected by `private.is_admin()`.
 - 2026-11-03 (F1): Added a Home banner loader that draws the cached remote image immediately, checks the settings version in the background, downloads only on version change, and falls back to the bundled academy.jpg on default / offline / error. Uses the same image input for signed-in and signed-out welcome cards and keeps the existing 16:9 card layout.
 - 2026-11-03 (B1): Reworked all native hub material rows into taller glass cards with type chip, two-line title, three-line description, and a footer for file size / question count / saved status. Added optional description to learning_resources and the admin editor; older rows use a chapter/count/size fallback. The Learning screen's package tiles are a different component, not material rows.
 - 2026-11-03 (E1): The download pool now permits two simultaneous transfers. Connecting is shown immediately; the first received bytes update progress, and transient I/O / 5xx / 408 / 429 failures retry up to three times with increasing delay. The known `size_bytes` value is passed from the material card to the reader and seeds the download total.
