@@ -19,9 +19,18 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.zIndex
+import androidx.compose.runtime.SideEffect
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.positionInRoot
 
 /** Holds the last non-null item so the screen keeps its content while it slides out. Not Compose state on purpose. */
 private class LastItem<T>(var value: T?)
+
+/** V5c grow: true while a pushed screen grows out of a tapped card, so the tab below does not slide away from that card. */
+object WisdomGrowFlag {
+    var active by mutableStateOf(false)
+}
 
 /**
  * M5 (docs/UI_MOTION_PLAN.md): push / pop motion for a full-screen overlay (study workspace, guides, competitions).
@@ -48,6 +57,20 @@ fun <T : Any> WisdomPushLayer(
     val wanted = item != null
     val progress = remember { Animatable(if (wanted) 1f else 0f) }
     var shown by remember { mutableStateOf(wanted) }
+    val originHolder = remember { LastItem<Rect>(null) } // V5c grow
+    val originTaken = remember { BooleanArray(1) }
+    val layerPos = remember { FloatArray(2) }
+    if (item != null) {
+        if (!originTaken[0]) {
+            originTaken[0] = true
+            originHolder.value = WisdomCardOrigin.take()
+        }
+    } else {
+        originTaken[0] = false
+    }
+    SideEffect {
+        if (originHolder.value != null && (wanted || shown)) WisdomGrowFlag.active = true
+    }
 
     // Native predictive back: the overlay follows the system gesture finger.
     // The same owner callback used by the screen's ordinary Back action is invoked only on commit.
@@ -76,6 +99,10 @@ fun <T : Any> WisdomPushLayer(
             progress.animateTo(0f, spring(dampingRatio = 1f, stiffness = WisdomMotionV2.PopStiffness))
             shown = false
             last.value = null
+            if (originHolder.value != null) {
+                WisdomGrowFlag.active = false
+                originHolder.value = null
+            }
         }
     }
 
@@ -85,8 +112,18 @@ fun <T : Any> WisdomPushLayer(
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(zIndexValue)
+                .onGloballyPositioned { coordinates ->
+                    val pos = coordinates.positionInRoot()
+                    layerPos[0] = pos.x
+                    layerPos[1] = pos.y
+                }
                 .graphicsLayer {
-                    translationX = (1f - progress.value) * size.width
+                    val box = originHolder.value
+                    if (box != null) {
+                        applyGrow(progress.value, box, layerPos[0], layerPos[1])
+                    } else {
+                        translationX = (1f - progress.value) * size.width
+                    }
                 }
         ) {
             Box(
@@ -115,7 +152,7 @@ fun Modifier.wisdomPushRecede(active: Boolean): Modifier {
     }
     return graphicsLayer {
         val p = progress.value
-        translationX = -size.width * 0.30f * p
+        translationX = -size.width * 0.30f * p * (if (WisdomGrowFlag.active) 0f else 1f) // V5c grow
         alpha = 1f - 0.15f * p
     }
 }
