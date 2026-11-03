@@ -6,7 +6,9 @@ import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.Interaction
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.InteractionSource
 import androidx.compose.foundation.interaction.PressInteraction
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -22,6 +24,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -107,4 +111,24 @@ fun Modifier.wisdomPress(interactionSource: InteractionSource): Modifier {
         scaleX = scale
         scaleY = scale
     }
+}
+
+
+/**
+ * A complete clickable with the shared press-scale and light release haptic.
+ * Use this where a control does not already own an InteractionSource.
+ */
+fun Modifier.wisdomPressClickable(
+    role: Role? = null,
+    onClick: () -> Unit
+): Modifier = composed {
+    val source = remember { MutableInteractionSource() }
+    this
+        .wisdomPress(source)
+        .clickable(
+            interactionSource = source,
+            indication = null,
+            role = role,
+            onClick = onClick
+        )
 }
