@@ -35,6 +35,7 @@ import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 
 /**
  * Full-screen "Choose level" step (docs/GAMES_COOL_PLAN.md slices G2 and G3).
@@ -57,7 +58,7 @@ fun LevelPickerScreen(
 ) {
     var selected by remember { mutableStateOf(initial) }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.wisdomScreenEntrance().fillMaxSize()) { // V6 lists entrance
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
         Column(
             Modifier
