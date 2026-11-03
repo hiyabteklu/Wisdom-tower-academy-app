@@ -71,6 +71,7 @@ import com.wisdomtower.academy.ui.theme.WisdomGlassFillQuiet
 import com.wisdomtower.academy.ui.theme.WisdomGlassFillStrong
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
+import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
 import kotlin.math.roundToInt
 
 /**
@@ -555,6 +556,7 @@ private fun NudgeDialog(
     Dialog(onDismissRequest = onKeep) {
         Column(
             modifier = Modifier
+                .wisdomDialogEnter()
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(24.dp))
                 .background(TmDialogFill)
