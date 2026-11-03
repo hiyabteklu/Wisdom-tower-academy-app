@@ -1,14 +1,10 @@
 package com.wisdomtower.academy.ui.theme
 
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.FastOutLinearInEasing
-import androidx.compose.animation.core.LinearOutSlowInEasing
-import androidx.compose.animation.core.tween
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.activity.ExperimentalActivityApi
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -19,9 +15,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.IntOffset
-import kotlin.math.roundToInt
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.withContext
@@ -39,8 +32,10 @@ private class LastItem<T>(var value: T?)
  * - `graphicsLayer` only (alpha, translationX), read in the draw phase: no recomposition per frame.
  * - Touch works from the first frame (a layer at alpha 0 still receives taps).
  * - This file never changes the state that decides visibility; back handling stays where it is.
+ *
+ * V16: build fix. `ExperimentalActivityApi` does not exist in activity-compose 1.10.1 (PredictiveBackHandler is stable there),
+ * so the opt-in import and annotation were removed.
  */
-@OptIn(ExperimentalActivityApi::class)
 @Composable
 fun <T : Any> WisdomPushLayer(
     item: T?,
