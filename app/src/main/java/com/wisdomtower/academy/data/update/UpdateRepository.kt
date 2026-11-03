@@ -9,6 +9,7 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
+import java.io.File
 
 data class AppRelease(
     val versionCode: Int,
@@ -58,6 +59,52 @@ object UpdateRepository {
             cached(prefs)
         }
     }
+
+    /** Downloads a published APK to app-private cache; partial files are never offered to Android. */
+    suspend fun downloadApk(context: Context, release: AppRelease, onProgress: (Float?) -> Unit): File =
+        withContext(Dispatchers.IO) {
+            val uri = android.net.Uri.parse(release.apkUrl)
+            require(uri.scheme == "https" && !uri.host.isNullOrBlank()) {
+                "The release APK link must use HTTPS."
+            }
+            val request = Request.Builder().url(release.apkUrl).get().build()
+            http.newCall(request).execute().use { response ->
+                check(response.isSuccessful) { "APK download failed (HTTP ${response.code})." }
+                val body = response.body ?: error("The APK download was empty.")
+                val total = body.contentLength()
+                val directory = File(context.cacheDir, "updates").apply { mkdirs() }
+                val target = File(directory, "wisdom-tower-update-${release.versionCode}.apk")
+                val partial = File(directory, "update-${release.versionCode}.part")
+                try {
+                    body.byteStream().use { input ->
+                        partial.outputStream().buffered().use { output ->
+                            val buffer = ByteArray(64 * 1024)
+                            var copied = 0L
+                            while (true) {
+                                val count = input.read(buffer)
+                                if (count < 0) break
+                                output.write(buffer, 0, count)
+                                copied += count
+                                onProgress(if (total > 0L) (copied.toFloat() / total).coerceIn(0f, 1f) else null)
+                            }
+                        }
+                    }
+                    require(partial.length() > 4L) { "The downloaded APK is empty or incomplete." }
+                    partial.inputStream().use { input ->
+                        require(input.read() == 0x50 && input.read() == 0x4b) {
+                            "The downloaded file is not a valid APK archive."
+                        }
+                    }
+                    if (target.exists()) target.delete()
+                    check(partial.renameTo(target)) { "Could not prepare the downloaded update." }
+                    onProgress(1f)
+                    target
+                } catch (error: Exception) {
+                    partial.delete()
+                    throw error
+                }
+            }
+        }
 
     private fun cached(prefs: android.content.SharedPreferences): AppRelease? =
         try { prefs.getString(CACHED_RELEASE, null)?.let { JSONObject(it).toRelease() } }
