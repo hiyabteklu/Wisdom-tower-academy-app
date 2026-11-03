@@ -53,6 +53,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
@@ -269,7 +270,7 @@ fun NativeCoverPageScreen(
         }
     }
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize().wisdomScreenEntrance()) {
         // The style card above the preview is about 244 dp tall including gaps; the preview takes the rest of the
         // screen (never wider than the screen), so templates, colours, borders and the whole page fit together.
         val ratio = COVER_PAGE_W.toFloat() / COVER_PAGE_H.toFloat()
