@@ -23,6 +23,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -81,6 +82,7 @@ import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import com.wisdomtower.academy.ui.theme.wisdomReveal
+import com.wisdomtower.academy.ui.theme.wisdomHeaderParallax
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -233,12 +235,14 @@ fun HomeScreen(
     // D3: the resource list is read once per composition (it is a getter now), so both tiles of a row come from one list.
     val resources = OTHER_RESOURCES
     val programs = HOME_PROGRAMS
+    val listState = rememberLazyListState() // V10 header
 
     Box(modifier = modifier.fillMaxSize()) {
         // Atmospheric radial background
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize().wisdomScreenEntrance(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(22.dp)
@@ -260,7 +264,7 @@ fun HomeScreen(
             //    "Welcome back, <name>" (replays every time Home opens); signed out it stays "Open Learning".
             //    M11 slice 6: rises in once like the program cards below it (wisdomReveal, docs/UI_MOTION_PLAN.md).
             item(key = "welcome_card") {
-                Box(modifier = Modifier.wisdomReveal("home_welcome_card", 0)) {
+                Box(modifier = Modifier.wisdomHeaderParallax(listState, "welcome_card").wisdomReveal("home_welcome_card", 0)) {
                     if (isLoggedIn) {
                         OpenCardLayout(
                             image = "file:///android_asset/images/home/academy.jpg",

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
@@ -21,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.wisdomHeaderParallax
 
 /**
  * Packages tab, mirrors website src/app/packages/page.tsx + components/PackagesCatalog.tsx:
@@ -41,11 +43,13 @@ fun PackagesScreen(
     val grades = remember(packageList) { packageList.filter { it.group == "grades" } }
     val branches = remember(packageList) { packageList.filter { it.group == "branch" } }
     val specials = remember(packageList) { packageList.filter { it.group == "special" } }
+    val listState = rememberLazyListState() // V10 header
 
     Box(modifier = modifier.fillMaxSize()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -53,6 +57,7 @@ fun PackagesScreen(
             item(key = "packages_title_header") {
                 Column(
                     modifier = Modifier
+                        .wisdomHeaderParallax(listState, "packages_title_header")
                         .fillMaxWidth()
                         .padding(vertical = 12.dp),
                     horizontalAlignment = Alignment.CenterHorizontally
