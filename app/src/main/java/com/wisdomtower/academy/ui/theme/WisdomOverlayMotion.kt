@@ -3,6 +3,7 @@ package com.wisdomtower.academy.ui.theme
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
@@ -45,7 +46,7 @@ fun Modifier.wisdomStaggerIn(index: Int, stepMs: Int = 30, baseDelayMs: Int = 90
 fun Modifier.wisdomDialogEnter(): Modifier {
     val progress = remember { Animatable(0f) }
     LaunchedEffect(Unit) {
-        progress.animateTo(1f, tween(durationMillis = 200, easing = FastOutSlowInEasing))
+        progress.animateTo(1f, spring(dampingRatio = 0.82f, stiffness = 300f))
     }
     return this.graphicsLayer {
         val p = progress.value
@@ -53,5 +54,20 @@ fun Modifier.wisdomDialogEnter(): Modifier {
         val s = 0.94f + 0.06f * p
         scaleX = s
         scaleY = s
+    }
+}
+
+
+/** Spring arrival for a bottom sheet surface. Apply to the sheet's outer card/container. */
+@Composable
+fun Modifier.wisdomSheetEnter(): Modifier {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(1f, spring(dampingRatio = 0.85f, stiffness = 300f))
+    }
+    return this.graphicsLayer {
+        val p = progress.value
+        alpha = p
+        translationY = (1f - p) * size.height * 0.12f
     }
 }
