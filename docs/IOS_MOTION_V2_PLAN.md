@@ -85,7 +85,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 | V9 | PARTIAL CODE PUSHED: shared #root entrance now auto-runs across pages using richtext.css; native cover-until-paint coordination remains |
 | V10 | NOT STARTED (optional) |
 | V11 | CODE PUSHED: quiz/competition exam already had question/option/result/timer motion; this slice adds Android reduced-motion suppression; no exam logic or controls changed |
-| V12 | PARTIAL AUDIT PUSHED; consistency pass cannot be called complete while V5/V6/V7/V10 and V8/V9 remaining integration work remain |
+| V12 | PARTIAL AUDIT PUSHED; remaining: V3 manifest opt-in approval, V5, V6/V7 broad coverage, optional V10, V8 sheet drag/tool host wiring, V9 page-paint/native cover verification; no CI or phone test |
 
 ## 7. Owner decisions (defaults chosen, change any of them)
 1. **Style:** calm and premium like iOS: smooth springs, no bounce on screens, a small bounce only on small things (selection pop, press). Not playful.
