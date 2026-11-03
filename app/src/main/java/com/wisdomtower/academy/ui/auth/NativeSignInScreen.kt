@@ -110,6 +110,7 @@ import com.wisdomtower.academy.data.auth.SupabaseAuthClient
 import com.wisdomtower.academy.data.auth.SupabaseAuthResult
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
+import com.wisdomtower.academy.ui.theme.wisdomSelectionPop
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.WisdomCardSurfaceGradient
@@ -685,7 +686,7 @@ fun NativeSignInScreen(
                                 Checkbox(
                                     checked = agreedToTerms,
                                     onCheckedChange = { agreedToTerms = it },
-                                    modifier = Modifier.semantics {
+                                    modifier = Modifier.wisdomSelectionPop(agreedToTerms).semantics { // V7 controls pop
                                         contentDescription = "Accept Terms of Service and Privacy Policy"
                                     },
                                     colors = CheckboxDefaults.colors(

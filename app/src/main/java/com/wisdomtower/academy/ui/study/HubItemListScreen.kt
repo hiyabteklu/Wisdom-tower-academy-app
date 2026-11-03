@@ -79,6 +79,7 @@ import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomMessageCard
 import com.wisdomtower.academy.ui.theme.wisdomReveal
+import com.wisdomtower.academy.ui.theme.wisdomPress
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -579,14 +580,16 @@ private fun ToolPill(
     onClick: () -> Unit,
     leadingIcon: (@Composable () -> Unit)? = null
 ) {
+    val pillSource = remember { MutableInteractionSource() } // V7 controls pop
     Box(
         modifier = Modifier
+            .wisdomPress(pillSource)
             .clip(RoundedCornerShape(10.dp))
             .background(color.copy(alpha = 0.12f))
             .border(BorderStroke(1.dp, color.copy(alpha = 0.45f)), RoundedCornerShape(10.dp))
             .clickable(
                 enabled = enabled,
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = pillSource,
                 indication = ripple(color = color.copy(alpha = 0.25f)),
                 onClick = onClick
             )
@@ -839,14 +842,16 @@ private fun MessageCard(title: String?, message: String, onRetry: (() -> Unit)?)
  */
 @Composable
 internal fun ScreenBackButton(onClick: () -> Unit, modifier: Modifier = Modifier) {
+    val backSource = remember { MutableInteractionSource() } // V7 controls pop
     Box(
         modifier = modifier
+            .wisdomPress(backSource)
             .size(48.dp)
             .clip(CircleShape)
             .background(WisdomGlassFillStrong)
             .border(BorderStroke(1.dp, WisdomGlassBorder), CircleShape)
             .clickable(
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = backSource,
                 indication = ripple(color = WisdomCyan.copy(alpha = 0.2f)),
                 role = androidx.compose.ui.semantics.Role.Button, // S3-a11y
                 onClick = onClick
