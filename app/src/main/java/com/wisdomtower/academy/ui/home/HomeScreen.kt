@@ -51,6 +51,7 @@ import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.semantics.Role
@@ -58,6 +59,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.content.HomeBannerRepository
 import com.wisdomtower.academy.ui.auth.SignInPill
 import com.wisdomtower.academy.ui.packages.ENTRANCE_BASE_PATH
 import com.wisdomtower.academy.ui.packages.ENTRANCE_IMAGE_ASSET
@@ -236,6 +238,13 @@ fun HomeScreen(
     val resources = OTHER_RESOURCES
     val programs = HOME_PROGRAMS
     val listState = rememberLazyListState() // V10 header
+    val context = LocalContext.current
+    var bannerImage by remember(context) {
+        mutableStateOf<Any?>(HomeBannerRepository.cachedOrFallback(context))
+    }
+    LaunchedEffect(context) {
+        HomeBannerRepository.refresh(context) { image -> bannerImage = image }
+    }
 
     Box(modifier = modifier.fillMaxSize()) {
         // Atmospheric radial background
@@ -267,7 +276,7 @@ fun HomeScreen(
                 Box(modifier = Modifier.wisdomHeaderParallax(listState, "welcome_card").wisdomReveal("home_welcome_card", 0)) {
                     if (isLoggedIn) {
                         OpenCardLayout(
-                            image = "file:///android_asset/images/home/academy.jpg",
+                            image = bannerImage,
                             subtitle = null,
                             onClick = { onNavigateToUrl("/learning") },
                             titleSlot = { WelcomeTitle(name = userName?.takeIf { it.isNotBlank() } ?: "Student") }
@@ -275,7 +284,7 @@ fun HomeScreen(
                     } else {
                         OpenCard(
                             title = "Open Learning",
-                            image = "file:///android_asset/images/home/academy.jpg",
+                            image = bannerImage,
                             onClick = { onNavigateToUrl("/learning") }
                         )
                     }
