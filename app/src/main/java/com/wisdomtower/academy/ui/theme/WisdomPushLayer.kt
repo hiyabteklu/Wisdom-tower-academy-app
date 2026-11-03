@@ -8,6 +8,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -20,6 +21,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import kotlin.math.roundToInt
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.withContext
 import androidx.compose.ui.zIndex
 
 /** Holds the last non-null item so the screen keeps its content while it slides out. Not Compose state on purpose. */
@@ -39,6 +44,7 @@ private class LastItem<T>(var value: T?)
 fun <T : Any> WisdomPushLayer(
     item: T?,
     zIndexValue: Float,
+    onBack: (() -> Unit)? = null,
     content: @Composable (T) -> Unit
 ) {
     val last = remember { LastItem<T>(item) }
@@ -46,6 +52,25 @@ fun <T : Any> WisdomPushLayer(
     val wanted = item != null
     val progress = remember { Animatable(if (wanted) 1f else 0f) }
     var shown by remember { mutableStateOf(wanted) }
+
+    // Native predictive back: the overlay follows the system gesture finger.
+    // The same owner callback used by the screen's ordinary Back action is invoked only on commit.
+    PredictiveBackHandler(enabled = wanted && onBack != null) { events ->
+        try {
+            events.collect { event ->
+                progress.snapTo((1f - event.progress).coerceIn(0f, 1f))
+            }
+        } catch (cancelled: CancellationException) {
+            withContext(NonCancellable) {
+                progress.animateTo(1f, spring(dampingRatio = 1f, stiffness = WisdomMotionV2.PopStiffness))
+            }
+            throw cancelled
+        }
+        withContext(NonCancellable) {
+            progress.animateTo(0f, spring(dampingRatio = 1f, stiffness = WisdomMotionV2.PopStiffness))
+        }
+        onBack?.invoke()
+    }
 
     LaunchedEffect(wanted) {
         if (wanted) {
