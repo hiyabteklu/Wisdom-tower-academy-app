@@ -68,13 +68,24 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 - [~] **V9 WebView pages.** Quiz, notes, flashcards, tutor, competition exam, cover pages: (a) keep the native cover until the page has painted, so there is no blank or dark flash when a page opens; (b) a short CSS page entrance inside the page (fade + 10 px rise, 200 ms) and softer button press in the HTML (`:active` scale 0.97); (c) one shared small CSS block reused by the pages if the pages already share one (step 1 = look in `app/src/main/assets/notes/`). Nothing changes the page logic. Quiz and exam pages: entrance only on open and results, never on question change (that is already done in M10 and E-slices). One chat per two pages. Owner test: open a note, a quiz, flashcards, the tutor: no flash, a soft arrival.
 - [ ] **V10 Scroll and header polish (optional).** Large title that collapses while scrolling on Home, Learning, Packages; slight parallax of the hero; cards just entering at the bottom edge a little smaller and settle (the old optional `wisdomScrollDepth`). Skip any effect that costs frames on the owner's phone.
 - [ ] **V11 Exam screens, last and careful.** Question change, option select pulse, results arrival, timer low-time pulse (visual only). Timer, submit, close stay instant and reachable. No change to timing, grading or integrity hooks (`EXAM_INTEGRITY_ADMIN.md`).
-- [ ] **V12 Consistency and speed pass.** Sweep every screen: anything without the kit, different feel between screens, dropped frames. Update the phone checklist. Check with "Remove animations" on and on a low battery or slow phone. No new features.
+- [~] **V12 Consistency and speed pass.** Sweep every screen: anything without the kit, different feel between screens, dropped frames. Update the phone checklist. Check with "Remove animations" on and on a low battery or slow phone. No new features.
 
 ## 6. Status table (update in the same commit as each slice)
 | Slice | State |
 |---|---|
 | Plan | WRITTEN and pushed 2026-11-03 |
-| V1 | CODE PUSHED (2026-11-03; phone test pending) |\n| V2 | CODE PUSHED (2026-11-03; full-width spring overlay + scrim; underlying recede integration pending) |\n| V3 | NOT STARTED |\n| V4 | CODE PUSHED (2026-11-03; overlap fade timing; scroll retention integration pending) |\n| V5 to V7 | NOT STARTED |\n| V8 | CODE PUSHED (2026-11-03; spring dialog helper + sheet entrance helper; host wiring/drag dismissal pending) |\n| V9 | CODE PUSHED (2026-11-03; shared CSS entrance/press styles; readiness class wiring and native cover coordination pending) |\n| V10 to V12 | NOT STARTED |
+| V1 | CODE PUSHED; phone test pending |
+| V2 | PARTIAL CODE PUSHED; underlying screen recede integration pending |
+| V3 | NOT STARTED |
+| V4 | PARTIAL CODE PUSHED; tab state/scroll retention integration pending |
+| V5 | NOT STARTED |
+| V6 | NOT STARTED |
+| V7 | PARTIAL: Settings accordion/toggle rows only; app-wide coverage pending |
+| V8 | PARTIAL CODE PUSHED; host wiring and drag dismissal pending |
+| V9 | PARTIAL CODE PUSHED; readiness-class wiring and native cover coordination pending |
+| V10 | NOT STARTED (optional) |
+| V11 | NOT STARTED |
+| V12 | PARTIAL AUDIT PUSHED; consistency pass cannot be called complete while V3/V5/V6/V7/V10/V11 and integration work remain |
 
 ## 7. Owner decisions (defaults chosen, change any of them)
 1. **Style:** calm and premium like iOS: smooth springs, no bounce on screens, a small bounce only on small things (selection pop, press). Not playful.
