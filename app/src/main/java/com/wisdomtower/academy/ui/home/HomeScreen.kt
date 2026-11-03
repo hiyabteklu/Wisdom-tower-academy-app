@@ -45,6 +45,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
@@ -420,7 +421,7 @@ private fun HeroSection(
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
-                    .clickable(role = Role.Button, onClick = onSignUp)
+                    .wisdomPressClickable(role = Role.Button, onClick = onSignUp)
             )
         }
         SignInPill(onClick = onSignIn) // S5-signin: the shared Sign in pill
