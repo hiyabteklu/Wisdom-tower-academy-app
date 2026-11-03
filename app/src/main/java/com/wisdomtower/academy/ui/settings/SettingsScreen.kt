@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.settings
 
 import android.content.Context
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -281,7 +282,7 @@ fun SettingsScreen(
                                     text = "Reset 50%",
                                     fontSize = 11.sp,
                                     color = WisdomCyan,
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .padding(start = 8.dp)
                                         .clickable(role = Role.Button) {
                                             soundVolume = 0.5f
@@ -382,7 +383,7 @@ fun SettingsScreen(
                         }
 
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(WisdomCyan)
@@ -522,7 +523,7 @@ fun SettingsScreen(
                         )
 
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(12.dp))
                                 .background(WisdomCyan)

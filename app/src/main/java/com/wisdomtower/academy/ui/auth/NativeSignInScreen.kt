@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.auth
 
 import androidx.compose.animation.AnimatedVisibility
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -506,7 +507,7 @@ fun NativeSignInScreen(
                             Spacer(modifier = Modifier.height(6.dp))
                             val pickerShape = RoundedCornerShape(14.dp)
                             Row(
-                                modifier = Modifier
+                                modifier = Modifier.wisdomTouchFeel()
                                     .fillMaxWidth()
                                     .clip(pickerShape)
                                     .background(FieldBackground)
@@ -645,7 +646,7 @@ fun NativeSignInScreen(
                                     color = Slate400,
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.clickable(role = Role.Button) { showReset = true }
+                                    modifier = Modifier.wisdomTouchFeel().clickable(role = Role.Button) { showReset = true }
                                 )
                             }
                         } else null
@@ -745,7 +746,7 @@ fun NativeSignInScreen(
                                             fontSize = 12.sp,
                                             fontWeight = FontWeight.Medium,
                                             textDecoration = TextDecoration.Underline,
-                                            modifier = Modifier.clickable(role = Role.Button) { n.onAction.invoke() }
+                                            modifier = Modifier.wisdomTouchFeel().clickable(role = Role.Button) { n.onAction.invoke() }
                                         )
                                     }
                                 }

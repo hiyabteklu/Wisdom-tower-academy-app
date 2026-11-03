@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.games.defense
 
 import androidx.activity.compose.BackHandler
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -114,7 +115,7 @@ fun ExamPickerScreen(
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",
                 tint = WisdomTextPrimary,
-                modifier = Modifier.clickable(onClick = onBack).padding(8.dp)
+                modifier = Modifier.wisdomTouchFeel().clickable(onClick = onBack).padding(8.dp)
             )
             Column(Modifier.weight(1f)) {
                 Text("Tower Defense", color = WisdomCyan, fontWeight = FontWeight.Bold, fontSize = 12.sp)
@@ -158,7 +159,7 @@ fun ExamPickerScreen(
                         val sealed = gate != null
                         val best = if (!sealed) GameStore.getDefense(context, scopePath, exam.id) else null
                         Row(
-                            Modifier.fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF121A2A))
+                            Modifier.wisdomTouchFeel().fillMaxWidth().clip(RoundedCornerShape(12.dp)).background(Color(0xFF121A2A))
                                 .clickable {
                                     if (sealed) {
                                         sealMsg = when (gate) {

@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.games
 
 import androidx.compose.foundation.background
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -67,7 +68,7 @@ fun LevelPickerScreen(
                 "Back",
                 color = WisdomCyan,
                 fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.clickable(onClick = onBack).padding(8.dp)
+                modifier = Modifier.wisdomTouchFeel().clickable(onClick = onBack).padding(8.dp)
             )
             Spacer(Modifier.height(8.dp))
             Text(
@@ -102,7 +103,7 @@ fun LevelPickerScreen(
 
             val playShape = RoundedCornerShape(28.dp)
             Box(
-                Modifier
+                Modifier.wisdomTouchFeel()
                     .fillMaxWidth()
                     .height(56.dp)
                     .clip(playShape)
@@ -162,7 +163,7 @@ private fun LevelCard(
     val color = levelColor(level)
     val shape = RoundedCornerShape(20.dp)
     Column(
-        Modifier
+        Modifier.wisdomTouchFeel()
             .fillMaxWidth()
             .clip(shape)
             .background(if (selected) color.copy(alpha = 0.18f) else Color(0x990E1A2B))

@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.account
 
 import androidx.compose.foundation.BorderStroke
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -53,7 +54,7 @@ fun AdminEntryButton(userKey: String?, onOpen: () -> Unit) {
     val accent = if (AppThemeMode.isDark) Color(0xFFC084FC) else WisdomAccentPurple // D5: day mode
     val shape = RoundedCornerShape(16.dp)
     Row(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .fillMaxWidth()
             .clip(shape)
             .background(accent.copy(alpha = 0.12f))

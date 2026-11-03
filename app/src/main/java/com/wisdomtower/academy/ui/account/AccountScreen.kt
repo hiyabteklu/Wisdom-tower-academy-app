@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.account
 
 import android.content.Context
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.animateColorAsState
@@ -953,7 +954,7 @@ private fun StudyWindowOption(
 ) {
     val shape = RoundedCornerShape(14.dp)
     Column(
-        modifier = modifier
+        modifier = modifier.wisdomTouchFeel()
             .clip(shape)
             .background(if (selected) WisdomCyan.copy(alpha = 0.16f) else WisdomInk.copy(alpha = 0.04f))
             .border(BorderStroke(1.dp, if (selected) WisdomCyan else WisdomBorderWhite), shape)
@@ -1011,7 +1012,7 @@ private fun StepAccordionCard(
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .fillMaxWidth()
                     .semantics(mergeDescendants = true) {
                         stateDescription = if (isExpanded) "Expanded" else "Collapsed"

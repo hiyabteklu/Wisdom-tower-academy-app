@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import androidx.compose.animation.animateContentSize
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -243,7 +244,7 @@ private fun SubjectRow(entry: SubjectEntry, expanded: Boolean, onClick: () -> Un
     val t = entry.breakdown.totals
     val pct = t.completionPct?.roundToInt()
     Row(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(WisdomGlassFillQuiet)
@@ -265,7 +266,7 @@ private fun SubjectRow(entry: SubjectEntry, expanded: Boolean, onClick: () -> Un
             Text("${t.itemsOpened} of ${t.itemsTotal} items opened", fontSize = 11.sp, color = WisdomMuted)
         }
         Box(
-            modifier = Modifier
+            modifier = Modifier.wisdomTouchFeel()
                 .size(36.dp)
                 .clip(CircleShape)
                 .background(WisdomAccentSky.copy(alpha = 0.15f))

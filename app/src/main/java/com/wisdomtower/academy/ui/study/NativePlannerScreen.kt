@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.app.TimePickerDialog
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -337,7 +338,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     }
                 }
                 Row(
-                    modifier = Modifier
+                    modifier = Modifier.wisdomTouchFeel()
                         .clip(RoundedCornerShape(50))
                         .background(PlPrimaryBg)
                         .clickable { openAdd(dayFilter ?: today, 9) }
@@ -448,7 +449,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                             Column(modifier = Modifier.fillMaxWidth()) {
                                 for (h in 0 until 24) {
                                     Box(
-                                        modifier = Modifier
+                                        modifier = Modifier.wisdomTouchFeel()
                                             .fillMaxWidth()
                                             .height(HOUR_HEIGHT)
                                             .clickable { openAdd(d, h) }
@@ -479,7 +480,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 val durationM = maxOf(15, endM - startM)
                                 val pal = paletteFor(b.color)
                                 Box(
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .padding(horizontal = 2.dp)
                                         .fillMaxWidth()
                                         .offset(y = HOUR_HEIGHT * (startM / 60f))
@@ -542,7 +543,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         }
                     }
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .clip(RoundedCornerShape(12.dp))
                             .border(BorderStroke(1.dp, PlChipBorder), RoundedCornerShape(12.dp))
                             .clickable { dialogOpen = false }
@@ -586,7 +587,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         PLANNER_DAYS.forEachIndexed { i, d ->
                             val sel = draftDay == i
                             Box(
-                                modifier = Modifier
+                                modifier = Modifier.wisdomTouchFeel()
                                     .weight(1f)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(if (sel) PlAccent else PlOptFill)
@@ -625,7 +626,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         listOf(30, 45, 60, 90, 120).forEach { mins ->
                             val active = currentDur == mins
                             Box(
-                                modifier = Modifier
+                                modifier = Modifier.wisdomTouchFeel()
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(if (active) PlGoldFill else PlOptSoft)
                                     .border(BorderStroke(1.dp, if (active) PlGoldFill else PlChipBorder), RoundedCornerShape(8.dp))
@@ -645,7 +646,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         PLANNER_PALETTES.forEach { p ->
                             val sel = draftColor == p.classes
                             Box(
-                                modifier = Modifier
+                                modifier = Modifier.wisdomTouchFeel()
                                     .size(30.dp)
                                     .scale(if (sel) 1.1f else 1f)
                                     .clip(RoundedCornerShape(12.dp))
@@ -670,7 +671,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                 ) {
                     if (editingId != null) {
                         Row(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .clip(RoundedCornerShape(50))
                                 .border(BorderStroke(1.dp, PlDeleteBorder), RoundedCornerShape(50))
                                 .clickable { deleteDraft() }
@@ -686,7 +687,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .clip(RoundedCornerShape(50))
                                 .border(BorderStroke(1.dp, PlCancelBorder), RoundedCornerShape(50))
                                 .clickable { dialogOpen = false }
@@ -695,7 +696,7 @@ fun NativePlannerScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                             Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = PlSlate300)
                         }
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .clip(RoundedCornerShape(50))
                                 .background(PlPrimaryBg)
                                 .clickable { saveDraft() }
@@ -760,7 +761,7 @@ private val PlCancelBorder: Color get() = dayNight(Color.White.copy(alpha = 0.15
 @Composable
 private fun PlannerJumpButton(onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .clip(RoundedCornerShape(50))
             .clickable { onClick() }
             .padding(horizontal = 12.dp, vertical = 6.dp),
@@ -773,7 +774,7 @@ private fun PlannerJumpButton(onClick: () -> Unit, content: @Composable () -> Un
 @Composable
 private fun PlannerDayChip(selected: Boolean, onClick: () -> Unit, content: @Composable () -> Unit) {
     Box(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .clip(RoundedCornerShape(50))
             .background(if (selected) PlPrimaryBg else PlQuietFill)
             .border(BorderStroke(1.dp, if (selected) PlPrimaryBg else PlChipBorder), RoundedCornerShape(50))
@@ -791,7 +792,7 @@ private fun PlannerTimeField(label: String, value: String, modifier: Modifier = 
     Column(modifier = modifier) {
         Text(label, fontSize = 12.sp, fontWeight = FontWeight.Bold, color = PlSlate200, modifier = Modifier.padding(bottom = 6.dp))
         Box(
-            modifier = Modifier
+            modifier = Modifier.wisdomTouchFeel()
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .background(PlFieldFill)

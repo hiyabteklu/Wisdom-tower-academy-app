@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.settings
 
 import androidx.compose.foundation.BorderStroke
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -121,7 +122,7 @@ private fun PackagePicker(pkg: MySubjectsPackage, picks: Set<String>, onChange: 
                 "Clear",
                 fontSize = 11.5.sp,
                 color = WisdomCyan,
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .semantics { contentDescription = "Clear " + pkg.label }
                     .clickable(role = Role.Button) { onChange(picks - packageKeys) }
                     .padding(8.dp)
@@ -169,7 +170,7 @@ private fun SubjectPill(text: String, selected: Boolean, outlined: Boolean = fal
     val shape = RoundedCornerShape(50)
     // Quick-fill pills (outlined) do an action, so they are buttons. The others switch on and off, so they are checkboxes.
     val tapModifier = if (outlined) {
-        Modifier.clickable(role = Role.Button, onClick = onClick)
+        Modifier.wisdomTouchFeel().clickable(role = Role.Button, onClick = onClick)
     } else {
         Modifier.toggleable(value = selected, role = Role.Checkbox, onValueChange = { onClick() })
     }

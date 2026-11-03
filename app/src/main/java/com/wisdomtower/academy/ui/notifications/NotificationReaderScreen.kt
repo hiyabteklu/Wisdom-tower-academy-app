@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.notifications
 
 import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -124,7 +125,7 @@ fun NotificationReaderScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Row(
-                modifier = Modifier.clickable { onBack() }.padding(vertical = 6.dp),
+                modifier = Modifier.wisdomTouchFeel().clickable { onBack() }.padding(vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Icon(

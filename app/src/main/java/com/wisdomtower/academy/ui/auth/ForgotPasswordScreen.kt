@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.auth
 
 import androidx.compose.foundation.BorderStroke
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -524,7 +525,7 @@ private fun ResetPrimaryButton(
     val active = enabled && !loading
     val shape = RoundedCornerShape(12.dp)
     Row(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .fillMaxWidth()
             .clip(shape)
             .background(if (active) WisdomCyan else WisdomCyan.copy(alpha = 0.5f))
@@ -573,7 +574,7 @@ private fun ResetSecondaryButton(
 ) {
     val shape = RoundedCornerShape(12.dp)
     Row(
-        modifier = modifier
+        modifier = modifier.wisdomTouchFeel()
             .clip(shape)
             .border(BorderStroke(1.dp, dayNight(Color(0x1AFFFFFF), WisdomBorderWhite)), shape)
             .background(dayNight(Color(0x0DFFFFFF), WisdomInk.copy(alpha = 0.05f)))

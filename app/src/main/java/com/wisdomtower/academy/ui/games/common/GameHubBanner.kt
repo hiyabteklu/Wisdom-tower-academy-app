@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.games.common
 
 import androidx.compose.foundation.Canvas
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
@@ -31,7 +32,7 @@ fun GameHubBanner(isClimb: Boolean, onClick: () -> Unit) {
     val title = if (isClimb) "Tower Climb" else "Tower Defense"
     val subtitle = if (isClimb) "Climb the tower with question banks" else "Defend the citadel with exams"
     Row(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .background(Brush.horizontalGradient(listOf(Color(0xFF0E3A4A), Color(0xFF1A1A3A))))

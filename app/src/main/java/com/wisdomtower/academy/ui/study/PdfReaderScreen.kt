@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.content.Context
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.graphics.Bitmap
 import android.graphics.pdf.PdfRenderer
 import android.os.ParcelFileDescriptor
@@ -159,7 +160,7 @@ fun PdfReaderScreen(
                     if (url != null) {
                         Spacer(modifier = Modifier.size(14.dp))
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(WisdomCyan.copy(alpha = 0.12f))
                                 .clickable { attempt += 1 }

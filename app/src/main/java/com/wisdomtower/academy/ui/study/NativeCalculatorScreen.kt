@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import androidx.activity.compose.BackHandler
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -175,7 +176,7 @@ fun NativeCalculatorScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         val modeColor = if (isRad) CcPurpleText else CcAccent
                         val modeBg = if (isRad) CcPurpleBg else CcAccentBg
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .clip(RoundedCornerShape(10.dp))
                                 .background(modeBg.copy(alpha = 0.20f))
                                 .border(BorderStroke(1.dp, modeBg.copy(alpha = 0.40f)), RoundedCornerShape(10.dp))
@@ -349,7 +350,7 @@ private fun CalcKeyButton(key: CalcKey, onClick: () -> Unit, modifier: Modifier 
     }
 
     Box(
-        modifier = modifier
+        modifier = modifier.wisdomTouchFeel()
             .clip(RoundedCornerShape(12.dp))
             .background(bg)
             .border(border, RoundedCornerShape(12.dp))

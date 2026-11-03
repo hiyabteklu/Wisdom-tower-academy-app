@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.annotation.SuppressLint
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -876,7 +877,7 @@ private fun HistoryPanel(
                         )
                     }
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .size(32.dp)
                             .clip(RoundedCornerShape(10.dp))
                             .clickable { onDelete(s.id) },
@@ -896,7 +897,7 @@ private fun HistoryPanel(
         if (sessions.size > 1) {
             Spacer(modifier = Modifier.height(8.dp))
             Box(
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(12.dp))
                     .border(BorderStroke(1.dp, TuRoseEdge), RoundedCornerShape(12.dp))
