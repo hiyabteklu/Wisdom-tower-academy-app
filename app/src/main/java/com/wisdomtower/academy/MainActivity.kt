@@ -266,6 +266,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wisdomtower.academy.ui.theme.MyApplicationTheme
 import com.wisdomtower.academy.ui.theme.WisdomPushLayer
@@ -275,6 +276,7 @@ import com.wisdomtower.academy.ui.theme.wisdomStaggerIn
 import com.wisdomtower.academy.ui.theme.wisdomPressScale
 import androidx.compose.ui.draw.shadow
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 // Unified native tokens mirroring the live website (wisdom.* palette)
 // D4: day mode shell. These are GETTERS now (they were read once at class load and never followed the day / night
@@ -887,7 +889,7 @@ class MainActivity : ComponentActivity() {
                 androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         if (event == Lifecycle.Event.ON_RESUME) {
-                            androidx.lifecycle.lifecycleScope.launch { checkUpdate() }
+                            updateLifecycleOwner.lifecycleScope.launch { checkUpdate() } // WTA_U2_LIFECYCLE_SCOPE_FIX
                         }
                     }
                     updateLifecycleOwner.lifecycle.addObserver(observer)
