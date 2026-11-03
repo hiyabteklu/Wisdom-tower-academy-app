@@ -4,7 +4,10 @@ import android.content.Context
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
@@ -13,6 +16,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** One published row of `public.learning_resources`, reduced to what My Status V2 needs. */
 data class CatalogItem(
@@ -35,10 +39,16 @@ data class CatalogIndex(val items: List<CatalogItem>, val fetchedAtMs: Long)
 /**
  * My Status V2 (S1): the published catalog with hub, title and chapter, so the status can be shown per subject, chapter
  * and exam. One public read (anon key, published rows only, like `ResourceScopeIndex`, which stays untouched), cached in
- * the app files folder for 24 h, older cache used offline. Never logs bodies, only HTTP status codes. Never throws.
+ * the app files folder, older cache used offline. Never logs bodies, only HTTP status codes. Never throws.
  *
  * OFFLINE STATUS (O5b, 2026-10-23): [getSaved] returns the saved copy only (any age, never touches the network) so the
  * hub lists can draw their rows offline from it (see `LearningContentRepository.list`).
+ *
+ * OLD COPY FIRST (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md slice P1d): [get] no longer waits for the network when
+ * a saved copy exists. A copy younger than 24 h is returned as before. A copy older than 24 h is ALSO returned at once, and
+ * one silent refresh runs in the background (only one at a time) and replaces the saved copy for the next call. An explicit
+ * `forceRefresh` still reads the server, but with the short client (4 s + 8 s) when a saved copy exists, and falls back to
+ * the copy on failure. With no saved copy (or an empty one) the long client (15 s + 20 s) is used, as before.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -53,17 +63,30 @@ object ResourceCatalogIndex {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    /** P1d: used when a saved copy exists, so a slow connection never holds the screen for long. */
+    private val shortHttp: OkHttpClient = http.newBuilder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .build()
+
+    private val backgroundScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val refreshing = AtomicBoolean(false)
+
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
 
-    /** Cached index when fresh; otherwise a new read, falling back to an older cache when offline. Null only when nothing is available. */
+    /**
+     * The saved copy at once when there is one (a copy older than 24 h also starts one silent refresh); otherwise a new read.
+     * Null only when nothing is available. An empty saved copy counts as "nothing saved".
+     */
     suspend fun get(context: Context, forceRefresh: Boolean = false): CatalogIndex? = withContext(Dispatchers.IO) {
-        val cached = readCache(context)
+        val cached = readCache(context)?.takeIf { it.items.isNotEmpty() }
         val now = System.currentTimeMillis()
-        if (cached != null && !forceRefresh && now - cached.fetchedAtMs < MAX_AGE_MS) {
+        if (cached != null && !forceRefresh) {
+            if (now - cached.fetchedAtMs >= MAX_AGE_MS) refreshInBackground(context)
             return@withContext cached
         }
-        val fetched = fetchAll()
+        val fetched = fetchAll(if (cached != null) shortHttp else http)
         if (fetched != null) {
             val index = CatalogIndex(fetched, now)
             writeCache(context, index)
@@ -76,13 +99,29 @@ object ResourceCatalogIndex {
     /** OFFLINE STATUS (O5b): the saved copy of any age, read from the phone only (no network). Null when nothing was saved yet. */
     suspend fun getSaved(context: Context): CatalogIndex? = withContext(Dispatchers.IO) { readCache(context) }
 
+    /** P1d: one silent refresh at a time; a failed or empty answer leaves the saved copy as it is. */
+    private fun refreshInBackground(context: Context) {
+        if (!refreshing.compareAndSet(false, true)) return
+        val appContext = context.applicationContext
+        backgroundScope.launch {
+            try {
+                val fetched = fetchAll(shortHttp)
+                if (fetched != null && fetched.isNotEmpty()) {
+                    writeCache(appContext, CatalogIndex(fetched, System.currentTimeMillis()))
+                }
+            } finally {
+                refreshing.set(false)
+            }
+        }
+    }
+
     private fun optStr(o: JSONObject, key: String): String? =
         if (o.isNull(key)) null else o.optString(key, "").ifBlank { null }
 
     private fun optIntOrNull(o: JSONObject, key: String): Int? =
         if (o.isNull(key)) null else o.optInt(key)
 
-    private fun fetchAll(): List<CatalogItem>? {
+    private fun fetchAll(client: OkHttpClient): List<CatalogItem>? {
         return try {
             val out = ArrayList<CatalogItem>()
             var offset = 0
@@ -101,7 +140,7 @@ object ResourceCatalogIndex {
                     .addHeader("Accept", "application/json")
                     .get()
                     .build()
-                val count = http.newCall(request).execute().use { resp ->
+                val count = client.newCall(request).execute().use { resp ->
                     if (!resp.isSuccessful) {
                         Log.w(TAG, "read failed: HTTP ${resp.code}")
                         return null
