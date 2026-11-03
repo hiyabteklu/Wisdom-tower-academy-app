@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
@@ -43,9 +44,11 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.wisdomtower.academy.BrandSplashLoader
 import com.wisdomtower.academy.data.content.AiExplainRepository
+import com.wisdomtower.academy.data.content.AiTutorRepository
 import com.wisdomtower.academy.data.content.ContentItemResult
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningProgressRepository
+import com.wisdomtower.academy.data.content.TutorEvent
 import com.wisdomtower.academy.ui.theme.AppBackdrop
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -53,13 +56,23 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.json.JSONArray
 import org.json.JSONObject
 
 /** Phone-only copy of where the student stopped reading each note (N1), one float per note: 0 to 1 of the scroll height. */
 private const val NOTES_STATE_PREFS = "notes_reader_state"
+
+// Texts copied from NativeTutorScreen / website-reference AiTutor.tsx (the inline tutor on the note page uses the same route)
+private const val NOTE_TUTOR_BUSY =
+    "The Wisdom Tower AI Tutor is currently experiencing high demand. Please wait a moment and try asking your question again."
+private const val NOTE_TUTOR_CUT = "\n\n*(Response stopped due to high server demand. You can ask to continue.)*"
+
+/** Marks a failed tutor stream (thrown inside the collector, caught by the sender). */
+private class NoteTutorFailure : Exception()
 
 /**
  * Saves started from the notes page must survive the student leaving the screen, so they run in this app-wide
@@ -113,13 +126,18 @@ private fun buildTutorContext(title: String, noteText: String): String =
  * `learning_progress` (the higher percent is kept by the repository); the reading time is added every 30 seconds
  * and once more when the screen is left. Nothing is saved for a signed-out student (the repository returns false).
  *
- * AI tutor button (T1 of docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02): next to Summary the page has "Ask AI tutor".
- * It calls `WTBridge.onTutor({ text })` (the first 14000 characters of the note). This screen builds the chapter context
- * ([buildTutorContext]: the note title and text, nothing about the student) and calls
- * [NativeToolRequests.requestTutorWithContext]; MainActivity then shows the global tutor overlay, and `NativeTutorScreen`
- * takes the context once, opens a fresh chat for it and sends it with every question. The note screen stays underneath, so
- * Back from the tutor returns to the same place in the note. Uses no AI call of its own, no cache and no sign-in (the tutor
- * route has none).
+ * AI tutor button, INLINE (T1 of docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, changed 2026-11-03, owner: the tutor on a note must
+ * continue BELOW the note, grow as the student asks more and scroll with the note, not open an overlay): next to Summary the
+ * page has "Ask AI tutor". It opens a chat box under the note inside the same page (no overlay, no new screen). The page
+ * keeps the conversation and calls `WTBridge.onTutorAsk({ id, messages })` for every question; this screen sends the
+ * history to [AiTutorRepository.stream] with the chapter context ([buildTutorContext]: the note title and the first 14000
+ * characters of the note, nothing about the student) and pushes the answer back with `window.wtTutorSet(id, textSoFar, state)`
+ * (at most every 80 ms, state `stream`, `done` or `failed`) and `window.wtTutorSuggest(id, json)` for the follow-up prompts.
+ * `WTBridge.onTutorStop()` cancels the running answer. One answer runs at a time; a new question cancels an older one.
+ * The chat is NOT saved: it lives while the note is open (the drawer tutor keeps its own saved chats). The Box has
+ * `imePadding()` so the keyboard does not cover the typing box that sits at the end of the page. The old overlay route
+ * (`NativeToolRequests.requestTutorWithContext`) is no longer called from here and is left in place for the drawer tutor.
+ * Uses no AI call of its own, no cache and no sign-in (the tutor route has none).
  *
  * Reading position (N1, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02, owner: the book reader remembers the last
  * page, the notes reader must too): the page reports where the student is with `WTBridge.onPosition({ frac })`
@@ -207,6 +225,93 @@ fun NotesReaderScreen(
         onDispose { flushNoteProgress(resourceId, progress) }
     }
 
+    // ---- Inline AI tutor (2026-11-03): one running answer at a time, pushed into the note page ----
+    val tutorJob = remember(resourceId) { arrayOfNulls<Job>(1) }
+
+    /** Sends the answer so far to the page. [state] is `stream`, `done` or `failed`. Main thread only. */
+    fun pushTutor(id: String, text: String, state: String) {
+        webRef[0]?.evaluateJavascript(
+            "window.wtTutorSet(${JSONObject.quote(id)}, ${JSONObject.quote(text)}, ${JSONObject.quote(state)});",
+            null
+        )
+    }
+
+    fun pushTutorSuggestions(id: String, items: List<String>) {
+        webRef[0]?.evaluateJavascript(
+            "window.wtTutorSuggest(${JSONObject.quote(id)}, ${JSONObject.quote(JSONArray(items).toString())});",
+            null
+        )
+    }
+
+    suspend fun streamTutor(id: String, history: List<Pair<String, String>>, chapterContext: String) {
+        var acc = ""
+        var suggestions: List<String> = emptyList()
+        var lastPush = 0L
+        var failed = false
+        try {
+            AiTutorRepository.stream(history, chapterContext).collect { ev ->
+                when (ev) {
+                    is TutorEvent.Chunk -> {
+                        acc += ev.text
+                        val now = SystemClock.elapsedRealtime()
+                        // The page redraws the whole answer each time, so at most about every 80 ms.
+                        if (now - lastPush >= 80L) {
+                            lastPush = now
+                            pushTutor(id, acc, "stream")
+                        }
+                    }
+
+                    is TutorEvent.Suggestions -> {
+                        suggestions = ev.items
+                    }
+
+                    TutorEvent.Done -> {
+                        // nothing to do: the answer is complete
+                    }
+
+                    TutorEvent.Failed -> throw NoteTutorFailure()
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            failed = true
+        }
+        if (failed) {
+            pushTutor(id, if (acc.isEmpty()) NOTE_TUTOR_BUSY else acc + NOTE_TUTOR_CUT, "failed")
+        } else {
+            pushTutor(id, acc, "done")
+            if (suggestions.isNotEmpty()) pushTutorSuggestions(id, suggestions)
+        }
+    }
+
+    fun startTutor(json: String) {
+        var id = ""
+        try {
+            val data = JSONObject(json)
+            id = data.optString("id", "")
+            val arr = data.optJSONArray("messages")
+            val history = ArrayList<Pair<String, String>>()
+            if (arr != null) {
+                for (i in 0 until arr.length()) {
+                    val o = arr.optJSONObject(i) ?: continue
+                    val role = o.optString("role", "")
+                    val content = o.optString("content", "")
+                    if ((role == "user" || role == "assistant") && content.isNotBlank()) {
+                        history.add(role to content)
+                    }
+                }
+            }
+            if (id.isEmpty() || history.isEmpty()) return
+            val noteText = (result as? ContentItemResult.Found)?.item?.bodyMd.orEmpty().take(14000)
+            tutorJob[0]?.cancel()
+            tutorJob[0] = screenScope.launch { streamTutor(id, history, buildTutorContext(title, noteText)) }
+        } catch (e: Exception) {
+            // A bad tutor message must never break the reader.
+            if (id.isNotEmpty()) pushTutor(id, NOTE_TUTOR_BUSY, "failed")
+        }
+    }
+
     val bridge = remember(resourceId) {
         NotesBridge(
             onSummarize = { json ->
@@ -252,17 +357,15 @@ fun NotesReaderScreen(
                 }
                 Unit
             },
-            onTutor = { json ->
-                // T1: runs on the main thread (the request flags are Compose state read by MainActivity).
+            onTutorAsk = { json ->
+                // Runs on the main thread: the answer is pushed back with evaluateJavascript.
+                screenScope.launch { startTutor(json) }
+                Unit
+            },
+            onTutorStop = {
                 screenScope.launch {
-                    try {
-                        val text = JSONObject(json).optString("text", "")
-                        if (text.isNotBlank()) {
-                            NativeToolRequests.requestTutorWithContext(buildTutorContext(title, text))
-                        }
-                    } catch (e: Exception) {
-                        // A bad tutor message must never break the reader.
-                    }
+                    tutorJob[0]?.cancel()
+                    tutorJob[0] = null
                 }
                 Unit
             },
@@ -274,7 +377,8 @@ fun NotesReaderScreen(
         )
     }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    // imePadding: the typing box of the inline tutor is at the end of the page; the keyboard must not cover it.
+    Box(modifier = modifier.fillMaxSize().imePadding()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         Column(modifier = Modifier.fillMaxSize()) {
@@ -346,7 +450,8 @@ private class NotesBridge(
     private val onSummarize: (String) -> Unit,
     private val onProgress: (String) -> Unit,
     private val onPosition: (String) -> Unit,
-    private val onTutor: (String) -> Unit,
+    private val onTutorAsk: (String) -> Unit,
+    private val onTutorStop: () -> Unit,
     private val onReady: () -> Unit
 ) {
     @JavascriptInterface
@@ -365,8 +470,13 @@ private class NotesBridge(
     }
 
     @JavascriptInterface
-    fun onTutor(json: String) {
-        onTutor.invoke(json)
+    fun onTutorAsk(json: String) {
+        onTutorAsk.invoke(json)
+    }
+
+    @JavascriptInterface
+    fun onTutorStop() {
+        onTutorStop.invoke()
     }
 
     @JavascriptInterface
