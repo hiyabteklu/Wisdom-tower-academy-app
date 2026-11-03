@@ -82,6 +82,12 @@ private fun ssFormatSavedAt(ms: Long): String =
  * draw: "Nothing to show yet." plus the notice. Online behaviour is unchanged. Slice O5a: the panel also reads again by
  * itself when the internet comes back.
  *
+ * SAVED COPY FIRST (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md slice P1c, part c2a): when the saved catalog
+ * ([ResourceCatalogIndex.getSaved]) and the saved exam attempts ([ExamAttemptsReader.fetchAllSaved]) both exist, the rows are
+ * drawn from them at once (no network, no "No connection" line, because the server has not been asked yet); the normal read
+ * then runs in the background and replaces the rows. A failed refresh keeps the rows already drawn; the spinner and the
+ * empty skeleton only show when nothing usable is saved.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -100,7 +106,6 @@ fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?, progre
     val netBack = rememberNetworkReturnCount()
 
     LaunchedEffect(rows, reloadKey, progressKnown, netBack) {
-        loading = true
         noData = false
         savedAtMs = null
         val userId = AuthStateManager.currentUser.value?.id
@@ -113,12 +118,28 @@ fun StatusSubjectsPanel(rows: List<ProgressRow>, educationLevel: String?, progre
             loading = false
             return@LaunchedEffect
         }
+        // P1c: the saved copy first (no network), drawn at once when it gives at least one row
+        var drewSaved = false
+        val catalogSaved = ResourceCatalogIndex.getSaved(context)
+        val attemptsSaved = ExamAttemptsReader.fetchAllSaved()
+        if (catalogSaved != null && attemptsSaved != null) {
+            val savedEntries = withContext(Dispatchers.Default) { buildEntries(catalogSaved.items, rows, attemptsSaved.rows, picks) }
+            if (savedEntries.isNotEmpty()) {
+                entries = savedEntries
+                loading = false
+                drewSaved = true
+            }
+        }
+        if (!drewSaved) loading = true
         val catalog = ResourceCatalogIndex.get(context)
         val attempts = ExamAttemptsReader.fetchAll()
         if (catalog == null || attempts !is ExamAttemptsFetchResult.Success) {
-            entries = emptyList()
-            skeletonNames = picks.map { names[it] ?: it.substringAfter('/') }.sorted()
-            noData = true
+            // a failed refresh keeps the saved rows that are already drawn
+            if (!drewSaved) {
+                entries = emptyList()
+                skeletonNames = picks.map { names[it] ?: it.substringAfter('/') }.sorted()
+                noData = true
+            }
             loading = false
             return@LaunchedEffect
         }
