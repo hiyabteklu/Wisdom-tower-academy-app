@@ -40,6 +40,7 @@ import com.wisdomtower.academy.data.content.ContentListResult
 import com.wisdomtower.academy.data.content.CourseLocks
 import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.content.LearningContentRepository
+import com.wisdomtower.academy.data.content.LearningResource
 import com.wisdomtower.academy.data.games.ClimbFloor
 import com.wisdomtower.academy.data.games.ClimbTowerBuilder
 import com.wisdomtower.academy.data.games.ClimbTowerModel
@@ -52,6 +53,13 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlinx.coroutines.launch
 
+/**
+ * P1f (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md): when the screen opens (and when the student comes back from a
+ * floor) it first builds the tower from the SAVED question-bank list ([LearningContentRepository.listSaved], no network),
+ * then asks the server in the background and builds it again from the answer. A failed refresh keeps the tower that is
+ * already drawn. The "Lighting the lantern" spinner shows only when nothing is saved (an empty saved list counts as
+ * nothing saved). Retry reads the server directly, as before. NOT compiled, NOT tested on a device.
+ */
 @Composable
 fun TowerClimbScreen(
     scopePath: String,
@@ -75,28 +83,43 @@ fun TowerClimbScreen(
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    fun reload() {
-        loading = true
+    /** P1f: the tower build shared by the saved draw and the live draw (the body the old Success branch had). */
+    fun applyItems(items: List<LearningResource>) {
+        val climb = GameStore.getClimb(context, scopePath)
+        progress = climb
+        val cleared = climb.floors.filter { it.value.stars > 0 }.keys
+        records = climb.floors
+        model = ClimbTowerBuilder.build(scopePath, items, locks, cleared)
+    }
+
+    fun reload(savedFirst: Boolean = false) {
         error = null
         scope.launch {
+            var drewSaved = false
+            if (savedFirst) {
+                val saved = LearningContentRepository.listSaved(context, scopePath, "question-banks")
+                if (saved != null) {
+                    applyItems(saved)
+                    loading = false
+                    drewSaved = true
+                }
+            }
+            if (!drewSaved) loading = true
             when (val result = LearningContentRepository.list(context, scopePath, "question-banks")) {
                 is ContentListResult.Success -> {
-                    val climb = GameStore.getClimb(context, scopePath)
-                    progress = climb
-                    val cleared = climb.floors.filter { it.value.stars > 0 }.keys
-                    records = climb.floors
-                    model = ClimbTowerBuilder.build(scopePath, result.items, locks, cleared)
+                    applyItems(result.items)
                     loading = false
                 }
                 is ContentListResult.Failure -> {
-                    error = result.message
+                    // A failed refresh keeps the tower that is already drawn.
+                    if (!drewSaved) error = result.message
                     loading = false
                 }
             }
         }
     }
 
-    LaunchedEffect(scopePath) { reload() }
+    LaunchedEffect(scopePath) { reload(savedFirst = true) }
 
     BackHandler(onBack = {
         when {
@@ -114,7 +137,7 @@ fun TowerClimbScreen(
             allFloorsForBoss = model?.floors ?: emptyList(),
             onExitToTower = {
                 playFloor = null
-                reload()
+                reload(savedFirst = true)
             },
             modifier = modifier.fillMaxSize()
         )

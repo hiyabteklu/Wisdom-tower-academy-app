@@ -51,6 +51,12 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import kotlinx.coroutines.launch
 
+/**
+ * P1f (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md): when the screen opens it first draws the SAVED exam list of the
+ * course ([LearningContentRepository.listSaved], no network), then asks the server in the background and replaces the list
+ * only when it differs. A failed refresh keeps the saved list. The spinner shows only when nothing is saved (an empty saved
+ * list counts as nothing saved). Retry reads the server directly, as before. NOT compiled, NOT tested on a device.
+ */
 @Composable
 fun ExamPickerScreen(
     scopePath: String,
@@ -67,18 +73,34 @@ fun ExamPickerScreen(
     var sealMsg by remember { mutableStateOf<Pair<String, String>?>(null) }
     val scope = rememberCoroutineScope()
 
-    fun reload() {
-        loading = true
+    fun reload(savedFirst: Boolean = false) {
         error = null
         scope.launch {
+            var drewSaved = false
+            if (savedFirst) {
+                val saved = LearningContentRepository.listSaved(context, scopePath, "exams")
+                if (saved != null) {
+                    exams = saved
+                    loading = false
+                    drewSaved = true
+                }
+            }
+            if (!drewSaved) loading = true
             when (val r = LearningContentRepository.list(context, scopePath, "exams")) {
-                is ContentListResult.Success -> { exams = r.items; loading = false }
-                is ContentListResult.Failure -> { error = r.message; loading = false }
+                is ContentListResult.Success -> {
+                    if (r.items != exams) exams = r.items
+                    loading = false
+                }
+                is ContentListResult.Failure -> {
+                    // A failed refresh keeps the saved list that is already drawn.
+                    if (!drewSaved) error = r.message
+                    loading = false
+                }
             }
         }
     }
 
-    LaunchedEffect(scopePath) { reload() }
+    LaunchedEffect(scopePath) { reload(savedFirst = true) }
     BackHandler(onBack = onBack)
 
     fun gateOf(item: LearningResource): HubGate? {
