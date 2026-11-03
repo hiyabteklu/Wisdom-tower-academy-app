@@ -82,7 +82,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 | V6 | PARTIAL CODE PUSHED: 180 ms screen-root return entrance added to Home, Settings, Account, Game Hub, Flashcards, Native Tutor and Competitions Hub; notifications/status/other drawer pages and live-list animateItem coverage remain |
 | V7 | PARTIAL CODE PUSHED: reusable wisdomPressClickable added; applied to Game Hub cards/download action, Home sign-up action, and Account university selector/rows; broader clickable/switch/tab coverage pending |
 | V8 | PARTIAL CODE PUSHED; host wiring and drag dismissal pending |
-| V9 | PARTIAL CODE PUSHED; readiness-class wiring and native cover coordination pending |
+| V9 | PARTIAL CODE PUSHED: shared #root entrance now auto-runs across pages using richtext.css; native cover-until-paint coordination remains |
 | V10 | NOT STARTED (optional) |
 | V11 | NOT STARTED |
 | V12 | PARTIAL AUDIT PUSHED; consistency pass cannot be called complete while V3/V5/V6/V7/V10/V11 and integration work remain |
