@@ -47,6 +47,10 @@ sealed class StudyDayLogFetchResult {
  * returned as `Success(fromCache = true, savedAtMs = ...)`, keeping only the days inside the asked window; otherwise
  * `Failed` as before. `NotSignedIn` never uses a copy.
  *
+ * SAVED COPY FIRST (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md slice P1c, part c1): [fetchRecentSaved] returns the
+ * saved copy (days inside the window) with NO network so a screen can draw it at once, and [fetchRecent] uses a SHORT client
+ * (4 s connect + 8 s read) when a saved copy of this student exists (15 s + 20 s when nothing is saved, as before).
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 object StudyDayLogReader {
@@ -61,12 +65,31 @@ object StudyDayLogReader {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    /** P1c: used instead of [http] when a saved copy of this student exists (the copy is the fallback, so waiting long gains nothing). */
+    private val fastHttp = http.newBuilder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .build()
+
     private val UUID_REGEX = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
 
     private class ReadOutcome(val status: Int, val rows: List<StudyDayRow>)
+
+    /**
+     * P1c: the saved copy of the signed-in student (only the last [days] days including today, oldest first, like
+     * [fetchRecent]), read from the phone only (no network, no sign-in refresh). Null when nobody is signed in, nothing
+     * was saved, the file cannot be read, or no saved day falls inside the window (that counts as "nothing saved", so a
+     * screen keeps its loading state until the server answers). The result has `fromCache = true` and `savedAtMs` set.
+     * Never throws.
+     */
+    suspend fun fetchRecentSaved(days: Int = 14): StudyDayLogFetchResult.Success? = withContext(Dispatchers.IO) {
+        val id = AuthStateManager.currentUser.value?.id ?: return@withContext null
+        val saved = cachedOrFailed(id, sinceDay(days)) as? StudyDayLogFetchResult.Success ?: return@withContext null
+        if (saved.rows.isEmpty()) null else saved
+    }
 
     /** The last [days] days including today (default 14), oldest first. */
     suspend fun fetchRecent(days: Int = 14): StudyDayLogFetchResult = withContext(Dispatchers.IO) {
@@ -80,12 +103,14 @@ object StudyDayLogReader {
             }
             userId = first.id
             val since = sinceDay(days)
-            var outcome = read(first.id, token1, since)
+            // P1c: short timeouts when a saved copy of this student can answer instead.
+            val client = if (runCatching { StatusSnapshotStore.load(first.id, KIND) }.getOrNull() != null) fastHttp else http
+            var outcome = read(first.id, token1, since, client)
             if (outcome.status == STATUS_UNAUTHORIZED && AuthStateManager.refreshIfNeeded(force = true)) {
                 val second = AuthStateManager.currentUser.value
                 val token2 = second?.accessToken
                 if (second != null && !token2.isNullOrBlank() && UUID_REGEX.matches(second.id)) {
-                    outcome = read(second.id, token2, since)
+                    outcome = read(second.id, token2, since, client)
                     userId = second.id
                 }
             }
@@ -139,7 +164,7 @@ object StudyDayLogReader {
         return StudyDayLogFetchResult.Success(rows, fromCache = true, savedAtMs = saved.savedAtMs)
     }
 
-    private fun read(userId: String, token: String, sinceDay: String): ReadOutcome {
+    private fun read(userId: String, token: String, sinceDay: String, client: OkHttpClient): ReadOutcome {
         val url = "$supabaseUrl/rest/v1/study_day_log".toHttpUrl().newBuilder()
             .addQueryParameter("select", "day,seconds,focus_seconds")
             .addQueryParameter("user_id", "eq.$userId")
@@ -154,7 +179,7 @@ object StudyDayLogReader {
             .addHeader("Accept", "application/json")
             .get()
             .build()
-        http.newCall(request).execute().use { resp ->
+        client.newCall(request).execute().use { resp ->
             if (resp.code == 401) return ReadOutcome(STATUS_UNAUTHORIZED, emptyList())
             if (!resp.isSuccessful) {
                 Log.w(TAG, "read failed: HTTP ${resp.code}")

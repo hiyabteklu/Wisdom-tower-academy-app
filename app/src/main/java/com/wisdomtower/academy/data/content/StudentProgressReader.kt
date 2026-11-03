@@ -58,6 +58,10 @@ sealed class ProgressFetchResult {
  * SAME student exists, it is returned as `Success(fromCache = true, savedAtMs = ...)`; otherwise `Failed` as before.
  * `NotSignedIn` never uses a copy. The screens do not show the "from cache" notice yet (slice O2).
  *
+ * SAVED COPY FIRST (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md slice P1c, part c1): [fetchAllSaved] returns the saved
+ * copy with NO network so a screen can draw it at once, and [fetchAll] uses a SHORT client (4 s connect + 8 s read) when a
+ * saved copy of this student exists (15 s + 20 s when nothing is saved, as before).
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 object StudentProgressReader {
@@ -72,12 +76,30 @@ object StudentProgressReader {
         .readTimeout(20, TimeUnit.SECONDS)
         .build()
 
+    /** P1c: used instead of [http] when a saved copy of this student exists (the copy is the fallback, so waiting long gains nothing). */
+    private val fastHttp = http.newBuilder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .build()
+
     private val UUID_REGEX = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
 
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
 
     private class ReadOutcome(val status: Int, val rows: List<ProgressRow>)
+
+    /**
+     * P1c: the saved copy of the signed-in student, read from the phone only (no network, no sign-in refresh). Null when
+     * nobody is signed in, nothing was saved, the file cannot be read, or the saved list is EMPTY (an empty copy counts as
+     * "nothing saved", so a screen keeps its loading state until the server answers instead of showing an old empty answer).
+     * The result has `fromCache = true` and `savedAtMs` set. Never throws.
+     */
+    suspend fun fetchAllSaved(): ProgressFetchResult.Success? = withContext(Dispatchers.IO) {
+        val id = AuthStateManager.currentUser.value?.id ?: return@withContext null
+        val saved = cachedOrFailed(id) as? ProgressFetchResult.Success ?: return@withContext null
+        if (saved.rows.isEmpty()) null else saved
+    }
 
     suspend fun fetchAll(): ProgressFetchResult = withContext(Dispatchers.IO) {
         var userId: String? = null
@@ -89,12 +111,14 @@ object StudentProgressReader {
                 return@withContext ProgressFetchResult.NotSignedIn
             }
             userId = first.id
-            var outcome = read(first.id, token1)
+            // P1c: short timeouts when a saved copy of this student can answer instead.
+            val client = if (runCatching { StatusSnapshotStore.load(first.id, KIND) }.getOrNull() != null) fastHttp else http
+            var outcome = read(first.id, token1, client)
             if (outcome.status == STATUS_UNAUTHORIZED && AuthStateManager.refreshIfNeeded(force = true)) {
                 val second = AuthStateManager.currentUser.value
                 val token2 = second?.accessToken
                 if (second != null && !token2.isNullOrBlank() && UUID_REGEX.matches(second.id)) {
-                    outcome = read(second.id, token2)
+                    outcome = read(second.id, token2, client)
                     userId = second.id
                 }
             }
@@ -163,7 +187,7 @@ object StudentProgressReader {
         return ProgressFetchResult.Success(rows, fromCache = true, savedAtMs = saved.savedAtMs)
     }
 
-    private fun read(userId: String, token: String): ReadOutcome {
+    private fun read(userId: String, token: String, client: OkHttpClient): ReadOutcome {
         val url = "$supabaseUrl/rest/v1/learning_progress".toHttpUrl().newBuilder()
             .addQueryParameter("select", "resource_id,progress_pct,total_seconds,focus_seconds,last_opened_at,last_page,meta")
             .addQueryParameter("user_id", "eq.$userId")
@@ -176,7 +200,7 @@ object StudentProgressReader {
             .addHeader("Accept", "application/json")
             .get()
             .build()
-        http.newCall(request).execute().use { resp ->
+        client.newCall(request).execute().use { resp ->
             if (resp.code == 401) return ReadOutcome(STATUS_UNAUTHORIZED, emptyList())
             if (!resp.isSuccessful) {
                 Log.w(TAG, "read failed: HTTP ${resp.code}")
