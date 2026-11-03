@@ -50,6 +50,7 @@ import com.wisdomtower.academy.ui.games.common.GameTheme
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import kotlinx.coroutines.launch
 
 /**
@@ -110,7 +111,7 @@ fun ExamPickerScreen(
         return if (g == null || g == HubGate.Open) null else g
     }
 
-    Column(modifier.fillMaxSize().background(Color(0xFF070C16))) {
+    Column(modifier.wisdomScreenEntrance().fillMaxSize().background(Color(0xFF070C16))) { // V6 lists entrance
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
             Icon(
                 Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back",

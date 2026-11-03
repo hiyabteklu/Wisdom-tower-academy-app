@@ -400,7 +400,7 @@ fun HubItemListScreen(
                         val rowIndex = entries.indexOf(entry)
                         when (entry) {
                             is HubListEntry.SoonChapter -> {
-                                Box(modifier = Modifier.wisdomReveal("hub_${hubId}_soon_${entry.chapter}", rowIndex)) {
+                                Box(modifier = Modifier.animateItem().wisdomReveal("hub_${hubId}_soon_${entry.chapter}", rowIndex)) { // V6 lists entrance
                                     SoonChapterRow(chapter = entry.chapter) {
                                         lockedPopup = HubGate.ComingSoon to "Chapter ${entry.chapter}"
                                     }
@@ -411,7 +411,7 @@ fun HubItemListScreen(
                                 val item = entry.item
                                 val isNew = item.id !in seen
                                 val rowLock = lockOf(item)
-                                Box(modifier = Modifier.wisdomReveal("hub_${hubId}_${item.id}", rowIndex)) {
+                                Box(modifier = Modifier.animateItem().wisdomReveal("hub_${hubId}_${item.id}", rowIndex)) { // V6 lists entrance
                                     ItemRow(
                                         item = item,
                                         hubId = hubId,
