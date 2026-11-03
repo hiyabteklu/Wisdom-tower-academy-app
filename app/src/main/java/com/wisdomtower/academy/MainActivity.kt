@@ -3357,7 +3357,7 @@ fun MainScreen(
                 }
 
                 // Native Study Workspace (6 Learning Hubs Depth)
-                WisdomPushLayer(item = activeWorkspace, zIndexValue = 18f) { currentWs ->
+                WisdomPushLayer(item = activeWorkspace, zIndexValue = 18f, onBack = { activeWorkspace = null }) { currentWs ->
                     StudyWorkspaceScreen(
                         title = currentWs.first,
                         scopeSubtitle = currentWs.second,
@@ -3407,7 +3407,7 @@ fun MainScreen(
                 }
 
                 // Native Guides & Static Resources (Phase A6)
-                WisdomPushLayer(item = activeGuideSlug, zIndexValue = 15f) { guideSlugNow ->
+                WisdomPushLayer(item = activeGuideSlug, zIndexValue = 15f, onBack = { activeGuideSlug = null }) { guideSlugNow ->
                     GuidesScreen(
                         initialSlug = guideSlugNow,
                         onBack = { activeGuideSlug = null },
@@ -3419,7 +3419,7 @@ fun MainScreen(
                 }
 
                 // C4-competitions-trophy: native competitions screen (trophy)
-                WisdomPushLayer(item = if (showCompetitions) true else null, zIndexValue = 17f) { _ ->
+                WisdomPushLayer(item = if (showCompetitions) true else null, zIndexValue = 17f, onBack = { showCompetitions = false }) { _ ->
                     CompetitionsHubScreen(
                         onBack = { showCompetitions = false },
                         modifier = Modifier
@@ -3448,7 +3448,7 @@ fun MainScreen(
 
                 // P15-native-notifications: native notifications screen (bell)
                 // M7-motion: opens and closes with the shared push layer; the item is the open id ("" = list) so the screen keeps its content while it slides out
-                WisdomPushLayer(item = if (showNotifications) (notificationOpenId ?: "") else null, zIndexValue = 17f) { openIdNow ->
+                WisdomPushLayer(item = if (showNotifications) (notificationOpenId ?: "") else null, zIndexValue = 17f, onBack = { showNotifications = false; notificationOpenId = null }) { openIdNow ->
                     NotificationsScreen(
                         onBack = { showNotifications = false; notificationOpenId = null }, // R6-notif-open
                         openId = openIdNow.ifEmpty { null },
@@ -3470,7 +3470,7 @@ fun MainScreen(
                     BackHandler(enabled = true) { activeDrawerScreen = null }
                 }
                 // M11-drawer-push: shared push / pop layer; the item is the open drawer screen so it keeps its content while it slides out
-                WisdomPushLayer(item = activeDrawerScreen, zIndexValue = 25f) { drawerScreenNow ->
+                WisdomPushLayer(item = activeDrawerScreen, zIndexValue = 25f, onBack = { activeDrawerScreen = null }) { drawerScreenNow ->
                     when (drawerScreenNow) {
                         "about" -> AboutScreen(
                             onBack = { activeDrawerScreen = null },
