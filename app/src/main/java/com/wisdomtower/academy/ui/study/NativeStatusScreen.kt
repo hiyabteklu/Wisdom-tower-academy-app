@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import androidx.activity.compose.BackHandler
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -325,7 +326,7 @@ fun NativeStatusScreen(
                     // Academic track benchmark selector
                     Box {
                         Row(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(StQuietFill)

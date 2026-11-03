@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.content.ClipData
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.activity.compose.BackHandler
 import android.content.ClipboardManager
 import android.content.Context
@@ -270,7 +271,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                             val active = folder.id == currentFolder?.id
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Row(
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .clip(RoundedCornerShape(50))
                                         .background(if (active) NbTabOnFill else NbCardFill)
                                         .border(BorderStroke(1.dp, if (active) NbTabOnFill else NbCardBorder), RoundedCornerShape(50))
@@ -304,7 +305,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 }
                                 if (folders.size > 1) {
                                     Box(
-                                        modifier = Modifier
+                                        modifier = Modifier.wisdomTouchFeel()
                                             .padding(start = 2.dp)
                                             .clip(CircleShape)
                                             .clickable { deleteFolderId = folder.id }
@@ -342,7 +343,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 modifier = Modifier.weight(1f)
                             )
                             Row(
-                                modifier = Modifier
+                                modifier = Modifier.wisdomTouchFeel()
                                     .padding(start = 8.dp)
                                     .clip(RoundedCornerShape(50))
                                     .background(NbRowFill)
@@ -368,7 +369,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                             currentFolder?.sheets?.forEach { sheet ->
                                 val selected = sheet.id == currentSheet?.id
                                 Row(
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .fillMaxWidth()
                                         .clip(RoundedCornerShape(16.dp))
                                         .background(if (selected) NbRowOnFill else NbRowFill)
@@ -394,7 +395,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                     }
                                     if ((currentFolder?.sheets?.size ?: 0) > 1) {
                                         Box(
-                                            modifier = Modifier
+                                            modifier = Modifier.wisdomTouchFeel()
                                                 .clip(CircleShape)
                                                 .clickable { deleteSheet(sheet.id) }
                                                 .padding(6.dp)
@@ -437,7 +438,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                     }
                                 }
                                 Row(
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .clip(RoundedCornerShape(50))
                                         .background(NbQuietFill)
                                         .border(BorderStroke(1.dp, NbCardBorder), RoundedCornerShape(50))
@@ -550,7 +551,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .clip(RoundedCornerShape(50))
                             .border(BorderStroke(1.dp, NbCancelBorder), RoundedCornerShape(50))
                             .clickable { newFolderOpen = false }
@@ -559,7 +560,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NbSlate300)
                     }
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .clip(RoundedCornerShape(50))
                             .background(NbPrimaryBg)
                             .clickable { addFolder() }
@@ -597,7 +598,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .clip(RoundedCornerShape(50))
                             .border(BorderStroke(1.dp, NbCancelBorder), RoundedCornerShape(50))
                             .clickable { deleteFolderId = null }
@@ -606,7 +607,7 @@ fun NativeNotebookScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                         Text("Cancel", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = NbSlate300)
                     }
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .clip(RoundedCornerShape(50))
                             .background(NbDanger)
                             .clickable {
@@ -673,7 +674,7 @@ private fun NbButton(
     onClick: () -> Unit
 ) {
     Row(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .clip(RoundedCornerShape(50))
             .background(background)
             .border(BorderStroke(1.dp, border), RoundedCornerShape(50))

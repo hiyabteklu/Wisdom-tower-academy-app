@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import androidx.activity.compose.BackHandler
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -121,7 +122,7 @@ fun StatusDetailCard(
                 ) {
                     if (v !is SdView.Subject) {
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .size(40.dp)
                                 .clip(RoundedCornerShape(50))
                                 .clickable { back() },
@@ -135,7 +136,7 @@ fun StatusDetailCard(
                         Text(heading, fontSize = 18.sp, fontWeight = FontWeight.Bold, color = WisdomInk, lineHeight = 23.sp)
                     }
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .size(40.dp)
                             .clip(RoundedCornerShape(50))
                             .clickable { onDismiss() },
@@ -203,7 +204,7 @@ private fun SdListsBody(
             for (c in breakdown.chapters) {
                 val pct = c.totals.completionPct?.roundToInt()
                 Row(
-                    modifier = Modifier
+                    modifier = Modifier.wisdomTouchFeel()
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onChapter(c) }
@@ -234,7 +235,7 @@ private fun SdListsBody(
             SdKicker("EXAM ATTEMPTS")
             for (a in attempts.take(SD_MAX_ATTEMPTS)) {
                 Row(
-                    modifier = Modifier
+                    modifier = Modifier.wisdomTouchFeel()
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onExam(a) }
@@ -488,7 +489,7 @@ fun StatusDetailInline(title: String, breakdown: SubjectBreakdown) {
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .size(40.dp)
                             .clip(RoundedCornerShape(50))
                             .clickable { view = SdView.Subject },

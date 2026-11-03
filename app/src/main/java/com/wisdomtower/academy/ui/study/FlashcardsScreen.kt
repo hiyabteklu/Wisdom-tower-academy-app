@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.annotation.SuppressLint
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
@@ -189,7 +190,7 @@ private fun DeckMessage(message: String, onRetry: () -> Unit) {
         Text(text = message, fontSize = 13.sp, color = WisdomMuted, textAlign = TextAlign.Center)
         Spacer(modifier = Modifier.height(14.dp))
         Box(
-            modifier = Modifier
+            modifier = Modifier.wisdomTouchFeel()
                 .clip(RoundedCornerShape(10.dp))
                 .background(WisdomCyan.copy(alpha = 0.12f))
                 .clickable { onRetry() }

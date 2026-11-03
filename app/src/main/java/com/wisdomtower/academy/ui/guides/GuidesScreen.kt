@@ -14,6 +14,7 @@ package com.wisdomtower.academy.ui.guides
 // so opening those tabs no longer freezes.
 
 import android.content.Intent
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.net.Uri
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -884,7 +885,7 @@ private fun GuideSearchField(value: String, onChange: (String) -> Unit, placehol
                     imageVector = Icons.Filled.Close,
                     contentDescription = "Clear",
                     tint = GuideSoftColor,
-                    modifier = Modifier
+                    modifier = Modifier.wisdomTouchFeel()
                         .size(40.dp)
                         .clip(CircleShape)
                         .clickable { onChange("") }

@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.content.Context
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.animation.animateContentSize
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -215,7 +216,7 @@ fun StatusSubjectBoard(
                 fontSize = 13.sp,
                 fontWeight = FontWeight.SemiBold,
                 color = WisdomAccentSky,
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .clip(RoundedCornerShape(10.dp))
                     .clickable { retry++ }
                     .padding(vertical = 6.dp, horizontal = 4.dp)
@@ -230,7 +231,7 @@ fun StatusSubjectBoard(
             SbPanel(modifier) {
                 // header: title + expand chevron (the whole row toggles)
                 Row(
-                    modifier = Modifier
+                    modifier = Modifier.wisdomTouchFeel()
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { expanded = !expanded },

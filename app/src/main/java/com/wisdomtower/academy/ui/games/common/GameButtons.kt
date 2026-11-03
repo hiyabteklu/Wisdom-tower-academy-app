@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.games.common
 
 import androidx.compose.foundation.background
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
@@ -30,7 +31,7 @@ fun GamePrimaryButton(
 ) {
     val shape = RoundedCornerShape(14.dp)
     Box(
-        modifier = modifier
+        modifier = modifier.wisdomTouchFeel()
             .clip(shape)
             .background(
                 if (enabled) {
@@ -60,7 +61,7 @@ fun GameSecondaryButton(
 ) {
     val shape = RoundedCornerShape(14.dp)
     Box(
-        modifier = modifier
+        modifier = modifier.wisdomTouchFeel()
             .clip(shape)
             .border(1.dp, Color(0x33FFFFFF), shape)
             .background(Color(0x22000000))
@@ -88,7 +89,7 @@ fun GamePowerUpChip(
     val shape = RoundedCornerShape(20.dp)
     val active = enabled && charges > 0
     Box(
-        modifier = modifier
+        modifier = modifier.wisdomTouchFeel()
             .clip(shape)
             .border(1.dp, if (active) WisdomCyan else Color(0x33FFFFFF), shape)
             .background(if (active) Color(0x3322E0FF) else Color(0x22000000))

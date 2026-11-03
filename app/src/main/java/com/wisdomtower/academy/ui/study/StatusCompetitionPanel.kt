@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.content.Context
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -212,7 +213,7 @@ fun StatusCompetitionPanel(modifier: Modifier = Modifier) {
                 fontSize = 12.sp,
                 fontWeight = FontWeight.Bold,
                 color = CpAmber,
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .clickable {
                         loading = true
                         reloadKey += 1

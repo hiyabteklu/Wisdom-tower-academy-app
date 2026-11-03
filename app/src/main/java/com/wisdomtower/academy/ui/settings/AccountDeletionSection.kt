@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.settings
 
 import com.wisdomtower.academy.ui.theme.AppThemeMode
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import android.content.SharedPreferences
 import android.widget.Toast
@@ -95,7 +96,7 @@ fun AccountDeletionSection(settingsPrefs: SharedPreferences) {
             lineHeight = 15.sp
         )
         Box(
-            modifier = Modifier
+            modifier = Modifier.wisdomTouchFeel()
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(12.dp))
                 .border(BorderStroke(1.dp, WisdomAccentRose.copy(alpha = 0.6f)), RoundedCornerShape(12.dp))

@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.packages
 
 import com.wisdomtower.academy.ui.theme.WisdomInk
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
@@ -173,7 +174,7 @@ fun GpaCalculatorCard() {
                 .padding(14.dp)
         ) {
             Row(
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .fillMaxWidth()
                     .semantics(mergeDescendants = true) {
                         stateDescription = if (isOpen) "Expanded" else "Collapsed"
@@ -237,7 +238,7 @@ fun GpaCalculatorCard() {
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .minimumInteractiveComponentSize()
                                 .clip(RoundedCornerShape(10.dp))
                                 .border(BorderStroke(1.dp, WisdomAccentPurple.copy(alpha = 0.4f)), RoundedCornerShape(10.dp))
@@ -270,7 +271,7 @@ fun GpaCalculatorCard() {
 
                     val canAdd = rows.size < subjects.size
                     Box(
-                        modifier = Modifier
+                        modifier = Modifier.wisdomTouchFeel()
                             .minimumInteractiveComponentSize()
                             .clip(RoundedCornerShape(10.dp))
                             .border(BorderStroke(1.dp, WisdomAccentPurple.copy(alpha = 0.4f)), RoundedCornerShape(10.dp))
@@ -443,7 +444,7 @@ private fun GpaRowEditor(
                 imageVector = Icons.Default.Delete,
                 contentDescription = "Remove course",
                 tint = if (canRemove) WisdomMuted else WisdomMuted.copy(alpha = 0.25f),
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .minimumInteractiveComponentSize()
                     .size(20.dp)
                     .clickable(enabled = canRemove, role = Role.Button, onClick = onRemove)
@@ -486,7 +487,7 @@ private fun GpaRowEditor(
             }
 
             Box(
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .minimumInteractiveComponentSize()
                     .clip(RoundedCornerShape(8.dp))
                     .background(WisdomInk.copy(alpha = 0.04f))
@@ -534,7 +535,7 @@ private fun GpaDropdown(
     var open by remember { mutableStateOf(false) }
     Box(modifier = modifier) {
         Row(
-            modifier = Modifier
+            modifier = Modifier.wisdomTouchFeel()
                 .fillMaxWidth()
                 .minimumInteractiveComponentSize()
                 .clip(RoundedCornerShape(10.dp))

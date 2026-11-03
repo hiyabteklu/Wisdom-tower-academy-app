@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import androidx.activity.compose.BackHandler
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -484,7 +485,7 @@ private fun TimerChip(
 ) {
     val shape = RoundedCornerShape(50)
     Row(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .alpha(if (enabled) 1f else 0.5f)
             .clip(shape)
             .background(if (selected) TmChipOnFill else TmChipOffFill)
@@ -530,7 +531,7 @@ private fun TimerPillButton(
 ) {
     val shape = RoundedCornerShape(50)
     Row(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .alpha(if (enabled) 1f else 0.4f)
             .clip(shape)
             .background(bg)
@@ -583,7 +584,7 @@ private fun NudgeDialog(
             )
             Spacer(modifier = Modifier.height(24.dp))
             Box(
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(50))
                     .background(TmPrimaryBg)
@@ -595,7 +596,7 @@ private fun NudgeDialog(
             }
             Spacer(modifier = Modifier.height(10.dp))
             Box(
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(50))
                     .background(TmDialogQuietFill)

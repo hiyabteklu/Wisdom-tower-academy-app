@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import androidx.activity.compose.BackHandler
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -202,7 +203,7 @@ fun NativeTargetsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     ) {
                         Box {
                             Row(
-                                modifier = Modifier
+                                modifier = Modifier.wisdomTouchFeel()
                                     .clip(RoundedCornerShape(50))
                                     .background(TgPillFill)
                                     .border(BorderStroke(1.dp, TgPanelBorder), RoundedCornerShape(50))
@@ -227,7 +228,7 @@ fun NativeTargetsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                             }
                         }
                         Row(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .clip(RoundedCornerShape(50))
                                 .background(TgActionFill)
                                 .clickable { addGoal() }
@@ -275,7 +276,7 @@ fun NativeTargetsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Box(
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .size(26.dp)
                                         .clip(CircleShape)
                                         .background(if (goal.completed) TgCheckOn else WisdomInk.copy(alpha = 0.04f))
@@ -320,7 +321,7 @@ fun NativeTargetsScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                     )
                                 }
                                 Box(
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .padding(start = 6.dp)
                                         .clip(CircleShape)
                                         .clickable { NativeTargetsState.save(goals.filter { it.id != goal.id }) }

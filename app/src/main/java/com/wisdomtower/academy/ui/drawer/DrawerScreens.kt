@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.drawer
 
 import com.wisdomtower.academy.ui.theme.WisdomAccentRose
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import com.wisdomtower.academy.ui.theme.WisdomOnInk
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.AppThemeMode
@@ -735,7 +736,7 @@ fun ContactScreen(
                         }
 
                         Box(
-                            modifier = Modifier
+                            modifier = Modifier.wisdomTouchFeel()
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(14.dp))
                                 .background(WisdomCyan.copy(alpha = if (status == "sending") 0.6f else 1f))

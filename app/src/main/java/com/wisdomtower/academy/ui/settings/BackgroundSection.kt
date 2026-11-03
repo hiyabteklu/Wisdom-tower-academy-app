@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.settings
 
 import android.view.HapticFeedbackConstants
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
@@ -112,7 +113,7 @@ fun BackgroundSection() {
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             Row(
-                modifier = Modifier
+                modifier = Modifier.wisdomTouchFeel()
                     .fillMaxWidth()
                     .semantics { stateDescription = if (expanded) "Expanded" else "Collapsed" }
                     .clickable(role = Role.Button) { expanded = !expanded }

@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
 import android.app.DatePickerDialog
+import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -319,7 +320,7 @@ fun NativeCoverPageScreen(
                             COVER_ACCENTS.forEachIndexed { index, a ->
                                 val selected = index == CoverForm.accentIndex
                                 Box(
-                                    modifier = Modifier
+                                    modifier = Modifier.wisdomTouchFeel()
                                         .size(28.dp)
                                         .clip(CircleShape)
                                         .background(Color(a.color))
@@ -493,7 +494,7 @@ fun NativeCoverPageScreen(
                                 )
                                 if (CoverForm.members.size > 1) {
                                     Box(
-                                        modifier = Modifier
+                                        modifier = Modifier.wisdomTouchFeel()
                                             .size(32.dp)
                                             .clip(CircleShape)
                                             .clickable { CoverForm.members.removeAt(index) },
@@ -537,7 +538,7 @@ fun NativeCoverPageScreen(
                                 imageVector = Icons.Default.CalendarMonth,
                                 contentDescription = "Pick a date",
                                 tint = WisdomCyan,
-                                modifier = Modifier
+                                modifier = Modifier.wisdomTouchFeel()
                                     .size(24.dp)
                                     .clickable { showDatePicker(context) { picked -> CoverForm.dateText = picked } }
                             )
@@ -600,7 +601,7 @@ private fun CoverSection(title: String, content: @Composable ColumnScope.() -> U
 @Composable
 private fun TemplateThumb(name: String, premium: Boolean, bmp: Bitmap?, selected: Boolean, onClick: () -> Unit) {
     Column(
-        modifier = Modifier
+        modifier = Modifier.wisdomTouchFeel()
             .width(66.dp)
             .clickable(onClick = onClick),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -647,7 +648,7 @@ private fun CoverPill(
 ) {
     val shape = RoundedCornerShape(50)
     Box(
-        modifier = modifier
+        modifier = modifier.wisdomTouchFeel()
             .height(height)
             .clip(shape)
             .background(if (filled) WisdomCyan else WisdomGlassFill)
