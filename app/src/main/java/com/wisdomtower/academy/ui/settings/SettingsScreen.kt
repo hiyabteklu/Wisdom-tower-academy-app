@@ -55,6 +55,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
@@ -147,7 +148,7 @@ fun SettingsScreen(
     var passwordError by remember { mutableStateOf<String?>(null) }
     var passwordBusy by remember { mutableStateOf(false) }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().wisdomScreenEntrance()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
