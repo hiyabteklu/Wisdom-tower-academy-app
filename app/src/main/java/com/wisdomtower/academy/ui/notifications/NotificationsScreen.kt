@@ -351,7 +351,7 @@ fun NotificationsScreen(
 
             // Notice cards
             items(shown, key = { it.id }) { n ->
-                NoticeRow(n, onClick = {
+                NoticeRow(n, modifier = Modifier.animateItem(), onClick = {
                     NotificationRepository.markRead(n.id)
                     when (n.category) {
                         // Announcement: read it right here, no navigation.
@@ -368,7 +368,7 @@ fun NotificationsScreen(
 }
 
 @Composable
-private fun NoticeRow(n: NativeNotificationItem, onClick: () -> Unit) {
+private fun NoticeRow(n: NativeNotificationItem, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val category = n.category
     val icon: ImageVector = when (category) {
         NotificationCategory.MATERIAL -> Icons.AutoMirrored.Filled.MenuBook
@@ -380,7 +380,7 @@ private fun NoticeRow(n: NativeNotificationItem, onClick: () -> Unit) {
     val dateText = n.createdAt.take(10)
 
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(bottom = 10.dp)
             .clip(RoundedCornerShape(16.dp))
