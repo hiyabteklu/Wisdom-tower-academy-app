@@ -21,9 +21,8 @@ import androidx.compose.ui.zIndex
 /**
  * M3 (docs/UI_MOTION_PLAN.md): fade-through transition for the five bottom tabs (iOS tab bars dissolve, they do not slide).
  *
- * One layer per tab. The layer of the SELECTED tab fades in (210 ms, starts after 60 ms, rises 10 dp); the layer of the tab
- * that was just left stays composed for 90 ms and fades out, then it is removed exactly as before (no state is kept, so
- * behaviour is unchanged: only the swap is no longer a cut).
+ * V2 cross-dissolve: incoming content starts fading immediately and rises 6 dp. Outgoing content remains opaque until
+ * the incoming layer passes 60 percent, then fades quickly. This prevents the dark gap caused by two sequential fades.
  *
  * - An opaque WisdomNavy backdrop stays behind the fading content, so the WebView underneath can never show through.
  * - [active] = false (the Learning tab while a hub page is open in the WebView) removes the layer at once, no fade.
@@ -47,13 +46,13 @@ fun WisdomTabLayer(
     LaunchedEffect(wanted, isSelectedTab) {
         if (wanted) {
             shown = true
-            fade.animateTo(1f, tween(durationMillis = 210, delayMillis = 60, easing = LinearOutSlowInEasing))
+            fade.animateTo(1f, tween(durationMillis = 220, easing = LinearOutSlowInEasing))
         } else if (isSelectedTab) {
             // the tab is still selected but its native screen is hidden on purpose (hub page open): no fade
             fade.snapTo(0f)
             shown = false
         } else {
-            fade.animateTo(0f, tween(durationMillis = 90, easing = FastOutLinearInEasing))
+            fade.animateTo(0f, tween(durationMillis = 88, delayMillis = 132, easing = FastOutLinearInEasing))
             shown = false
         }
     }
@@ -70,7 +69,7 @@ fun WisdomTabLayer(
                     .fillMaxSize()
                     .graphicsLayer {
                         alpha = fade.value
-                        translationY = if (wanted) (1f - fade.value) * 10.dp.toPx() else 0f
+                        translationY = if (wanted) (1f - fade.value) * 6.dp.toPx() else 0f
                     }
             ) {
                 content()
