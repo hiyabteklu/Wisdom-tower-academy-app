@@ -73,19 +73,21 @@ import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlin.random.Random
 
 /**
  * Match game screen (docs/GAMES_HUB_PLAN.md step 4, animated by docs/GAMES_FEEL_PLAN.md slice M2,
  * HUD and result by slice M3, sound mapping by slice P1).
  * Takes a loaded [GameSetData] with match pairs and [onExit].
  *
- * 2026-10-24 (random arrivals): a matched pair no longer gets the next pair in the same two slots. The two slots turn
- * into empty "portal" slots, and a loop in this screen asks the engine for ONE card at a time at random moments
- * (0.6 to 2.8 s apart, 0.25 to 0.9 s when nothing on the board can be matched). The card is any card of the deck and it
- * takes a random empty slot, so what comes, where and when cannot be predicted. The screen keeps its own `shown`
- * list (one entry per slot, null = empty) so the matched pair can pulse green and fade out first.
- * `attempt` restarts the game (new engine, fresh screen state) when the player taps Retry.
+ * 2026-11-02 (M1 of docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, owner: after a match the slots stayed blank and the new cards
+ * came too slowly): the random-arrival loop of 2026-10-24 (one card every 0.6 to 2.8 s into an empty "portal" slot) is
+ * GONE. The engine now refills the two freed slots at once with two single cards picked on their own from the whole deck
+ * (so a question does not come with its own answer), and tells the screen in `engine.lastRefills`. The screen keeps the
+ * matched pair on show for the short green pulse and fade (0.14 s + 0.14 s, swap after 320 ms), then puts the new cards in
+ * the same two slots; they flip in from the card back (as every new card does), so a slot is never an empty box. Empty
+ * slots only exist at the very end of the set (deck empty); they are hidden then, so the last cards just move up.
+ * The screen keeps its own `shown` list (one entry per slot, null = empty) so the matched pair can pulse green and fade out
+ * first. `attempt` restarts the game (new engine, fresh screen state) when the player taps Retry.
  *
  * P1 sound map: tap = Tap + light tap | match = Correct (Combo from a streak of 2) + correct buzz |
  * wrong pair = Wrong + wrong buzz | result screen shown = Victory.
@@ -132,7 +134,7 @@ fun MatchScreen(
     DisposableEffect(Unit) { onDispose { GameAudio.release() } }
 
     var tick by remember { mutableIntStateOf(0) }
-    // One entry per slot. null = empty slot (a new card will arrive there at a random moment).
+    // One entry per slot. null = empty slot (only at the very end of the set, when the deck has run out).
     var shown by remember(set.id, attempt, level) { mutableStateOf<List<MatchCard?>>(engine.slots) }
     var leaving by remember(set.id, attempt, level) { mutableStateOf<Set<Int>>(emptySet()) }
     var wrongIds by remember(set.id, attempt, level) { mutableStateOf<List<Int>>(emptyList()) }
@@ -159,25 +161,6 @@ fun MatchScreen(
         if (hintId != null) {
             delay(900)
             hintId = null
-        }
-    }
-
-    // Random arrivals: one card, one empty slot, at a random moment. Nothing arrives while a matched pair is still
-    // fading out (its slots are not empty on screen yet).
-    LaunchedEffect(set.id, attempt, level) {
-        while (engine.phase is MatchPhase.Playing) {
-            if (!engine.canSpawn || leaving.isNotEmpty()) {
-                delay(100)
-                continue
-            }
-            // When nothing on the board can be matched, the next card comes sooner.
-            val stuck = !engine.hasMatchOnBoard()
-            val wait = if (stuck) Random.nextLong(250L, 900L) else Random.nextLong(600L, 2800L)
-            delay(wait)
-            if (leaving.isNotEmpty()) continue
-            val spawn = engine.spawnNext() ?: continue
-            shown = shown.toMutableList().also { it[spawn.slot] = spawn.card }
-            tick++
         }
     }
 
@@ -307,6 +290,9 @@ fun MatchScreen(
 
                 // 10 or more cards on the board (Hard): 3 columns so everything fits without scrolling.
                 val compact = tuning.pairsOnBoard * 2 >= 10
+                // Slots are refilled at once, so empty slots only exist when the deck has run out (the end of the set).
+                // Then they are hidden and the remaining cards move up. While a pair is still fading out they stay.
+                val visibleSlots = if (engine.deckCount == 0 && leaving.isEmpty()) shown.filterNotNull() else shown
                 LazyVerticalGrid(
                     columns = GridCells.Fixed(if (compact) 3 else 2),
                     contentPadding = PaddingValues(4.dp),
@@ -315,7 +301,7 @@ fun MatchScreen(
                     modifier = Modifier.weight(1f).fillMaxWidth()
                 ) {
                     // Empty slots get a negative key so they never clash with a card id.
-                    itemsIndexed(shown, key = { index, c -> c?.id ?: (-1 - index) }) { _, card ->
+                    itemsIndexed(visibleSlots, key = { index, c -> c?.id ?: (-1 - index) }) { _, card ->
                         if (card == null) {
                             MatchEmptySlot(reduceMotion = reduceMotion)
                         } else {
@@ -349,12 +335,19 @@ fun MatchScreen(
                                             }
                                             GameHaptics.correct(view, true)
                                             val oldIds = engine.lastMatchedCards.map { it.id }
+                                            // Taken NOW: the engine has already refilled the two slots and a quick next match
+                                            // would overwrite these fields before the delay below ends.
+                                            val refills = engine.lastRefills
                                             leaving = leaving + oldIds
                                             busy++
                                             scope.launch {
-                                                delay(if (reduceMotion) 0L else 520L)
-                                                // The two slots become empty. New cards arrive later, one by one.
-                                                shown = shown.map { c -> if (c != null && c.id in oldIds) null else c }
+                                                delay(if (reduceMotion) 0L else 320L)
+                                                // The matched pair leaves; the new cards take the SAME slots at once.
+                                                val next = shown.map { c -> if (c != null && c.id in oldIds) null else c }.toMutableList()
+                                                refills.forEach { r ->
+                                                    if (r.slot >= 0 && r.slot < next.size) next[r.slot] = r.card
+                                                }
+                                                shown = next
                                                 leaving = leaving - oldIds.toSet()
                                                 busy--
                                             }
@@ -391,7 +384,7 @@ fun MatchScreen(
     }
 }
 
-/** An empty slot: a faint pulsing outline where a new card will arrive at some random moment. */
+/** An empty slot: a faint pulsing outline. Only seen at the very end of the set, for a moment, before it is hidden. */
 @Composable
 private fun MatchEmptySlot(reduceMotion: Boolean) {
     val shape = RoundedCornerShape(14.dp)
@@ -445,7 +438,7 @@ private fun MatchCardView(
     // Selected card lifts.
     val lift by animateFloatAsState(if (selected) 1.06f else 1f, tween(if (reduceMotion) 0 else 120), label = "matchLift")
 
-    // Matched card: green pulse, then shrink and fade.
+    // Matched card: green pulse, then shrink and fade (0.14 s each, so the slot is refilled after 0.32 s).
     val pulse = remember { Animatable(0f) }
     val exit = remember { Animatable(1f) }
     LaunchedEffect(leaving) {
@@ -453,8 +446,8 @@ private fun MatchCardView(
             if (reduceMotion) {
                 exit.snapTo(0f)
             } else {
-                pulse.animateTo(1f, tween(250))
-                exit.animateTo(0f, tween(250))
+                pulse.animateTo(1f, tween(140))
+                exit.animateTo(0f, tween(140))
             }
         }
     }
