@@ -27,6 +27,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -358,7 +359,7 @@ private fun ChapterCard(
                     modifier = Modifier
                         .minimumInteractiveComponentSize()
                         .clip(RoundedCornerShape(24.dp))
-                        .clickable(onClick = onDownloadClick),
+                        .wisdomPressClickable(onClick = onDownloadClick),
                     contentAlignment = Alignment.Center
                 ) {
                     DownloadGauge(state = downloadState, progress = null)
@@ -375,7 +376,7 @@ private fun HubGameCard(emoji: String, title: String, body: String, onClick: () 
             .fillMaxWidth()
             .clip(RoundedCornerShape(24.dp))
             .background(Color(0x1FFFFFFF))
-            .clickable(onClick = onClick)
+            .wisdomPressClickable(onClick = onClick)
             .padding(20.dp)
     ) {
         Text(emoji, fontSize = 36.sp)
