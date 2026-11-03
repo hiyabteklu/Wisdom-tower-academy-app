@@ -17,6 +17,7 @@
 | P10 | `patch_native_planner_entries.py` | native Study Planner entries | APPLIED (PR #7 merged 2026-10-12) |
 | P16 | `patch_u1_global_tool_overlays.py` | U1 Option A: global drawer and study tool overlays at zIndex 120f; drawer screens at zIndex 25f | APPLIED locally in MainActivity.kt |
 | P17 | `patch_t1_tool_overlay_back.py` | T1: tool overlay back navigation and phone Back button priority fix | APPLIED locally in MainActivity.kt |
+| U2-FIX1 | `patch_app_update_u2_lifecycle_scope.py` | Fix unresolved lifecycleScope compile error in updater resume callback by importing LifecycleOwner extension and coroutine launch | WRITTEN, OWNER RUN REQUIRED on branch `fix/update-u2-lifecycle-scope`; build/test, then PR merge |
 
 Helper scripts (not patches): `generate_catalog_snapshot.py`, `generate_icons.py`, `pack_mainactivity.py`, `restore_mainactivity.py` (run by the build, keeps a valid `MainActivity.kt` on disk).
 
