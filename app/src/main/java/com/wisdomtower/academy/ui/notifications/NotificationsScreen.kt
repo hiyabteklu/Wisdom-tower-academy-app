@@ -43,6 +43,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -139,6 +140,7 @@ fun NotificationsScreen(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .wisdomScreenEntrance()
             .statusBarsPadding()
             .navigationBarsPadding()
     ) {
