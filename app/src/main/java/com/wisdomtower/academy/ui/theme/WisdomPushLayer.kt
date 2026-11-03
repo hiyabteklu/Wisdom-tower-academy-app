@@ -8,6 +8,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.activity.compose.ExperimentalActivityApi
 import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +41,7 @@ private class LastItem<T>(var value: T?)
  * - Touch works from the first frame (a layer at alpha 0 still receives taps).
  * - This file never changes the state that decides visibility; back handling stays where it is.
  */
+@OptIn(ExperimentalActivityApi::class)
 @Composable
 fun <T : Any> WisdomPushLayer(
     item: T?,
