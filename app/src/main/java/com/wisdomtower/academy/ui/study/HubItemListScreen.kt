@@ -81,12 +81,16 @@ import com.wisdomtower.academy.ui.theme.WisdomMessageCard
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
 
 /** Progress value meaning "downloading, size not known" (notes, flashcards, questions have no byte count). */
 private const val SIZE_UNKNOWN = -1f
+
+/** P1a: how long the refresh must run before the small muted "Updating…" word shows (a fast refresh shows nothing). */
+private const val UPDATING_HINT_DELAY_MS = 1500L
 
 /** Soft red used for "remove" and failure texts. D6b: a getter (night FDA4AF as before, day deep rose) so it follows the switch. */
 private val RemoveRed: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRose)
@@ -139,6 +143,14 @@ private fun buildHubEntries(items: List<LearningResource>, soonChapters: List<In
  * a row "Chapter N: Coming soon" even with no materials ([CourseLocks.comingSoonChapters]). A tap on an Owned-only row still
  * shows the old "Package required" pop-up until S2 replaces it with the native purchase flow.
  *
+ * P1a (2026-11-03, `docs/READER_EXAM_FLASHCARD_FIX_PLAN.md`, owner problem 8): SAVED LIST FIRST. When this hub was opened
+ * before on this phone, its saved list ([LearningContentRepository.listSaved], no network) is drawn at once, with no
+ * spinner; the server is asked in the background ([LearningContentRepository.list], short timeout because a saved list
+ * exists) and the screen swaps the list ONLY when the new rows really differ (no flicker). If the refresh takes longer
+ * than 1.5 s the hub line gets a muted " · Updating…" after it; a refresh that fails keeps the saved list. The full-screen
+ * spinner only shows when nothing was ever saved for this hub. Locks are unchanged: the lock rows still mark rows and the
+ * checked door still decides when an item is opened.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -156,6 +168,8 @@ fun HubItemListScreen(
     val loggedIn by AuthStateManager.isLoggedIn.collectAsState()
     var result by remember(scopePath, hubId) { mutableStateOf<ContentListResult?>(null) }
     var reload by remember { mutableStateOf(0) }
+    // P1a: true while the background refresh has run longer than UPDATING_HINT_DELAY_MS
+    var updating by remember(scopePath, hubId) { mutableStateOf(false) }
     val seenPrefs = remember { context.getSharedPreferences("wt_seen_resources", Context.MODE_PRIVATE) }
     var seen by remember { mutableStateOf<Set<String>>(seenPrefs.getStringSet("ids", null)?.toSet() ?: emptySet()) }
 
@@ -242,11 +256,37 @@ fun HubItemListScreen(
         }
     }
 
+    // P1a: saved list first (no network, drawn at once), then the server in the background; swap only when it differs.
     LaunchedEffect(scopePath, hubId, loggedIn, reload) {
         if (loggedIn) {
-            result = null
             // S2: always a light list; counts come from item_count, heavy content from getResource.
-            result = LearningContentRepository.list(context, scopePath, hubId)
+            val saved = LearningContentRepository.listSaved(context, scopePath, hubId)
+            val shown = result
+            if (saved != null) {
+                // Draw the saved list at once (keep what is already shown when it is a list: a Retry or a re-run must not flicker).
+                if (shown !is ContentListResult.Success) result = ContentListResult.Success(saved, true)
+            } else if (shown !is ContentListResult.Success) {
+                // Nothing saved: the full-screen spinner (also after a Retry on a failure card).
+                result = null
+            }
+            val hint = launch {
+                delay(UPDATING_HINT_DELAY_MS)
+                updating = true
+            }
+            try {
+                val fresh = LearningContentRepository.list(context, scopePath, hubId)
+                val now = result
+                if (fresh is ContentListResult.Success) {
+                    // Replace only when the rows really differ (data class equality of every field).
+                    if (now !is ContentListResult.Success || now.items != fresh.items) result = fresh
+                } else if (now !is ContentListResult.Success) {
+                    // A failed refresh never throws away a list that is already on the screen.
+                    result = fresh
+                }
+            } finally {
+                hint.cancel()
+                updating = false
+            }
         }
     }
 
@@ -290,7 +330,8 @@ fun HubItemListScreen(
         ) {
             item(key = "hub_list_header") {
                 Text(
-                    text = hubName,
+                    // P1a: a saved list is on screen and the refresh is slow: one small muted word, never blocking.
+                    text = if (updating && result is ContentListResult.Success) "$hubName \u00B7 Updating\u2026" else hubName,
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = WisdomMuted,
