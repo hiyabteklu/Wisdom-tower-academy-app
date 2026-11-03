@@ -46,3 +46,25 @@ fun Modifier.wisdomReveal(key: String, index: Int = 0): Modifier {
         scaleY = s
     }
 }
+
+
+/**
+ * Light return-visit entrance for a whole screen. Unlike item-level wisdomReveal,
+ * this is attached to a screen root, so it replays when the tab/overlay is opened
+ * again without replaying as individual lazy-list rows are recycled while scrolling.
+ */
+@Composable
+fun Modifier.wisdomScreenEntrance(): Modifier {
+    val progress = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        progress.animateTo(
+            1f,
+            tween(durationMillis = WisdomMotionV2.ReturnEntranceMs, easing = FastOutSlowInEasing)
+        )
+    }
+    return this.graphicsLayer {
+        val p = progress.value
+        alpha = p
+        translationY = (1f - p) * 10.dp.toPx()
+    }
+}
