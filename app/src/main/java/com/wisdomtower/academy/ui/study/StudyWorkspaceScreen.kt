@@ -24,6 +24,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalContext
@@ -44,6 +46,7 @@ import com.wisdomtower.academy.ui.packages.NATIVE_LEARNING_HUBS
 import com.wisdomtower.academy.ui.packages.OpenCard
 import com.wisdomtower.academy.ui.packages.openGrid
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
+import com.wisdomtower.academy.ui.theme.WisdomGrowLayer
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.launch
 
@@ -252,8 +255,13 @@ fun StudyWorkspaceScreen(
     }
 
     val shown = view
-    if (shown != null && contentScope != null) {
-        PauseShellWhileShown()
+    if (shown != null && contentScope != null) PauseShellWhileShown() // V5d hub grow
+
+    // V5d hub grow: the sub-screens (hub list, book, note, cards, quiz) are drawn by this lambda, either inside the grow layer
+    // or directly (website entrance link). The two parameters and `modifier` deliberately keep the old names, so the code
+    // of every branch below is the same as before; the layer or the Box around it already applies the caller's modifier.
+    val subView: @Composable (WorkspaceView, String) -> Unit = { shown, contentScope ->
+        val modifier = Modifier
         when (shown) {
             is WorkspaceView.HubList -> HubItemListScreen(
                 scopePath = contentScope,
@@ -306,12 +314,18 @@ fun StudyWorkspaceScreen(
                 modifier = modifier
             )
         }
+    }
+
+    val layerItem: WorkspaceView? = if (contentScope != null) shown else null
+    if (entranceUrl != null && layerItem != null && contentScope != null) {
+        // V5d hub grow: opened straight into a hub from a website link. No grid behind it, no grow (as before).
+        Box(modifier = modifier.fillMaxSize()) { subView(layerItem, contentScope) }
         return
     }
 
     Box(modifier = modifier.fillMaxSize()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
-        Column(Modifier.fillMaxSize()) {
+        Column(Modifier.fillMaxSize().then(if (layerItem != null) Modifier.clearAndSetSemantics { } else Modifier)) { // V5d hub grow
             Text(
                 text = title,
                 color = WisdomMuted,
@@ -372,6 +386,23 @@ fun StudyWorkspaceScreen(
                     )
                 }
                 item(key = "bottom_space") { Spacer(modifier = Modifier.height(32.dp)) }
+            }
+        }
+
+        // V5d hub grow: grows out of the tapped hub tile, shrinks back into it. Touches stop here (nothing under it is tapped).
+        if (contentScope != null) {
+            WisdomGrowLayer(item = layerItem, zIndexValue = 1f) { layerView ->
+                Box(
+                    Modifier
+                        .fillMaxSize()
+                        .pointerInput(Unit) {
+                            awaitPointerEventScope {
+                                while (true) {
+                                    awaitPointerEvent()
+                                }
+                            }
+                        }
+                ) { subView(layerView, contentScope) }
             }
         }
 
