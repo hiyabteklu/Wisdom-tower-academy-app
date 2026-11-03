@@ -83,6 +83,7 @@ import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
 import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomExpandable
+import com.wisdomtower.academy.ui.theme.wisdomPress
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
@@ -635,6 +636,7 @@ private fun SettingsAccordionCard(
         animationSpec = spring(dampingRatio = 0.8f, stiffness = 400f),
         label = "accordionChevron"
     )
+    val rowInteraction = remember { MutableInteractionSource() }
     WisdomGlassCard(
         modifier = Modifier.fillMaxWidth(),
         cornerRadius = 16.dp,
@@ -645,7 +647,8 @@ private fun SettingsAccordionCard(
                 modifier = Modifier
                     .fillMaxWidth()
                     .semantics { stateDescription = if (isExpanded) "Expanded" else "Collapsed" }
-                    .clickable(role = Role.Button, onClick = onToggle)
+                    .wisdomPress(rowInteraction)
+                    .clickable(interactionSource = rowInteraction, indication = null, role = Role.Button, onClick = onToggle)
                     .padding(16.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -714,15 +717,17 @@ private fun ToggleRow(
     checked: Boolean,
     onCheckedChange: (Boolean) -> Unit
 ) {
+    val toggleInteraction = remember { MutableInteractionSource() }
     Row(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(12.dp))
             .background(WisdomInk.copy(alpha = 0.03f))
             .border(BorderStroke(1.dp, WisdomBorderWhite), RoundedCornerShape(12.dp))
+            .wisdomPress(toggleInteraction)
             .toggleable(
                 value = checked,
-                interactionSource = remember { MutableInteractionSource() },
+                interactionSource = toggleInteraction,
                 indication = null,
                 role = Role.Switch,
                 onValueChange = onCheckedChange

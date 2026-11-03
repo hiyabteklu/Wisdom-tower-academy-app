@@ -5,6 +5,15 @@ import androidx.compose.animation.EnterTransition
 import androidx.compose.animation.ExitTransition
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.interaction.Interaction
+import androidx.compose.foundation.interaction.InteractionSource
+import androidx.compose.foundation.interaction.PressInteraction
+import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -61,4 +70,41 @@ fun wisdomAnimatedColor(selected: Boolean, selectedColor: Color, idleColor: Colo
         label = "wisdomAnimatedColor"
     )
     return color
+}
+
+
+/** Centralized V2 motion tokens for restrained, tactile interactions. */
+object WisdomMotionV2 {
+    const val PressInMs = 90
+    const val PressScale = 0.97f
+    const val ReturnEntranceMs = 180
+    const val PushStiffness = 260f
+    const val PopStiffness = 340f
+}
+
+/**
+ * Adds a subtle press scale and light release haptic to an existing clickable surface.
+ * The same interactionSource must be passed to the clickable/toggleable modifier.
+ */
+@Composable
+fun Modifier.wisdomPress(interactionSource: InteractionSource): Modifier {
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by androidx.compose.animation.core.animateFloatAsState(
+        targetValue = if (pressed) WisdomMotionV2.PressScale else 1f,
+        animationSpec = if (pressed) tween(WisdomMotionV2.PressInMs)
+        else spring(dampingRatio = 0.62f, stiffness = 520f),
+        label = "wisdomPressScale"
+    )
+    val haptic = LocalHapticFeedback.current
+    LaunchedEffect(interactionSource) {
+        interactionSource.interactions.collect { interaction: Interaction ->
+            if (interaction is PressInteraction.Release) {
+                haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+            }
+        }
+    }
+    return graphicsLayer {
+        scaleX = scale
+        scaleY = scale
+    }
 }

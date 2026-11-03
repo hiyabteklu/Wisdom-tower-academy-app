@@ -57,7 +57,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 
 ## 5. Slices (ONE per chat, in this order = most felt first, riskiest later)
 
-- [ ] **V1 Spring kit and press feel (foundation).** Add to `WisdomMotion.kt`: the spring tokens above, `Modifier.wisdomPress()` (scale 0.97 spring + light haptic) and the selection pop helper. Do NOT change screens yet except one test target: `SettingsScreen.kt` rows and chips get the press feel. Step 1: confirm how "Remove animations" affects `Animatable` (write the answer). Owner test: tap Settings rows and chips, they press in and spring back.
+- [x] **V1 Spring kit and press feel (foundation).** Add to `WisdomMotion.kt`: the spring tokens above, `Modifier.wisdomPress()` (scale 0.97 spring + light haptic) and the selection pop helper. Do NOT change screens yet except one test target: `SettingsScreen.kt` rows and chips get the press feel. Step 1: confirm how "Remove animations" affects `Animatable` (write the answer). Owner test: tap Settings rows and chips, they press in and spring back.
 - [ ] **V2 Push v2 (depth).** Rewrite `WisdomPushLayer.kt`: full-width slide from the right with the push spring, a black scrim, and the screen below shifts 30 percent left and dims. The shifting of the screen below needs a small change where the tab screens are drawn in `MainActivity.kt` (patch script `scripts/patch_v2_push_depth.py`, marker `PushDepth v1`, step 1 = read the live site). Same layer is used for all current pushes (study workspace, guides, competitions, drawer screens), so one change lifts all of them. Pop is the reverse. Owner test: open a package, a hub, a note, a book, a drawer page: it slides the full width, the old screen moves back and darkens; Back reverses.
 - [ ] **V3 Edge-swipe back that follows the finger.** Swipe from the left edge drags the top screen with the finger; release past 40 percent or with speed = go back, otherwise spring back. Use Compose `PredictiveBackHandler` if the Compose version allows it (step 1: read the Gradle files for the version; do not edit them) and the manifest flag only if it is allowed (manifest is a forbidden file: if the flag is needed, STOP and ask the owner). Must call the SAME back chain that exists today, never reorder it. WebView screens: the edge gesture must not fight the page's own horizontal scroll (test the notes reader and flashcards). Owner decision needed first (section 7).
 - [ ] **V4 Tab change v2 (no dark dip, state kept).** Rewrite `WisdomTabLayer.kt` with the overlap cross-dissolve above. Keep each tab's state and scroll position instead of rebuilding (`rememberSaveableStateHolder` hypothesis; step 1 = read how the tab layers are called in `MainActivity.kt`; patch script `scripts/patch_v2_tabs.py`, marker `TabLayer v2`). Coordinate with the bottom pill glide (the page switch starts when the glide is under way). Owner test: tap the five tabs fast and slow: no flash, no dark dip, the scroll position of a tab is where you left it.
@@ -74,7 +74,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 | Slice | State |
 |---|---|
 | Plan | WRITTEN and pushed 2026-11-03 |
-| V1 to V12 | NOT STARTED |
+| V1 | CODE PUSHED (2026-11-03; phone test pending) |\n| V2 to V12 | NOT STARTED |
 
 ## 7. Owner decisions (defaults chosen, change any of them)
 1. **Style:** calm and premium like iOS: smooth springs, no bounce on screens, a small bounce only on small things (selection pop, press). Not playful.
