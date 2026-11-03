@@ -59,6 +59,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import com.wisdomtower.academy.ui.theme.wisdomScreenEntrance
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -480,7 +481,7 @@ fun NativeTutorScreen(
     BackHandler(enabled = showHistory) { showHistory = false }
     BackHandler(enabled = !showHistory) { onBack() }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(modifier = modifier.fillMaxSize().wisdomScreenEntrance()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         // Chat page fills everything; the controls float on top of it.
