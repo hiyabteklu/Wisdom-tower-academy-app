@@ -36,6 +36,7 @@ fun WisdomTabLayer(
     tab: Int,
     selectedIndex: Int,
     active: Boolean = true,
+    recede: Boolean = false,
     content: @Composable () -> Unit
 ) {
     val stateHolder = rememberSaveableStateHolder()
@@ -74,6 +75,7 @@ fun WisdomTabLayer(
                             alpha = fade.value
                             translationY = if (wanted) (1f - fade.value) * 6.dp.toPx() else 0f
                         }
+                        .wisdomPushRecede(recede)
                 ) {
                     content()
                 }
