@@ -298,9 +298,9 @@ fun HubItemListScreen(
             // 1) Quick read of local cache / saved files (no network)
             val quickSizes = mutableMapOf<String, Long>()
             for (item in current.items) {
-                BookFileStore.getCachedFileSize(context, item.id)?.let {
-                    quickSizes[item.id] = it
-                }
+                val storedSize = item.sizeBytes?.takeIf { it > 0L }
+                if (storedSize != null) quickSizes[item.id] = storedSize
+                else BookFileStore.getCachedFileSize(context, item.id)?.let { quickSizes[item.id] = it }
             }
             if (quickSizes.isNotEmpty()) {
                 fileSizeMap = fileSizeMap + quickSizes
@@ -417,7 +417,7 @@ fun HubItemListScreen(
                                         hubId = hubId,
                                         isNew = isNew && rowLock == null,
                                         isDownloaded = item.id in downloaded,
-                                        knownSize = if (hubId == "books") fileSizeMap[item.id] else null,
+                                        knownSize = if (hubId == "books") (fileSizeMap[item.id] ?: item.sizeBytes) else null,
                                         progress = busy[item.id],
                                         hasFailed = item.id in failed,
                                         lockedGate = rowLock,

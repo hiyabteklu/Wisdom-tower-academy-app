@@ -7,7 +7,7 @@
 
 - [x] **A1** — implemented and pushed; owner phone test pending. Scholar list: quick actions (Push, Call, Email) on every row and in the profile panel
 - [x] **A2** — implemented and pushed; owner phone test pending. Inquiries list: same actions, with Reply first
-- [ ] **C1** Book size shown immediately (like the title)
+- [x] **C1** — database column, app caching, save-time HEAD capture, and old-book backfill implemented; phone/CI verification pending. Book size shown immediately (like the title)
 - [ ] **D1** Downloads keep going when the student leaves the page (stay in the app)
 - [ ] **E1** Downloads start fast, also on a slow connection
 - [ ] **B1** Taller material cards (books, notes, question banks, all lists): title, type, description, size
@@ -114,9 +114,10 @@ Not in this plan (can come later if wanted): tap-through link or headline on the
 
 ## Live changes (Supabase)
 
-None yet. A1 is app-only; no database change. Add one line per migration here: name + what it does.
+- `learning_resources_size_bytes` — added nullable `size_bytes` to `learning_resources`, exposed it to student light-list reads, preserved the admin-only view, and granted authenticated admin writes. Add one line per migration here: name + what it does.
 
 ## Plan changes
 
+- 2026-11-03 (C1): Added `size_bytes` to material rows. The app reads it with the title and stores it in the existing offline list cache. Saving a book with a new Appwrite ID measures the file with HEAD; opening Admin > Course Content > Books backfills older rows with missing sizes.
 - 2026-11-03 (A2): Inquiry rows and details now offer Reply, Push, and Email. Reply opens the mail app with a prefilled subject; Push resolves the inquiry email to an Academy profile before using the existing targeted notification sender. Inquiry records contain no phone or user ID, so Call is not shown.
 - 2026-11-03 (A1): Added scholar Push / Call / Email actions in the directory and profile. Push reuses `ComposerRepository.sendNow` with the scholar user ID; Call opens the dialer and Email opens a mail composer. Zero-device responses are explained.

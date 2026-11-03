@@ -140,7 +140,7 @@ object LearningContentRepository {
 
     /** Columns of a list (no note text, no quiz/flashcard JSON; `item_count` replaces counting inside `meta`). */
     private const val LIGHT_COLUMNS =
-        "id,package_id,scope_path,hub,title,chapter,sort_order,content_type,storage_path,published,item_count"
+        "id,package_id,scope_path,hub,title,chapter,sort_order,content_type,storage_path,published,item_count,size_bytes"
 
     /** What the checked door answered for one material. */
     private sealed class Door {
@@ -597,7 +597,8 @@ object LearningContentRepository {
             storagePath = row.nstr("storage_path"),
             bodyMd = row.nstr("body_md"),
             metaJson = row.optJSONObject("meta")?.toString() ?: "{}",
-            itemCount = if (row.isNull("item_count")) null else row.optInt("item_count")
+            itemCount = if (row.isNull("item_count")) null else row.optInt("item_count"),
+            sizeBytes = if (row.isNull("size_bytes")) null else row.optLong("size_bytes").takeIf { it > 0L }
         )
     }
 

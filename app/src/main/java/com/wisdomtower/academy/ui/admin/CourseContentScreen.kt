@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.admin
 
+import androidx.compose.ui.platform.LocalContext
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -106,6 +107,7 @@ private fun blankItem(packageId: String, scopePath: String, hub: String, sortOrd
 
 @Composable
 internal fun CourseContentScreen(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     var pathKey by rememberSaveable { mutableStateOf("") }
     var result by remember { mutableStateOf<AdminContentResult?>(null) }
     var loading by remember { mutableStateOf(false) }
@@ -137,6 +139,16 @@ internal fun CourseContentScreen(modifier: Modifier = Modifier) {
             loading = false
         }
     }
+    LaunchedEffect(hubId) {
+        if (hubId == "books") {
+            val updated = AdminContentRepository.backfillBookSizes(context)
+            if (updated > 0) {
+                toast = "Recorded sizes for $updated books"
+                reloadKey += 1
+            }
+        }
+    }
+
     LaunchedEffect(toast) {
         if (toast.isNotEmpty()) {
             delay(4500L)
@@ -154,7 +166,7 @@ internal fun CourseContentScreen(modifier: Modifier = Modifier) {
     fun doSave(itemId: String, input: AdminContentInput) {
         scope.launch {
             saving = true
-            val outcome = AdminContentRepository.save(itemId, input)
+            val outcome = AdminContentRepository.save(itemId, input, context)
             saving = false
             toast = if (outcome.ok) {
                 if (input.published) "Saved & published" else "Saved (draft)"

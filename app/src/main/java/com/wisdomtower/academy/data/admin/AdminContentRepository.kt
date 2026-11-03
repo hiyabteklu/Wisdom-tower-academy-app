@@ -1,6 +1,11 @@
 package com.wisdomtower.academy.data.admin
 
+import android.content.Context
 import android.net.Uri
+import com.wisdomtower.academy.OfflineVault
+import com.wisdomtower.academy.data.content.LearningContentRepository
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 import org.json.JSONTokener
@@ -23,7 +28,8 @@ data class AdminContentItem(
     val bodyMd: String?,
     /** The meta column as compact JSON text. Pretty printing happens only when the editor opens. */
     val metaRaw: String,
-    val published: Boolean
+    val published: Boolean,
+    val sizeBytes: Long? = null
 )
 
 /** What the editor hands to save(): the same fields the website ResourceInput carries. */
@@ -230,7 +236,8 @@ object AdminContentRepository {
                         storagePath = o.text("storage_path"),
                         bodyMd = o.text("body_md"),
                         metaRaw = if (metaValue is JSONObject) metaValue.toString() else "{}",
-                        published = o.optBoolean("published", false)
+                        published = o.optBoolean("published", false),
+                        sizeBytes = if (o.isNull("size_bytes")) null else o.optLong("size_bytes").takeIf { it > 0L }
                     )
                 )
             }
@@ -291,12 +298,18 @@ object AdminContentRepository {
     }
 
     /** itemId empty = new item. */
-    suspend fun save(itemId: String, input: AdminContentInput): GrantOutcome {
+    suspend fun save(itemId: String, input: AdminContentInput, context: Context): GrantOutcome {
         val meta: JSONObject = parseMeta(input.metaText) ?: return GrantOutcome(false, "Meta JSON is invalid")
 
         // Security S5c: a Life Savers file id is stored as appwrite-paid:<id> (private bucket), see paidIfNeeded.
         val storage = paidIfNeeded(input.hub, input.storagePath?.trim().orEmpty())
         val bodyMd = input.bodyMd.orEmpty()
+        val sizeBytes = if (input.hub == "books" && storage.startsWith(APPWRITE_PREFIX)) {
+            withContext(Dispatchers.IO) {
+                val url = LearningContentRepository.appwriteViewUrl(storage)
+                if (url == null) 0L else OfflineVault.probeSizeOnline(context.applicationContext, url)
+            }.takeIf { it > 0L }
+        } else null
         val body = JSONObject()
         body.put("package_id", input.packageId)
         body.put("scope_path", input.scopePath)
@@ -306,6 +319,7 @@ object AdminContentRepository {
         body.put("sort_order", input.sortOrder)
         body.put("content_type", input.contentType)
         body.put("storage_path", if (storage.isEmpty()) JSONObject.NULL else storage)
+        body.put("size_bytes", sizeBytes ?: JSONObject.NULL)
         body.put("body_md", if (bodyMd.isEmpty()) JSONObject.NULL else bodyMd)
         body.put("meta", meta)
         body.put("published", input.published)
@@ -328,6 +342,34 @@ object AdminContentRepository {
         if (changed == 0) return GrantOutcome(false, "Not saved: item not found or no permission")
         return GrantOutcome(true, "Saved")
     }
+
+    /**
+     * Backfill old free book rows with a HEAD-only size check. Called when an admin opens the Books hub.
+     * It never downloads a PDF body.
+     */
+    suspend fun backfillBookSizes(context: Context): Int = withContext(Dispatchers.IO) {
+        val reply = AdminSupabase.get(
+            "learning_resources_admin?select=id,storage_path,size_bytes&hub=eq.books&size_bytes=is.null&order=sort_order.asc"
+        )
+        if (!reply.ok) return@withContext 0
+        val rows = try { JSONArray(reply.body) } catch (e: Exception) { return@withContext 0 }
+        var updated = 0
+        for (i in 0 until rows.length()) {
+            val row = rows.optJSONObject(i) ?: continue
+            val id = row.optString("id").takeIf { it.isNotBlank() } ?: continue
+            val path = row.optString("storage_path").takeIf { it.startsWith(APPWRITE_PREFIX) } ?: continue
+            val url = LearningContentRepository.appwriteViewUrl(path) ?: continue
+            val size = OfflineVault.probeSizeOnline(context.applicationContext, url)
+            if (size <= 0L) continue
+            val patch = AdminSupabase.patch(
+                "learning_resources?id=eq." + Uri.encode(id) + "&select=id",
+                JSONObject().put("size_bytes", size).toString()
+            )
+            if (patch.ok && runCatching { JSONArray(patch.body).length() }.getOrDefault(0) > 0) updated++
+        }
+        updated
+    }
+
 
     suspend fun delete(itemId: String): GrantOutcome {
         // Security S4: id column only back, same reason as in save().
