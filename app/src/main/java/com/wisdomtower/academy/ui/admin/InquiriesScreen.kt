@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.admin
 
+import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -23,8 +25,15 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Inbox
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -37,6 +46,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -84,7 +94,8 @@ private val FILTERS: List<Pair<String, String>> = listOf(
 )
 
 @Composable
-internal fun InquiriesScreen(modifier: Modifier = Modifier) {
+internal fun InquiriesScreen(origin: String, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     var result by remember { mutableStateOf<InquiriesResult?>(null) }
     var loading by remember { mutableStateOf(true) }
     var reloadKey by remember { mutableIntStateOf(0) }
@@ -93,6 +104,11 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
     var filter by rememberSaveable { mutableStateOf("all") }
     var query by rememberSaveable { mutableStateOf("") }
     var detailId by rememberSaveable { mutableStateOf<String?>(null) }
+    var pushItem by remember { mutableStateOf<InquiryItem?>(null) }
+    var pushTargetId by remember { mutableStateOf<String?>(null) }
+    var pushTitle by rememberSaveable { mutableStateOf("Reply from Wisdom Tower Academy") }
+    var pushMessage by rememberSaveable { mutableStateOf("") }
+    var pushBusy by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
 
     LaunchedEffect(reloadKey) {
@@ -124,6 +140,42 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
         }
     }
     val detailItem = all.firstOrNull { it.id == detailId }
+
+    fun openInquiryEmail(item: InquiryItem, reply: Boolean) {
+        val subject = if (reply) "?subject=" + Uri.encode("Re: Wisdom Tower Academy inquiry") else ""
+        try { context.startActivity(Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:" + item.email + subject))) }
+        catch (e: Exception) { toast = "Could not open the email app" }
+    }
+    fun beginInquiryPush(item: InquiryItem) {
+        scope.launch {
+            val studentId = InquiriesRepository.findStudentIdByEmail(item.email)
+            if (studentId == null) toast = "No Academy account found for this inquiry email"
+            else {
+                pushItem = item; pushTargetId = studentId
+                pushTitle = "Reply from Wisdom Tower Academy"; pushMessage = ""
+            }
+        }
+    }
+    fun sendInquiryPush(targetId: String) {
+        val title = pushTitle.trim(); val message = pushMessage.trim()
+        if (title.isBlank() || message.isBlank()) { toast = "Enter a title and message"; return }
+        scope.launch {
+            pushBusy = true
+            val blocks = NotificationAuthoring.toBlocks(listOf(EditorBlock(NotificationAuthoring.newId(), "p", message)))
+            val content = NotificationAuthoring.toJson(blocks)
+            val reply = if (content == null) null else ComposerRepository.sendNow(
+                origin = origin, title = title, category = "admin", content = content,
+                url = null, audiences = emptyList(), target = targetId
+            )
+            pushBusy = false
+            if (reply?.error != null) toast = reply.error
+            else if (reply?.value != null) {
+                toast = if (reply.value!!.contains("Push sent to 0 device(s)", ignoreCase = true))
+                    "Sent, but no device registered yet" else reply.value!!
+                pushItem = null; pushTargetId = null; pushMessage = ""
+            } else toast = "Could not prepare the notification"
+        }
+    }
 
     fun changeStatus(item: InquiryItem, status: String) {
         scope.launch {
@@ -246,8 +298,10 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
 
             items(shown, key = { it.id }) { item ->
                 InquiryRow(
-                    item = item,
-                    onClick = { detailId = item.id }
+                    item = item, onClick = { detailId = item.id },
+                    onReply = { openInquiryEmail(item, true) },
+                    onPush = { beginInquiryPush(item) },
+                    onEmail = { openInquiryEmail(item, false) }
                 )
             }
         }
@@ -266,8 +320,30 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
                     )
                 }
             ) {
+                InquiryQuickActions(
+                    onReply = { openInquiryEmail(detailItem, true) },
+                    onPush = { beginInquiryPush(detailItem) },
+                    onEmail = { openInquiryEmail(detailItem, false) }
+                )
                 InquiryDetailBody(item = detailItem)
             }
+        }
+
+        val selectedInquiry = pushItem
+        val targetId = pushTargetId
+        if (selectedInquiry != null && targetId != null) {
+            AlertDialog(
+                onDismissRequest = { if (!pushBusy) { pushItem = null; pushTargetId = null } },
+                title = { Text("Push reply to " + selectedInquiry.name) },
+                text = { Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(value = pushTitle, onValueChange = { pushTitle = it }, label = { Text("Notification title") }, singleLine = true)
+                    OutlinedTextField(value = pushMessage, onValueChange = { pushMessage = it }, label = { Text("Message") }, minLines = 3)
+                } },
+                confirmButton = { Button(onClick = { sendInquiryPush(targetId) }, enabled = !pushBusy && pushTitle.isNotBlank() && pushMessage.isNotBlank()) {
+                    if (pushBusy) CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp) else Text("Send")
+                } },
+                dismissButton = { TextButton(onClick = { if (!pushBusy) { pushItem = null; pushTargetId = null } }, enabled = !pushBusy) { Text("Cancel") } }
+            )
         }
 
         if (toast.isNotEmpty()) {
@@ -288,8 +364,7 @@ internal fun InquiriesScreen(modifier: Modifier = Modifier) {
 /** B3d: the compact list row of one inquiry: name, e-mail, status, two lines of the message, date, arrow. */
 @Composable
 private fun InquiryRow(
-    item: InquiryItem,
-    onClick: () -> Unit
+    item: InquiryItem, onClick: () -> Unit, onReply: () -> Unit, onPush: () -> Unit, onEmail: () -> Unit
 ) {
     val shape = RoundedCornerShape(16.dp)
     Row(
@@ -339,6 +414,7 @@ private fun InquiryRow(
                 color = WisdomMuted,
                 fontSize = 12.sp
             )
+            InquiryQuickActions(onReply = onReply, onPush = onPush, onEmail = onEmail)
         }
         Spacer(modifier = Modifier.width(8.dp))
         Icon(
@@ -346,6 +422,15 @@ private fun InquiryRow(
             contentDescription = null,
             tint = WisdomMuted
         )
+    }
+}
+
+@Composable
+private fun InquiryQuickActions(onReply: () -> Unit, onPush: () -> Unit, onEmail: () -> Unit) {
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        TextButton(onClick = onReply) { Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(16.dp)); Text("Reply") }
+        TextButton(onClick = onPush) { Icon(Icons.Filled.Notifications, contentDescription = null, modifier = Modifier.size(16.dp)); Text("Push") }
+        TextButton(onClick = onEmail) { Icon(Icons.Filled.Email, contentDescription = null, modifier = Modifier.size(16.dp)); Text("Email") }
     }
 }
 

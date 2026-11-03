@@ -6,7 +6,7 @@
 ## Order of work (one slice = one commit, tick here in the same commit)
 
 - [x] **A1** — implemented and pushed; owner phone test pending. Scholar list: quick actions (Push, Call, Email) on every row and in the profile panel
-- [ ] **A2** Inquiries list: same actions, with Reply first
+- [x] **A2** — implemented and pushed; owner phone test pending. Inquiries list: same actions, with Reply first
 - [ ] **C1** Book size shown immediately (like the title)
 - [ ] **D1** Downloads keep going when the student leaves the page (stay in the app)
 - [ ] **E1** Downloads start fast, also on a slow connection
@@ -118,4 +118,5 @@ None yet. A1 is app-only; no database change. Add one line per migration here: n
 
 ## Plan changes
 
+- 2026-11-03 (A2): Inquiry rows and details now offer Reply, Push, and Email. Reply opens the mail app with a prefilled subject; Push resolves the inquiry email to an Academy profile before using the existing targeted notification sender. Inquiry records contain no phone or user ID, so Call is not shown.
 - 2026-11-03 (A1): Added scholar Push / Call / Email actions in the directory and profile. Push reuses `ComposerRepository.sendNow` with the scholar user ID; Call opens the dialer and Email opens a mail composer. Zero-device responses are explained.

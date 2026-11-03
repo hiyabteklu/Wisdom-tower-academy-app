@@ -76,7 +76,7 @@ fun AdminConsoleScreen(
             AdminSectionBar(module = module, onBack = { sectionId = null })
             when (module.id) {
                 "overview" -> OverviewScreen(modifier = Modifier.weight(1f))
-                "inquiries" -> InquiriesScreen(modifier = Modifier.weight(1f))
+                "inquiries" -> InquiriesScreen(origin = origin, modifier = Modifier.weight(1f))
                 "payments" -> PaymentsScreen(origin = origin, modifier = Modifier.weight(1f))
                 "users" -> UsersScreen(origin = origin, modifier = Modifier.weight(1f))
                 "grants" -> AccessGrantsScreen(modifier = Modifier.weight(1f))

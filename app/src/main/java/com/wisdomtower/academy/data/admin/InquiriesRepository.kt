@@ -60,6 +60,18 @@ object InquiriesRepository {
         }
     }
 
+    /** Resolve an inquiry sender to a registered Academy account, if one exists. */
+    suspend fun findStudentIdByEmail(email: String): String? {
+        val normalized = email.trim().lowercase()
+        if (normalized.isBlank()) return null
+        val reply = AdminSupabase.get("profiles?select=id&email=ilike." + Uri.encode(normalized) + "&limit=1")
+        if (!reply.ok) return null
+        return try {
+            val rows = JSONArray(reply.body)
+            if (rows.length() == 0) null else rows.getJSONObject(0).optString("id").takeIf { it.isNotBlank() }
+        } catch (e: Exception) { null }
+    }
+
     /** Returns null on success, otherwise a short message. Zero changed rows counts as a failure (RLS refusal). */
     suspend fun setStatus(id: String, status: String): String? {
         val body = JSONObject().put("status", status).toString()
