@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -20,11 +21,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.requiredWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -46,17 +44,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.isSpecified
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.PointerEventPass
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.content.BookFileStore
@@ -95,6 +97,14 @@ private const val MAX_ZOOM = 3f
  * Zoom (N4 part 3): pinch with two fingers to zoom from 1x to 3x, drag sideways to move across a zoomed page
  * (up and down is the normal scroll), double tap to zoom in to 2x or back to 1x. Pages are drawn at 1.5x the
  * screen width so a zoomed page stays reasonably sharp; at 3x it is softer (hypothesis, not tested).
+ *
+ * Zoom fix (2026-11-03): (1) the zoom now stays on the point the fingers pinch (or the point that was double
+ * tapped), sideways AND up/down, instead of growing from the top-left and sliding the page downward.
+ * (2) The zoomed page is now placed from the LEFT edge of the screen (a custom `layout` below). Before, the wide
+ * page was centred by `requiredWidth`, but the sideways limits assumed it started at the left, so the left part
+ * could never be reached while the right part could. Sideways limits are now exactly 0 (left edge of the page at
+ * the left edge of the screen) down to -(screen width x (zoom - 1)) (right edge of the page at the right edge of
+ * the screen).
  *
  * D6c (docs/DAY_MODE_PLAN.md, 2026-10-19): day mode. The grey box shown while a page is still drawing is a [WisdomInk] tint
  * (white 6 percent at night). The page itself stays white on purpose (it is the book), and the "Page n / m" pill keeps its
@@ -250,10 +260,33 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
     // Pages are drawn 1.5x wider than the screen so that a zoomed page is still fairly sharp.
     val renderWidthPx = (viewWidthPx * 1.5f).toInt().coerceAtMost(1800)
 
-    // --- Zoom (N4 part 3) -------------------------------------------------------------------------------
+    // --- Zoom (N4 part 3, focused zoom fix 2026-11-03) ---------------------------------------------------
     var zoom by remember(file) { mutableFloatStateOf(1f) }
+    // panX = x of the LEFT edge of the zoomed page, in px. 0 = left edge at the left edge of the screen,
+    // -(width x (zoom - 1)) = right edge of the page at the right edge of the screen.
     var panX by remember(file) { mutableFloatStateOf(0f) }
-    val pageWidthDp = with(density) { (viewWidthPx * zoom).toDp() }
+    // Real width of the reader area (the screen width is only used until it has been measured).
+    var boxWidth by remember(file) { mutableFloatStateOf(0f) }
+
+    /**
+     * Zooms to [targetZoom] around [focal] (a point in the reader area, in px) and moves the page by [pan].
+     * The content point under [focal] stays under [focal]: sideways through [panX], up/down by scrolling the
+     * list. Up/down: all pages scale together, so the distance from the top of the first visible page to the
+     * focal point scales by f; scroll by (offset + focalY) x (f - 1) to keep it still (6dp gaps ignored).
+     */
+    fun zoomAround(targetZoom: Float, focal: Offset, pan: Offset) {
+        val old = zoom
+        val new = targetZoom.coerceIn(1f, MAX_ZOOM)
+        val f = new / old
+        val w = if (boxWidth > 0f) boxWidth else viewWidthPx
+        zoom = new
+        panX = (focal.x - (focal.x - panX) * f + pan.x).coerceIn(-(w * (new - 1f)), 0f)
+        val scrollForward = (listState.firstVisibleItemScrollOffset + focal.y) * (f - 1f) - pan.y
+        if (scrollForward != 0f) {
+            // dispatchRawDelta uses the finger direction (positive = content moves down), so forward is negative.
+            listState.dispatchRawDelta(-scrollForward)
+        }
+    }
 
     // --- Last page + progress (N4 part 2) ---------------------------------------------------------------
     val context = LocalContext.current
@@ -309,36 +342,39 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
     Box(
         modifier = modifier
             .clipToBounds()
-            // Double tap: 1x -> 2x -> 1x. Does not use up any other touch.
+            .onSizeChanged { boxWidth = it.width.toFloat() }
+            // Double tap: 1x -> 2x (around the tapped point) -> 1x. Does not use up any other touch.
             .pointerInput(Unit) {
                 detectTapGestures(
-                    onDoubleTap = {
+                    onDoubleTap = { tap ->
                         if (zoom > 1f) {
-                            zoom = 1f
-                            panX = 0f
+                            zoomAround(1f, tap, Offset.Zero)
                         } else {
-                            zoom = 2f
+                            zoomAround(2f, tap, Offset.Zero)
                         }
                     }
                 )
             }
-            // Two fingers: zoom + move. One finger: only sideways movement while zoomed, never used up,
-            // so the list still scrolls up and down.
-            .pointerInput(viewWidthPx) {
+            // Two fingers: zoom around the pinch point + move. One finger: only sideways movement while zoomed,
+            // never used up, so the list still scrolls up and down.
+            .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
                     do {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
                         val pressed = event.changes.count { it.pressed }
                         if (pressed >= 2) {
-                            val newZoom = (zoom * event.calculateZoom()).coerceIn(1f, MAX_ZOOM)
+                            val zoomChange = event.calculateZoom()
                             val pan = event.calculatePan()
-                            zoom = newZoom
-                            panX = (panX + pan.x).coerceIn(-(viewWidthPx * (newZoom - 1f)), 0f)
+                            val centroid = event.calculateCentroid(useCurrent = false)
+                            if (centroid.isSpecified) {
+                                zoomAround(zoom * zoomChange, centroid, pan)
+                            }
                             event.changes.forEach { if (it.positionChanged()) it.consume() }
                         } else if (pressed == 1 && zoom > 1f) {
                             val pan = event.calculatePan()
-                            panX = (panX + pan.x).coerceIn(-(viewWidthPx * (zoom - 1f)), 0f)
+                            val w = if (boxWidth > 0f) boxWidth else viewWidthPx
+                            panX = (panX + pan.x).coerceIn(-(w * (zoom - 1f)), 0f)
                         }
                     } while (event.changes.any { it.pressed })
                 }
@@ -350,19 +386,24 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items(count = pageCount, key = { it }) { index ->
-                // The page is as wide as the screen times the zoom; panX slides it sideways.
-                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopStart) {
-                    PdfPageImage(
-                        index = index,
-                        renderer = ready,
-                        mutex = mutex,
-                        renderWidthPx = renderWidthPx,
-                        cache = cache,
-                        modifier = Modifier
-                            .requiredWidth(pageWidthDp)
-                            .offset { IntOffset(panX.roundToInt(), 0) }
-                    )
-                }
+                // The page is as wide as the screen times the zoom and is placed from the LEFT edge of the
+                // screen, moved sideways by panX. (requiredWidth centred it, which cut off the left side.)
+                PdfPageImage(
+                    index = index,
+                    renderer = ready,
+                    mutex = mutex,
+                    renderWidthPx = renderWidthPx,
+                    cache = cache,
+                    modifier = Modifier.layout { measurable, constraints ->
+                        val viewW = constraints.maxWidth
+                        val pageW = (viewW * zoom).roundToInt().coerceAtLeast(1)
+                        val placeable = measurable.measure(Constraints.fixedWidth(pageW))
+                        layout(viewW, placeable.height) {
+                            val limit = viewW * (zoom - 1f)
+                            placeable.place(panX.coerceIn(-limit, 0f).roundToInt(), 0)
+                        }
+                    }
+                )
             }
         }
         Text(
