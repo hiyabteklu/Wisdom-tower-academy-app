@@ -175,7 +175,7 @@ object AdminSupabase {
                     .addHeader("x-upsert", "true")
                     .post(bytes.toRequestBody(contentType.toMediaType()))
                     .build()
-                http.newCall(request).execute().use { response ->
+                return http.newCall(request).execute().use { response ->
                     AdminHttpResult(response.code, response.body?.string().orEmpty())
                 }
             }
