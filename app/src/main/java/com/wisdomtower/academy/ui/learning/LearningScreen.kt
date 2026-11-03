@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -94,6 +95,7 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.wisdomPress
 import com.wisdomtower.academy.ui.theme.wisdomPressClickable
 import com.wisdomtower.academy.ui.theme.wisdomReveal
+import com.wisdomtower.academy.ui.theme.wisdomHeaderParallax
 
 /**
  * Native Learning screen mirroring website reference:
@@ -314,6 +316,7 @@ fun LearningScreen(
         return
     }
 
+    val listState = rememberLazyListState() // V10 header
     // Courses for the Curriculum section: the website's default list for the student's academic level
     val enrolledCourses = remember(packageList, userProfile?.educationLevel) {
         defaultPackageIdsForLevel(userProfile?.educationLevel).mapNotNull { id ->
@@ -329,6 +332,7 @@ fun LearningScreen(
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
         LazyColumn(
+            state = listState,
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 20.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -339,6 +343,7 @@ fun LearningScreen(
                     WisdomGlassCard(
                         modifier = Modifier
                             .fillMaxWidth()
+                            .wisdomHeaderParallax(listState, "guest_banner")
                             .wisdomReveal("learning_guest_banner", 1),
                         cornerRadius = 18.dp
                     ) {
@@ -389,6 +394,7 @@ fun LearningScreen(
                 WisdomGlassCard(
                     modifier = Modifier
                         .fillMaxWidth()
+                        .wisdomHeaderParallax(listState, "study_tools_dock")
                         .wisdomReveal("learning_tools_dock", 2),
                     cornerRadius = 24.dp
                 ) {
