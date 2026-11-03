@@ -93,6 +93,11 @@ import com.wisdomtower.academy.ui.notifications.NotificationsScreen
 import com.wisdomtower.academy.data.repository.AcademyRepository
 import com.wisdomtower.academy.data.repository.NotificationRepository
 import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
+import com.wisdomtower.academy.data.update.UpdateRepository
+import com.wisdomtower.academy.data.update.AppRelease
+import com.wisdomtower.academy.ui.update.UpdatePrompt
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -865,11 +870,47 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = false
         setContent {
             MyApplicationTheme {
+                // WTA_U2_UPDATE_CHECK_INTEGRATION: update metadata is optional; network failure never blocks startup.
+                val updateContext = LocalContext.current
+                val updateLifecycleOwner = LocalLifecycleOwner.current
+                var updateRelease by remember { mutableStateOf<AppRelease?>(null) }
+                var lastUpdateCheckAt by remember { mutableStateOf(0L) }
+                val checkUpdate: suspend () -> Unit = {
+                    val now = System.currentTimeMillis()
+                    if (now - lastUpdateCheckAt >= 60L * 60L * 1000L) {
+                        lastUpdateCheckAt = now
+                        val latest = UpdateRepository.latest(updateContext)
+                        if (latest != null && latest.isUpdateAvailable) updateRelease = latest
+                    }
+                }
+                LaunchedEffect(Unit) { checkUpdate() }
+                androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
+                    val observer = LifecycleEventObserver { _, event ->
+                        if (event == Lifecycle.Event.ON_RESUME) {
+                            androidx.lifecycle.lifecycleScope.launch { checkUpdate() }
+                        }
+                    }
+                    updateLifecycleOwner.lifecycle.addObserver(observer)
+                    onDispose { updateLifecycleOwner.lifecycle.removeObserver(observer) }
+                }
                 MainScreen(
                     onReady = { keepSplash = false },
                     initialNotificationUrl = pendingNotificationUrl.value,
                     onNotificationUrlConsumed = { pendingNotificationUrl.value = null }
                 )
+                updateRelease?.let { release ->
+                    UpdatePrompt(
+                        release = release,
+                        onUpdateNow = {
+                            try {
+                                updateContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.apkUrl)))
+                            } catch (_: Exception) {
+                                Toast.makeText(updateContext, "Check your internet connection and try again.", Toast.LENGTH_LONG).show()
+                            }
+                        },
+                        onLater = { updateRelease = null }
+                    )
+                }
             }
         }
     }
