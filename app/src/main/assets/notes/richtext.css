@@ -143,3 +143,31 @@ html.wt-day #sumwrap .sumbtn { color: #0b1b33 !important; background: rgba(11,27
 html.wt-day .sumbox { color: #0b1b33 !important; background: rgba(248,245,238,.84) !important; border-color: rgba(11,27,51,.16) !important; }
 html.wt-day .sumbox .lbl { color: #4a5a70 !important; }
 html.wt-day .msg { color: #4a5a70 !important; }
+
+
+/* V2 / V9: shared, low-cost arrival and press feedback for local learning WebViews.
+   Kept deliberately short; reduced-motion preference disables movement and fades instantly. */
+@keyframes wt-page-arrive {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+html.wt-motion-ready body,
+body.wt-motion-ready {
+  animation: wt-page-arrive 200ms cubic-bezier(.2,.75,.25,1) both;
+}
+button, [role="button"], .clickable {
+  -webkit-tap-highlight-color: transparent;
+  transition: transform 90ms ease-out;
+}
+button:active, [role="button"]:active, .clickable:active {
+  transform: scale(.97);
+}
+@media (prefers-reduced-motion: reduce) {
+  html.wt-motion-ready body,
+  body.wt-motion-ready {
+    animation: none;
+  }
+  button, [role="button"], .clickable {
+    transition: none;
+  }
+}
