@@ -24,8 +24,11 @@
 
   /* Summary (AI), plan step N10: same look as the website's NotesViewer */
   #sumwrap { margin-top: 24px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); }
+  /* T1: the Summary and the Ask AI tutor buttons sit side by side (and wrap on a narrow screen) */
+  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
   .sumbtn { border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.06); color: #e2e8f0; font: 600 .75rem/1 -apple-system, Roboto, sans-serif; padding: 9px 16px; border-radius: 999px; font-style: normal; }
   .sumbtn:disabled { opacity: .5; }
+  .sumbtn.tutorbtn { border-color: rgba(34,211,238,.35); background: rgba(34,211,238,.12); color: #a5f3fc; }
   .sumbox { margin-top: 12px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); border-radius: 16px; padding: 14px 16px; color: rgba(255,255,255,.9); font-family: var(--wt-content-font-family, "WT Tinos", serif); font-style: var(--wt-content-font-style, italic); font-size: 20px; line-height: 32px; }
   .sumbox .lbl { margin: 0 0 8px; font: 600 .62rem/1 -apple-system, Roboto, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; font-style: normal; }
 </style>
@@ -39,6 +42,9 @@
  * Called from the app: window.setNote(text, startFrac).
  * "Summary" (plan step N10): the page cannot reach the network, so it asks the app through
  * WTBridge.onSummarize({ id, text }) and the app answers with window.wtSummaryResult(id, text).
+ * "Ask AI tutor" (T1, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md): next to the Summary button. It sends the note text to the app
+ * with WTBridge.onTutor({ text }) (the first 14000 characters, about 2 pages of notes more than the Summary uses); the app
+ * opens the AI tutor with that text as its chapter context. Nothing comes back to the page.
  * Reading progress (plan step N10, as the website's NotesViewer): the scrolled share of the page is reported
  * through WTBridge.onProgress({ pct }) (0 to 100, at most about every 2 seconds, 100 at once from 95 percent on
  * and after a successful Summary); the app saves it to learning_progress.
@@ -112,7 +118,8 @@ window.addEventListener("touchstart", function () { userTouched = true; }, { pas
 function drawSummary() {
   var w = document.getElementById("sumwrap");
   if (!noteText) { w.innerHTML = ""; return; }
-  var h = '<button class="sumbtn" id="sumbtn"' + (loading ? " disabled" : "") + ">" + (loading ? "Summarizing\u2026" : "Summary") + "</button>";
+  var h = '<div class="btnrow"><button class="sumbtn" id="sumbtn"' + (loading ? " disabled" : "") + ">" + (loading ? "Summarizing\u2026" : "Summary") + "</button>" +
+    '<button class="sumbtn tutorbtn" id="tutorbtn">Ask AI tutor</button></div>';
   if (summary) {
     var body;
     try { body = window.WTRich.render(aiText(summary)); } catch (e) { body = ""; }
@@ -185,7 +192,15 @@ window.wtSummaryResult = function (id, text) {
 
 document.getElementById("sumwrap").addEventListener("click", function (e) {
   var t = e.target;
-  if (!t || t.id !== "sumbtn" || loading) return;
+  if (!t) return;
+  /* T1: Ask AI tutor. The app opens the tutor with this chapter; nothing to wait for here. */
+  if (t.id === "tutorbtn") {
+    if (window.WTBridge && window.WTBridge.onTutor) {
+      try { window.WTBridge.onTutor(JSON.stringify({ text: noteText.slice(0, 14000) })); } catch (err) { /* ignore */ }
+    }
+    return;
+  }
+  if (t.id !== "sumbtn" || loading) return;
   loading = true; summary = ""; pendingId = "s" + (++seq);
   drawSummary();
   if (!(window.WTBridge && window.WTBridge.onSummarize)) {
