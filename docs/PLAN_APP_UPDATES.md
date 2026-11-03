@@ -1,0 +1,53 @@
+# ACTIVE PLAN: app updates outside Play Store, forced update, FLAG_SECURE, paid sections (owner order 2026-11-03)
+
+> Repo is PUBLIC: no secrets, no student data. Owner rules: `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md` (plan first, one slice = one commit pushed to `main`, update this file in the same commit, record every live Supabase change below, plain words to the owner).
+> Written by Claude from reading `app/build.gradle.kts`, `AndroidManifest.xml`, `IntegrityGuard.kt`, `docs/SECURITY_PLAN_CONTENT_ACCESS.md`, `docs/PLAN_TELEGRAM_PAID_NATIVE_V2.md`. Nothing here is built yet. Nothing was compiled or tested.
+
+## 1. Situation (owner, 2026-11-03)
+- The app was shared on Telegram about a week ago, BEFORE it was security hardened (no `FLAG_SECURE`).
+- Play Store release is delayed until the owner can pay for the developer account. Meanwhile the APK keeps being shared on Telegram.
+- The owner wants: (a) a way to update installed apps without Play Store, (b) to force the already released old version to update, (c) a forced update with a "what's new" popup in the new release, (d) to know what happens when paid content is added to sections that were not ready at the first release (Remedial, EUEE, others).
+
+## 2. Facts found in the code (read, not guessed)
+- `app/build.gradle.kts`: `applicationId = com.wisdomtower.academy`, `versionCode = 3`, `versionName = "1.0.0"`. The Telegram APK is built by CI with `-PpaidUi=true` (`BuildConfig.PAID_UI`), same package name as the Play build.
+- Release signing: CI refuses to build a release without the upload keystore secrets (`KEYSTORE_BASE64` etc.). Local builds without the keystore fall back to the DEBUG key ("NOT for Play Store or public Telegram production"). An update installs only over an app with the SAME signing key.
+- `AndroidManifest.xml`: permissions are INTERNET, ACCESS_NETWORK_STATE, POST_NOTIFICATIONS, RECEIVE_BOOT_COMPLETED only. NO `REQUEST_INSTALL_PACKAGES`, NO FileProvider, no updater. So the released app CANNOT update itself and cannot be forced from inside. It does have Firebase push notifications and in-app admin broadcasts.
+- `FLAG_SECURE` is two commented lines in `MainActivity.kt` (around lines 845 and 892 per the security plan). Standing decision 4 (2026-10-20): stays off until the owner says the app is finished. Android only applies it to an installed app through an update.
+- Server protection already live (security plan S1 to S4, 2026-10-20): `learning_resources.body_md` and `meta` are hidden from the public key; notes, flashcards, quizzes and exams open only through `open_resource` (locks, Paid mode, purchases). Apps older than S1 cannot open those at all. The checks enforce locks only when `content_locks` row `system:enforce` = `locked` (Paid mode). The state of that flag was NOT checked for this plan.
+- NOT protected: PDFs (Life Savers and any paid PDF). They sit in one public Appwrite bucket (security plan S5 is not built). A known file id downloads with no check, on any app version.
+- Locks are a screen gate in the app (`ContentAccess.kt`); the old release has no purchase screen.
+
+## 3. Answers to the owner's questions (plain)
+1. **Update without Play Store:** possible. The new APK installs over the old one only if package name and signing key are the same and `versionCode` is higher. Back up the keystore (lose it = nobody can ever update). When Play Store comes, choose "upload your own key" in Play App Signing, otherwise Telegram users cannot update to the Play version without uninstalling (they would lose local data).
+2. **Force the old release (v3) to update:** NOT from inside (no updater in it). Only from outside: Telegram announcement, push notification / admin broadcast, and a server side block (section 5, slice U5). The block is blunt: the old app shows a generic "locked / unable to load" message.
+3. **Forced update with popup in the new release:** yes, slices U1 to U4.
+4. **Paid sections added later:** the old app shows no purchase screen. Notes, flashcards, quizzes and exams of locked rows stay closed to it IF the server enforces (Paid mode on; the Play app is not out, so turning it on only affects Telegram users). Paid PDFs are open to everybody until S5. So publish paid sections only after the minimum version is raised, and keep paid PDF sections unpublished until S5.
+
+## 4. Slices (one commit each, tick when pushed to `main`)
+- [ ] **U0 Owner checks (no code), ask the owner these first:** (a) is the keystore backed up somewhere safe (not only in GitHub secrets)? (b) which versionCode did the Telegram APK ship with (expected 3)? (c) is Paid mode (`system:enforce`) on or off right now? (d) is the first Telegram APK a `PAID_UI` build or the plain one? (e) is `FLAG_SECURE` wanted in the next release (see U6)?
+- [ ] **U1 Version table (Supabase, owner pastes SQL, additive).** Table `app_versions` (one row per release): `version_code int primary key`, `version_name text`, `changelog text` (plain lines, one per line), `apk_url text`, `min_version_code int` (the lowest version still allowed; the newest row's value is the one used), `published boolean default false`, `created_at`. RLS: public read of published rows, admin write. Record the migration name in section 7. No secrets in it (the APK address is public anyway).
+- [ ] **U2 App: version check + popup.** New `data/update/UpdateRepository.kt` (reads the newest published `app_versions` row with the public key, saves a copy for offline) and `ui/update/UpdatePrompt.kt` (dialog: title "Update available", `versionName`, changelog lines, buttons "Update now" and "Later"). Compare with `BuildConfig.VERSION_CODE` (`buildFeatures.buildConfig` is already true). Check on app start and when the app returns to the front, at most once an hour. If the phone is offline or the read fails: no popup, never block. Hook into `MainActivity` with the smallest possible change (it is 265 KB: patch script per `docs/EDITING_LARGE_FILES.md`, or one call in an existing composable).
+- [ ] **U3 App: forced mode.** If `BuildConfig.VERSION_CODE < min_version_code`: the same popup WITHOUT "Later" and not dismissable (Back closes the app, not the popup), the rest of the app not usable underneath. Offline: use the saved copy of the row so a forced version stays forced.
+- [ ] **U4 App: download and install.** Manifest: `REQUEST_INSTALL_PACKAGES` and a `FileProvider` (`res/xml/file_paths.xml`, cache folder). "Update now": download `apk_url` with OkHttp to the app cache with a progress bar (reuse `DownloadGauge`), then open Android's installer for the file. If `canRequestPackageInstalls()` is false, send the student to the "Install unknown apps" setting for this app once, then come back and continue. Android ALWAYS shows its own Install confirmation: updates cannot be silent. Delete the downloaded file after install. Plain error texts: "Check your internet connection and try again." The APK host is GitHub Releases of this public repo (CI already builds the APK; a release asset has a stable direct link). Telegram files cannot be fetched by the app. NEEDS A CI STEP to upload the APK as a release asset: the chat tool cannot write `.github/`, so the owner pastes that workflow change (give him the exact text then).
+- [ ] **U5 Old release (v3): push from outside.** (1) Telegram post text with the new APK and a short "what's new". (2) Admin broadcast / push notification saying "Update required, get the new version from Telegram" (existing admin broadcasts, no code). (3) OPTIONAL server block, only when the owner decides: the new app calls a new content door (for example `open_resource_v2`) and the old `open_resource` answers old builds with a refusal. Old app shows its generic locked/unable-to-load message, so do (1) and (2) first and give people a few days. Record the migration. Not decided, not started.
+- [ ] **U6 FLAG_SECURE (owner decision needed: standing decision 4 says off until the app is finished).** If the owner says yes: enable the two commented lines in `MainActivity.kt` only when `!BuildConfig.DEBUG`, so debug builds (`assembleDebug`) still allow screenshots for mock-ups. Remember `FLAG_SECURE` also blocks screen recording and shows a black preview in the recent apps list. Patch script, not a direct edit.
+- [ ] **U7 Paid sections go live (Remedial, EUEE, others).** Order: new build out (U2 to U4, plus U6 if wanted) -> `min_version_code` raised -> Paid mode confirmed on -> lock rows set in Admin > Content locks -> THEN publish the paid rows. Keep sections unpublished or Coming soon until then. Test with the OLD APK and a test account without purchase: a locked note must NOT open. Paid PDFs: do not publish before security plan S5 (private bucket + file tokens), otherwise they can be downloaded free by anyone.
+
+## 5. Release routine for every new Telegram build (checklist)
+1. Raise `versionCode` (and `versionName`) in `app/build.gradle.kts`. Never reuse a number.
+2. CI builds with the real upload keystore (never the debug key).
+3. Smoke test on a phone: sign in, open a note, flashcards, a quiz, a notification (R8 is on).
+4. Upload the APK as a GitHub release asset; insert the `app_versions` row (`published = true`) with changelog and link.
+5. Post on Telegram. Raise `min_version_code` only when the old version must stop (for example a security fix).
+
+## 6. Honest limits
+- Android always asks the student to confirm an install; there is no silent update outside Play Store.
+- An old version that is never opened again cannot be reached except by Telegram, push notification and the server block.
+- `FLAG_SECURE` and the other hardening only stop casual copying; the real protection is the server (see the security plan).
+- A student who legitimately downloaded a PDF keeps it on the phone.
+
+## 7. LIVE SUPABASE CHANGE LOG (append every change)
+- 2026-11-03: none (plan only).
+
+## 8. Plan changes / status log (append only)
+- 2026-11-03 plan written by Claude after the owner's questions. U0 to U7 not started. Next: ask the owner the U0 questions, then U1 (SQL for the owner) and U2.
