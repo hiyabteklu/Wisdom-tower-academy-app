@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   build:
@@ -116,6 +116,19 @@ jobs:
           fi
           cp "$APK_PATH" Wisdom-tower-academy-telegram.apk
           ls -lh Wisdom-tower-academy-telegram.apk
+
+      - name: Publish versioned APK GitHub Release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          VERSION_CODE=$(grep -E '^[[:space:]]*versionCode[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*=[[:space:]]*([0-9]+).*/\\1/')
+          VERSION_NAME=$(grep -E '^[[:space:]]*versionName[[:space:]]*=' app/build.gradle.kts | head -n1 | sed -E 's/.*=[[:space:]]*"([^"]+)".*/\\1/')
+          TAG="telegram-v${VERSION_NAME}-${VERSION_CODE}"
+          gh release create "$TAG" Wisdom-tower-academy-telegram.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "Wisdom Tower Academy ${VERSION_NAME} (Telegram)" \
+            --notes "Telegram release APK. versionCode: ${VERSION_CODE}. Built from commit ${GITHUB_SHA}." \
+            --prerelease
 
       - name: Upload Telegram release APK
         uses: actions/upload-artifact@v4
