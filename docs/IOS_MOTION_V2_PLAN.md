@@ -80,7 +80,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 | V4 | CODE PUSHED: overlap cross-dissolve plus per-tab SaveableStateHolder; rememberSaveable state and LazyListState scroll positions are retained; ordinary remember-only transient state is not |
 | V5 | NOT STARTED |
 | V6 | PARTIAL CODE PUSHED: 180 ms screen-root return entrance added to Home, Settings, Account, Game Hub, Flashcards, Native Tutor, Competitions Hub, Notifications, Status, Cover Page and Planner; notification list animates insert/remove; tutor session list/other drawer pages remain |
-| V7 | PARTIAL CODE PUSHED: reusable wisdomPressClickable added; applied to Game Hub cards/download action, Home sign-up action, and Account university selector/rows; broader clickable/switch/tab coverage pending |
+| V7 | PARTIAL CODE PUSHED: shared wisdomPressClickable applied to Settings, Home sign-up, Game Hub, Account university selector/rows, Notifications back/mark-all/filter/notice rows; drawer/top bar/bottom tabs/switches/checkboxes and broader app coverage remain |
 | V8 | PARTIAL CODE PUSHED: spring dialog entrance now also applied to Status Detail and Focus Timer nudge; sheet drag-to-dismiss and remaining host overlays pending |
 | V9 | PARTIAL CODE PUSHED: shared #root entrance now auto-runs across pages using richtext.css; native cover-until-paint coordination remains |
 | V10 | NOT STARTED (optional) |
