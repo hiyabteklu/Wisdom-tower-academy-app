@@ -102,6 +102,12 @@ private fun sdFormatSavedAt(ms: Long): String =
  * With nothing read and nothing saved: a notice with Retry, then the empty ring and seven empty bars, all days unknown.
  * Online behaviour is unchanged. Slice O5a: the panel also reads again by itself when the internet comes back.
  *
+ * SAVED COPY FIRST (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md slice P1c, part c2a): the panel first draws the saved
+ * copy ([StudyDayLogReader.fetchRecentSaved], no network) at once, WITHOUT the amber "No connection" line (the server has not
+ * been asked yet, so nothing is known about the connection), then reads the server in the background and swaps in the fresh
+ * rows. While that read runs, a day that the copy cannot tell shows "Updating" instead of "Connect to the internet". The
+ * spinner only shows when nothing is saved; a failed refresh keeps the saved copy on screen.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -111,26 +117,48 @@ fun StatusDayPanel(dailyGoalMinutes: Int, modifier: Modifier = Modifier) {
     var failed by remember { mutableStateOf(false) }
     var fromCache by remember { mutableStateOf(false) }
     var savedAtMs by remember { mutableStateOf<Long?>(null) }
+    // P1c: when the rows on screen were saved (they may be a copy or live); days after it are unknown. Null = live rows.
+    var copyAtMs by remember { mutableStateOf<Long?>(null) }
+    // P1c: true while the saved copy is drawn and the server read is still running
+    var refreshing by remember { mutableStateOf(false) }
     var rows by remember { mutableStateOf<List<StudyDayRow>>(emptyList()) }
     // OFFLINE STATUS (O5a): goes up when the internet comes back, which reads the log again
     val netBack = rememberNetworkReturnCount()
 
     LaunchedEffect(reloadKey, netBack) {
-        loading = true
-        failed = false
         fromCache = false
         savedAtMs = null
+        // P1c: the saved copy first (no network), drawn at once
+        val saved = StudyDayLogReader.fetchRecentSaved(7)
+        if (saved != null) {
+            rows = saved.rows
+            copyAtMs = saved.savedAtMs
+            failed = false
+            loading = false
+            refreshing = true
+        } else {
+            loading = true
+            failed = false
+            copyAtMs = null
+        }
         when (val r = StudyDayLogReader.fetchRecent(7)) {
             is StudyDayLogFetchResult.Success -> {
                 rows = r.rows
                 fromCache = r.fromCache
                 savedAtMs = r.savedAtMs
+                copyAtMs = if (r.fromCache) r.savedAtMs else null
+                failed = false
             }
             else -> {
-                rows = emptyList()
-                failed = true
+                // a failed refresh keeps the saved copy that is already drawn
+                if (saved == null) {
+                    rows = emptyList()
+                    copyAtMs = null
+                    failed = true
+                }
             }
         }
+        refreshing = false
         loading = false
     }
 
@@ -170,7 +198,7 @@ fun StatusDayPanel(dailyGoalMinutes: Int, modifier: Modifier = Modifier) {
             )
         }
 
-        val days = sdLastSevenDays(rows, noData = failed, savedAtMs = if (fromCache) savedAt else null)
+        val days = sdLastSevenDays(rows, noData = failed, savedAtMs = copyAtMs)
         val today = days.last()
         val todaySeconds = today.seconds
         val todayMin = todaySeconds / 60
@@ -206,6 +234,7 @@ fun StatusDayPanel(dailyGoalMinutes: Int, modifier: Modifier = Modifier) {
             Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
                     when {
+                        !today.known && refreshing -> "Updating today\u2026"
                         !today.known -> "Today is not available yet"
                         goal > 0 -> "${(fraction * 100).toInt()}% of your daily goal"
                         else -> "No daily goal set"
@@ -216,6 +245,7 @@ fun StatusDayPanel(dailyGoalMinutes: Int, modifier: Modifier = Modifier) {
                 )
                 Text(
                     when {
+                        !today.known && refreshing -> "Reading your latest study time."
                         !today.known -> "Connect to the internet to see today's study time."
                         goal > 0 -> "$todayMin of $goal min studied today"
                         else -> "Set one in Settings to see your ring fill."
