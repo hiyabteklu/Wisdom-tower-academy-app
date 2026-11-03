@@ -79,13 +79,13 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 | V3 | NOT STARTED |
 | V4 | PARTIAL CODE PUSHED; tab state/scroll retention integration pending |
 | V5 | NOT STARTED |
-| V6 | PARTIAL CODE PUSHED: 180 ms screen-root return entrance added to Home, Settings, Account, Game Hub, Flashcards, Native Tutor and Competitions Hub; notifications/status/other drawer pages and live-list animateItem coverage remain |
+| V6 | PARTIAL CODE PUSHED: 180 ms screen-root return entrance added to Home, Settings, Account, Game Hub, Flashcards, Native Tutor, Competitions Hub, Notifications, Status, Cover Page and Planner; notification list animates insert/remove; tutor session list/other drawer pages remain |
 | V7 | PARTIAL CODE PUSHED: reusable wisdomPressClickable added; applied to Game Hub cards/download action, Home sign-up action, and Account university selector/rows; broader clickable/switch/tab coverage pending |
 | V8 | PARTIAL CODE PUSHED: spring dialog entrance now also applied to Status Detail and Focus Timer nudge; sheet drag-to-dismiss and remaining host overlays pending |
 | V9 | PARTIAL CODE PUSHED: shared #root entrance now auto-runs across pages using richtext.css; native cover-until-paint coordination remains |
 | V10 | NOT STARTED (optional) |
 | V11 | CODE PUSHED: quiz/competition exam already had question/option/result/timer motion; this slice adds Android reduced-motion suppression; no exam logic or controls changed |
-| V12 | PARTIAL AUDIT PUSHED; consistency pass cannot be called complete while V3/V5/V6/V7/V10/V11 and integration work remain |
+| V12 | PARTIAL AUDIT PUSHED; consistency pass cannot be called complete while V3/V5/V6/V7/V10 and V2/V4/V8/V9 integration work remain |
 
 ## 7. Owner decisions (defaults chosen, change any of them)
 1. **Style:** calm and premium like iOS: smooth springs, no bounce on screens, a small bounce only on small things (selection pop, press). Not playful.
