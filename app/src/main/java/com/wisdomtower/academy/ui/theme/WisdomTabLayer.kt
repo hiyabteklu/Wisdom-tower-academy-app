@@ -13,6 +13,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
@@ -37,6 +38,7 @@ fun WisdomTabLayer(
     active: Boolean = true,
     content: @Composable () -> Unit
 ) {
+    val stateHolder = rememberSaveableStateHolder()
     val isSelectedTab = selectedIndex == tab
     val wanted = isSelectedTab && active
     val fade = remember { Animatable(if (wanted) 1f else 0f) }
@@ -64,15 +66,17 @@ fun WisdomTabLayer(
                 .zIndex(if (wanted) 11f else 10f)
                 .appBackdrop()
         ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .graphicsLayer {
-                        alpha = fade.value
-                        translationY = if (wanted) (1f - fade.value) * 6.dp.toPx() else 0f
-                    }
-            ) {
-                content()
+            stateHolder.SaveableStateProvider(tab) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .graphicsLayer {
+                            alpha = fade.value
+                            translationY = if (wanted) (1f - fade.value) * 6.dp.toPx() else 0f
+                        }
+                ) {
+                    content()
+                }
             }
         }
     }
