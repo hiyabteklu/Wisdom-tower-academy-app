@@ -3517,6 +3517,11 @@ fun MainScreen(
                 val currentTool = activeStudyTool
                 if (currentTool != null) {
                     BackHandler(enabled = true) { activeStudyTool = null }
+                    // V8 tool sheet: spring arrival and drag-down to close (ui/theme/WisdomToolSheet.kt)
+                    com.wisdomtower.academy.ui.theme.WisdomToolSheet(
+                        sheetKey = currentTool,
+                        onDismiss = { activeStudyTool = null }
+                    ) {
                     when (currentTool) {
                         "tutor" -> NativeTutorScreen(
                             onBack = { activeStudyTool = null },
@@ -3573,6 +3578,7 @@ fun MainScreen(
                                 .appBackdrop()
                                 .zIndex(120f)
                         )
+                    }
                     }
                 }
 
