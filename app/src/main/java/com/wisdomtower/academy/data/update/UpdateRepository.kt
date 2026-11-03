@@ -73,6 +73,8 @@ object UpdateRepository {
                 val body = response.body ?: error("The APK download was empty.")
                 val total = body.contentLength()
                 val directory = File(context.cacheDir, "updates").apply { mkdirs() }
+                // Remove leftovers from earlier installer sessions before starting a fresh download.
+                directory.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
                 val target = File(directory, "wisdom-tower-update-${release.versionCode}.apk")
                 val partial = File(directory, "update-${release.versionCode}.part")
                 try {
