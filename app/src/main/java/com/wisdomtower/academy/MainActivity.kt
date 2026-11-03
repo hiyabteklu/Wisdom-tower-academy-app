@@ -266,6 +266,7 @@ import com.wisdomtower.academy.ui.theme.MyApplicationTheme
 import com.wisdomtower.academy.ui.theme.WisdomPushLayer
 import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
 import com.wisdomtower.academy.ui.theme.wisdomStaggerIn
+import com.wisdomtower.academy.ui.theme.wisdomPressScale
 import androidx.compose.ui.draw.shadow
 import kotlinx.coroutines.delay
 
@@ -2068,7 +2069,7 @@ fun MainScreen(
                                     }
                                     activeStudyUrl = null
                                 },
-                                modifier = Modifier.size(46.dp)
+                                modifier = Modifier.size(46.dp).wisdomPressScale() // V7 topbar press
                             ) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
@@ -2083,7 +2084,7 @@ fun MainScreen(
                                     view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                                     menuExpanded = true
                                 },
-                                modifier = Modifier.size(46.dp)
+                                modifier = Modifier.size(46.dp).wisdomPressScale() // V7 topbar press
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Menu,
@@ -2181,7 +2182,7 @@ fun MainScreen(
                                     resetOverlays()
                                     showCompetitions = true
                                 },
-                                modifier = Modifier.size(44.dp)
+                                modifier = Modifier.size(44.dp).wisdomPressScale() // V7 topbar press
                             ) {
                                 // C5-trophy-dot: same trophy icon, plus a red dot while a contest is new to the student
                                 com.wisdomtower.academy.ui.competition.CompetitionTrophyIcon(
@@ -2198,7 +2199,7 @@ fun MainScreen(
                                     resetOverlays()
                                     showNotifications = true
                                 },
-                                modifier = Modifier.size(44.dp)
+                                modifier = Modifier.size(44.dp).wisdomPressScale() // V7 topbar press
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     Icon(
