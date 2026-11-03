@@ -81,7 +81,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 | V5 | NOT STARTED |
 | V6 | PARTIAL CODE PUSHED: 180 ms screen-root return entrance added to Home, Settings, Account, Game Hub, Flashcards, Native Tutor, Competitions Hub, Notifications, Status, Cover Page, Planner and About/Contact/FAQ/Privacy/Terms drawer screens; notification list animates insert/remove; tutor session list/other dynamic lists remain |
 | V7 | PARTIAL CODE PUSHED: shared wisdomPressClickable applied to Settings, Home sign-up, Game Hub, Account university selector/rows, Notifications controls/rows, and drawer contact/FAQ/legal links; top bar/bottom tabs/switches/checkboxes and broader app coverage remain |
-| V8 | PARTIAL CODE PUSHED: spring dialog entrance now also applied to Status Detail and Focus Timer nudge; sheet drag-to-dismiss and remaining host overlays pending |
+| V8 | PARTIAL CODE PUSHED: spring dialog entrance on Status/Timer dialogs and spring-up entrance on Status Detail bottom sheet; drag-to-dismiss and remaining host tool overlays pending |
 | V9 | PARTIAL CODE PUSHED: shared #root entrance now auto-runs across pages using richtext.css; native cover-until-paint coordination remains |
 | V10 | NOT STARTED (optional) |
 | V11 | CODE PUSHED: quiz/competition exam already had question/option/result/timer motion; this slice adds Android reduced-motion suppression; no exam logic or controls changed |
