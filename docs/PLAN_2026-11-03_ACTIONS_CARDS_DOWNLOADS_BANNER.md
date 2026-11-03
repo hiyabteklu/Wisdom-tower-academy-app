@@ -10,7 +10,7 @@
 - [x] **C1** — database column, app caching, save-time HEAD capture, and old-book backfill implemented; phone/CI verification pending. Book size shown immediately (like the title)
 - [x] **D1** — process-lifetime coordinator, cross-screen progress, and HTTP Range resume implemented; phone/CI verification pending. Downloads keep going when the student leaves the page (stay in the app)
 - [x] **E1** — two concurrent transfers, immediate connecting state, and three-attempt retry implemented; phone/CI verification pending. Downloads start fast, also on a slow connection
-- [ ] **B1** Taller material cards (books, notes, question banks, all lists): title, type, description, size
+- [x] **B1** — taller material cards with editable descriptions, type labels, and status footer implemented; phone/CI verification pending. Taller material cards (books, notes, question banks, all lists): title, type, description, size
 - [ ] **F1** Home welcome picture becomes dynamic (app side: cached remote picture, bundled one is the fallback)
 - [ ] **F2** Admin "Home Banner" control center (change picture, back to default)
 
@@ -114,10 +114,12 @@ Not in this plan (can come later if wanted): tap-through link or headline on the
 
 ## Live changes (Supabase)
 
-- `learning_resources_size_bytes` — added nullable `size_bytes` to `learning_resources`, exposed it to student light-list reads, preserved the admin-only view, and granted authenticated admin writes. Add one line per migration here: name + what it does.
+- `learning_resources_size_bytes` — added nullable `size_bytes` to `learning_resources`, exposed it to student light-list reads, preserved the admin-only view, and granted authenticated admin writes.
+- `learning_resources_description` — added optional description text to `learning_resources`, exposed it to student light-list reads and the admin view, and granted authenticated admin writes. Add one line per migration here: name + what it does.
 
 ## Plan changes
 
+- 2026-11-03 (B1): Reworked all native hub material rows into taller glass cards with type chip, two-line title, three-line description, and a footer for file size / question count / saved status. Added optional description to learning_resources and the admin editor; older rows use a chapter/count/size fallback. The Learning screen's package tiles are a different component, not material rows.
 - 2026-11-03 (E1): The download pool now permits two simultaneous transfers. Connecting is shown immediately; the first received bytes update progress, and transient I/O / 5xx / 408 / 429 failures retry up to three times with increasing delay. The known `size_bytes` value is passed from the material card to the reader and seeds the download total.
 - 2026-11-03 (D1): Added a process-lifetime download coordinator for hub materials and the PDF reader. Work continues after navigation, duplicate starts join active jobs, partial book files resume with HTTP Range, and manager-owned transfers are protected from WebView stream-close cleanup. Force-close survival remains out of scope.
 - 2026-11-03 (C1): Added `size_bytes` to material rows. The app reads it with the title and stores it in the existing offline list cache. Saving a book with a new Appwrite ID measures the file with HEAD; opening Admin > Course Content > Books backfills older rows with missing sizes.

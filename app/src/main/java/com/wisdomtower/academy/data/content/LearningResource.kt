@@ -28,7 +28,8 @@ data class LearningResource(
     val bodyMd: String?,
     val metaJson: String,
     val itemCount: Int? = null,
-    val sizeBytes: Long? = null
+    val sizeBytes: Long? = null,
+    val description: String? = null
 )
 
 /** Result of loading a list of resources. [fromCache] is true when the phone could not reach the server. */

@@ -485,6 +485,7 @@ private fun ContentEditor(
     val hasMeta = hub == "flashcards" || hub == "question-banks" || hub == "exams"
 
     var title by rememberSaveable(initial.id) { mutableStateOf(initial.title) }
+    var description by rememberSaveable(initial.id) { mutableStateOf(initial.description.orEmpty()) }
     var chapterText by rememberSaveable(initial.id) { mutableStateOf(initial.chapter?.toString().orEmpty()) }
     var fileId by rememberSaveable(initial.id) {
         mutableStateOf(AdminContentRepository.appwriteIdOf(initial.storagePath))
@@ -529,6 +530,15 @@ private fun ContentEditor(
         item(key = "titleLabel") { EditorLabel("Title") }
         item(key = "title") {
             AdminTextField(value = title, onValueChange = { title = it }, placeholder = "Title")
+        }
+        item(key = "descriptionLabel") { EditorLabel("Description (optional)") }
+        item(key = "description") {
+            AdminTextArea(
+                value = description,
+                onValueChange = { description = it },
+                placeholder = "A short summary shown on the student material card",
+                minHeight = 76.dp
+            )
         }
         item(key = "chapterLabel") { EditorLabel("Chapter # (optional)") }
         item(key = "chapter") {
@@ -657,6 +667,7 @@ private fun ContentEditor(
                                 scopePath = initial.scopePath,
                                 hub = initial.hub,
                                 title = title,
+                                description = description,
                                 chapter = chapterText.trim().toIntOrNull(),
                                 sortOrder = initial.sortOrder,
                                 contentType = AdminContentRepository.contentTypeFor(initial.hub, initial.contentType),

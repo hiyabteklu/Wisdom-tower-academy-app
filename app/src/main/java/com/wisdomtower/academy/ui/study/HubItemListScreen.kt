@@ -650,18 +650,34 @@ private fun ItemRow(
         knownSize != null && knownSize > 0L -> BookFileStore.formatBytes(knownSize)
         else -> null
     }
+    val typeLabel = when (hubId) {
+        "books" -> "BOOK"
+        "short-notes" -> "NOTES"
+        "flashcards" -> "FLASHCARDS"
+        "question-banks" -> "QUESTION BANK"
+        "exams" -> "EXAM"
+        "life-savers" -> "LIFE SAVER"
+        "videos" -> "VIDEO"
+        else -> hubId.uppercase().replace('-', ' ')
+    }
     val lockText = when (lockedGate) {
         HubGate.ComingSoon -> "Coming soon"
         HubGate.PackageRequired -> "Package required"
         else -> null
     }
-    val subline = listOfNotNull(
+    val fallbackDescription = listOfNotNull(
         item.chapter?.let { "Chapter $it" },
+        countText,
+        sizeText
+    ).joinToString(" · ").ifBlank { "Open this material to study." }
+    val description = item.description?.trim()?.takeIf { it.isNotEmpty() } ?: fallbackDescription
+    val footer = listOfNotNull(
         sizeText,
         countText,
         lockText,
         if (isDownloaded && lockedGate == null) "Saved offline" else null
-    ).joinToString(" \u00B7 ")
+    ).joinToString(" · ")
+    val chipShape = RoundedCornerShape(7.dp)
 
     WisdomGlassCard(
         modifier = Modifier.fillMaxWidth(),
@@ -671,33 +687,52 @@ private fun ItemRow(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 14.dp, end = 8.dp, top = 12.dp, bottom = 12.dp),
+                .padding(start = 14.dp, end = 8.dp, top = 14.dp, bottom = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = item.title,
-                        fontSize = 15.sp,
+                        text = typeLabel,
+                        fontSize = 10.sp,
                         fontWeight = FontWeight.Bold,
-                        color = WisdomInk,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f, fill = false)
+                        color = WisdomCyan,
+                        modifier = Modifier
+                            .clip(chipShape)
+                            .background(WisdomGlassFillStrong)
+                            .border(1.dp, WisdomGlassBorder, chipShape)
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
                     )
                     if (isNew) {
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = "NEW",
-                            fontSize = 11.sp,
+                            fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
                             color = dayNight(Color(0xFFFECDD3), WisdomAccentRose)
                         )
                     }
                 }
-                if (subline.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(text = subline, fontSize = 12.sp, color = WisdomMuted)
+                Spacer(modifier = Modifier.height(7.dp))
+                Text(
+                    text = item.title,
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = WisdomInk,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = description,
+                    fontSize = 12.sp,
+                    color = WisdomMuted,
+                    maxLines = 3,
+                    overflow = TextOverflow.Ellipsis
+                )
+                if (footer.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(7.dp))
+                    Text(text = footer, fontSize = 11.sp, color = WisdomMuted, fontWeight = FontWeight.Medium)
                 }
                 if (progress != null) {
                     Spacer(modifier = Modifier.height(8.dp))
@@ -722,7 +757,7 @@ private fun ItemRow(
                             )
                         }
                     } else {
-                        Text(text = if (progress < 0f) "Connecting..." else "Downloading\u2026", fontSize = 11.sp, color = WisdomCyan)
+                        Text(text = "Connecting...", fontSize = 11.sp, color = WisdomCyan)
                     }
                 } else if (hasFailed) {
                     Spacer(modifier = Modifier.height(4.dp))
@@ -735,14 +770,11 @@ private fun ItemRow(
             }
             Spacer(modifier = Modifier.width(8.dp))
             if (lockedGate != null) {
-                // Locked by the admin: no download button, a lock instead of the arrow.
                 Icon(
                     imageVector = Icons.Filled.Lock,
                     contentDescription = "Locked",
                     tint = WisdomMuted,
-                    modifier = Modifier
-                        .padding(end = 8.dp)
-                        .size(20.dp)
+                    modifier = Modifier.padding(end = 8.dp).size(20.dp)
                 )
             } else {
                 DownloadButton(

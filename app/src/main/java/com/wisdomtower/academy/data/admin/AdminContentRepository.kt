@@ -29,7 +29,8 @@ data class AdminContentItem(
     /** The meta column as compact JSON text. Pretty printing happens only when the editor opens. */
     val metaRaw: String,
     val published: Boolean,
-    val sizeBytes: Long? = null
+    val sizeBytes: Long? = null,
+    val description: String? = null
 )
 
 /** What the editor hands to save(): the same fields the website ResourceInput carries. */
@@ -38,6 +39,7 @@ class AdminContentInput(
     val scopePath: String,
     val hub: String,
     val title: String,
+    val description: String?,
     val chapter: Int?,
     val sortOrder: Int,
     val contentType: String,
@@ -237,7 +239,8 @@ object AdminContentRepository {
                         bodyMd = o.text("body_md"),
                         metaRaw = if (metaValue is JSONObject) metaValue.toString() else "{}",
                         published = o.optBoolean("published", false),
-                        sizeBytes = if (o.isNull("size_bytes")) null else o.optLong("size_bytes").takeIf { it > 0L }
+                        sizeBytes = if (o.isNull("size_bytes")) null else o.optLong("size_bytes").takeIf { it > 0L },
+                        description = o.text("description")
                     )
                 )
             }
@@ -315,6 +318,7 @@ object AdminContentRepository {
         body.put("scope_path", input.scopePath)
         body.put("hub", input.hub)
         body.put("title", input.title.trim().ifEmpty { "Untitled" })
+        body.put("description", input.description?.trim()?.takeIf { it.isNotEmpty() } ?: JSONObject.NULL)
         body.put("chapter", input.chapter ?: JSONObject.NULL)
         body.put("sort_order", input.sortOrder)
         body.put("content_type", input.contentType)
