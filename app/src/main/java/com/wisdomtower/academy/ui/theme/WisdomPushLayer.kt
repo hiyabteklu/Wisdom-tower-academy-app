@@ -77,3 +77,24 @@ fun <T : Any> WisdomPushLayer(
         }
     }
 }
+
+
+/**
+ * Recedes the currently selected tab underneath a full-screen push: 30% left shift
+ * and 15% dim, driven by one spring and drawn through graphicsLayer.
+ */
+@Composable
+fun Modifier.wisdomPushRecede(active: Boolean): Modifier {
+    val progress = remember { Animatable(if (active) 1f else 0f) }
+    LaunchedEffect(active) {
+        progress.animateTo(
+            if (active) 1f else 0f,
+            spring(dampingRatio = 1f, stiffness = WisdomMotionV2.PushStiffness)
+        )
+    }
+    return graphicsLayer {
+        val p = progress.value
+        translationX = -size.width * 0.30f * p
+        alpha = 1f - 0.15f * p
+    }
+}
