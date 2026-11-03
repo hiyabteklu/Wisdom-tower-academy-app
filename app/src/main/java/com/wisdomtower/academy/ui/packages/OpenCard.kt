@@ -37,6 +37,9 @@ import com.wisdomtower.academy.ui.theme.WisdomDarkOnCyan
 import com.wisdomtower.academy.ui.theme.WisdomGlassCard
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.wisdomPressClickable
+import com.wisdomtower.academy.ui.theme.markOrigin
+import com.wisdomtower.academy.ui.theme.rememberWisdomCardSource
+import com.wisdomtower.academy.ui.theme.wisdomCardSource
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 
 /**
@@ -116,11 +119,16 @@ fun OpenCardLayout(
     val openFill = if (night) WisdomCyan.copy(alpha = 0.12f) else WisdomCyan
     val openEdge = if (night) WisdomCyan.copy(alpha = 0.45f) else WisdomCyan
     val openText = if (night) WisdomCyan else WisdomDarkOnCyan
+    val cardSource = rememberWisdomCardSource() // V5 grow
+    val markedClick: () -> Unit = {
+        cardSource.markOrigin()
+        onClick()
+    }
 
     WisdomGlassCard(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth().wisdomCardSource(cardSource),
         cornerRadius = 16.dp,
-        onClick = onClick
+        onClick = markedClick
     ) {
         Column(modifier = Modifier.fillMaxWidth()) {
             if (image != null) {
@@ -172,7 +180,7 @@ fun OpenCardLayout(
                             BorderStroke(1.dp, openEdge),
                             RoundedCornerShape(10.dp)
                         )
-                        .wisdomPressClickable(onClick = onClick)
+                        .wisdomPressClickable(onClick = markedClick)
                         .padding(vertical = 8.dp, horizontal = 10.dp),
                     contentAlignment = Alignment.Center
                 ) {

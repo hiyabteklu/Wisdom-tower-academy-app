@@ -264,6 +264,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wisdomtower.academy.ui.theme.MyApplicationTheme
 import com.wisdomtower.academy.ui.theme.WisdomPushLayer
+import com.wisdomtower.academy.ui.theme.wisdomGrowFromCard
 import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
 import com.wisdomtower.academy.ui.theme.wisdomStaggerIn
 import com.wisdomtower.academy.ui.theme.wisdomPressScale
@@ -3313,6 +3314,18 @@ fun MainScreen(
                 // Native Packages Catalog & Landing Screens (Phase A3 / B)
                 WisdomTabLayer(tab = 2, selectedIndex = selectedIndex, recede = hasNativePush) {
                     val currentPkg = selectedPackage
+                    com.wisdomtower.academy.ui.games.GameTabScreen( // V5 grow: the list stays under the package screen
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .appBackdrop()
+                            .zIndex(10f)
+                            .then(if (currentPkg != null) Modifier.clearAndSetSemantics { } else Modifier),
+                        packageList = catalogPackages,
+                        onSelectPackage = { pkg ->
+                            markPackageOrigin()
+                            selectedPackage = pkg
+                        }
+                    )
                     if (currentPkg != null) {
                         PackageDetailScreen(
                             pkg = currentPkg,
@@ -3336,20 +3349,9 @@ fun MainScreen(
                             backEnabled = activeWorkspace == null, // BACKFIX-S7
                             modifier = Modifier
                                 .fillMaxSize()
+                                .wisdomGrowFromCard(currentPkg.name) // V5 grow
                                 .appBackdrop()
                                 .zIndex(10f)
-                        )
-                    } else {
-                        com.wisdomtower.academy.ui.games.GameTabScreen(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .appBackdrop()
-                                .zIndex(10f),
-                            packageList = catalogPackages,
-                            onSelectPackage = { pkg ->
-                                markPackageOrigin()
-                                selectedPackage = pkg
-                            }
                         )
                     }
                 }
