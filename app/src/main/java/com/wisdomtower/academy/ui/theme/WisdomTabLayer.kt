@@ -25,7 +25,12 @@ import androidx.compose.ui.zIndex
  * V2 cross-dissolve: incoming content starts fading immediately and rises 6 dp. Outgoing content remains opaque until
  * the incoming layer passes 60 percent, then fades quickly. This prevents the dark gap caused by two sequential fades.
  *
- * - An opaque WisdomNavy backdrop stays behind the fading content, so the WebView underneath can never show through.
+ * V13 (docs/SESSION_2026-11-03_V15_TAB_DISSOLVE.md): the opaque app backdrop now sits on the OUTGOING (lower) layer only.
+ * The INCOMING layer carries its backdrop inside its own fading box, so the outgoing tab stays visible underneath while the
+ * new one fades in (a true dissolve). Before, the incoming layer's opaque backdrop hid the outgoing tab at once.
+ *
+ * - An opaque backdrop stays behind the fading content (outgoing layer), so the WebView underneath can never show through
+ *   while one tab is leaving.
  * - [active] = false (the Learning tab while a hub page is open in the WebView) removes the layer at once, no fade.
  * - Everything animates through `graphicsLayer` (alpha, translationY) read in the draw phase: no recomposition per frame.
  * - The incoming layer is drawn on top (zIndex 11 vs 10), so it takes the touches from the first frame.
@@ -65,7 +70,7 @@ fun WisdomTabLayer(
             modifier = Modifier
                 .fillMaxSize()
                 .zIndex(if (wanted) 11f else 10f)
-                .appBackdrop()
+                .then(if (wanted) Modifier else Modifier.appBackdrop())
         ) {
             stateHolder.SaveableStateProvider(tab) {
                 Box(
@@ -75,6 +80,7 @@ fun WisdomTabLayer(
                             alpha = fade.value
                             translationY = if (wanted) (1f - fade.value) * 6.dp.toPx() else 0f
                         }
+                        .then(if (wanted) Modifier.appBackdrop() else Modifier)
                         .wisdomPushRecede(recede)
                 ) {
                     content()
