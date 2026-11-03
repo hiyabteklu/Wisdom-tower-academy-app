@@ -67,7 +67,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 - [~] **V8 Sheets, dialogs, menus.** Tools overlay (AI Tutor, Calculator, Timer, Planner, Notebook, Targets, Status) and other sheets enter with the sheet spring and can be dragged down to close; dialogs and drop-down menus scale in with the dialog spring. Reuse `WisdomOverlayMotion.kt`, do not duplicate. Exam-screen dialogs stay instant (rule 6). Owner test: open the tools, drag one down to close it; open a dialog, it pops softly.
 - [~] **V9 WebView pages.** Quiz, notes, flashcards, tutor, competition exam, cover pages: (a) keep the native cover until the page has painted, so there is no blank or dark flash when a page opens; (b) a short CSS page entrance inside the page (fade + 10 px rise, 200 ms) and softer button press in the HTML (`:active` scale 0.97); (c) one shared small CSS block reused by the pages if the pages already share one (step 1 = look in `app/src/main/assets/notes/`). Nothing changes the page logic. Quiz and exam pages: entrance only on open and results, never on question change (that is already done in M10 and E-slices). One chat per two pages. Owner test: open a note, a quiz, flashcards, the tutor: no flash, a soft arrival.
 - [ ] **V10 Scroll and header polish (optional).** Large title that collapses while scrolling on Home, Learning, Packages; slight parallax of the hero; cards just entering at the bottom edge a little smaller and settle (the old optional `wisdomScrollDepth`). Skip any effect that costs frames on the owner's phone.
-- [ ] **V11 Exam screens, last and careful.** Question change, option select pulse, results arrival, timer low-time pulse (visual only). Timer, submit, close stay instant and reachable. No change to timing, grading or integrity hooks (`EXAM_INTEGRITY_ADMIN.md`).
+- [x] **V11 Exam screens, last and careful.** Question change, option select pulse, results arrival, timer low-time pulse (visual only). Timer, submit, close stay instant and reachable. No change to timing, grading or integrity hooks (`EXAM_INTEGRITY_ADMIN.md`).
 - [~] **V12 Consistency and speed pass.** Sweep every screen: anything without the kit, different feel between screens, dropped frames. Update the phone checklist. Check with "Remove animations" on and on a low battery or slow phone. No new features.
 
 ## 6. Status table (update in the same commit as each slice)
@@ -84,7 +84,7 @@ Safety rules for EVERY slice (same as M-plan, repeated because they matter):
 | V8 | PARTIAL CODE PUSHED: spring dialog entrance now also applied to Status Detail and Focus Timer nudge; sheet drag-to-dismiss and remaining host overlays pending |
 | V9 | PARTIAL CODE PUSHED: shared #root entrance now auto-runs across pages using richtext.css; native cover-until-paint coordination remains |
 | V10 | NOT STARTED (optional) |
-| V11 | NOT STARTED |
+| V11 | CODE PUSHED: quiz/competition exam already had question/option/result/timer motion; this slice adds Android reduced-motion suppression; no exam logic or controls changed |
 | V12 | PARTIAL AUDIT PUSHED; consistency pass cannot be called complete while V3/V5/V6/V7/V10/V11 and integration work remain |
 
 ## 7. Owner decisions (defaults chosen, change any of them)
