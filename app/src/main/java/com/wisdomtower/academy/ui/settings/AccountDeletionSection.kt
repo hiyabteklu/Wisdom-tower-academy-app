@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.settings
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import com.wisdomtower.academy.ui.theme.AppThemeMode
 import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import com.wisdomtower.academy.ui.theme.WisdomInk
@@ -120,7 +122,7 @@ fun AccountDeletionSection(settingsPrefs: SharedPreferences) {
         AlertDialog(
             modifier = Modifier.wisdomDialogEnter(),
             onDismissRequest = { if (!busy) showDialog = false },
-            containerColor = if (AppThemeMode.isDark) Color(0xF20F1829) else Color(0xF2FBF9F4),
+            containerColor = WisdomPopupFill,
             title = {
                 Text(text = "Delete your account?", color = WisdomInk, fontWeight = FontWeight.Bold, fontSize = 16.sp)
             },
