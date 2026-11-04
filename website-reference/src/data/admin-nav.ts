@@ -3,6 +3,7 @@
 import { freshmanSubjects } from "@/data/freshman";
 import { grades, resourceHubs } from "@/data/academy";
 import { subjectsForGrade } from "@/data/grade-subjects";
+import { remedialSubjects } from "@/data/remedial";
 import { specialPackages } from "@/data/special-packages";
 import { packageIdForGrade } from "@/data/packages";
 import {
@@ -90,6 +91,27 @@ const entranceNode: AdminNavNode = {
   })),
 };
 
+const remedialNode: AdminNavNode = {
+  id: "remedial",
+  label: "Remedial",
+  packageId: "remedial",
+  useAppwrite: true,
+  children: remedialSubjects.map((subject) => ({
+    id: subject.id,
+    label: subject.name,
+    packageId: "remedial",
+    scopePath: `remedial/${subject.id}`,
+    useAppwrite: true,
+    children: resourceHubs.map((hub) => ({
+      id: hub.id,
+      label: hub.name,
+      packageId: "remedial",
+      scopePath: `remedial/${subject.id}`,
+      useAppwrite: true,
+    })),
+  })),
+};
+
 export const ADMIN_CONTENT_TREE: AdminNavNode[] = [
   {
     id: "grades",
@@ -118,6 +140,7 @@ export const ADMIN_CONTENT_TREE: AdminNavNode[] = [
       })),
     })),
   },
+  remedialNode,
   {
     id: "special",
     label: "Special packages",
