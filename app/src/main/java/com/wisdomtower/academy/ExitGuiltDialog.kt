@@ -1,5 +1,7 @@
 package com.wisdomtower.academy
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -43,7 +45,7 @@ private fun exitDayNight(night: Color, day: Color): Color = if (AppThemeMode.isD
 // Unified tokens matching the live website card language
 // BG-POPUP-3 (owner request 2026-11-04, pop-ups more solid): night 96 percent navy 0F1829 (was 70 percent 0C1424, 0xB3),
 // day 97 percent ivory (was 92 percent, 0xEB). To go back: Color(0xB30C1424) and Color(0xEBF8F5EE).
-private val DialogBg: Color get() = exitDayNight(Color(0xF50F1829), Color(0xF7F8F5EE)) // night: near-solid navy
+private val DialogBg: Color get() = WisdomPopupFill // night: near-solid navy
 private val DialogBorder: Color get() = exitDayNight(Color(0x3322E0FF), Color(0x240B1B33)) // night: 1px subtle cyan border; day: navy hairline
 private val Accent: Color get() = WisdomCyan // night 22E0FF (same as before), day deep teal
 private val DarkOnCyan: Color get() = WisdomDarkOnCyan // night 070D17 (same as before), day white on the teal pill
