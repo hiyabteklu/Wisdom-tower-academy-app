@@ -355,7 +355,7 @@ private fun FloorSheet(
 @Composable
 private fun SealDialog(title: String, body: String, onDismiss: () -> Unit) {
     Box(
-        Modifier.fillMaxSize().background(Color(0x99000000)).clickable(onClick = onDismiss),
+        Modifier.fillMaxSize().background(WisdomPopupScrim).clickable(onClick = onDismiss),
         contentAlignment = Alignment.Center
     ) {
         Column(
