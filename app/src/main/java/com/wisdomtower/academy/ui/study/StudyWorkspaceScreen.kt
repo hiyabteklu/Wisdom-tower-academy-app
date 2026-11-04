@@ -158,12 +158,12 @@ fun StudyWorkspaceScreen(
 ) {
     val entranceUrl = remember(basePath) { entranceYearUrl(basePath) }
     val contentScope = remember(basePath) { contentScopePath(basePath) }
-    val isExitExam = remember(basePath) {
+    val isComingSoonPackage = remember(basePath) {
         val clean = cleanBase(basePath)
-        clean == "/academy/exit-exam" || clean.startsWith("/academy/exit-exam/")
+        clean == "/academy/gat" || clean.startsWith("/academy/gat/") ||
+            clean == "/academy/exit-exam" || clean.startsWith("/academy/exit-exam/")
     }
     var view by remember(basePath) { mutableStateOf<WorkspaceView?>(null) }
-    var exitExamHub by remember(basePath) { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     var hubCounts by remember(contentScope) { mutableStateOf<Map<String, Int>>(emptyMap()) }
@@ -254,6 +254,18 @@ fun StudyWorkspaceScreen(
         }
     }
 
+    if (isComingSoonPackage) {
+        HubGateDialog(
+            badge = ContentAccess.COMING_SOON_TITLE,
+            title = ContentAccess.COMING_SOON_TITLE,
+            hubName = title,
+            message = ContentAccess.COMING_SOON_BODY,
+            buttonText = ContentAccess.COMING_SOON_BUTTON,
+            onClose = onBack
+        )
+        return
+    }
+
     val shown = view
     if (shown != null && contentScope != null) PauseShellWhileShown() // V5d hub grow
 
@@ -341,7 +353,7 @@ fun StudyWorkspaceScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
-                if (loggedIn && contentScope != null && !isExitExam) {
+                if (loggedIn && contentScope != null && !isComingSoonPackage) {
                     item(key = "status_board") {
                         StatusSubjectBoard(scopePath = contentScope, title = title) // MYSTATUS-B3
                     }
@@ -364,8 +376,8 @@ fun StudyWorkspaceScreen(
                         image = hub.assetImage,
                         subtitle = subtitle,
                         onClick = {
-                            if (isExitExam) {
-                                exitExamHub = hub.name
+                            if (isComingSoonPackage) {
+                                gateMessage = GateMessage(HubGate.ComingSoon, hub.name)
                             } else {
                                 val gate = if (entranceUrl == null) locks.hubGate(hub.id) else HubGate.Open
                                 when (gate) {
@@ -430,16 +442,5 @@ fun StudyWorkspaceScreen(
             }
         }
 
-        val exitHub = exitExamHub
-        if (exitHub != null) {
-            HubGateDialog(
-                badge = "Content coming soon",
-                title = "Content coming soon",
-                hubName = exitHub,
-                message = "Exit Exam ${exitHub.lowercase()} materials will appear here.",
-                buttonText = ContentAccess.COMING_SOON_BUTTON,
-                onClose = { exitExamHub = null }
-            )
-        }
     }
 }
