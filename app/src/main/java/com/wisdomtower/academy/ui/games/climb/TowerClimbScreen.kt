@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.games.climb
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupScrim
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -319,14 +321,14 @@ private fun FloorSheet(
     onClimb: () -> Unit
 ) {
     Box(
-        Modifier.fillMaxSize().background(Color(0x99000000)).clickable(onClick = onDismiss),
+        Modifier.fillMaxSize().background(WisdomPopupScrim).clickable(onClick = onDismiss),
         contentAlignment = Alignment.BottomCenter
     ) {
         Column(
             Modifier
                 .fillMaxWidth()
                 .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-                .background(Color(0xFF121A2A))
+                .background(WisdomPopupFill)
                 .clickable { }
                 .padding(20.dp)
         ) {
@@ -357,7 +359,7 @@ private fun SealDialog(title: String, body: String, onDismiss: () -> Unit) {
         contentAlignment = Alignment.Center
     ) {
         Column(
-            Modifier.padding(32.dp).clip(RoundedCornerShape(16.dp)).background(Color(0xFF121A2A)).padding(20.dp),
+            Modifier.padding(32.dp).clip(RoundedCornerShape(16.dp)).background(WisdomPopupFill).padding(20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(Icons.Filled.Lock, contentDescription = null, tint = WisdomMuted)
