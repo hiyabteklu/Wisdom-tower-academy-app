@@ -22,15 +22,31 @@
 
   #note { font-family: var(--wt-content-font-family, "WT Tinos", serif); font-style: var(--wt-content-font-style, italic); font-size: 20px; line-height: 32px; }
 
-  /* Summary (AI), plan step N10: same look as the website's NotesViewer */
-  #sumwrap { margin-top: 24px; padding-top: 8px; border-top: 1px solid rgba(255,255,255,.08); }
-  /* T1: the Summary and the Ask AI tutor buttons sit side by side (and wrap on a narrow screen) */
-  .btnrow { display: flex; flex-wrap: wrap; gap: 8px; }
-  .sumbtn { border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.06); color: #e2e8f0; font: 600 .75rem/1 -apple-system, Roboto, sans-serif; padding: 9px 16px; border-radius: 999px; font-style: normal; }
-  .sumbtn:disabled { opacity: .5; }
-  .sumbtn.tutorbtn { border-color: rgba(34,211,238,.35); background: rgba(34,211,238,.12); color: #a5f3fc; }
-  .sumbox { margin-top: 12px; border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.03); border-radius: 16px; padding: 14px 16px; color: rgba(255,255,255,.9); font-family: var(--wt-content-font-family, "WT Tinos", serif); font-style: var(--wt-content-font-style, italic); font-size: 20px; line-height: 32px; }
-  .sumbox .lbl { margin: 0 0 8px; font: 600 .62rem/1 -apple-system, Roboto, sans-serif; letter-spacing: .08em; text-transform: uppercase; color: #94a3b8; font-style: normal; }
+  /* Full-width tutor at the end of every note. */
+  #tutorwrap { margin: 28px 0 20px; width: 100%; }
+  .tutorbox { width: 100%; box-sizing: border-box; border: 1px solid rgba(34,211,238,.32); background: linear-gradient(155deg, rgba(22,42,48,.88), rgba(19,31,39,.82)); border-radius: 22px; padding: 18px 16px 16px; box-shadow: 0 12px 32px rgba(0,0,0,.16); }
+  .tutorhead { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
+  .tutorbrand { font: 800 .72rem/1.3 -apple-system, Roboto, sans-serif; letter-spacing:.12em; color:#F2C66D; }
+  .clearbtn { border:1px solid rgba(242,198,109,.42); background:rgba(242,198,109,.09); color:#F2C66D; font:600 .7rem/1 -apple-system, Roboto,sans-serif; padding:9px 12px; border-radius:999px; }
+  .welcome { margin:0 0 14px; padding:14px; border-radius:16px; background:rgba(242,198,109,.09); border:1px solid rgba(242,198,109,.22); color:#F6D98F; font:700 16px/1.55 -apple-system,Roboto,sans-serif; }
+  .welcome small { display:block; margin-top:7px; color:#D5C49B; font:400 13px/1.5 -apple-system,Roboto,sans-serif; }
+  .tutorbox .lbl { margin: 0 0 4px; font: 700 .62rem/1 -apple-system, Roboto, sans-serif; letter-spacing: .1em; text-transform: uppercase; color: #94a3b8; font-style: normal; }
+  .thint { margin: 6px 0 4px; font: 14px/1.5 -apple-system, Roboto, sans-serif; font-style: normal; color: #94a3b8; }
+  .tb { margin: 10px 0; padding: 12px 14px; border-radius: 16px; overflow-wrap: anywhere; }
+  .tb.user { margin-left: 12%; background: rgba(34,211,238,.14); border: 1px solid rgba(34,211,238,.3); color: #e2e8f0; font: 16px/1.5 -apple-system, Roboto, sans-serif; font-style: normal; white-space: pre-wrap; }
+  .tb.bot { border: 1px solid rgba(255,255,255,.08); background: rgba(255,255,255,.055); color: rgba(255,255,255,.94); font-family: var(--wt-content-font-family, "WT Tinos", serif); font-style: var(--wt-content-font-style, italic); font-size: 19px; line-height: 1.65; }
+  .tb.bot.think { color: #94a3b8; font: 15px/1.5 -apple-system, Roboto, sans-serif; font-style: normal; }
+  .chips { display: grid; grid-template-columns: 1fr; gap: 8px; margin: 14px 0 8px; }
+  .chip { width:100%; box-sizing:border-box; border: 1px solid rgba(34,211,238,.3); background: rgba(34,211,238,.075); color: #A5F3FC; font: 600 14px/1.35 -apple-system, Roboto, sans-serif; font-style: normal; padding: 12px 14px; border-radius: 14px; text-align: left; }
+  .chip.continue { border-color:rgba(242,198,109,.42); background:rgba(242,198,109,.08); color:#F2D28A; }
+  .sumbtn { border:1px solid rgba(34,211,238,.38); background:rgba(34,211,238,.16); color:#A5F3FC; font:700 14px/1 -apple-system,Roboto,sans-serif; border-radius:999px; }
+  .sumbtn:disabled { opacity:.55; }
+  .tform { display: flex; gap: 8px; align-items: flex-end; margin-top: 14px; }
+  #tinput { flex: 1; min-width: 0; resize: none; max-height: 140px; box-sizing: border-box; background: rgba(255,255,255,.07); border: 1px solid rgba(34,211,238,.3); border-radius: 18px; color: #e2e8f0; padding: 12px 14px; font: 16px/1.4 -apple-system, Roboto, sans-serif; font-style: normal; outline: none; }
+  #tinput:focus { border-color: rgba(34,211,238,.7); }
+  #tsend { flex: none; padding: 13px 18px; min-width:76px; }
+  .clearconfirm { display:none; margin:10px 0; padding:12px; border-radius:14px; background:rgba(127,29,29,.2); border:1px solid rgba(248,113,113,.3); color:#fecaca; font:13px/1.4 -apple-system,Roboto,sans-serif; }
+  .clearconfirm button { margin:8px 8px 0 0; border-radius:999px; padding:8px 12px; border:1px solid rgba(255,255,255,.2); background:rgba(255,255,255,.07); color:#fff; }
 
   /* Inline AI tutor (2026-11-03, owner: the tutor continues BELOW the note instead of opening an overlay). The box has no
      height of its own and no inner scroll: it grows with every question and the whole page scrolls, like the note. */
@@ -51,16 +67,14 @@
 </style>
 </head>
 <body>
-<div id="root"><div id="note"></div><div id="sumwrap"></div><div id="tutorwrap" style="display:none"></div></div>
+<div id="root"><div id="note"></div><div id="tutorwrap"></div></div>
 <script src="katex/katex.min.js"></script>
 <script src="richtext.js"></script>
 <script>
 /* Short-notes page (plan step N6). The renderer lives in richtext.js (shared with flashcards).
  * Called from the app: window.setNote(text, startFrac).
- * "Summary" (plan step N10): the page cannot reach the network, so it asks the app through
- * WTBridge.onSummarize({ id, text }) and the app answers with window.wtSummaryResult(id, text).
- * "Ask AI tutor" (T1, then changed 2026-11-03, owner: the tutor must continue below the note, not open an overlay): the button
- * opens a chat box right under the note and the Summary. The page keeps the conversation (tutorMsgs) and asks the app
+ * The AI tutor opens automatically in a full-width panel after the note. No launch button or separate Summary action.
+ * The page keeps the conversation (tutorMsgs) and asks the app
  * through WTBridge.onTutorAsk({ id, messages: [{ role, content }...] }); the app sends it to the tutor route with the chapter
  * as context and streams the answer back with window.wtTutorSet(id, fullTextSoFar, state) (state: stream, done, failed) and
  * window.wtTutorSuggest(id, jsonArray). WTBridge.onTutorStop() cancels a running answer. The box has no scroll of its own,
@@ -75,14 +89,15 @@
  * height), and then reports every position through WTBridge.onPosition({ frac }) (trailing, every 300 ms at most).
  * Nothing is reported before the restore, so the first screen (top) never overwrites the saved position. No saved
  * position (0), a position at the very start or a note that was read to the end (98 percent or more) opens at the top. */
-var noteText = "", summary = "", loading = false, pendingId = "", seq = 0;
+var noteText = "", seq = 0;
 var lastPct = -1, pendingPct = -1, progTimer = 0, sent100 = false;
 var posTimer = 0, canSavePos = false, userTouched = false;
-/* inline AI tutor state */
-var tutorOpen = false, tutorBusy = false, tutorBuilt = false, tutorReqId = "", tutorMsgs = [], tutorNodes = [];
+/* Note tutor state */
+var tutorBusy = false, tutorBuilt = false, tutorReqId = "", tutorMsgs = [], tutorNodes = [];
 var TUTOR_BUSY = "The Wisdom Tower AI Tutor is currently experiencing high demand. Please wait a moment and try asking your question again.";
 var TUTOR_STOPPED = "Response stopped. What would you like to explore instead?";
-var TUTOR_STARTERS = ["Explain this chapter in simple words", "Give me a practice question", "What are the key points?"];
+var TUTOR_STARTERS = ["Explain this chapter in simple terms", "What are the key ideas in this chapter?", "Give me worked examples"];
+var TUTOR_CONTINUE = "Continue teaching me from where we left off";
 var TUTOR_RETRY = ["Try asking again", "Explain in simpler terms", "Give me an example"];
 
 /* the AI writes math as \( ... \) and \[ ... \]; the shared renderer reads $ ... $ and $$ ... $$ */
@@ -141,20 +156,7 @@ window.addEventListener("scroll", schedulePos, { passive: true });
 window.addEventListener("resize", reportScroll, { passive: true });
 window.addEventListener("touchstart", function () { userTouched = true; }, { passive: true });
 
-function drawSummary() {
-  var w = document.getElementById("sumwrap");
-  if (!noteText) { w.innerHTML = ""; return; }
-  var h = '<div class="btnrow"><button class="sumbtn" id="sumbtn"' + (loading ? " disabled" : "") + ">" + (loading ? "Summarizing\u2026" : "Summary") + "</button>" +
-    '<button class="sumbtn tutorbtn" id="tutorbtn">' + (tutorOpen ? "Hide AI tutor" : "Ask AI tutor") + "</button></div>";
-  if (summary) {
-    var body;
-    try { body = window.WTRich.render(aiText(summary)); } catch (e) { body = ""; }
-    h += '<div class="sumbox"><p class="lbl">Summary</p>' + body + "</div>";
-  }
-  w.innerHTML = h;
-}
-
-/* ---- inline AI tutor ---- */
+/* ---- Full-width AI tutor, automatically open at the end of every note ---- */
 
 function tutorPaint(i) {
   var m = tutorMsgs[i], el = tutorNodes[i];
@@ -185,8 +187,7 @@ function tutorDraw() {
       tutorPaint(i);
     }
   }
-  var hint = document.getElementById("thint");
-  if (hint) hint.style.display = tutorMsgs.length ? "none" : "block";
+
 }
 
 /* starter prompts before the first question, follow-up prompts after an answer */
@@ -197,12 +198,13 @@ function tutorChips() {
   if (tutorBusy) return;
   var items = [];
   var last = tutorMsgs[tutorMsgs.length - 1];
-  if (!last) items = TUTOR_STARTERS;
-  else if (last.role === "assistant" && last.suggestions) items = last.suggestions.slice(0, 3);
+  if (!last) items = TUTOR_STARTERS.slice();
+  else if (last.role === "assistant") items = (last.suggestions && last.suggestions.length ? last.suggestions : TUTOR_RETRY).slice(0, 3);
+  items.push(TUTOR_CONTINUE);
   for (var i = 0; i < items.length; i++) {
     var b = document.createElement("button");
-    b.className = "chip";
-    b.textContent = items[i];
+    b.className = "chip" + (items[i] === TUTOR_CONTINUE ? " continue" : "");
+    b.textContent = items[i] === TUTOR_CONTINUE ? "Continue learning with me →" : items[i];
     b.setAttribute("data-q", items[i]);
     c.appendChild(b);
   }
@@ -217,37 +219,24 @@ function buildTutor() {
   if (tutorBuilt) return;
   tutorBuilt = true;
   var w = document.getElementById("tutorwrap");
-  w.innerHTML = '<div class="tutorbox"><p class="lbl">AI Tutor \u00b7 this chapter</p>' +
-    '<p class="thint" id="thint">Ask anything about this chapter. The tutor uses the note above.</p>' +
+  w.innerHTML = '<section class="tutorbox">' +
+    '<div class="tutorhead"><div class="tutorbrand">WISDOM TOWER · AI TUTOR</div><button class="clearbtn" id="tclear">Clear chat</button></div>' +
+    '<div class="welcome">Welcome! Let’s understand this chapter together.<small>I can explain difficult ideas, highlight what matters, solve worked examples and keep teaching you as long as you need.</small></div>' +
     '<div id="tmsgs"></div><div class="chips" id="tchips"></div>' +
-    '<div class="tform"><textarea id="tinput" rows="1" placeholder="Ask about this chapter\u2026"></textarea>' +
-    '<button class="sumbtn tutorbtn" id="tsend">Send</button></div></div>';
+    '<div class="clearconfirm" id="tclearconfirm">Clear this conversation and start fresh?<br><button id="tclearconfirmyes">Clear chat</button><button id="tclearconfirmno">Keep chatting</button></div>' +
+    '<div class="tform"><textarea id="tinput" rows="1" placeholder="Ask anything about this chapter…"></textarea>' +
+    '<button class="sumbtn tutorbtn" id="tsend">Send</button></div></section>';
   var input = document.getElementById("tinput");
   input.addEventListener("input", function () {
     input.style.height = "auto";
     input.style.height = Math.min(140, input.scrollHeight) + "px";
   });
-  /* when the keyboard opens the page is resized by the app; keep the typing box in view */
   input.addEventListener("focus", function () {
-    window.setTimeout(function () { try { input.scrollIntoView({ block: "center" }); } catch (e) { /* ignore */ } }, 350);
+    window.setTimeout(function () { try { input.scrollIntoView({ block: "center" }); } catch (e) {} }, 350);
   });
   tutorDraw();
   tutorChips();
   tutorBtn();
-}
-
-function toggleTutor() {
-  tutorOpen = !tutorOpen;
-  buildTutor();
-  document.getElementById("tutorwrap").style.display = tutorOpen ? "block" : "none";
-  drawSummary();
-  if (tutorOpen) {
-    window.setTimeout(function () {
-      var input = document.getElementById("tinput");
-      if (!input) return;
-      try { input.focus(); input.scrollIntoView({ block: "center", behavior: "smooth" }); } catch (e) { /* ignore */ }
-    }, 60);
-  }
 }
 
 function tutorSend(text) {
@@ -330,13 +319,13 @@ window.setNote = function (text, startFrac) {
   var restore = isFinite(startF) && startF > 0.01 && startF < 0.98;
   if (root) root.classList.remove("ready");
   noteText = String(text == null ? "" : text);
-  summary = ""; loading = false; pendingId = "";
+
   lastPct = -1; pendingPct = -1; sent100 = false;
   canSavePos = false; userTouched = false;
   /* a new note starts with a closed, empty tutor */
-  tutorOpen = false; tutorBusy = false; tutorBuilt = false; tutorReqId = ""; tutorMsgs = []; tutorNodes = [];
+  tutorBusy = false; tutorBuilt = false; tutorReqId = ""; tutorMsgs = []; tutorNodes = [];
   var tw = document.getElementById("tutorwrap");
-  if (tw) { tw.innerHTML = ""; tw.style.display = "none"; }
+  if (tw) { tw.innerHTML = ""; tw.style.display = "block"; }
   if (progTimer) { window.clearTimeout(progTimer); progTimer = 0; }
   if (posTimer) { window.clearTimeout(posTimer); posTimer = 0; }
   try {
@@ -344,7 +333,7 @@ window.setNote = function (text, startFrac) {
   } catch (e) {
     note.innerHTML = '<p class="msg">Could not display this note.</p>';
   }
-  drawSummary();
+  buildTutor();
   window.scrollTo(0, 0);
 
   function applyPos() {
@@ -377,21 +366,25 @@ window.setNote = function (text, startFrac) {
   }
 };
 
-window.wtSummaryResult = function (id, text) {
-  if (id !== pendingId) return;
-  pendingId = ""; loading = false; summary = text;
-  drawSummary();
-  /* like the website: a finished summary counts as read, unless the AI could not be reached */
-  if (text !== "Could not reach AI. Try again later.") {
-    sent100 = true;
-    pendingPct = 100;
-    sendProgress(100);
-  }
-};
-
 document.getElementById("tutorwrap").addEventListener("click", function (e) {
   var t = e.target;
   if (!t) return;
+  if (t.id === "tclear") {
+    var cf = document.getElementById("tclearconfirm"); if (cf) cf.style.display = "block";
+    return;
+  }
+  if (t.id === "tclearconfirmno") {
+    var cf = document.getElementById("tclearconfirm"); if (cf) cf.style.display = "none";
+    return;
+  }
+  if (t.id === "tclearconfirmyes") {
+    if (tutorBusy && window.WTBridge && window.WTBridge.onTutorStop) { try { window.WTBridge.onTutorStop(); } catch (e) {} }
+    tutorBusy = false; tutorReqId = ""; tutorMsgs = []; tutorNodes = [];
+    var box = document.getElementById("tmsgs"); if (box) box.innerHTML = "";
+    var cf = document.getElementById("tclearconfirm"); if (cf) cf.style.display = "none";
+    tutorDraw(); tutorChips(); tutorBtn();
+    return;
+  }
   if (t.id === "tsend") {
     if (tutorBusy) tutorStop();
     else tutorSend((document.getElementById("tinput") || {}).value);
@@ -401,23 +394,6 @@ document.getElementById("tutorwrap").addEventListener("click", function (e) {
   if (q) tutorSend(q);
 });
 
-document.getElementById("sumwrap").addEventListener("click", function (e) {
-  var t = e.target;
-  if (!t) return;
-  /* Ask AI tutor: opens (or hides) the chat right under the note. Nothing leaves the page until a question is sent. */
-  if (t.id === "tutorbtn") {
-    toggleTutor();
-    return;
-  }
-  if (t.id !== "sumbtn" || loading) return;
-  loading = true; summary = ""; pendingId = "s" + (++seq);
-  drawSummary();
-  if (!(window.WTBridge && window.WTBridge.onSummarize)) {
-    window.wtSummaryResult(pendingId, "Could not reach AI. Try again later.");
-    return;
-  }
-  window.WTBridge.onSummarize(JSON.stringify({ id: pendingId, text: noteText.slice(0, 8000) }));
-});
 </script>
 </body>
 </html>

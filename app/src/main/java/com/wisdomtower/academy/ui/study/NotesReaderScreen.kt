@@ -43,7 +43,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.wisdomtower.academy.BrandSplashLoader
-import com.wisdomtower.academy.data.content.AiExplainRepository
 import com.wisdomtower.academy.data.content.AiTutorRepository
 import com.wisdomtower.academy.data.content.ContentItemResult
 import com.wisdomtower.academy.data.content.LearningContentRepository
@@ -118,26 +117,21 @@ private fun buildTutorContext(title: String, noteText: String): String =
  * Native reader for one short note (plan step N6): loads the full row from Supabase
  * ([LearningContentRepository.getResource], offline copy kept) and shows its `body_md` in the LOCAL page
  * `assets/notes/index.html` (the website's RichContent + KaTeX dialect, no website page).
- * The page's "Summary" button (plan step N10, port of the website's `NotesViewer.tsx`) asks this screen through
- * `WTBridge.onSummarize({ id, text })`; the answer of [AiExplainRepository.summarize] goes back with
- * `window.wtSummaryResult(id, text)` (dropped if the screen was left).
  * Reading progress (plan step N10, like the website's `NotesViewer` + `HubContentView`): the page reports the
- * scrolled percent with `WTBridge.onProgress({ pct })` (100 from 95 percent on and after a Summary), saved to
+ * scrolled percent with `WTBridge.onProgress({ pct })` (100 from 95 percent on), saved to
  * `learning_progress` (the higher percent is kept by the repository); the reading time is added every 30 seconds
  * and once more when the screen is left. Nothing is saved for a signed-out student (the repository returns false).
  *
- * AI tutor button, INLINE (T1 of docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, changed 2026-11-03, owner: the tutor on a note must
- * continue BELOW the note, grow as the student asks more and scroll with the note, not open an overlay): next to Summary the
- * page has "Ask AI tutor". It opens a chat box under the note inside the same page (no overlay, no new screen). The page
- * keeps the conversation and calls `WTBridge.onTutorAsk({ id, messages })` for every question; this screen sends the
- * history to [AiTutorRepository.stream] with the chapter context ([buildTutorContext]: the note title and the first 14000
- * characters of the note, nothing about the student) and pushes the answer back with `window.wtTutorSet(id, textSoFar, state)`
- * (at most every 80 ms, state `stream`, `done` or `failed`) and `window.wtTutorSuggest(id, json)` for the follow-up prompts.
- * `WTBridge.onTutorStop()` cancels the running answer. One answer runs at a time; a new question cancels an older one.
- * The chat is NOT saved: it lives while the note is open (the drawer tutor keeps its own saved chats). The Box has
- * `imePadding()` so the keyboard does not cover the typing box that sits at the end of the page. The old overlay route
- * (`NativeToolRequests.requestTutorWithContext`) is no longer called from here and is left in place for the drawer tutor.
- * Uses no AI call of its own, no cache and no sign-in (the tutor route has none).
+ * AI tutor, INLINE and AUTO-OPEN (owner request 2026-11-04): a full-width tutor panel appears automatically after the note.
+ * There is no Summary button and no tutor launch/toggle button. The page keeps the conversation and calls
+ * `WTBridge.onTutorAsk({ id, messages })` for each question; this screen sends the history to [AiTutorRepository.stream]
+ * with the chapter context ([buildTutorContext]: note title and first 14000 characters, no student personal data).
+ * Answers stream back through `window.wtTutorSet` and follow-up prompts through `window.wtTutorSuggest`.
+ * The page always keeps a fourth "Continue learning with me" action after its three recommended prompts.
+ * Clear chat cancels a running answer and resets the current conversation after confirmation.
+ * The chat is not saved; it lives while the note is open. The old global tutor overlay remains separate for drawer/Learning use.
+ * The screen reuses the existing tutor API; it adds no new endpoint, API key, cache or sign-in path.
+ *
  *
  * Reading position (N1, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02, owner: the book reader remembers the last
  * page, the notes reader must too): the page reports where the student is with `WTBridge.onPosition({ frac })`
@@ -314,28 +308,6 @@ fun NotesReaderScreen(
 
     val bridge = remember(resourceId) {
         NotesBridge(
-            onSummarize = { json ->
-                screenScope.launch {
-                    var id = ""
-                    var text = "Could not reach AI. Try again later."
-                    try {
-                        val data = JSONObject(json)
-                        id = data.optString("id", "")
-                        text = AiExplainRepository.summarize(data.optString("text", ""), resourceId)
-                    } catch (e: CancellationException) {
-                        throw e
-                    } catch (e: Exception) {
-                        // keep the unreachable text
-                    }
-                    if (id.isNotEmpty()) {
-                        webRef[0]?.evaluateJavascript(
-                            "window.wtSummaryResult(${JSONObject.quote(id)}, ${JSONObject.quote(text)});",
-                            null
-                        )
-                    }
-                }
-                Unit
-            },
             onProgress = { json ->
                 try {
                     val pct = JSONObject(json).optInt("pct", 0).coerceIn(0, 100)
@@ -377,7 +349,7 @@ fun NotesReaderScreen(
         )
     }
 
-    // imePadding: the typing box of the inline tutor is at the end of the page; the keyboard must not cover it.
+    // imePadding: the tutor composer is at the end of the note page; the keyboard must not cover it.
     Box(modifier = modifier.fillMaxSize().imePadding()) {
         AtmosphereBackground(modifier = Modifier.fillMaxSize())
 
@@ -447,18 +419,12 @@ fun NotesReaderScreen(
 
 /** Receives the messages of `notes/index.html` (`window.WTBridge.*(json)`), on a WebView thread. */
 private class NotesBridge(
-    private val onSummarize: (String) -> Unit,
     private val onProgress: (String) -> Unit,
     private val onPosition: (String) -> Unit,
     private val onTutorAsk: (String) -> Unit,
     private val onTutorStop: () -> Unit,
     private val onReady: () -> Unit
 ) {
-    @JavascriptInterface
-    fun onSummarize(json: String) {
-        onSummarize.invoke(json)
-    }
-
     @JavascriptInterface
     fun onProgress(json: String) {
         onProgress.invoke(json)
