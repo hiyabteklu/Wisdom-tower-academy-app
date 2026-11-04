@@ -59,6 +59,12 @@ val WisdomPopupFillLow: Color
     }
 val WisdomPopupSurfaceElevated: Color
     get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.14f) else Color(0xFFE4DFD3)
+val WisdomPopupScrim: Color
+    get() = when (AppBackground.selected) {
+        AppBackgroundOption.Day -> Color(0x780B1B33)              // 47% navy over ivory
+        AppBackgroundOption.Photo2 -> Color(0x99030812)           // 60% over the photo background
+        else -> Color(0xA6030812)                                  // 65% at night
+    }
 
 val WisdomGlassFill: Color
     get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color(0xD1F8F5EE)
