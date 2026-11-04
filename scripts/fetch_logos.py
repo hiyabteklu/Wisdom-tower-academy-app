@@ -1,4 +1,4 @@
-import csv, io, re, time, urllib.parse
+import csv, io, re, time, urllib.parse as up
 from pathlib import Path
 import requests
 from PIL import Image
@@ -54,73 +54,157 @@ Wolkite University
 Wollega University
 Wollo University""".splitlines()
 
-H = {"User-Agent": "logo-fetcher/1.0 (educational app; Wisdom Tower Academy)"}
-WD = "https://www.wikidata.org/w/api.php"
-WP = "https://en.wikipedia.org/w/api.php"
+S = requests.Session()
+S.headers.update({"User-Agent": "Mozilla/5.0 (compatible; logo-fetcher/2.0; Wisdom Tower Academy)"})
 OUT = Path("logos")
 OUT.mkdir(exist_ok=True)
+GOOD = 300  # min side (px) considered good enough to stop searching
+GENERIC = {"logo", "seal", "emblem", "badge", "university", "of", "the", "and", "png",
+           "svg", "jpg", "jpeg", "file", "new", "official", "en", "college", "coat", "arms"}
 
 
 def slug(n):
     return re.sub(r"[^a-z0-9]+", "-", n.lower()).strip("-")
 
 
-def wikidata_logo(name):
-    r = requests.get(WD, headers=H, timeout=30, params={
-        "action": "wbsearchentities", "search": name, "language": "en",
-        "format": "json", "limit": 3}).json()
-    for hit in r.get("search", []):
-        c = requests.get(WD, headers=H, timeout=30, params={
-            "action": "wbgetclaims", "entity": hit["id"], "property": "P154",
-            "format": "json"}).json().get("claims", {}).get("P154")
-        if c:
-            f = c[0]["mainsnak"]["datavalue"]["value"]
-            return ("https://commons.wikimedia.org/wiki/Special:FilePath/"
-                    + urllib.parse.quote(f) + "?width=512"), "wikidata:" + hit["id"]
-    return None, None
+def get(url, **kw):
+    kw.setdefault("timeout", 30)
+    r = S.get(url, **kw)
+    r.raise_for_status()
+    return r
 
 
-def wikipedia_image(name):
-    r = requests.get(WP, headers=H, timeout=30, params={
-        "action": "query", "titles": name, "prop": "pageimages",
-        "piprop": "thumbnail", "pithumbsize": 512, "redirects": 1,
-        "format": "json"}).json()
-    for p in r.get("query", {}).get("pages", {}).values():
-        if "thumbnail" in p:
-            return p["thumbnail"]["source"], "wikipedia"
-    return None, None
+def to_image(content):
+    try:
+        im = Image.open(io.BytesIO(content))
+        im.load()
+        return im.convert("RGBA")
+    except Exception:
+        return None
 
 
-def save_png(url, path):
-    resp = requests.get(url, headers=H, timeout=60)
-    resp.raise_for_status()
-    img = Image.open(io.BytesIO(resp.content)).convert("RGBA")
-    img.save(path, "PNG")
+def words(s):
+    return set(re.findall(r"[a-z]+", s.lower()))
+
+
+def commons_candidates(name):
+    keys = words(name) - GENERIC
+    out = []
+    for q in (f"{name} logo", f"{name} emblem seal"):
+        r = get("https://commons.wikimedia.org/w/api.php", params={
+            "action": "query", "list": "search", "srsearch": q,
+            "srnamespace": 6, "srlimit": 8, "format": "json"}).json()
+        for hit in r.get("query", {}).get("search", []):
+            title = hit["title"][5:]
+            toks = words(title)
+            if not keys <= toks:
+                continue
+            if toks - keys - GENERIC:
+                continue  # title mentions other words -> probably another institution
+            if not re.search(r"logo|seal|emblem|badge|coat", title, re.I):
+                continue
+            url = ("https://commons.wikimedia.org/wiki/Special:FilePath/"
+                   + up.quote(title) + "?width=512")
+            if url not in out:
+                out.append(url)
+    return out
+
+
+def find_site(name):
+    q = f"{name} Ethiopia official website"
+    urls = []
+    try:
+        h = get("https://html.duckduckgo.com/html/", params={"q": q}).text
+        urls += [up.unquote(m) for m in re.findall(r"uddg=([^&\"']+)", h)]
+    except Exception as e:
+        print("   ddg failed:", e)
+    try:
+        h = get("https://www.bing.com/search", params={"q": q}).text
+        urls += re.findall(r'<h2><a href="(https?://[^"]+)"', h)
+    except Exception as e:
+        print("   bing failed:", e)
+    for u in urls:
+        host = up.urlparse(u).netloc.lower()
+        if host.endswith(".edu.et"):
+            return f"https://{host}/"
+    return None
+
+
+def site_candidates(base):
+    html = get(base).text
+    cands = []
+    for m in re.finditer(r"<img\b[^>]*>", html, re.I):
+        tag = m.group(0)
+        if re.search(r"logo", tag, re.I):
+            s = re.search(r"""(?:data-src|src)=["']([^"']+)""", tag, re.I)
+            if s:
+                cands.append(up.urljoin(base, s.group(1)))
+    for m in re.finditer(r"<meta\b[^>]*>", html, re.I):
+        if re.search(r"og:image", m.group(0), re.I):
+            s = re.search(r"""content=["']([^"']+)""", m.group(0), re.I)
+            if s:
+                cands.append(up.urljoin(base, s.group(1)))
+    for m in re.finditer(r"<link\b[^>]*>", html, re.I):
+        if re.search(r"icon", m.group(0), re.I):
+            s = re.search(r"""href=["']([^"']+)""", m.group(0), re.I)
+            if s:
+                cands.append(up.urljoin(base, s.group(1)))
+    seen, out = set(), []
+    for c in cands:
+        if c not in seen and not c.lower().split("?")[0].endswith(".svg"):
+            seen.add(c)
+            out.append(c)
+    return out
+
+
+def best_of(urls, label, best, limit=6):
+    for url in urls[:limit]:
+        try:
+            im = to_image(get(url, timeout=40).content)
+        except Exception:
+            continue
+        if im is None:
+            continue
+        w, h = im.size
+        if min(w, h) < 48 or max(w, h) / min(w, h) > 5:
+            continue
+        if best is None or w * h > best["w"] * best["h"]:
+            best = {"im": im, "w": w, "h": h, "src": label, "url": url}
+        if min(best["w"], best["h"]) >= GOOD:
+            break
+    return best
 
 
 rows, missing = [], []
 for i, name in enumerate(NAMES, 1):
-    path = OUT / f"{slug(name)}.png"
-    done = False
-    for finder in (wikidata_logo, wikipedia_image):
+    best = None
+    try:
+        best = best_of(commons_candidates(name), "commons", best, limit=3)
+    except Exception as e:
+        print(f"   commons failed for {name}: {e}")
+    if best is None or min(best["w"], best["h"]) < GOOD:
         try:
-            url, src = finder(name)
-            if url:
-                save_png(url, path)
-                rows.append([i, name, path.name, src, url])
-                print(f"OK   {i:02d} {name} ({src})")
-                done = True
-                break
+            base = find_site(name)
+            if base:
+                best = best_of(site_candidates(base), "site:" + base, best)
         except Exception as e:
-            print(f"ERR  {name}: {e}")
-        time.sleep(0.3)
-    if not done:
+            print(f"   site failed for {name}: {e}")
+    if best is None:
         missing.append(name)
         print(f"MISS {i:02d} {name}")
+        continue
+    im = best["im"]
+    im.thumbnail((512, 512))
+    fn = slug(name) + ".png"
+    im.save(OUT / fn, "PNG")
+    flag = "LOW-RES" if max(best["w"], best["h"]) < 200 else ""
+    rows.append([i, name, fn, best["src"], best["w"], best["h"], flag, best["url"]])
+    print(f"OK   {i:02d} {name} ({best['src']}, {best['w']}x{best['h']}) {flag}")
+    time.sleep(0.5)
 
 with open("sources.csv", "w", newline="", encoding="utf-8") as f:
     w = csv.writer(f)
-    w.writerow(["#", "university", "file", "source", "url"])
+    w.writerow(["#", "university", "file", "source", "width", "height", "flag", "url"])
     w.writerows(rows)
 Path("missing.txt").write_text("\n".join(missing), encoding="utf-8")
 print(f"\nDone: {len(rows)} found, {len(missing)} missing")
