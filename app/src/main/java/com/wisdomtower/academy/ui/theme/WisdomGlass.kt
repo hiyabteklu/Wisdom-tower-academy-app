@@ -41,6 +41,25 @@ import androidx.compose.ui.unit.dp
  * 2026-10-19, the sage page looked muddy and inverse) put it BACK to frosted ivory (F8F5EE / FBF9F4 / F3EFE6), to match the
  * ivory page in AppBackground.kt (Day) and the card tokens in Color.kt. Change them together.
  */
+/**
+ * Shared popup and overlay surfaces. Denser than normal cards so text stays readable above the scrim,
+ * while the Transparent background remains perceptible around each panel. Getter follows background changes.
+ */
+val WisdomPopupFill: Color
+    get() = when (AppBackground.selected) {
+        AppBackgroundOption.Day -> Color(0xEEF8F5EE)       // 93% frosted ivory
+        AppBackgroundOption.Photo2 -> Color(0xD90F1829)    // 85% navy glass over the photo background
+        else -> Color(0xE60F1829)                          // 90% navy glass at night
+    }
+val WisdomPopupFillLow: Color
+    get() = when (AppBackground.selected) {
+        AppBackgroundOption.Day -> Color(0xE6F3EFE6)       // 90% secondary ivory
+        AppBackgroundOption.Photo2 -> Color(0xCC0F1829)    // 80% secondary navy glass
+        else -> Color(0xD90F1829)                          // 85% secondary navy glass
+    }
+val WisdomPopupSurfaceElevated: Color
+    get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.14f) else Color(0xFFE4DFD3)
+
 val WisdomGlassFill: Color
     get() = if (AppThemeMode.isDark) Color.White.copy(alpha = 0.12f) else Color(0xD1F8F5EE)
 val WisdomGlassFillStrong: Color
