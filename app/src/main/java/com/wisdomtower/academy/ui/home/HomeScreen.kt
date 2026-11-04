@@ -87,6 +87,9 @@ import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
 import com.wisdomtower.academy.ui.theme.wisdomReveal
 import com.wisdomtower.academy.ui.theme.wisdomHeaderParallax
+import com.wisdomtower.academy.ui.theme.rememberWisdomCardSource
+import com.wisdomtower.academy.ui.theme.wisdomCardSource
+import com.wisdomtower.academy.ui.theme.markOrigin
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -476,6 +479,8 @@ private fun ResourceTile(
     index: Int,
     onClick: () -> Unit
 ) {
+    // Capture this exact resource tile so its pushed guide opens from here and returns to this same tile.
+    val cardSource = rememberWisdomCardSource()
     val interaction = remember { MutableInteractionSource() }
     val pressed by interaction.collectIsPressedAsState()
     val pressScale by animateFloatAsState(
@@ -499,6 +504,7 @@ private fun ResourceTile(
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .wisdomCardSource(cardSource)
             .graphicsLayer {
                 alpha = enter
                 translationY = (1f - enter) * 32f
@@ -512,7 +518,10 @@ private fun ResourceTile(
                 interactionSource = interaction,
                 indication = null,
                 role = Role.Button,
-                onClick = onClick
+                onClick = {
+                    cardSource.markOrigin()
+                    onClick()
+                }
             )
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
