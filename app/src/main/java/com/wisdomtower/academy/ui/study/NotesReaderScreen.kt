@@ -122,19 +122,16 @@ private fun buildTutorContext(title: String, noteText: String): String =
  * `learning_progress` (the higher percent is kept by the repository); the reading time is added every 30 seconds
  * and once more when the screen is left. Nothing is saved for a signed-out student (the repository returns false).
  *
- * AI tutor button, INLINE (T1 of docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, changed 2026-11-03, owner: the tutor on a note must
- * continue BELOW the note, grow as the student asks more and scroll with the note, not open an overlay): next to Summary the
- * page has "Ask AI tutor". It opens a chat box under the note inside the same page (no overlay, no new screen). The page
- * keeps the conversation and calls `WTBridge.onTutorAsk({ id, messages })` for every question; this screen sends the
- * history to [AiTutorRepository.stream] with the chapter context ([buildTutorContext]: the note title and the first 14000
- * characters of the note, nothing about the student) and pushes the answer back with `window.wtTutorSet(id, textSoFar, state)`
- * (at most every 80 ms, state `stream`, `done` or `failed`) and `window.wtTutorSuggest(id, json)` for the follow-up prompts.
- * `WTBridge.onTutorStop()` cancels the running answer. One answer runs at a time; a new question cancels an older one.
- * The chat is NOT saved: it lives while the note is open (the drawer tutor keeps its own saved chats). A Clear chat action
- * resets the current conversation after confirmation. The Box has `imePadding()` so the keyboard does not cover the composer.
- * The old overlay route
- * (`NativeToolRequests.requestTutorWithContext`) is no longer called from here and is left in place for the drawer tutor.
- * Uses no AI call of its own, no cache and no sign-in (the tutor route has none).
+ * AI tutor, INLINE and AUTO-OPEN (owner request 2026-11-04): a full-width tutor panel appears automatically after the note.
+ * There is no Summary button and no tutor launch/toggle button. The page keeps the conversation and calls
+ * `WTBridge.onTutorAsk({ id, messages })` for each question; this screen sends the history to [AiTutorRepository.stream]
+ * with the chapter context ([buildTutorContext]: note title and first 14000 characters, no student personal data).
+ * Answers stream back through `window.wtTutorSet` and follow-up prompts through `window.wtTutorSuggest`.
+ * The page always keeps a fourth "Continue learning with me" action after its three recommended prompts.
+ * Clear chat cancels a running answer and resets the current conversation after confirmation.
+ * The chat is not saved; it lives while the note is open. The old global tutor overlay remains separate for drawer/Learning use.
+ * The screen reuses the existing tutor API; it adds no new endpoint, API key, cache or sign-in path.
+ *
  *
  * Reading position (N1, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02, owner: the book reader remembers the last
  * page, the notes reader must too): the page reports where the student is with `WTBridge.onPosition({ frac })`
