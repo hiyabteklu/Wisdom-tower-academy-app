@@ -31,8 +31,8 @@ import androidx.core.view.WindowCompat
 
 // Shared mode-aware popup fills live in WisdomGlass.kt and are used by both Material defaults and custom overlays.
 
-private val DarkColorScheme =
-  darkColorScheme(
+private val DarkColorScheme: androidx.compose.material3.ColorScheme
+  get() = darkColorScheme(
     primary = WisdomDarkPalette.cyan,
     background = WisdomDarkPalette.navy,
     surface = WisdomDarkPalette.card,
@@ -50,8 +50,8 @@ private val DarkColorScheme =
 
 // Day (D1): a real light scheme built from the "Ivory & Navy" palette in Color.kt (deep navy text on ivory, deep teal accent
 // with white text on it) and the ivory overlay roles above.
-private val LightColorScheme =
-  lightColorScheme(
+private val LightColorScheme: androidx.compose.material3.ColorScheme
+  get() = lightColorScheme(
     primary = WisdomLightPalette.cyan,
     onPrimary = WisdomLightPalette.onCyan,
     secondary = WisdomLightPalette.cyanDark,
