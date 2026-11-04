@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupScrim
+
 import com.wisdomtower.academy.ui.theme.WisdomPopupFill
 
 import androidx.activity.compose.BackHandler
@@ -98,7 +100,7 @@ fun StatusDetailCard(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color.Black.copy(alpha = 0.55f))
+                .background(WisdomPopupScrim)
                 .clickable(interactionSource = noRipple, indication = null, onClick = onDismiss),
             contentAlignment = Alignment.BottomCenter
         ) {
