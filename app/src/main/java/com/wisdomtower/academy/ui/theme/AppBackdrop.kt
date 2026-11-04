@@ -179,8 +179,8 @@ object AppBackdrop {
      */
     private const val GLASS_JS_DAY = """
 (function(){
- if(window.__wtGlassDay){window.__wtGlassDay.run();return;}
  try{document.documentElement.classList.add('wt-day');}catch(err){}
+ if(window.__wtGlassDay){window.__wtGlassDay.run();return;}
  var KEY='data-wtg',GLASS='rgba(248,245,238,0.84)',SCRIM='rgba(11,27,51,0.5)',PANEL='rgba(248,245,238,0.93)',
   CHIP='rgba(11,27,51,0.08)',INK='11,27,51',MUTED='rgb(74,90,112)',LINE='rgba(11,27,51,0.16)',
   PROPS=['background-color','background-image','color','border-color'],timer=null,busy=false;
