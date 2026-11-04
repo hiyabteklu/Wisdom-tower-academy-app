@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.admin
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -342,7 +343,7 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
     if (dqItem != null) {
         AlertDialog(
             onDismissRequest = { dqTarget = null },
-            containerColor = WisdomNavy,
+            containerColor = WisdomPopupFill,
             title = {
                 Text(text = "Disqualify entry", color = WisdomTextPrimary, fontWeight = FontWeight.Bold)
             },
