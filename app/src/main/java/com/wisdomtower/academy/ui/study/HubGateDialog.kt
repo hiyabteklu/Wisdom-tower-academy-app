@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -78,7 +80,7 @@ internal fun HubGateDialog(
                 .fillMaxWidth()
                 .wisdomCardShadow(cardShape)
                 .clip(cardShape)
-                .background(dayNight(Color(0xF50F1829), Color(0xF7F8F5EE)))
+                .background(WisdomPopupFill)
                 .border(BorderStroke(1.dp, WisdomBorderWhite), cardShape)
                 .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
