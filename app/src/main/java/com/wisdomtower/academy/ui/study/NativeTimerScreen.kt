@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import androidx.activity.compose.BackHandler
 import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
@@ -400,7 +402,7 @@ private val TmChipOnFill: Color get() = dayNight(Color.White.copy(alpha = 0.20f)
 private val TmChipOnBorder: Color get() = dayNight(Color.White.copy(alpha = 0.30f), WisdomCyan.copy(alpha = 0.50f))
 private val TmChipOffFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), WisdomGlassFillQuiet)
 private val TmChipOffBorder: Color get() = dayNight(Color.White.copy(alpha = 0.08f), WisdomGlassBorder)
-private val TmDialogFill: Color get() = dayNight(Color.White.copy(alpha = 0.04f), Color(0xF2F8F5EE))
+private val TmDialogFill: Color get() = WisdomPopupFill
 private val TmDialogBorder: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
 private val TmDialogQuietFill: Color get() = dayNight(Color.White.copy(alpha = 0.05f), WisdomGlassFillQuiet)
 private val TmDialogQuietBorder: Color get() = dayNight(Color.White.copy(alpha = 0.15f), WisdomGlassBorder)
