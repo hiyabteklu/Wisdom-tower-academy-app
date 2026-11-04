@@ -2,8 +2,8 @@ package com.wisdomtower.academy.data.admin
 
 // ADMIN-native N6b. Hand copy of ADMIN_CONTENT_TREE in website-reference/src/data/admin-nav.ts, built from the same
 // source lists (grades and hubs: data/academy.ts; subjects per grade: data/grade-subjects.ts; freshman courses:
-// data/freshman.ts; ECE courses: data/special-packages.ts; entrance streams, subjects and years:
-// data/entrance-questions.ts). Only ids and names are kept (no pictures, no descriptions, no prices).
+// data/freshman.ts; remedial subjects: data/remedial.ts; ECE courses: data/special-packages.ts; entrance streams,
+// subjects and years: data/entrance-questions.ts). Only ids and names are kept (no pictures, no descriptions, no prices).
 // HYPOTHESIS: when the website adds or renames a subject, course, year or hub, this file must be updated by hand.
 // The Course Content slice (N7) will reuse this tree.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
@@ -78,6 +78,26 @@ private fun gradeNodes(): List<AdminNavNode> = listOf("9", "10", "11", "12").map
     )
 }
 
+private val REMEDIAL_SUBJECTS: List<Pair<String, String>> = listOf(
+    "english" to "English",
+    "maths" to "Maths",
+    "physics" to "Physics",
+    "chemistry" to "Chemistry",
+    "biology" to "Biology",
+    "history" to "History",
+    "geography" to "Geography"
+)
+
+private fun remedialNode(): AdminNavNode = AdminNavNode(
+    id = "remedial",
+    label = "Remedial",
+    packageId = "remedial",
+    scopePath = null,
+    children = REMEDIAL_SUBJECTS.map { (id, name) ->
+        subjectNode("remedial", "remedial/$id", id, name)
+    }
+)
+
 private const val ENTRANCE_PACKAGE_ID = "entrance-questions"
 private val ENTRANCE_YEARS: List<String> = listOf("2014", "2015", "2016", "2017", "2018", "2019")
 
@@ -100,7 +120,7 @@ private fun entranceNode(): AdminNavNode {
     )
     return AdminNavNode(
         id = "entrance-questions",
-        label = "Entrance Questions",
+        label = "EUEE · Entrance Questions",
         packageId = ENTRANCE_PACKAGE_ID,
         scopePath = null,
         children = streams.map { stream ->
@@ -206,20 +226,21 @@ private fun specialNode(): AdminNavNode = AdminNavNode(
     children = ECE_SEMESTERS.map { sem ->
         AdminNavNode(
             id = "electrical-computer-engineering-${sem.id}",
-            label = "Electrical & Computer Engineering \u00B7 ${sem.shortLabel}",
+            label = "Electrical & Computer Engineering · ${sem.shortLabel}",
             packageId = sem.packageId,
             scopePath = null,
             children = sem.courses.map { (code, title) ->
                 val slug = code.lowercase()
-                subjectNode(sem.packageId, "ece/${sem.id}/$slug", slug, "$code \u00B7 $title")
+                subjectNode(sem.packageId, "ece/${sem.id}/$slug", slug, "$code · $title")
             }
         )
     }
 )
 
 val ADMIN_CONTENT_TREE: List<AdminNavNode> = listOf(
-    AdminNavNode("grades", "Grades 9\u201312", null, null, gradeNodes()),
+    AdminNavNode("grades", "Grades 9–12", null, null, gradeNodes()),
     entranceNode(),
     freshmanNode(),
+    remedialNode(),
     specialNode()
 )
