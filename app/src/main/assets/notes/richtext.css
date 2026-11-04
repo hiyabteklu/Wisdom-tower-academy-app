@@ -151,9 +151,16 @@ html.wt-day .msg { color: #4a5a70 !important; }
   from { opacity: 0; transform: translateY(10px); }
   to { opacity: 1; transform: translateY(0); }
 }
-/* All local learning pages share #root, so the arrival is wired without page-specific JS hooks. */
+/* All local learning pages share #root, so the arrival is wired without page-specific JS hooks.
+   POPUP-FIX (2026-11-04, owner: the result card is not visible, the screen only dims): the fill mode was "both". The "forwards"
+   half keeps the LAST keyframe (transform: translateY(0)) on #root for good, and any transform other than none makes #root
+   the containing block of every position:fixed child. The result card, the confirm dialog and the floating Prev / Next bar
+   (.ovl, .nav in quiz.html and competition_exam.html) were then placed against the whole tall #root instead of the screen,
+   so the dim showed at the top and the card sat far below the visible part. "backwards" still paints the first keyframe
+   while the animation runs, and when it ends the transform is gone again. Do NOT leave a permanent transform, filter,
+   perspective, will-change: transform or contain: paint on #root or body: it breaks every fixed pop-up on every page. */
 #root {
-  animation: wt-page-arrive 200ms cubic-bezier(.2,.75,.25,1) both;
+  animation: wt-page-arrive 200ms cubic-bezier(.2,.75,.25,1) backwards;
 }
 button, [role="button"], .clickable {
   -webkit-tap-highlight-color: transparent;
