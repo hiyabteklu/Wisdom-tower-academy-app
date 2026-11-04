@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.admin
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -340,7 +341,7 @@ internal fun AdminConfirmDialog(
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        containerColor = WisdomNavy,
+        containerColor = WisdomPopupFill,
         title = {
             Text(text = title, color = WisdomTextPrimary, fontWeight = FontWeight.Bold)
         },
