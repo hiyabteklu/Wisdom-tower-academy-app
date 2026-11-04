@@ -319,6 +319,7 @@ object AppBackground {
             .edit()
             .putString(KEY, option.name)
             .apply()
+        AppBackdrop.refreshRegisteredPages()
     }
 
     private fun readSaved(): AppBackgroundOption {
