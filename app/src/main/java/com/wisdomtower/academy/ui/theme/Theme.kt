@@ -29,25 +29,7 @@ import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.core.view.WindowCompat
 
-// Night: the six values the app always had (the approved look), plus (BG-THEME, 2026-10-17, owner: background literally
-// everywhere, no pop up left) the Material "surface container" roles. Every default pop-up (AlertDialog, DropdownMenu,
-// TimePicker / clock, DatePicker, ModalBottomSheet, ExposedDropdown, Snackbar-like surfaces) takes its fill from these, so ONE
-// place changes all of them.
-// BG-READ (2026-10-17): navy 70 percent became 82 percent, low 60 became 75, chip 20 became 25.
-// BG-POPUP-2 (2026-10-17, owner: pop-up text is still not readable, it mixes with what is beneath): pop-ups must be READABLE
-// first, so navy is now 95 percent (0xF2), the low variant 90 percent (0xE6), the chip 35 percent (0x59). The window
-// behind a pop-up is dimmed by the system dialog scrim.
-// To go back: D1 / BF / 40.
-private val PopupGlassNavy = Color(0xF20F1829)
-private val PopupGlassNavyLow = Color(0xE60F1829)
-private val PopupGlassChip = Color(0x59FFFFFF)
-
-// Day (D1, docs/DAY_MODE_PLAN.md section 4): overlays (pop-ups, menus, sheets, dialogs) use the same ivory as the cards but
-// at about 92 percent (0xEB), because overlays need more opacity than cards (owner feedback 2026-10-17). The low variant is a
-// touch deeper ivory and the chip role is the deeper ivory E4DFD3.
-private val PopupIvory = Color(0xEBF8F5EE)
-private val PopupIvoryLow = Color(0xEBF3EFE6)
-private val PopupIvoryChip = Color(0xEBE4DFD3)
+// Shared mode-aware popup fills live in WisdomGlass.kt and are used by both Material defaults and custom overlays.
 
 private val DarkColorScheme =
   darkColorScheme(
@@ -57,13 +39,13 @@ private val DarkColorScheme =
     onPrimary = WisdomDarkPalette.onCyan,
     onBackground = WisdomDarkPalette.textPrimary,
     onSurface = WisdomDarkPalette.textPrimary,
-    surfaceContainerLowest = PopupGlassNavyLow,
-    surfaceContainerLow = PopupGlassNavyLow,
-    surfaceContainer = PopupGlassNavy,
-    surfaceContainerHigh = PopupGlassNavy,
-    surfaceContainerHighest = PopupGlassChip,
-    surfaceBright = PopupGlassChip,
-    surfaceDim = PopupGlassNavy
+    surfaceContainerLowest = WisdomPopupFillLow,
+    surfaceContainerLow = WisdomPopupFillLow,
+    surfaceContainer = WisdomPopupFill,
+    surfaceContainerHigh = WisdomPopupFill,
+    surfaceContainerHighest = WisdomPopupSurfaceElevated,
+    surfaceBright = WisdomPopupSurfaceElevated,
+    surfaceDim = WisdomPopupFill
   )
 
 // Day (D1): a real light scheme built from the "Ivory & Navy" palette in Color.kt (deep navy text on ivory, deep teal accent
@@ -84,13 +66,13 @@ private val LightColorScheme =
     outlineVariant = WisdomLightPalette.borderWhite,
     error = WisdomLightPalette.rose,
     onError = WisdomLightPalette.onCyan,
-    surfaceContainerLowest = PopupIvoryLow,
-    surfaceContainerLow = PopupIvoryLow,
-    surfaceContainer = PopupIvory,
-    surfaceContainerHigh = PopupIvory,
-    surfaceContainerHighest = PopupIvoryChip,
-    surfaceBright = PopupIvoryChip,
-    surfaceDim = PopupIvory
+    surfaceContainerLowest = WisdomPopupFillLow,
+    surfaceContainerLow = WisdomPopupFillLow,
+    surfaceContainer = WisdomPopupFill,
+    surfaceContainerHigh = WisdomPopupFill,
+    surfaceContainerHighest = WisdomPopupSurfaceElevated,
+    surfaceBright = WisdomPopupSurfaceElevated,
+    surfaceDim = WisdomPopupFill
   )
 
 /**
