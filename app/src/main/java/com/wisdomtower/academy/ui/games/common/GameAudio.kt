@@ -21,6 +21,9 @@ object GameAudio {
     @Volatile
     var muted: Boolean = false
 
+    @Volatile
+    private var masterVolume: Float = 0.5f
+
     private var ready = false
     private val tracks = HashMap<Sfx, AudioTrack>()
     private var thread: HandlerThread? = null
@@ -28,7 +31,15 @@ object GameAudio {
 
     private const val SAMPLE_RATE = 22050
 
+    /**
+     * Reads the same preferences edited by SettingsScreen. Calling init from any game
+     * refreshes both mute and volume before that game starts.
+     */
     fun init(context: Context) {
+        val prefs = context.applicationContext.getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE)
+        muted = !prefs.getBoolean("sound_effects", true)
+        masterVolume = prefs.getFloat("sound_volume", 0.5f).coerceIn(0f, 1f)
+        applyTrackVolume()
         if (ready) return
         try {
             val t = HandlerThread("GameAudio").also { it.start() }
@@ -47,6 +58,7 @@ object GameAudio {
                     tracks[Sfx.Freeze] = buildTrack(tone(600.0, 0.15, 0.2))
                     tracks[Sfx.Shot] = buildTrack(tone(400.0, 0.05, 0.3))
                     tracks[Sfx.Hit] = buildTrack(tone(220.0, 0.08, 0.35))
+                    applyTrackVolume()
                     ready = true
                 } catch (_: Exception) {
                     ready = false
@@ -54,6 +66,31 @@ object GameAudio {
             }
         } catch (_: Exception) {
             ready = false
+        }
+    }
+
+    /** Apply the Settings screen's master effects switch immediately, including during play. */
+    fun setMuted(value: Boolean) {
+        muted = value
+    }
+
+    /** Apply the Settings screen's master volume immediately to every synthesized effect. */
+    fun setVolume(value: Float) {
+        masterVolume = value.coerceIn(0f, 1f)
+        applyTrackVolume()
+    }
+
+    private fun applyTrackVolume() {
+        val volume = masterVolume
+        try {
+            handler?.post {
+                tracks.values.forEach { track ->
+                    try { track.setVolume(volume) } catch (_: Exception) { }
+                }
+            } ?: tracks.values.forEach { track ->
+                try { track.setVolume(volume) } catch (_: Exception) { }
+            }
+        } catch (_: Exception) {
         }
     }
 

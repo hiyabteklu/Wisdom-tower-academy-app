@@ -75,15 +75,24 @@ object GameStore {
 
     fun getSettings(context: Context): GlobalSettings {
         val root = readRoot(context)
+        // One source of truth: the Settings screen controls the same master switch
+        // used by every native game. Keep vibration as a separate game preference.
+        val audioPrefs = context.applicationContext.getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE)
         return GlobalSettings(
-            soundOn = root.optBoolean("soundOn", true),
+            soundOn = audioPrefs.getBoolean("sound_effects", true),
             vibrationOn = root.optBoolean("vibrationOn", true)
         )
     }
 
     fun setSoundOn(context: Context, on: Boolean) {
+        // Pause-menu sound toggle must stay in sync with the main Settings screen.
+        context.applicationContext
+            .getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .putBoolean("sound_effects", on)
+            .apply()
         val root = readRoot(context)
-        root.put("soundOn", on)
+        root.put("soundOn", on) // retain the legacy value for older app versions
         writeRoot(context, root)
     }
 

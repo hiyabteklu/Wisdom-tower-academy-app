@@ -73,6 +73,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.ui.games.common.GameAudio
 import com.wisdomtower.academy.AcademyNotificationManager
 import com.wisdomtower.academy.data.auth.AccountCallResult
 import com.wisdomtower.academy.data.auth.AuthStateManager
@@ -247,6 +248,7 @@ fun SettingsScreen(
                             onCheckedChange = {
                                 soundEffects = it
                                 prefsStorage.edit().putBoolean("sound_effects", it).apply()
+                                GameAudio.setMuted(!it)
                             }
                         )
 
@@ -287,6 +289,7 @@ fun SettingsScreen(
                                         .clickable(role = Role.Button) {
                                             soundVolume = 0.5f
                                             prefsStorage.edit().putFloat("sound_volume", 0.5f).apply()
+                                            GameAudio.setVolume(0.5f)
                                         }
                                 )
                             }
@@ -302,6 +305,7 @@ fun SettingsScreen(
                                     onValueChange = {
                                         soundVolume = it
                                         prefsStorage.edit().putFloat("sound_volume", it).apply()
+                                        GameAudio.setVolume(it)
                                     },
                                     valueRange = 0.05f..1f,
                                     modifier = Modifier.weight(1f).semantics { contentDescription = "Game audio volume" },
