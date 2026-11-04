@@ -45,6 +45,10 @@ import com.wisdomtower.academy.ui.theme.wisdomDialogEnter
  * plan) with the soft navy shadow, the title is deep navy ink, the badge is the premium gold (fill F1DFB4, text 5C3F0A) and
  * the button text is white on the deep teal. Night keeps every old literal, so night looks exactly as before.
  *
+ * BG-POPUP-3 (owner request 2026-11-04, "make all popups more solid, text mixes with the screen behind"): the card fill is
+ * now near-solid, night 96 percent navy 0F1829 (was 30 percent 111B2E), day 97 percent ivory (was 92). To go back: night
+ * Color(0x4D111B2E), day Color(0xEBF8F5EE).
+ *
  * TELEGRAM BUILD (S2, `docs/PLAN_TELEGRAM_PAID_NATIVE_V2.md`): when the title is the "Package required" title and
  * [rememberPaidOffer] has an offer (paid build, course with a package, price in the admin dashboard), this pop-up is NOT
  * shown: the native [PaidPurchaseScreen] (Offer, Pay, Pending) opens instead. The old "Buy now" / "My orders" website
@@ -74,7 +78,7 @@ internal fun HubGateDialog(
                 .fillMaxWidth()
                 .wisdomCardShadow(cardShape)
                 .clip(cardShape)
-                .background(dayNight(Color(0x4D111B2E), Color(0xEBF8F5EE)))
+                .background(dayNight(Color(0xF50F1829), Color(0xF7F8F5EE)))
                 .border(BorderStroke(1.dp, WisdomBorderWhite), cardShape)
                 .padding(horizontal = 24.dp, vertical = 28.dp),
             horizontalAlignment = Alignment.CenterHorizontally
