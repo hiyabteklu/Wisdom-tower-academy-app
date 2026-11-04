@@ -120,7 +120,7 @@ private fun entranceNode(): AdminNavNode {
     )
     return AdminNavNode(
         id = "entrance-questions",
-        label = "Entrance Questions",
+        label = "EUEE · Entrance Questions",
         packageId = ENTRANCE_PACKAGE_ID,
         scopePath = null,
         children = streams.map { stream ->
