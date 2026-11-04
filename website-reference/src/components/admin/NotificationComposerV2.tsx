@@ -13,6 +13,15 @@
  * admin_schedule_notification_v2 / admin_update_scheduled_notification_v2 (admin's own session).
  * Scheduling works for groups of students only (the scheduler has no single-student target).
  * Editing a waiting row (`editRow`) loads it into the form; saving updates that row.
+ *
+ * 2026-10-15 (Admin mobile redesign, slice A6 part 2): LAYOUT ONLY (compact category tiles, 44 px controls,
+ * full-width submit pill). Logic, state, validation and API calls are unchanged.
+ *
+ * 2026-10-16 (Admin UI V2, slice U4 part 3c): LAYOUT ONLY. Kit card, kit fields (AdminField / AdminInput /
+ * AdminSelect), gold selected category tile, kit primary pill, and a bottom sheet instead of the browser
+ * confirm box before "Send now" (same message; pressing Send runs the same checks again and then sends).
+ * One small change: scrolling to the form when Edit is pressed is no longer animated (the admin layout turns
+ * smooth scrolling off because it may fight touch scrolling in the WebView).
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -42,6 +51,7 @@ import {
   friendlyScheduleError,
   type ScheduledRowV2,
 } from "./ScheduledNotificationsPanel";
+import { AdminCard, AdminField, AdminInput, AdminPill, AdminSelect, AdminSheet } from "./ui";
 
 const EAT_OFFSET = "+03:00";
 
@@ -70,6 +80,11 @@ const CATEGORIES: {
     Icon: Trophy,
   },
 ];
+
+const RADIO_LABEL_CLASS =
+  "inline-flex items-center gap-2 min-h-[44px] cursor-pointer text-sm text-white";
+
+const STEP_TITLE = "text-sm font-bold text-white";
 
 function childrenAfter(trail: string[]): NotificationPathNode[] {
   let level = NOTIFICATION_PATH_TREE;
@@ -146,6 +161,7 @@ export default function NotificationComposerV2({
   const [sendAtLocal, setSendAtLocal] = useState("");
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
+  const [confirmWho, setConfirmWho] = useState<string | null>(null);
 
   const editing = Boolean(editRow);
   const pickedPath = category === "material" ? pathFromTrail(trail) : null;
@@ -166,7 +182,7 @@ export default function NotificationComposerV2({
     setWhen("later");
     setSendAtLocal(toEatInput(editRow.send_at));
     setFeedback(null);
-    rootRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    rootRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
   }, [editRow]);
 
   function setLevel(depth: number, id: string) {
@@ -181,7 +197,8 @@ export default function NotificationComposerV2({
     setSendAtLocal("");
   }
 
-  async function handleSubmit() {
+  // skipConfirm is true only when the admin pressed Send in the confirm sheet (the checks run again).
+  async function handleSubmit(skipConfirm = false) {
     setFeedback(null);
     const content = editorToContent(blocks);
     if (!title.trim()) {
@@ -224,14 +241,15 @@ export default function NotificationComposerV2({
         return;
       }
       sendAtIso = sendAt.toISOString();
-    } else if (mode === "groups") {
+    } else if (mode === "groups" && !skipConfirm) {
       const who =
         groups.length === 0
           ? "EVERY student"
           : groupCount === null
           ? "the selected groups"
           : `${groupCount} student(s)`;
-      if (!window.confirm(`Send this to ${who} now? This cannot be undone.`)) return;
+      setConfirmWho(who);
+      return;
     }
 
     setSending(true);
@@ -326,263 +344,273 @@ export default function NotificationComposerV2({
   }
 
   const later = when === "later" || editing;
+  const activeCategory = CATEGORIES.find((c) => c.id === category);
 
   return (
-    <div
-      ref={rootRef}
-      className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#0c1626] to-[#070e1a] p-5 sm:p-7 shadow-xl space-y-6"
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <h3 className="text-sm font-bold text-white">
-            {editing ? "Edit scheduled notification" : "New notification"}
-          </h3>
-          <p className="text-[11px] text-wisdom-muted">
-            1 Category, 2 Write, 3 Destination, 4 Audience, 5 When, then send.
-          </p>
-        </div>
-        {editing && (
-          <button
-            type="button"
-            onClick={() => {
-              resetForm();
-              setWhen("now");
-              setFeedback(null);
-              onEditDone?.();
-            }}
-            className="px-3 py-1.5 rounded-lg text-xs text-slate-300 border border-white/15 hover:bg-white/10 cursor-pointer"
-          >
-            Stop editing
-          </button>
-        )}
-      </div>
-
-      {feedback && (
-        <div
-          className={`p-4 rounded-2xl border text-xs sm:text-sm flex items-start gap-2.5 ${
-            feedback.ok
-              ? "bg-emerald-500/10 border-emerald-400/30 text-emerald-300"
-              : "bg-rose-500/10 border-rose-400/30 text-rose-300"
-          }`}
-        >
-          {feedback.ok ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
-      )}
-
-      {/* 1 Category */}
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-slate-300">1. Category</p>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          {CATEGORIES.map(({ id, label, hint, Icon }) => {
-            const active = category === id;
-            return (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setCategory(id)}
-                className={`text-left p-4 rounded-2xl border transition-all cursor-pointer ${
-                  active
-                    ? "border-amber-300/70 bg-amber-300/10"
-                    : "border-white/10 bg-white/[0.03] hover:bg-white/[0.07]"
-                }`}
-              >
-                <Icon className={`w-5 h-5 mb-2 ${active ? "text-amber-300" : "text-slate-400"}`} />
-                <span className="block text-sm font-bold text-white">{label}</span>
-                <span className="block text-[11px] text-wisdom-muted mt-1 leading-relaxed">{hint}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* 2 Write */}
-      <div className="space-y-3">
-        <p className="text-xs font-semibold text-slate-300">2. Write</p>
-        <div className="space-y-1.5">
-          <label className="text-[11px] text-slate-400">
-            Notification title (shown on the phone and in the list) <span className="text-rose-400">*</span>
-          </label>
-          <input
-            type="text"
-            value={title}
-            maxLength={140}
-            onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Exam schedule update"
-            className="w-full px-4 py-2.5 rounded-xl bg-[#050b14] border border-white/12 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-300/60 transition-colors"
-          />
-        </div>
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <NotificationBlockEditor value={blocks} onChange={setBlocks} />
-          <div>
-            <p className="text-[11px] text-slate-400 mb-2">Live preview (reading view)</p>
-            <NotificationPreview blocks={blocks} />
-          </div>
-        </div>
-      </div>
-
-      {/* 3 Destination */}
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-slate-300">3. Destination</p>
-        {category === "admin" && (
-          <p className="text-xs text-wisdom-muted">
-            None. A tap opens the full-screen reading view inside Notifications.
-          </p>
-        )}
-        {category === "contest" && (
-          <p className="text-xs text-wisdom-muted">
-            Automatic: a tap opens the Contest (trophy) screen.
-          </p>
-        )}
-        {category === "material" && (
-          <div className="space-y-2">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {levels.map((options, depth) => (
-                <select
-                  key={depth}
-                  value={trail[depth] ?? ""}
-                  onChange={(e) => setLevel(depth, e.target.value)}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-[#050b14] border border-white/12 text-sm text-white focus:outline-none focus:border-amber-300/60"
-                >
-                  <option value="">
-                    {depth === 0 ? "Choose a group…" : "Choose (optional, deeper)…"}
-                  </option>
-                  {options.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.label}
-                    </option>
-                  ))}
-                </select>
-              ))}
-            </div>
-            <p className="text-xs text-slate-400">
-              This opens:{" "}
-              {pickedChoice ? (
-                <>
-                  <span className="text-amber-300">{pickedChoice.crumbs.join(" › ")}</span>{" "}
-                  <span className="font-mono text-slate-500">({pickedChoice.path})</span>
-                </>
-              ) : (
-                <span className="text-slate-500">nothing picked yet (choose at least a subject or course)</span>
-              )}
+    <div ref={rootRef}>
+      <AdminCard className="space-y-5">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <h3 className="text-base font-bold text-white">
+              {editing ? "Edit scheduled notification" : "New notification"}
+            </h3>
+            <p className="mt-0.5 text-xs text-wisdom-muted">
+              1 Category, 2 Write, 3 Destination, 4 Audience, 5 When, then send.
             </p>
           </div>
-        )}
-      </div>
+          {editing && (
+            <AdminPill
+              className="shrink-0"
+              onClick={() => {
+                resetForm();
+                setWhen("now");
+                setFeedback(null);
+                onEditDone?.();
+              }}
+            >
+              Stop editing
+            </AdminPill>
+          )}
+        </div>
 
-      {/* 4 Audience */}
-      <div className="space-y-3">
-        <p className="text-xs font-semibold text-slate-300">4. Audience</p>
-        <div className="flex flex-wrap gap-4">
-          <label className="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-white">
-            <input
-              type="radio"
-              name="v2audience"
-              checked={mode === "groups"}
-              onChange={() => setMode("groups")}
-              className="accent-amber-300"
+        {feedback && (
+          <div
+            className={`flex items-start gap-2.5 rounded-2xl border p-3 text-xs ${
+              feedback.ok
+                ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-300"
+                : "border-rose-400/30 bg-rose-500/10 text-rose-300"
+            }`}
+          >
+            {feedback.ok ? (
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" />
+            ) : (
+              <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+            )}
+            <span className="min-w-0 break-words">{feedback.message}</span>
+          </div>
+        )}
+
+        {/* 1 Category */}
+        <div className="space-y-2">
+          <p className={STEP_TITLE}>1. Category</p>
+          <div className="grid grid-cols-3 gap-2">
+            {CATEGORIES.map(({ id, label, Icon }) => {
+              const active = category === id;
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  onClick={() => setCategory(id)}
+                  className={`flex min-h-[88px] cursor-pointer flex-col items-center justify-center gap-1.5 rounded-2xl border px-1.5 py-2 text-center ${
+                    active
+                      ? "border-amber-400/40 bg-amber-500/15"
+                      : "border-white/10 bg-wisdom-card active:bg-white/10"
+                  }`}
+                >
+                  <Icon className={`h-5 w-5 ${active ? "text-amber-300" : "text-wisdom-muted"}`} />
+                  <span className="block text-xs font-bold leading-tight text-white">{label}</span>
+                </button>
+              );
+            })}
+          </div>
+          {activeCategory && (
+            <p className="text-xs leading-relaxed text-wisdom-muted">{activeCategory.hint}</p>
+          )}
+        </div>
+
+        {/* 2 Write */}
+        <div className="space-y-3">
+          <p className={STEP_TITLE}>2. Write</p>
+          <AdminField label="Notification title (shown on the phone and in the list) *">
+            <AdminInput
+              type="text"
+              value={title}
+              maxLength={140}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="e.g. Exam schedule update"
             />
-            <span>Groups of students</span>
-          </label>
-          {!later && (
-            <label className="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-white">
+          </AdminField>
+          <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <NotificationBlockEditor value={blocks} onChange={setBlocks} />
+            <div>
+              <p className="mb-2 text-xs text-wisdom-muted">Live preview (reading view)</p>
+              <NotificationPreview blocks={blocks} />
+            </div>
+          </div>
+        </div>
+
+        {/* 3 Destination */}
+        <div className="space-y-2">
+          <p className={STEP_TITLE}>3. Destination</p>
+          {category === "admin" && (
+            <p className="text-xs text-wisdom-muted">
+              None. A tap opens the full-screen reading view inside Notifications.
+            </p>
+          )}
+          {category === "contest" && (
+            <p className="text-xs text-wisdom-muted">
+              Automatic: a tap opens the Contest (trophy) screen.
+            </p>
+          )}
+          {category === "material" && (
+            <div className="space-y-2">
+              <div className="grid grid-cols-1 gap-2">
+                {levels.map((options, depth) => (
+                  <AdminSelect
+                    key={depth}
+                    value={trail[depth] ?? ""}
+                    onChange={(e) => setLevel(depth, e.target.value)}
+                  >
+                    <option value="">
+                      {depth === 0 ? "Choose a group…" : "Choose (optional, deeper)…"}
+                    </option>
+                    {options.map((n) => (
+                      <option key={n.id} value={n.id}>
+                        {n.label}
+                      </option>
+                    ))}
+                  </AdminSelect>
+                ))}
+              </div>
+              <p className="break-words text-xs text-slate-400">
+                This opens:{" "}
+                {pickedChoice ? (
+                  <>
+                    <span className="text-amber-300">{pickedChoice.crumbs.join(" › ")}</span>{" "}
+                    <span className="break-all font-mono text-slate-500">({pickedChoice.path})</span>
+                  </>
+                ) : (
+                  <span className="text-slate-500">nothing picked yet (choose at least a subject or course)</span>
+                )}
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* 4 Audience */}
+        <div className="space-y-2">
+          <p className={STEP_TITLE}>4. Audience</p>
+          <div className="flex flex-wrap gap-x-5">
+            <label className={RADIO_LABEL_CLASS}>
               <input
                 type="radio"
                 name="v2audience"
-                checked={mode === "user"}
-                onChange={() => setMode("user")}
-                className="accent-amber-300"
+                checked={mode === "groups"}
+                onChange={() => setMode("groups")}
+                className="h-5 w-5 accent-amber-300"
               />
-              <span>One student (user id)</span>
+              <span>Groups of students</span>
             </label>
+            {!later && (
+              <label className={RADIO_LABEL_CLASS}>
+                <input
+                  type="radio"
+                  name="v2audience"
+                  checked={mode === "user"}
+                  onChange={() => setMode("user")}
+                  className="h-5 w-5 accent-amber-300"
+                />
+                <span>One student (user id)</span>
+              </label>
+            )}
+          </div>
+          {mode === "groups" || later ? (
+            <NotificationAudiencePicker
+              value={groups}
+              onChange={setGroups}
+              onCountChange={setGroupCount}
+            />
+          ) : (
+            <AdminInput
+              type="text"
+              value={targetUser}
+              onChange={(e) => setTargetUser(e.target.value)}
+              placeholder="Student user id (UUID)"
+            />
           )}
         </div>
-        {mode === "groups" || later ? (
-          <NotificationAudiencePicker
-            value={groups}
-            onChange={setGroups}
-            onCountChange={setGroupCount}
-          />
-        ) : (
-          <input
-            type="text"
-            value={targetUser}
-            onChange={(e) => setTargetUser(e.target.value)}
-            placeholder="Student user id (UUID)"
-            className="w-full px-4 py-2.5 rounded-xl bg-[#050b14] border border-white/12 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-amber-300/60"
-          />
-        )}
-      </div>
 
-      {/* 5 When */}
-      <div className="space-y-2">
-        <p className="text-xs font-semibold text-slate-300">5. When</p>
-        {!editing && (
-          <div className="flex flex-wrap gap-4">
-            <label className="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-white">
-              <input
-                type="radio"
-                name="v2when"
-                checked={when === "now"}
-                onChange={() => setWhen("now")}
-                className="accent-amber-300"
+        {/* 5 When */}
+        <div className="space-y-2">
+          <p className={STEP_TITLE}>5. When</p>
+          {!editing && (
+            <div className="flex flex-wrap gap-x-5">
+              <label className={RADIO_LABEL_CLASS}>
+                <input
+                  type="radio"
+                  name="v2when"
+                  checked={when === "now"}
+                  onChange={() => setWhen("now")}
+                  className="h-5 w-5 accent-amber-300"
+                />
+                <span>Send now</span>
+              </label>
+              <label className={RADIO_LABEL_CLASS}>
+                <input
+                  type="radio"
+                  name="v2when"
+                  checked={when === "later"}
+                  onChange={() => {
+                    setWhen("later");
+                    setMode("groups");
+                  }}
+                  className="h-5 w-5 accent-amber-300"
+                />
+                <span>Schedule for later</span>
+              </label>
+            </div>
+          )}
+          {later && (
+            <AdminField
+              label="Send at (Ethiopia time)"
+              hint="Checked every minute. Whatever the time zone of this device, the time typed here is Ethiopia time."
+            >
+              <AdminInput
+                type="datetime-local"
+                value={sendAtLocal}
+                onChange={(e) => setSendAtLocal(e.target.value)}
               />
-              <span>Send now</span>
-            </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-white">
-              <input
-                type="radio"
-                name="v2when"
-                checked={when === "later"}
-                onChange={() => {
-                  setWhen("later");
-                  setMode("groups");
-                }}
-                className="accent-amber-300"
-              />
-              <span>Schedule for later</span>
-            </label>
-          </div>
-        )}
-        {later && (
-          <div className="space-y-1.5">
-            <label className="text-[11px] text-slate-400">Send at (Ethiopia time)</label>
-            <input
-              type="datetime-local"
-              value={sendAtLocal}
-              onChange={(e) => setSendAtLocal(e.target.value)}
-              className="w-full sm:w-72 px-4 py-2.5 rounded-xl bg-[#050b14] border border-white/12 text-sm text-white focus:outline-none focus:border-amber-300/60"
-            />
-            <p className="text-[11px] text-slate-500">
-              Checked every minute. Whatever the time zone of this computer, the time typed here is Ethiopia time.
-            </p>
-          </div>
-        )}
-      </div>
+            </AdminField>
+          )}
+        </div>
 
-      <div className="flex justify-end">
-        <button
-          type="button"
-          onClick={handleSubmit}
+        <AdminPill
+          tone="primary"
+          fullWidth
+          icon={later ? Clock : Send}
+          onClick={() => void handleSubmit()}
           disabled={sending}
-          className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-amber-300 hover:bg-amber-200 text-slate-950 font-bold text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer disabled:opacity-50"
         >
-          {later ? <Clock className="w-4 h-4" /> : <Send className="w-4 h-4" />}
-          <span>
-            {sending
-              ? "Working..."
-              : editing
-              ? "Save changes"
-              : later
-              ? "Schedule"
-              : "Send now"}
-          </span>
-        </button>
-      </div>
+          {sending ? "Working..." : editing ? "Save changes" : later ? "Schedule" : "Send now"}
+        </AdminPill>
+      </AdminCard>
+
+      {/* Confirm before sending to students now */}
+      <AdminSheet
+        open={confirmWho !== null}
+        onClose={() => setConfirmWho(null)}
+        title="Send now"
+        footer={
+          <div className="flex gap-2">
+            <AdminPill fullWidth onClick={() => setConfirmWho(null)}>
+              Cancel
+            </AdminPill>
+            <AdminPill
+              fullWidth
+              tone="primary"
+              icon={Send}
+              onClick={() => {
+                setConfirmWho(null);
+                void handleSubmit(true);
+              }}
+            >
+              Send
+            </AdminPill>
+          </div>
+        }
+      >
+        <p className="break-words text-sm text-white">Send this to {confirmWho} now? This cannot be undone.</p>
+      </AdminSheet>
     </div>
   );
 }

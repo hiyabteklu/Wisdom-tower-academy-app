@@ -11,7 +11,6 @@ import {
 import { notifyApproval, notifyRejection, formatNotifyToast } from "@/lib/notify";
 import { formatEtb } from "@/data/packages";
 import { downloadCsv } from "@/lib/admin-data";
-import BrandLoader from "@/components/BrandLoader";
 import {
   Check,
   X,
@@ -19,20 +18,46 @@ import {
   Phone,
   Mail,
   CreditCard,
-  ExternalLink,
-  Search,
-  Filter,
   Download,
-  AlertCircle,
-  Clock,
-  CheckCircle2,
-  FileText,
   Calendar,
   Eye,
-  ShieldCheck,
 } from "lucide-react";
+import {
+  AdminBadge,
+  AdminCard,
+  AdminChip,
+  AdminChips,
+  AdminEmpty,
+  AdminPill,
+  AdminSearch,
+  AdminSelect,
+  AdminSheet,
+  AdminSkeleton,
+  AdminToast,
+  type AdminTone,
+} from "./ui";
+
+/**
+ * Admin Payments tab.
+ *
+ * 2026-10-15 (Admin mobile redesign, slice A8): LAYOUT ONLY (44 px pills, one-column order cards, no blur, no
+ * animation). Logic, state, database calls, approve / reject flow, notifications and CSV export unchanged.
+ *
+ * 2026-10-16 (Admin UI V2, slice U7): LAYOUT ONLY. Kit cards, kit stat cards, kit filter chips, kit search and
+ * select, kit badges and pills (Approve is the kit primary pill, Reject the danger pill), the receipt viewer and
+ * the reject confirmation are kit bottom sheets (the phone Back button closes them), a static skeleton instead of
+ * the brand loader, the kit slim toast (it closes itself after 4.5 s, so the old timer effect is gone).
+ * The two sheets never open from each other. verifyOrder, rejectOrder, notifyApproval, notifyRejection,
+ * listOrdersFromDb, the filters, the CSV (it exports the filtered list, as before) and every text are unchanged.
+ */
 
 type FilterStatus = "pending_verification" | "all" | "verified" | "rejected";
+
+function statusTone(status: string): AdminTone {
+  if (status === "verified") return "green";
+  if (status === "pending_verification") return "gold";
+  return "red";
+}
 
 export default function PaymentsPanel({ adminEmail }: { adminEmail: string }) {
   const [orders, setOrders] = useState<ManualOrder[]>([]);
@@ -43,10 +68,10 @@ export default function PaymentsPanel({ adminEmail }: { adminEmail: string }) {
   const [bankFilter, setBankFilter] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState("");
 
-  // Receipt Modal State
+  // Receipt sheet state
   const [viewReceiptUrl, setViewReceiptUrl] = useState<string | null>(null);
 
-  // Reject Modal State
+  // Reject sheet state
   const [rejectOrderModal, setRejectOrderModal] = useState<ManualOrder | null>(null);
   const [rejectReason, setRejectReason] = useState("");
 
@@ -60,12 +85,6 @@ export default function PaymentsPanel({ adminEmail }: { adminEmail: string }) {
   useEffect(() => {
     void load();
   }, [load]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(""), 4500);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   // Derived filtered orders
   const filtered = useMemo(() => {
@@ -169,347 +188,246 @@ export default function PaymentsPanel({ adminEmail }: { adminEmail: string }) {
   };
 
   return (
-    <div className="space-y-6">
-      {/* Toast Notification */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-50 rounded-2xl border border-amber-400/40 bg-wisdom-card p-4 text-sm font-semibold text-amber-300 shadow-2xl animate-fade-in flex items-center gap-2">
-          <CheckCircle2 className="w-4 h-4 text-amber-400" />
-          {toast}
-        </div>
-      )}
-
-      {/* Header and Quick Stats */}
-      <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/8 pb-4">
-        <div>
-          <h2 className="text-xl font-bold text-white flex items-center gap-2">
-            <CreditCard className="w-5 h-5 text-amber-400" />
+    <div className="min-w-0 space-y-4">
+      {/* Title, description and actions */}
+      <div className="flex items-start gap-3">
+        <AdminChip icon={CreditCard} />
+        <div className="min-w-0 flex-1">
+          <h3 className="break-words text-base font-bold leading-tight text-white">
             Payment Operations & Order Verification
-          </h2>
-          <p className="text-xs sm:text-sm text-wisdom-muted mt-0.5">
+          </h3>
+          <p className="mt-0.5 text-xs leading-relaxed text-wisdom-muted">
             Manual bank slip verification, Telebirr & CBE confirmations, and automated student enrollment
           </p>
         </div>
+      </div>
 
-        <div className="flex items-center gap-2.5">
-          <button
-            type="button"
-            onClick={handleExportCsv}
-            disabled={filtered.length === 0}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-white/12 text-sm font-semibold text-white/90 hover:bg-white/5 disabled:opacity-50 transition-colors"
-          >
-            <Download className="w-4 h-4" />
-            Export CSV ({filtered.length})
-          </button>
-          <button
-            type="button"
-            onClick={load}
-            disabled={loading}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-400/30 text-sm font-semibold hover:bg-amber-500/30 transition-colors"
-          >
-            <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-            Refresh
-          </button>
-        </div>
+      <div className="grid grid-cols-2 gap-2">
+        <AdminPill icon={Download} onClick={handleExportCsv} disabled={filtered.length === 0}>
+          Export CSV ({filtered.length})
+        </AdminPill>
+        <AdminPill tone="gold" icon={RefreshCw} onClick={() => void load()} disabled={loading}>
+          {loading ? "Loading..." : "Refresh"}
+        </AdminPill>
       </div>
 
       {/* Financial Pipeline Strip */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
-        <div className="rounded-2xl border border-amber-400/20 bg-amber-500/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">
-            Pending Verification
-          </p>
-          <p className="text-2xl font-bold text-white mt-1 tabular-nums">
+      <div className="grid grid-cols-2 gap-2">
+        <AdminCard tone="gold" className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-amber-300">Pending Verification</p>
+          <p className="mt-1 break-words text-xl font-extrabold tabular-nums text-white">
             {formatEtb(pendingAmount)}
           </p>
-          <p className="text-xs text-amber-200/80 mt-1 font-medium">
+          <p className="mt-1 text-xs font-medium text-wisdom-muted">
             {pendingOrders.length} order{pendingOrders.length === 1 ? "" : "s"} awaiting approval
           </p>
-        </div>
+        </AdminCard>
 
-        <div className="rounded-2xl border border-emerald-400/20 bg-emerald-500/10 p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">
-            Total Verified Revenue
-          </p>
-          <p className="text-2xl font-bold text-white mt-1 tabular-nums">
+        <AdminCard className="min-w-0">
+          <p className="text-xs font-semibold uppercase tracking-wider text-emerald-300">Total Verified Revenue</p>
+          <p className="mt-1 break-words text-xl font-extrabold tabular-nums text-white">
             {formatEtb(verifiedAmount)}
           </p>
-          <p className="text-xs text-emerald-200/80 mt-1 font-medium">
-            {verifiedOrders.length} confirmed paid orders
-          </p>
-        </div>
+          <p className="mt-1 text-xs font-medium text-wisdom-muted">{verifiedOrders.length} confirmed paid orders</p>
+        </AdminCard>
 
-        <div className="rounded-2xl border border-white/10 bg-wisdom-card p-4">
-          <p className="text-xs font-semibold uppercase tracking-wider text-wisdom-muted">
-            All-Time Orders
-          </p>
-          <p className="text-2xl font-bold text-white mt-1 tabular-nums">{orders.length}</p>
-          <p className="text-xs text-wisdom-muted mt-1">
-            Across Telebirr, CBE, Abyssinia, and other rails
-          </p>
-        </div>
+        <AdminCard className="col-span-2">
+          <p className="text-xs font-semibold uppercase tracking-wider text-wisdom-muted">All-Time Orders</p>
+          <p className="mt-1 text-xl font-extrabold tabular-nums text-white">{orders.length}</p>
+          <p className="mt-1 text-xs text-wisdom-muted">Across Telebirr, CBE, Abyssinia, and other rails</p>
+        </AdminCard>
       </div>
 
-      {/* Search and Filters Bar */}
-      <div className="flex flex-wrap items-center gap-3 bg-wisdom-card/60 p-3.5 rounded-2xl border border-white/8">
-        <div className="relative flex-1 min-w-[240px]">
-          <Search className="w-4 h-4 text-wisdom-muted absolute left-3.5 top-1/2 -translate-y-1/2" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search order ID, student, phone, email, or transaction ref..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-wisdom-dark border border-white/10 text-sm text-white placeholder-wisdom-muted focus:outline-none focus:border-amber-400 transition-colors"
-          />
-        </div>
+      {/* Search and Filters */}
+      <AdminCard className="space-y-2.5">
+        <AdminSearch
+          value={searchQuery}
+          onChange={setSearchQuery}
+          placeholder="Search order, student, phone, email, ref"
+        />
 
-        {/* Status Filter Tabs */}
-        <div className="flex items-center gap-1 p-1 rounded-xl bg-wisdom-dark border border-white/10 text-xs font-semibold">
-          {(
-            [
-              ["pending_verification", `Pending (${pendingOrders.length})`],
-              ["verified", "Verified"],
-              ["rejected", "Rejected"],
-              ["all", "All"],
-            ] as const
-          ).map(([stId, stLabel]) => (
-            <button
-              key={stId}
-              type="button"
-              onClick={() => setFilterStatus(stId)}
-              className={`px-3 py-1.5 rounded-lg transition-all ${
-                filterStatus === stId
-                  ? "bg-amber-500 text-wisdom-dark font-bold shadow-sm"
-                  : "text-wisdom-muted hover:text-white"
-              }`}
-            >
-              {stLabel}
-            </button>
-          ))}
-        </div>
+        <AdminChips<FilterStatus>
+          options={[
+            { id: "pending_verification", label: `Pending (${pendingOrders.length})` },
+            { id: "verified", label: "Verified" },
+            { id: "rejected", label: "Rejected" },
+            { id: "all", label: "All" },
+          ]}
+          value={filterStatus}
+          onChange={setFilterStatus}
+        />
 
         {/* Bank Filter */}
-        <select
+        <AdminSelect
           value={bankFilter}
           onChange={(e) => setBankFilter(e.target.value)}
-          className="px-3 py-2 rounded-xl bg-wisdom-dark border border-white/10 text-xs font-semibold text-white focus:outline-none focus:border-amber-400"
+          className="font-semibold"
         >
           <option value="all">All Payment Methods</option>
           <option value="telebirr">Telebirr</option>
           <option value="cbe">CBE</option>
           <option value="abyssinia">Bank of Abyssinia</option>
-        </select>
-      </div>
+        </AdminSelect>
+
+        <p className="text-xs tabular-nums text-wisdom-muted">
+          Showing {filtered.length} of {orders.length}
+        </p>
+      </AdminCard>
 
       {/* Orders List */}
       {loading && orders.length === 0 ? (
-        <div className="py-20 flex flex-col items-center justify-center gap-3">
-          <BrandLoader size="md" label="Loading orders..." />
-        </div>
+        <AdminSkeleton rows={4} />
       ) : filtered.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/15 p-12 text-center text-wisdom-muted">
-          <CreditCard className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="font-medium text-white mb-1">No orders found</p>
-          <p className="text-sm">No orders matching the selected status or search filter.</p>
-        </div>
+        <AdminEmpty
+          icon={CreditCard}
+          title="No orders found"
+          hint="No orders matching the selected status or search filter."
+        />
       ) : (
-        <div className="space-y-3.5">
+        <div className="space-y-2">
           {filtered.map((o) => (
-            <div
+            <AdminCard
               key={o.id}
-              className={`rounded-2xl border p-4 sm:p-5 transition-all ${
-                o.status === "pending_verification"
-                  ? "border-amber-400/40 bg-wisdom-card shadow-lg shadow-amber-950/20"
-                  : o.status === "verified"
-                    ? "border-white/10 bg-wisdom-card/90"
-                    : "border-white/8 bg-wisdom-card/50 opacity-80"
-              }`}
+              tone={o.status === "pending_verification" ? "gold" : undefined}
+              className={o.status === "rejected" ? "opacity-80" : undefined}
             >
-              <div className="flex flex-wrap items-start justify-between gap-3 mb-3">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-sm font-bold text-white">{o.id}</span>
-                    <span
-                      className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
-                        o.status === "verified"
-                          ? "bg-emerald-500/15 text-emerald-300 border-emerald-400/30"
-                          : o.status === "pending_verification"
-                            ? "bg-amber-500/15 text-amber-300 border-amber-400/30"
-                            : "bg-rose-500/15 text-rose-300 border-rose-400/30"
-                      }`}
-                    >
-                      {statusLabel(o.status)}
-                    </span>
-                    <span className="text-xs text-wisdom-muted">
-                      via <strong className="text-white uppercase">{o.paymentMethod || "Bank"}</strong>
-                    </span>
-                  </div>
-
-                  <h3 className="text-lg font-bold text-white mt-1">{o.packageName}</h3>
-                  <p className="text-sm font-extrabold text-amber-300 mt-0.5">
-                    {formatEtb(o.amountEtb)}
-                  </p>
-                </div>
-
-                {/* Right Action Buttons */}
-                <div className="flex items-center gap-2">
-                  {o.receiptUrl && (
-                    <button
-                      type="button"
-                      onClick={() => setViewReceiptUrl(o.receiptUrl!)}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/15 bg-white/5 text-xs font-semibold text-cyan-300 hover:bg-white/10 transition-colors"
-                    >
-                      <Eye className="w-3.5 h-3.5" />
-                      View Receipt
-                    </button>
-                  )}
-
-                  {o.status === "pending_verification" && (
-                    <>
-                      <button
-                        type="button"
-                        onClick={() => onVerify(o.id)}
-                        disabled={busyId === o.id}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-white hover:bg-emerald-400 disabled:opacity-50 transition-colors shadow-md shadow-emerald-500/20"
-                      >
-                        <Check className="w-4 h-4" />
-                        {busyId === o.id ? "Verifying..." : "Approve & Unlock"}
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setRejectOrderModal(o)}
-                        disabled={busyId === o.id}
-                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold text-rose-300 hover:bg-rose-500/10 border border-rose-500/20 disabled:opacity-50 transition-colors"
-                      >
-                        <X className="w-4 h-4" />
-                        Reject
-                      </button>
-                    </>
-                  )}
-                </div>
+              {/* Order id, status */}
+              <div className="flex items-start justify-between gap-2">
+                <span className="min-w-0 break-all font-mono text-sm font-bold text-white">{o.id}</span>
+                <AdminBadge tone={statusTone(o.status)} className="uppercase tracking-wider">
+                  {statusLabel(o.status)}
+                </AdminBadge>
               </div>
 
-              {/* Student Metadata Strip */}
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs text-wisdom-muted py-2.5 border-t border-white/6">
-                <div>
-                  <span className="text-white/80 font-semibold">{o.studentName}</span>
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <Phone className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
-                  <span>{o.phone}</span>
+              <h4 className="mt-2 break-words text-base font-bold text-white">{o.packageName}</h4>
+              <div className="mt-0.5 flex items-baseline justify-between gap-2">
+                <p className="text-base font-extrabold tabular-nums text-amber-300">{formatEtb(o.amountEtb)}</p>
+                <span className="min-w-0 truncate text-xs text-wisdom-muted">
+                  via <strong className="uppercase text-white">{o.paymentMethod || "Bank"}</strong>
+                </span>
+              </div>
+
+              {/* Student details */}
+              <div className="mt-2.5 space-y-1.5 border-t border-white/10 py-2.5 text-xs text-wisdom-muted">
+                <p className="break-words text-sm font-semibold text-white/90">{o.studentName}</p>
+                <div className="flex min-w-0 items-center gap-1.5">
+                  <Phone className="h-3.5 w-3.5 shrink-0 text-amber-300/80" />
+                  <span className="truncate">{o.phone}</span>
                 </div>
                 {o.email && (
-                  <div className="flex items-center gap-1.5 truncate">
-                    <Mail className="w-3.5 h-3.5 text-wisdom-muted shrink-0" />
+                  <div className="flex min-w-0 items-center gap-1.5">
+                    <Mail className="h-3.5 w-3.5 shrink-0 text-amber-300/80" />
                     <span className="truncate">{o.email}</span>
                   </div>
                 )}
               </div>
 
-              {/* Transaction Reference & Timestamp */}
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2 text-xs text-wisdom-muted border-t border-white/6">
-                <div>
+              {/* Transaction reference and timestamp */}
+              <div className="space-y-1.5 border-t border-white/10 py-2.5 text-xs text-wisdom-muted">
+                <div className="break-all">
                   <span>Ref: </span>
-                  <span className="font-mono font-bold text-cyan-300 select-all">
-                    {o.transactionRef}
-                  </span>
-                  {o.note && (
-                    <span className="text-wisdom-muted ml-2 italic">({o.note})</span>
-                  )}
+                  <span className="select-all font-mono font-bold text-cyan-300">{o.transactionRef}</span>
+                  {o.note && <span className="ml-1 italic text-wisdom-muted">({o.note})</span>}
                 </div>
-                <div className="flex items-center gap-1">
-                  <Calendar className="w-3 h-3" />
+                <div className="flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 shrink-0" />
                   <span>Placed {new Date(o.createdAt).toLocaleString()}</span>
                 </div>
               </div>
-            </div>
+
+              {/* Actions */}
+              {(o.receiptUrl || o.status === "pending_verification") && (
+                <div className="space-y-2 border-t border-white/10 pt-3">
+                  {o.receiptUrl && (
+                    <AdminPill fullWidth icon={Eye} onClick={() => setViewReceiptUrl(o.receiptUrl!)}>
+                      View Receipt
+                    </AdminPill>
+                  )}
+
+                  {o.status === "pending_verification" && (
+                    <div className="grid grid-cols-2 gap-2">
+                      <AdminPill
+                        tone="primary"
+                        icon={Check}
+                        onClick={() => void onVerify(o.id)}
+                        disabled={busyId === o.id}
+                      >
+                        {busyId === o.id ? "Verifying..." : "Approve & Unlock"}
+                      </AdminPill>
+
+                      <AdminPill
+                        tone="danger"
+                        icon={X}
+                        onClick={() => setRejectOrderModal(o)}
+                        disabled={busyId === o.id}
+                      >
+                        Reject
+                      </AdminPill>
+                    </div>
+                  )}
+                </div>
+              )}
+            </AdminCard>
           ))}
         </div>
       )}
 
-      {/* ========================================================= */}
-      {/* MODAL 1: RECEIPT LIGHTBOX                                 */}
-      {/* ========================================================= */}
-      {viewReceiptUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/85 backdrop-blur-md animate-fade-in">
-          <div className="relative max-w-xl w-full rounded-3xl border border-white/20 bg-wisdom-card p-5 shadow-2xl space-y-4">
-            <div className="flex items-center justify-between border-b border-white/8 pb-3">
-              <h3 className="font-bold text-white text-base flex items-center gap-2">
-                <FileText className="w-4 h-4 text-cyan-400" />
-                Payment Receipt Slip
-              </h3>
-              <button
-                type="button"
-                onClick={() => setViewReceiptUrl(null)}
-                className="p-1.5 rounded-lg text-wisdom-muted hover:text-white hover:bg-white/5"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="max-h-[70vh] overflow-auto rounded-2xl bg-black/50 p-2 flex items-center justify-center">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={viewReceiptUrl}
-                alt="Payment Receipt"
-                className="max-h-full max-w-full object-contain rounded-xl"
-              />
-            </div>
-
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setViewReceiptUrl(null)}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-white/10 text-white hover:bg-white/15"
-              >
-                Close Viewer
-              </button>
-            </div>
+      {/* Receipt viewer sheet */}
+      <AdminSheet
+        open={viewReceiptUrl !== null}
+        onClose={() => setViewReceiptUrl(null)}
+        title="Payment Receipt Slip"
+        footer={
+          <AdminPill fullWidth onClick={() => setViewReceiptUrl(null)}>
+            Close Viewer
+          </AdminPill>
+        }
+      >
+        {viewReceiptUrl ? (
+          <div className="flex items-center justify-center rounded-2xl bg-black/50 p-2">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={viewReceiptUrl} alt="Payment Receipt" className="h-auto max-w-full rounded-xl object-contain" />
           </div>
-        </div>
-      )}
+        ) : null}
+      </AdminSheet>
 
-      {/* ========================================================= */}
-      {/* MODAL 2: REJECT ORDER WITH REASON                         */}
-      {/* ========================================================= */}
-      {rejectOrderModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-fade-in">
-          <div className="relative max-w-md w-full rounded-3xl border border-rose-400/30 bg-wisdom-card p-6 shadow-2xl space-y-4">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-rose-400">
-                Reject Payment Order
-              </p>
-              <h3 className="text-lg font-bold text-white mt-0.5">
-                Reject Order {rejectOrderModal.id}
-              </h3>
-              <p className="text-xs text-wisdom-muted mt-1">
+      {/* Reject order sheet */}
+      <AdminSheet
+        open={rejectOrderModal !== null}
+        onClose={() => setRejectOrderModal(null)}
+        title="Reject Payment Order"
+        footer={
+          <div className="flex gap-2">
+            <AdminPill fullWidth onClick={() => setRejectOrderModal(null)}>
+              Cancel
+            </AdminPill>
+            <AdminPill
+              fullWidth
+              tone="danger"
+              onClick={() => void onConfirmReject()}
+              disabled={rejectOrderModal ? busyId === rejectOrderModal.id : false}
+            >
+              Confirm Rejection
+            </AdminPill>
+          </div>
+        }
+      >
+        {rejectOrderModal ? (
+          <div className="space-y-3">
+            <div className="min-w-0">
+              <p className="break-all text-base font-bold text-white">Reject Order {rejectOrderModal.id}</p>
+              <p className="mt-1 break-words text-xs text-wisdom-muted">
                 Student: {rejectOrderModal.studentName} ({formatEtb(rejectOrderModal.amountEtb)})
               </p>
             </div>
-
-            <p className="text-sm text-wisdom-muted leading-relaxed">
+            <p className="text-sm leading-relaxed text-wisdom-muted">
               Are you sure you want to reject this payment? The order will be flagged as rejected and the student will be notified if email or SMS is active.
             </p>
-
-            <div className="flex items-center justify-end gap-3 pt-3 border-t border-white/8">
-              <button
-                type="button"
-                onClick={() => setRejectOrderModal(null)}
-                className="px-4 py-2 rounded-xl text-xs font-semibold text-wisdom-muted hover:text-white"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={onConfirmReject}
-                className="px-4 py-2 rounded-xl text-xs font-bold bg-rose-500 text-white hover:bg-rose-400 transition-colors"
-              >
-                Confirm Rejection
-              </button>
-            </div>
           </div>
-        </div>
-      )}
+        ) : null}
+      </AdminSheet>
+
+      <AdminToast message={toast || null} onClose={() => setToast("")} durationMs={4500} />
     </div>
   );
 }

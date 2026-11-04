@@ -15,6 +15,9 @@ import { supabase } from "@/lib/supabase";
  * A flag is a signal to look at, not proof: a phone call or a system dialog
  * also takes the app to the background. Nothing here disqualifies anybody;
  * the admin decides with the existing Disqualify button.
+ *
+ * Slice U5 (2026-10-16): LAYOUT ONLY. The summary link is a 44 px tap target and the small texts are at
+ * least 11 px, in the kit colours. Hook and logic unchanged.
  */
 
 export type FlagRow = {
@@ -128,16 +131,16 @@ export function EntryFlagsInfo({ flags }: { flags: FlagRow[] | undefined }) {
   if (others > 0) parts.push(`${others} other flag${others === 1 ? "" : "s"}`);
 
   return (
-    <span className="block mt-1">
+    <span className="mt-1 block">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="text-amber-300 hover:text-amber-200 underline underline-offset-2 cursor-pointer text-left"
+        className="flex min-h-[44px] w-full cursor-pointer items-center text-left text-xs text-amber-300 underline underline-offset-2 active:text-amber-200"
       >
         {parts.join(", ")} {open ? "(hide)" : "(details)"}
       </button>
       {open && (
-        <span className="block mt-1 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 space-y-0.5">
+        <span className="mt-1 block space-y-0.5 rounded-2xl border border-white/10 bg-wisdom-card px-3 py-2">
           {flags.map((f, i) => {
             const away = Number(f.detail?.away_ms);
             return (
@@ -149,7 +152,7 @@ export function EntryFlagsInfo({ flags }: { flags: FlagRow[] | undefined }) {
               </span>
             );
           })}
-          <span className="block text-[10px] text-slate-500 pt-1">
+          <span className="block pt-1 text-[11px] text-slate-500">
             A flag is a signal to look at, not proof (a phone call can also send the app to the
             background). Nothing is disqualified automatically.
           </span>

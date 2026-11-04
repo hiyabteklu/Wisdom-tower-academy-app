@@ -17,17 +17,118 @@ export const supabaseAnonKey =
 export const STORAGE_KEY = "wt-academy-auth-v1";
 
 /**
- * The Android wrapper owns refresh-token rotation for its WebViews.
- * Detect it from the user agent (set before any page scripts run), with the
- * injected bridge flag as a secondary signal.
+ * True only inside the Wisdom Tower Android app's WebView (never plain browsers,
+ * and never other apps' in-app browsers such as Telegram or Facebook).
+ * Same signals the app already uses: the "WisdomTowerApp" user-agent token, the
+ * JavaScript bridge objects the app injects, or the window.__wtaNativeApp flag the
+ * app sets when it pushes the session into the page.
+ *
+ * Evaluated at CALL time (not once at import), so it does not matter whether the
+ * app's injected script ran before or after this module loaded.
  */
-function isNativeAcademyApp(): boolean {
-  if (typeof window === "undefined") return false;
-  return (
-    /wta-native|WisdomTowerApp/i.test(window.navigator.userAgent || "") ||
-    (window as Window & { __wtaNativeApp?: boolean }).__wtaNativeApp === true
-  );
+function isWisdomTowerAppShell(): boolean {
+  if (typeof window === "undefined" || typeof navigator === "undefined") {
+    return false;
+  }
+  try {
+    if (/WisdomTowerApp/i.test(navigator.userAgent || "")) return true;
+    const w = window as unknown as Record<string, unknown>;
+    return Boolean(
+      w.Android ||
+        w.AndroidBridge ||
+        w.WisdomTower ||
+        w.wtaNative ||
+        w.__wtaNativeApp,
+    );
+  } catch {
+    return false;
+  }
 }
+
+/**
+ * HOW LOGIN REFRESH WORKS INSIDE THE ANDROID APP
+ *
+ * Supabase refresh tokens are single-use. When the native app and this page
+ * both refreshed with the same token, one of them hit
+ * "refresh_token_already_used", Supabase revoked the whole session, and both
+ * sides then retried the dead token every 2 seconds (the signed in/out flicker).
+ *
+ * So inside the app the NATIVE code is the only refresher. It renews the login
+ * about 5 minutes before expiry (checked every 45 s while the app is visible,
+ * and on every return to the foreground) and writes the fresh session into this
+ * page's localStorage. This page never calls Supabase to refresh. Instead, when
+ * supabase-js wants to refresh (its timer, or getSession on an expired token),
+ * the request is answered locally with the session the app already pushed, so
+ * the page stays signed in however long a student reads. If the app has not
+ * delivered a fresh session yet, the request waits briefly and then fails with a
+ * network-style error: supabase-js treats that as retryable and KEEPS the stored
+ * session (it only deletes it on a real server rejection).
+ *
+ * Plain browsers are unaffected: every request goes straight to Supabase.
+ */
+const MIN_VALID_SECONDS = 60;
+const NATIVE_REFRESH_WAIT_MS = 4000;
+const NATIVE_REFRESH_POLL_MS = 250;
+
+function readFreshNativeSession(): Record<string, unknown> | null {
+  try {
+    const raw = window.localStorage.getItem(STORAGE_KEY);
+    if (!raw) return null;
+    const s = JSON.parse(raw);
+    if (!s || typeof s !== "object") return null;
+    if (
+      isCorruptOrSyntheticToken(s.access_token) ||
+      typeof s.refresh_token !== "string" ||
+      !s.refresh_token ||
+      !s.user
+    ) {
+      return null;
+    }
+    const left = (Number(s.expires_at) || 0) - Math.floor(Date.now() / 1000);
+    if (left < MIN_VALID_SECONDS) return null;
+    return { ...s, token_type: s.token_type || "bearer", expires_in: left };
+  } catch {
+    return null;
+  }
+}
+
+async function answerRefreshFromNativeSession(): Promise<Response> {
+  const deadline = Date.now() + NATIVE_REFRESH_WAIT_MS;
+  for (;;) {
+    const session = readFreshNativeSession();
+    if (session) {
+      return new Response(JSON.stringify(session), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+    if (Date.now() >= deadline) break;
+    await new Promise((resolve) => setTimeout(resolve, NATIVE_REFRESH_POLL_MS));
+  }
+  throw new TypeError("Token refresh is handled by the Wisdom Tower app");
+}
+
+const appAwareFetch: typeof fetch = (input, init) => {
+  try {
+    if (isWisdomTowerAppShell()) {
+      const url =
+        typeof input === "string"
+          ? input
+          : input instanceof URL
+            ? input.href
+            : (input as Request).url;
+      if (
+        url.includes("/auth/v1/token") &&
+        url.includes("grant_type=refresh_token")
+      ) {
+        return answerRefreshFromNativeSession();
+      }
+    }
+  } catch {
+    /* fall through to the real fetch */
+  }
+  return fetch(input, init);
+};
 
 /**
  * Checks if a JWT token is synthetic, placeholder, or has an invalid signature
@@ -146,13 +247,15 @@ const authStorage: SupportedStorage = {
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
-    // Never let Supabase JS race Android for a rotating refresh token.
-    autoRefreshToken: !isNativeAcademyApp(),
+    autoRefreshToken: true,
     detectSessionInUrl: true,
     flowType: "implicit",
     storage: authStorage,
     storageKey: STORAGE_KEY,
   },
+  // Browser only: lets the Android app answer refresh requests itself (see above).
+  // Passes every other request, and every request outside the app, straight through.
+  ...(typeof window !== "undefined" ? { global: { fetch: appAwareFetch } } : {}),
 });
 
 let _anonClient: ReturnType<typeof createClient> | null = null;
@@ -178,99 +281,18 @@ export function isSupabaseConfigured(): boolean {
   return Boolean(url) && !url.includes("placeholder");
 }
 
-export type BrowserDeviceRegistration =
-  | { ok: true }
-  | { ok: false; reason: "device_already_registered" | "verification_failed" };
-
-/** Registers this browser before the website accepts an authenticated session. */
-export async function registerBrowserDevice(
-  session: { access_token: string } | null | undefined
-): Promise<BrowserDeviceRegistration> {
-  if (typeof window === "undefined" || !session?.access_token) {
-    return { ok: false, reason: "verification_failed" };
-  }
-  try {
-    const storageKey = "wt-browser-installation-v1";
-    let installationId = window.localStorage.getItem(storageKey);
-    if (!installationId || !/^[0-9a-f-]{36}$/i.test(installationId)) {
-      installationId = window.crypto.randomUUID();
-      window.localStorage.setItem(storageKey, installationId);
-    }
-    const material = new TextEncoder().encode(window.location.origin + ":" + installationId);
-    const digest = await window.crypto.subtle.digest("SHA-256", material);
-    const deviceHash = Array.from(new Uint8Array(digest))
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
-    const response = await fetch(supabaseUrl + "/functions/v1/register-device", {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: "Bearer " + session.access_token,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        device_hash: deviceHash,
-        device_label: "Wisdom Tower website browser",
-      }),
-    });
-    const payload = await response.json().catch(() => null);
-    if (response.ok && payload?.ok === true) return { ok: true };
-
-    // Password sign-in has already created this Auth session. Revoke the rejected
-    // session server-side before returning a failed registration result.
-    await revokeBrowserAuthSession(session.access_token);
-    if (response.status === 403 && payload?.reason === "device_already_registered") {
-      return { ok: false, reason: "device_already_registered" };
-    }
-    return { ok: false, reason: "verification_failed" };
-  } catch {
-    await revokeBrowserAuthSession(session.access_token);
-    return { ok: false, reason: "verification_failed" };
-  }
-}
-
-async function revokeBrowserAuthSession(accessToken: string): Promise<void> {
-  try {
-    await fetch(supabaseUrl + "/auth/v1/logout?scope=local", {
-      method: "POST",
-      headers: {
-        apikey: supabaseAnonKey,
-        Authorization: "Bearer " + accessToken,
-      },
-    });
-  } catch {
-    // The caller still fails closed locally if the Auth endpoint is unreachable.
-  }
-}
 export async function recoverSession() {
   try {
     const { data, error } = await supabase.auth.getSession();
     if (error) console.warn("[auth] getSession", error.message);
+    // Proactively refresh if session exists but access token may be stale
     if (data.session) {
-      // Android is the sole refresh-token owner inside the native app. In a
-      // WebView, return the stored session as-is; Android refreshes it and
-      // synchronizes every rotated token through AUTH_BRIDGE_JS.
-      const nativeApp = isNativeAcademyApp();
-      let activeSession = data.session;
-
-      if (!nativeApp) {
-        // Ordinary browsers refresh their own session when it is nearly expired.
-        const expiresAt = data.session.expires_at ?? 0;
-        const soon = Math.floor(Date.now() / 1000) + 60;
-        if (expiresAt < soon) {
-          const { data: refreshed, error: refreshError } = await supabase.auth.refreshSession();
-          if (refreshError || !refreshed.session) return null;
-          activeSession = refreshed.session;
-        }
-
-        const deviceCheck = await registerBrowserDevice(activeSession);
-        if (!deviceCheck.ok) {
-          await supabase.auth.signOut({ scope: "local" });
-          return null;
-        }
+      const expiresAt = data.session.expires_at ?? 0;
+      const soon = Math.floor(Date.now() / 1000) + 60;
+      if (expiresAt < soon) {
+        const { data: refreshed } = await supabase.auth.refreshSession();
+        return refreshed.session ?? data.session;
       }
-
-      return activeSession;
     }
     return data.session;
   } catch (e) {

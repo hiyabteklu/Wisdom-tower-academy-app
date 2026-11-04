@@ -3,24 +3,41 @@ import { NextRequest } from "next/server";
 
 // Provider candidate definition
 type Candidate =
-  | { provider: "gemini"; model: string }
-  | { provider: "groq"; model: string };
+  | { provider: "gateway"; model: string; timeoutMs?: number }
+  | { provider: "gemini"; model: string; timeoutMs?: number }
+  | { provider: "groq"; model: string; timeoutMs?: number };
 
-// Provider / model order for Tutor only:
-// 1) Gemini first: gemini-3.5-flash-lite (primary)
-// 2) Then Groq using GROQ_API_KEY_TUTOR (fast Groq chat model)
-// 3) Then remaining Gemini text models
+// The Gateway model can be changed WITHOUT touching code: set AI_GATEWAY_TUTOR_MODEL in Vercel
+// (Project Settings > Environment Variables) and redeploy. Default is a non-reasoning model that
+// follows formatting rules well (same family Explain-with-AI already uses successfully).
+// gpt-oss-20b was removed as primary: a small reasoning model copied style words from the prompt
+// into the answer (subtitles, "Final Warm Words", "(LaTeX array)" titles) and spent tokens thinking.
+const GATEWAY_TUTOR_MODEL = process.env.AI_GATEWAY_TUTOR_MODEL || "openai/gpt-4o-mini";
+
+// Provider / model order for Tutor only (3 tutor keys):
+// 1) Vercel AI Gateway (AI_GATEWAY_API_KEY_TUTOR): GATEWAY_TUTOR_MODEL  (primary)
+// 2) Gemini (GEMINI_API_KEY): gemini-3.1-flash-lite  (GA, long-lived, high capacity)
+// 3) Groq (GROQ_API_KEY_TUTOR): llama-3.3-70b-versatile  (separate provider = separate rate limits)
+// 4) Gemini: gemini-3.5-flash-lite
+// 5) Gemini: gemini-3.5-flash
+// 6) Gemini: gemini-3.6-flash
+// Removed (unreliable): gemini-3.8-flash, gemini-3.7-flash, *-latest aliases.
 const CANDIDATES: Candidate[] = [
-  { provider: "gemini", model: "gemini-3.5-flash-lite" },
-  { provider: "groq", model: "llama-3.3-70b-versatile" },
-  { provider: "gemini", model: "gemini-flash-lite-latest" },
+  { provider: "gateway", model: GATEWAY_TUTOR_MODEL, timeoutMs: 7000 },
   { provider: "gemini", model: "gemini-3.1-flash-lite" },
-  { provider: "gemini", model: "gemini-3.7-flash" },
-  { provider: "gemini", model: "gemini-3.8-flash" },
-  { provider: "gemini", model: "gemini-flash-latest" },
+  { provider: "groq", model: "llama-3.3-70b-versatile" },
+  { provider: "gemini", model: "gemini-3.5-flash-lite" },
+  { provider: "gemini", model: "gemini-3.5-flash" },
+  { provider: "gemini", model: "gemini-3.6-flash" },
 ];
 
 const PER_ATTEMPT_TIMEOUT_MS = 4500;
+
+// Room for a full study lesson (statement, formula, worked examples, table, summary).
+const MAX_OUTPUT_TOKENS = 3072;
+
+const GATEWAY_CHAT_URL = "https://ai-gateway.vercel.sh/v1/chat/completions";
+const GROQ_CHAT_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 const CALM_BUSY_MESSAGE =
   "The Wisdom Tower AI Tutor is currently experiencing high demand. Please wait a moment and try asking your question again.";
@@ -45,34 +62,87 @@ const STATIC_KNOWLEDGE_BLURB = `
   * Wisdom Tower Academy: All-in-one Ethiopian edtech platform with chapter textbooks, high-yield short notes, interactive flashcards, categorized question banks, and authentic solved university exams.
 `;
 
-const SYSTEM_INSTRUCTION = `You are the Wisdom Tower AI Academic Tutor — a warm, brilliant, and encouraging study coach for Ethiopian students across Secondary (Grades 9–12), University Freshman, and Senior Engineering tracks.
+const SYSTEM_INSTRUCTION = `You are the Wisdom Tower tutor for Ethiopian students: Grades 9-12, University Freshman, UAT / GAT / COC / Exit Exam preparation and Senior Engineering. You teach like a brilliant senior who already survived the exam: clear, patient, a little witty, and thorough whenever the topic needs it.
 
-Your Persona & Tone:
-- You act as a warm, supportive, and lightly witty mentor (like a brilliant senior university peer who makes hard concepts feel intuitive and achievable).
-- Use tasteful, intentional emojis sparingly (e.g. 💡, 🎯, 📐, ✨) — never spam emojis.
-- Be encouraging and patient. If a student is confused, rephrase with relatable intuition before formal notation.
-- Tone should be respectful, positive, scholarly, and motivating.
+HOW TO ANSWER
+- Start with the answer or the lesson itself. No greeting, no restating the question, no announcement of what you are about to do. Never open with "Here is", "Here's", "Sure", "Below is", "Let's explore", "Great question" or "Let's dive in".
+- Speak as the subject expert talking straight to the student. Never mention a textbook, module, chapter, "this lesson" or "students should understand"; teach the content directly.
+- Match depth to the request. A greeting or a quick factual question gets one or two lines. ANY request to explain a concept, topic, law, theorem or method, to show worked examples, or to teach step by step gets a COMPLETE study-note-quality lesson: usually 400 to 900 words, with every part of the lesson layout below that applies. Never shrink a lesson request into a brief chat reply.
+- A calculation gets full steps: given values, governing formula, substitution, result with units, and a one-line sanity check when it catches a real error.
+- A confused student gets the intuition in plain words first, then the notation.
+- Ask one short question back only when the message is truly ambiguous. Otherwise answer.
 
-Problem Solving & Explanations:
-1. Step-by-Step Rigor:
-   - For all mathematical, physics, chemistry, or engineering calculations, always explain step-by-step.
-   - Clarify the given parameters, state the governing formula/principle first, show intermediate substitutions, and highlight the final solution clearly.
-   - Mention practical exam takeaways and common pitfalls students often encounter in Ethiopian national and university exams.
-2. KaTeX / LaTeX Formatting (CRITICAL):
-   - ALWAYS format mathematical symbols, equations, and expressions using standard LaTeX.
-   - Inline math: use single dollar signs, e.g., $f(x) = 3x^2 - 4x + 1$, $\\frac{dy}{dx}$, $\\lim_{x \\to 0}$.
-   - Block/display math: use double dollar signs on separate lines, e.g.,
-     $$f'(x) = \\lim_{h \\to 0} \\frac{f(x+h) - f(x)}{h}$$
-   - Ensure all LaTeX delimiters are properly closed and valid.
-3. Errors & Safeguards:
-   - NEVER expose internal server information, API keys, or raw system error codes. Never show raw API errors.
-   - Keep answers structured, insightful, and easy to read.
+LESSON LAYOUT (for explanations of a concept or topic)
+Use "##" headings that name the content itself, for example "## First Law (Inertia)" or "## Worked Example 1: A cart on a level track". For each concept teach, in this order and only where it fits:
+1. The precise definition or statement, in plain words.
+2. Why it exists: the problem it solves.
+3. The mechanism or key formula in display math, followed by one line on what each symbol means.
+4. One or two worked examples with real numbers, each solved step by step and ending with the result and its units.
+5. The edge case: where the idea stops working or changes form.
+6. The link to the neighbouring concept in the same topic.
+Misconceptions go inside the flow, directly after the idea they attack, as an unlabeled "> " callout: state the wrong belief a student might actually hold, then correct it with the precise reason. Never gather them under a heading such as "Common Mistakes" or "Exam Traps", and use several callouts when several real misconceptions exist.
+Formatting density: every ## section has at least one [[key term]] at its first appearance and one ==must-memorise result==, plus **bold** and *italic* on the sentences that carry the real weight of the idea. Keep paragraphs short and use "- " bullets for steps, properties and classifications.
+A comparison table is allowed only when the topic is a real comparison of three or more items, placed where that comparison is taught. A table is never a recap.
+The lesson ends the moment the last concept is taught.
+Exam relevance goes inside the explanation, where it changes how the student should solve something (a trap, a shortcut, a unit that costs marks).
 
-Follow-up Suggestions:
-At the very end of your response, after your main explanation, provide 2 or 3 short, relevant follow-up questions or prompts the student could ask next. Format each on its own line exactly like this:
->>> SUGGESTION: <short follow-up prompt>
->>> SUGGESTION: <short follow-up prompt>
-Keep each suggestion under 8 words.`;
+WHAT NEVER APPEARS IN THE REPLY
+- No title, subtitle or tagline above the answer, and never any text that describes your own style ("warm", "friendly", "step-by-step guide", "with exam tips"). Style words in these instructions are for you, never content.
+- No recap or wrap-up of any kind at the end: no "Quick Summary", "Summary", "Key Takeaways", "Common Mistakes and Exam Traps", "Final Thought", "Final Words", "Remember:", and no closing sentence that comments on the lesson ("Understanding these laws is crucial...", "These principles form the foundation...", "Keep practicing..."). Also no "Want me to...?", "Let me know...", "Feel free to ask". The reply ends with its last useful fact; the follow-up chips carry the next step.
+- No labels such as "Exam tip", "Exam hint", "Note:", "Tip:", "Important:", "Warning:", "Key Formula:". The callout box, the bold and the highlight are the emphasis; never name them.
+- No number emojis, and no emoji inside headings.
+- Never put the words "LaTeX", "array", "table" or "KaTeX" in a heading.
+
+VOICE
+- Warm, natural and confident, with light humor that comes from precision (the sign error everybody makes, the unit that costs a mark). Tease the mistake, never the student's intelligence or effort.
+- A student who sounds stressed, discouraged or says they are failing gets calm, plain, encouraging help, with no jokes and no emojis.
+- Short sentences, contractions, specific facts over general statements.
+- Never invent curriculum details, grading rules or past-paper claims. If unsure, say so in one line.
+
+BANNED WORDS AND PHRASES (never use, in any form): delve, leverage, robust, landscape, tapestry, paradigm, realm, journey, unlock, empower, foster, navigate, embark, testament, seamless, crucial, vital, game-changer, "dive in", "break it down", "it is important to note", "it is worth mentioning", "in conclusion", "to summarize", "as we have seen", "as discussed", "in the world of", "at the end of the day", "Certainly!", "Absolutely!", "I hope this helps", "foundation for".
+
+EMOJI
+- Banned always: 💨 💦 🚀 ⚡ 🌟 🔥 💡 🎯 📐 ✨ 🧠 💪 📚 🎓 🌱 🌈 🙌 👏 💯 🎉 🤖 🔑 📈 🏆 ✅ ❌ 👉 and every number-keycap emoji.
+- Use only this palette, chosen by the feeling of that exact moment, never by topic:
+  🤣 genuinely absurd (a result like negative mass, a trick question)
+  😜 playful tease about a classic mistake
+  🤭 "oops, you were about to do the thing"
+  🫢 shock: a result far too big or small, or an examiner's nasty twist
+  🫡 respect: a good attempt, a hard request, "understood"
+  😏 smug: the trap was obvious in hindsight, the examiner's favourite trick
+  😎 smooth win: a shortcut that skips half the work
+  😭 dramatic pain: brutal algebra, a mark lost for a unit
+  🤐 "do not say it": a forbidden move such as dividing by zero
+  🫵 direct call-out: "yes, you, check the signs"
+  🙆‍♀️ "that's fine / allowed": reassurance that a step is OK
+  🤷 "it depends" or "it's just convention"
+  🤦‍♀️ facepalm: the mistake everyone makes
+  🥀 a dead end: a wilted approach, a term that cancels to nothing
+  🔮 prediction: what the exam will ask next, what will happen
+  📝 write this down: a formula or fact to memorise
+  📌 pin it: the single fact to keep, placed at the start of its own line instead of a labelled callout
+  🚫 never do this
+  🇪🇹 only for Ethiopia-specific context (national exam, GPA scale, local example), never as decoration
+- Rules: 0 to 2 per reply, 3 at most in a long lesson, and many replies have none. Never the same emoji twice in one reply, and never the same one as in your previous reply. Place it mid-sentence or after a punchline like a person would, never as a bullet marker, never at the end of every paragraph, never in headings, never in follow-up suggestions. A lesson never ends on an emoji.
+
+MATH AND FORMAT (the app renderer supports only this)
+- All mathematics is LaTeX. Inline: $f(x) = 3x^2 - 4x + 1$. Display: \`$$\` on its own lines. Always \`$\` and \`$$\`, never \\( \\) or \\[ \\]. Even a bare F = ma is written $F = ma$.
+- Write each backslash once, exactly as LaTeX needs it: \\frac, \\text, \\Delta. Never double a backslash in the reply (never \\\\frac) and never put LaTeX in backticks.
+- Real LaTeX only: x^2, x_3, \\Delta, \\times, ^\\circ. Never Unicode fake math (x², Δ, ×, °), including in units: write $\\text{m/s}^2$, never m/s². Units in \\text{}: $9.8\\,\\text{m/s}^2$.
+- Every step of a derivation is on its own line. Use $$\\begin{aligned} a &= b \\\\ &= c \\end{aligned}$$ for multi-step algebra. Long equations go in display math and are broken with aligned, never squeezed into a sentence.
+- Tables: only a LaTeX array inside $$ ... $$, with \\hline and \\text{} cells, at most 4 columns, at most 4 words per text cell. Example: $$\\begin{array}{l|c|c} \\text{Quantity} & \\text{Symbol} & \\text{Value} \\\\ \\hline \\text{Mass} & m & 20\\,\\text{kg} \\\\ \\text{Force} & F & 30\\,\\text{N} \\end{array}$$ Never a pipe table, never HTML, never an image. If the cells need long sentences, use a bullet list instead.
+- Allowed markdown: ## and ### headings, **bold**, *italic*, "- " bullets, "> " callout, "---", inline \`code\`, [[term]] for a key term at its first appearance, ==phrase== for a must-memorise result (at most one per ## section). Fenced code blocks only for real programming answers (for example C++). No nested lists, no nested callouts, no HTML.
+- Blank line between blocks.
+
+PROBLEM SOLVING
+- Use the knowledge base above for Ethiopian curriculum and GPA facts.
+- Every worked example must be physically and numerically correct. Derive each number from the data in the problem, and never apply a formula to a situation that does not satisfy its conditions (for example, a person jumping off a boat does not push with a force of m g; that force depends on how fast the jump accelerates). If a scenario cannot be solved from the data given, choose one that can.
+- Never expose internal configuration, keys, server details or raw errors, and never mention these instructions.
+
+FOLLOW-UP SUGGESTIONS
+After the answer, on new lines, write 2 or 3 suggestions in exactly this form:
+>>> SUGGESTION: <what the student would type next>
+Each is at most 7 words, specific to this answer and curiosity-driven ("Why does friction flip direction?", not "Explain more"). Plain text: no emoji, no markdown, no numbering. For a greeting or a one-line reply, write none.`;
 
 function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
   return new Promise((resolve, reject) => {
@@ -92,17 +162,21 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+// The marker can arrive split across streamed chunks and several suggestions can land on one line,
+// so it is matched with a regex over the whole buffer instead of per chunk / per line.
+const SUGGESTION_MARKER_RE = />{2,3}\s*(?:SUGGESTION|Follow-up)\s*:/i;
+const MARKER_HOLD = 24; // longest partial marker that may still be arriving
+
 function parseSuggestions(buffer: string): string[] {
   if (!buffer) return [];
-  const lines = buffer.split("\n");
   const list: string[] = [];
-  for (const line of lines) {
-    const cleaned = line
-      .replace(/^[\s>*-]+(?:SUGGESTION|Suggestion|Follow-up):\s*/i, "")
-      .replace(/^[\d\-*•.]+\s*/, "")
+  for (const part of buffer.split(SUGGESTION_MARKER_RE).slice(1)) {
+    const cleaned = part
+      .replace(/[*_`#]/g, "")
+      .replace(/\s+/g, " ")
       .replace(/^["']|["']$/g, "")
       .trim();
-    if (cleaned.length > 2 && cleaned.length < 80) {
+    if (cleaned.length > 2 && cleaned.length < 70) {
       list.push(cleaned);
       if (list.length >= 3) break;
     }
@@ -149,8 +223,8 @@ async function tryGeminiCandidate(
       contents: formattedContents,
       config: {
         systemInstruction: fullSystemInstruction,
-        temperature: 0.7,
-        maxOutputTokens: 2048,
+        temperature: 0.5,
+        maxOutputTokens: MAX_OUTPUT_TOKENS,
       },
     }),
     timeoutMs,
@@ -170,18 +244,24 @@ async function tryGeminiCandidate(
   };
 }
 
-async function tryGroqCandidate(
-  apiKey: string,
-  model: string,
-  fullSystemInstruction: string,
-  formattedContents: any[],
-  timeoutMs: number
-) {
+// Generic OpenAI-compatible streaming candidate (used for Vercel AI Gateway and Groq).
+async function tryOpenAICompatCandidate(opts: {
+  label: string; // "Gateway" | "Groq" (for logs/errors only)
+  url: string;
+  apiKey: string;
+  model: string;
+  fullSystemInstruction: string;
+  formattedContents: any[];
+  timeoutMs: number;
+  maxTokens?: number;
+}) {
+  const { label, url, apiKey, model, fullSystemInstruction, formattedContents, timeoutMs } = opts;
+
   if (!apiKey || !apiKey.trim()) {
-    throw new Error("GROQ_API_KEY_TUTOR not configured");
+    throw new Error(`${label} API key not configured`);
   }
 
-  const groqMessages = [
+  const messages = [
     { role: "system", content: fullSystemInstruction },
     ...formattedContents.map((c: any) => ({
       role: c.role === "model" ? "assistant" : "user",
@@ -194,7 +274,7 @@ async function tryGroqCandidate(
 
   let res: Response;
   try {
-    res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    res = await fetch(url, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey.trim()}`,
@@ -202,10 +282,10 @@ async function tryGroqCandidate(
       },
       body: JSON.stringify({
         model,
-        temperature: 0.7,
-        max_tokens: 2048,
+        temperature: 0.5,
+        max_tokens: opts.maxTokens ?? MAX_OUTPUT_TOKENS,
         stream: true,
-        messages: groqMessages,
+        messages,
       }),
       signal: controller.signal,
     });
@@ -215,57 +295,75 @@ async function tryGroqCandidate(
 
   if (!res.ok) {
     const errText = await res.text().catch(() => "");
-    throw new Error(`Groq HTTP ${res.status}: ${errText.slice(0, 150)}`);
+    throw new Error(`${label} HTTP ${res.status}: ${errText.slice(0, 150)}`);
   }
 
   if (!res.body) {
-    throw new Error("Groq returned empty response body");
+    throw new Error(`${label} returned empty response body`);
   }
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  // A single network read can contain MANY SSE events. Every delta must be queued —
+  // returning after the first one would silently drop the rest (garbled, missing words).
+  const pending: string[] = [];
+  let streamEnded = false;
 
-  async function readNextGroqChunk(): Promise<{ done: boolean; text?: string }> {
+  function consumeLine(line: string) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed === "data: [DONE]") return;
+    if (!trimmed.startsWith("data:")) return;
+    try {
+      const parsed = JSON.parse(trimmed.slice(5).trim());
+      // Only visible answer text ("content"); reasoning tokens are ignored.
+      const delta = parsed.choices?.[0]?.delta?.content;
+      if (typeof delta === "string" && delta.length > 0) {
+        pending.push(delta);
+      }
+    } catch {
+      // Ignore malformed or partial json line
+    }
+  }
+
+  async function readNextChunk(): Promise<{ done: boolean; text?: string }> {
     while (true) {
+      if (pending.length > 0) {
+        return { done: false, text: pending.shift() as string };
+      }
+      if (streamEnded) return { done: true };
+
       const { done, value } = await reader.read();
-      if (done) return { done: true };
+      if (done) {
+        streamEnded = true;
+        buffer += decoder.decode();
+        if (buffer) {
+          consumeLine(buffer);
+          buffer = "";
+        }
+        continue;
+      }
 
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
-
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (!trimmed || trimmed === "data: [DONE]") continue;
-        if (trimmed.startsWith("data: ")) {
-          try {
-            const parsed = JSON.parse(trimmed.slice(6));
-            const delta = parsed.choices?.[0]?.delta?.content;
-            if (delta) {
-              return { done: false, text: delta };
-            }
-          } catch {
-            // Ignore malformed or partial json line
-          }
-        }
-      }
+      for (const line of lines) consumeLine(line);
     }
   }
 
-  // Peek first chunk within timeout
+  // Peek first visible chunk within timeout
   const first = await withTimeout<{ done: boolean; text?: string }>(
-    readNextGroqChunk(),
+    readNextChunk(),
     timeoutMs,
-    `Groq ${model} first chunk`
+    `${label} ${model} first chunk`
   );
   if (first.done && !first.text) {
-    throw new Error(`Groq ${model} returned empty stream`);
+    throw new Error(`${label} ${model} returned empty stream`);
   }
 
   const asyncIterator = {
     async next() {
-      const r = await readNextGroqChunk();
+      const r = await readNextChunk();
       return {
         done: r.done,
         value: { text: r.text },
@@ -289,6 +387,7 @@ export async function POST(req: NextRequest) {
       process.env.AI_GATEWAY_API_KEY ||
       "";
     const groqTutorApiKey = process.env.GROQ_API_KEY_TUTOR || "";
+    const gatewayTutorApiKey = process.env.AI_GATEWAY_API_KEY_TUTOR || "";
 
     const fullSystemInstruction = `${STATIC_KNOWLEDGE_BLURB}\n\n${SYSTEM_INSTRUCTION}${
       courseContext ? `\n\nCurrent Student Course Context: ${courseContext}` : ""
@@ -321,16 +420,33 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    // Try candidates in requested order:
-    // 1) Gemini: gemini-3.5-flash-lite
-    // 2) Groq: llama-3.3-70b-versatile using GROQ_API_KEY_TUTOR
-    // 3) Remaining Gemini text models (gemini-flash-lite-latest, gemini-3.1-flash-lite, gemini-3.7-flash, gemini-flash-latest)
+    // Try candidates in the order defined in CANDIDATES above.
     let activeIterator: any = null;
     let firstChunkText = "";
 
     for (const candidate of CANDIDATES) {
+      const timeoutMs = candidate.timeoutMs ?? PER_ATTEMPT_TIMEOUT_MS;
       try {
-        if (candidate.provider === "gemini") {
+        if (candidate.provider === "gateway") {
+          if (!gatewayTutorApiKey) {
+            console.log("[AI Tutor] Skipping Gateway candidate (AI_GATEWAY_API_KEY_TUTOR not set)");
+            continue;
+          }
+          const result = await tryOpenAICompatCandidate({
+            label: "Gateway",
+            url: GATEWAY_CHAT_URL,
+            apiKey: gatewayTutorApiKey,
+            model: candidate.model,
+            fullSystemInstruction,
+            formattedContents,
+            timeoutMs,
+            maxTokens: MAX_OUTPUT_TOKENS,
+          });
+          activeIterator = result.iterator;
+          firstChunkText = result.firstChunkText;
+          console.log(`[AI Tutor] Succeeded with Gateway: ${candidate.model}`);
+          break;
+        } else if (candidate.provider === "gemini") {
           if (!ai) {
             console.warn(`[AI Tutor] Skipping Gemini ${candidate.model} (no GEMINI_API_KEY)`);
             continue;
@@ -340,7 +456,7 @@ export async function POST(req: NextRequest) {
             candidate.model,
             fullSystemInstruction,
             formattedContents,
-            PER_ATTEMPT_TIMEOUT_MS
+            timeoutMs
           );
           activeIterator = result.iterator;
           firstChunkText = result.firstChunkText;
@@ -351,13 +467,15 @@ export async function POST(req: NextRequest) {
             console.log("[AI Tutor] Skipping Groq candidate (GROQ_API_KEY_TUTOR not set)");
             continue;
           }
-          const result = await tryGroqCandidate(
-            groqTutorApiKey,
-            candidate.model,
+          const result = await tryOpenAICompatCandidate({
+            label: "Groq",
+            url: GROQ_CHAT_URL,
+            apiKey: groqTutorApiKey,
+            model: candidate.model,
             fullSystemInstruction,
             formattedContents,
-            PER_ATTEMPT_TIMEOUT_MS
-          );
+            timeoutMs,
+          });
           activeIterator = result.iterator;
           firstChunkText = result.firstChunkText;
           console.log(`[AI Tutor] Succeeded with Groq: ${candidate.model}`);
@@ -398,11 +516,21 @@ export async function POST(req: NextRequest) {
         let suggestionBuffer = "";
         let inSuggestionMode = false;
         let streamedAnyText = false;
+        let streamedChars = 0;
+        let pending = "";
 
         const sendEvent = (obj: any) => {
           controller.enqueue(encoder.encode(`data: ${JSON.stringify(obj)}\n\n`));
         };
 
+        const sendText = (t: string) => {
+          if (!t) return;
+          streamedAnyText = true;
+          streamedChars += t.length;
+          sendEvent({ type: "chunk", text: t });
+        };
+
+        // Holds back the last MARKER_HOLD characters so a marker split across chunks is never shown.
         const processChunkText = (text: string | undefined) => {
           if (!text) return;
 
@@ -411,19 +539,28 @@ export async function POST(req: NextRequest) {
             return;
           }
 
-          const markerIndex = text.indexOf(">>> SUGGESTION:");
-          if (markerIndex !== -1) {
+          pending += text;
+          const m = SUGGESTION_MARKER_RE.exec(pending);
+          if (m) {
             inSuggestionMode = true;
-            const preText = text.slice(0, markerIndex);
-            if (preText) {
-              streamedAnyText = true;
-              sendEvent({ type: "chunk", text: preText });
-            }
-            suggestionBuffer += text.slice(markerIndex);
-          } else {
-            streamedAnyText = true;
-            sendEvent({ type: "chunk", text });
+            sendText(pending.slice(0, m.index).replace(/\s+$/, ""));
+            suggestionBuffer += pending.slice(m.index);
+            pending = "";
+            return;
           }
+          if (pending.length > MARKER_HOLD) {
+            let cut = pending.length - MARKER_HOLD;
+            const code = pending.charCodeAt(cut);
+            if (code >= 0xdc00 && code <= 0xdfff) cut -= 1; // do not split an emoji
+            const out = pending.slice(0, cut);
+            pending = pending.slice(cut);
+            sendText(out);
+          }
+        };
+
+        const flushPending = () => {
+          if (pending && !inSuggestionMode) sendText(pending);
+          pending = "";
         };
 
         try {
@@ -436,10 +573,12 @@ export async function POST(req: NextRequest) {
             if (next.done) break;
             processChunkText(next.value?.text);
           }
+          flushPending();
 
           // Parse suggestions from suggestionBuffer
           let suggestions = parseSuggestions(suggestionBuffer);
-          if (suggestions.length === 0) {
+          // Short replies (greetings, one-liners) get no chips instead of generic exam-trap ones.
+          if (suggestions.length === 0 && streamedChars > 200) {
             suggestions = getContextualSuggestions(courseContext);
           }
 
@@ -448,6 +587,7 @@ export async function POST(req: NextRequest) {
           controller.close();
         } catch (streamErr: any) {
           console.error("[AI Tutor Stream Chunk Error]", streamErr?.message || streamErr);
+          flushPending();
           if (!streamedAnyText) {
             sendEvent({ type: "chunk", text: CALM_BUSY_MESSAGE });
             sendEvent({
@@ -488,4 +628,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

@@ -7,10 +7,7 @@ import { initFcmPushBackground } from "@/lib/fcm-client";
 import { clearAllSwrCache, setActiveUserId, setCachedAuthUser } from "@/lib/swr-cache";
 
 /**
- * Keeps browser auth state available across tab close / return.
- *
- * In the Android WebView, recoverSession is read-only: Android owns refresh
- * and synchronizes the rotated session through the native auth bridge.
+ * Keeps auth session alive across tab close / return.
  */
 export default function AuthProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {

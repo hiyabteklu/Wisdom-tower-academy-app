@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, Clock, Pencil, RefreshCw, Trash2 } from "lucide-react";
+import { Pencil, RefreshCw, Trash2 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
+import { AdminBadge, AdminCard, AdminEmpty, AdminPill, AdminSectionTitle, AdminSheet, AdminSkeleton, AdminToast, type AdminTone } from "./ui";
 
 /**
  * Admin list of scheduled notifications: see the schedule, edit a waiting row, cancel it.
@@ -13,6 +14,12 @@ import { supabase } from "@/lib/supabase";
  * Old rows (made before v2, no category) are listed and can be cancelled but not edited.
  * The database scheduler (pg_cron, every minute) calls /api/notifications/dispatch, which sends due rows.
  * All times are shown in Ethiopia time (EAT, UTC+3).
+ *
+ * 2026-10-15 (Admin mobile redesign, slice A6): LAYOUT ONLY (bordered cards, 44 px pills, wrapped text).
+ *
+ * 2026-10-16 (Admin UI V2, slice U4 part 2): LAYOUT ONLY. Kit cards, kit badges and pills, a bottom sheet
+ * instead of the browser confirm box before Cancel, a slim toast instead of the inline message, a static
+ * skeleton while loading. Exports, state and database calls are unchanged.
  */
 
 export type ScheduledStatus = "pending" | "sending" | "sent" | "failed" | "cancelled";
@@ -70,18 +77,18 @@ export function friendlyScheduleError(message: string): string {
   return message || "Something went wrong.";
 }
 
-function statusBadge(status: ScheduledStatus): string {
+function statusTone(status: ScheduledStatus): AdminTone {
   switch (status) {
     case "pending":
-      return "bg-sky-500/15 text-sky-300 border-sky-400/30";
+      return "cyan";
     case "sending":
-      return "bg-amber-500/15 text-amber-300 border-amber-400/30";
+      return "gold";
     case "sent":
-      return "bg-emerald-500/15 text-emerald-300 border-emerald-400/30";
+      return "green";
     case "failed":
-      return "bg-rose-500/15 text-rose-300 border-rose-400/30";
+      return "red";
     default:
-      return "bg-slate-500/15 text-slate-300 border-slate-400/30";
+      return "neutral";
   }
 }
 
@@ -102,6 +109,7 @@ export default function ScheduledNotificationsPanel({
   const [rows, setRows] = useState<ScheduledRowV2[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [pendingCancel, setPendingCancel] = useState<ScheduledRowV2 | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,7 +130,6 @@ export default function ScheduledNotificationsPanel({
   }, [load, refreshKey]);
 
   async function handleCancel(id: string) {
-    if (!window.confirm("Cancel this scheduled notification? It will not be sent.")) return;
     setFeedback(null);
     const { error } = await supabase.rpc("admin_cancel_scheduled_notification", { p_id: id });
     if (error) {
@@ -133,101 +140,104 @@ export default function ScheduledNotificationsPanel({
     void load();
   }
 
-  return (
-    <div className="rounded-3xl border border-white/10 bg-[#08101e] p-5 sm:p-6 shadow-xl">
-      <div className="flex items-center justify-between gap-3 mb-4">
-        <h3 className="text-sm font-bold text-white flex items-center gap-2">
-          <Clock className="w-4 h-4 text-amber-300" />
-          <span>Scheduled Notifications ({rows.length})</span>
-        </h3>
-        <button
-          type="button"
-          onClick={() => void load()}
-          disabled={loading}
-          className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors cursor-pointer"
-        >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          <span>Refresh</span>
-        </button>
-      </div>
+  async function confirmCancel() {
+    const target = pendingCancel;
+    setPendingCancel(null);
+    if (target) await handleCancel(target.id);
+  }
 
-      {feedback && (
-        <div
-          className={`mb-4 p-3 rounded-2xl border text-xs flex items-start gap-2.5 ${
-            feedback.type === "success"
-              ? "bg-emerald-500/10 border-emerald-400/30 text-emerald-300"
-              : "bg-rose-500/10 border-rose-400/30 text-rose-300"
-          }`}
-        >
-          {feedback.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
-      )}
+  return (
+    <div>
+      <AdminSectionTitle
+        action={
+          <button
+            type="button"
+            onClick={() => void load()}
+            disabled={loading}
+            aria-label="Refresh"
+            className="grid h-11 w-11 cursor-pointer place-items-center rounded-full border border-white/10 bg-wisdom-card text-white active:bg-white/10 disabled:opacity-50"
+          >
+            <RefreshCw className="h-4 w-4" />
+          </button>
+        }
+      >
+        Scheduled Notifications ({rows.length})
+      </AdminSectionTitle>
 
       {loading ? (
-        <p className="text-xs text-wisdom-muted py-6 text-center">Loading...</p>
+        <AdminSkeleton rows={3} />
       ) : rows.length === 0 ? (
-        <p className="text-xs text-wisdom-muted py-6 text-center">Nothing scheduled yet.</p>
+        <AdminEmpty title="Nothing scheduled yet." />
       ) : (
-        <div className="divide-y divide-white/8">
-          {rows.map((r) => (
-            <div key={r.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div className="min-w-0 flex-1">
-                <div className="flex flex-wrap items-center gap-2 mb-1">
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${statusBadge(
-                      r.status
-                    )}`}
-                  >
+        <div className="space-y-2">
+          {rows.map((r) => {
+            const canEdit = Boolean(onEdit && r.category);
+            return (
+              <AdminCard key={r.id}>
+                <div className="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                  <AdminBadge tone={statusTone(r.status)} className="uppercase tracking-wider">
                     {r.status}
-                  </span>
+                  </AdminBadge>
                   {r.category && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-md border border-amber-400/30 bg-amber-500/10 text-amber-300 uppercase tracking-wider">
+                    <AdminBadge tone="gold" className="uppercase tracking-wider">
                       {r.category}
-                    </span>
+                    </AdminBadge>
                   )}
-                  <span className="text-[11px] text-slate-400">{formatEat(r.send_at)}</span>
-                  <span className="text-[11px] font-mono text-slate-500">
-                    {audienceText(r)}
-                    {r.package_id ? ` / package ${r.package_id}` : ""}
-                  </span>
                 </div>
-                <h4 className="text-sm font-bold text-white">{r.title}</h4>
-                <p className="text-xs text-wisdom-muted line-clamp-2 mt-0.5">{r.body}</p>
-                {r.url && <p className="text-[11px] text-sky-400 mt-1">Link: {r.url}</p>}
-                {r.last_error && <p className="text-[11px] text-rose-300 mt-1">{r.last_error}</p>}
-              </div>
+                <p className="text-xs text-slate-400">{formatEat(r.send_at)}</p>
+                <p className="break-all font-mono text-xs text-slate-500">
+                  {audienceText(r)}
+                  {r.package_id ? ` / package ${r.package_id}` : ""}
+                </p>
+                <h4 className="mt-1.5 break-words text-sm font-bold text-white">{r.title}</h4>
+                <p className="mt-0.5 line-clamp-2 break-words text-sm text-wisdom-muted">{r.body}</p>
+                {r.url && <p className="mt-1 break-all text-xs text-cyan-300">Link: {r.url}</p>}
+                {r.last_error && <p className="mt-1 break-words text-xs text-rose-300">{r.last_error}</p>}
 
-              {r.status === "pending" && (
-                <div className="shrink-0 flex items-center gap-1">
-                  {onEdit && r.category && (
-                    <button
-                      type="button"
-                      onClick={() => onEdit(r)}
-                      title="Edit"
-                      className="p-2 rounded-xl text-slate-500 hover:text-amber-300 hover:bg-amber-500/10 transition-colors cursor-pointer"
-                    >
-                      <Pencil className="w-4 h-4" />
-                    </button>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => void handleCancel(r.id)}
-                    title="Cancel"
-                    className="p-2 rounded-xl text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </button>
-                </div>
-              )}
-            </div>
-          ))}
+                {r.status === "pending" && (
+                  <div className={`mt-3 grid gap-2 ${canEdit ? "grid-cols-2" : "grid-cols-1"}`}>
+                    {canEdit && onEdit && (
+                      <AdminPill tone="gold" icon={Pencil} onClick={() => onEdit(r)}>
+                        Edit
+                      </AdminPill>
+                    )}
+                    <AdminPill tone="danger" icon={Trash2} onClick={() => setPendingCancel(r)}>
+                      Cancel
+                    </AdminPill>
+                  </div>
+                )}
+              </AdminCard>
+            );
+          })}
         </div>
       )}
+
+      {/* Confirm before cancelling a waiting notification */}
+      <AdminSheet
+        open={pendingCancel !== null}
+        onClose={() => setPendingCancel(null)}
+        title="Cancel scheduled notification"
+        footer={
+          <div className="flex gap-2">
+            <AdminPill fullWidth onClick={() => setPendingCancel(null)}>
+              Keep it
+            </AdminPill>
+            <AdminPill fullWidth tone="danger" icon={Trash2} onClick={() => void confirmCancel()}>
+              Cancel it
+            </AdminPill>
+          </div>
+        }
+      >
+        <p className="text-sm text-wisdom-muted">Cancel this scheduled notification? It will not be sent.</p>
+        <p className="mt-2 break-words text-sm font-semibold text-white">{pendingCancel?.title}</p>
+        {pendingCancel ? <p className="mt-0.5 text-xs text-slate-400">{formatEat(pendingCancel.send_at)}</p> : null}
+      </AdminSheet>
+
+      <AdminToast
+        message={feedback ? feedback.message : null}
+        tone={feedback ? (feedback.type === "success" ? "green" : "red") : "neutral"}
+        onClose={() => setFeedback(null)}
+      />
     </div>
   );
 }

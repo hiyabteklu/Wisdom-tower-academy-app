@@ -3,7 +3,6 @@
 import { freshmanSubjects } from "@/data/freshman";
 import { grades, resourceHubs } from "@/data/academy";
 import { subjectsForGrade } from "@/data/grade-subjects";
-import { remedialSubjects } from "@/data/remedial";
 import { specialPackages } from "@/data/special-packages";
 import { packageIdForGrade } from "@/data/packages";
 import {
@@ -55,7 +54,7 @@ const gradeNodes: AdminNavNode[] = grades.map((g) => {
  */
 const entranceNode: AdminNavNode = {
   id: "entrance-questions",
-  label: "EUEE · Entrance Questions",
+  label: "Entrance Questions",
   packageId: ENTRANCE_PACKAGE_ID,
   useAppwrite: true,
   children: ENTRANCE_STREAMS.map((stream) => ({
@@ -91,25 +90,55 @@ const entranceNode: AdminNavNode = {
   })),
 };
 
-const remedialNode: AdminNavNode = {
-  id: "remedial",
-  label: "Remedial",
-  packageId: "remedial",
+/**
+ * UAT has 4 hubs (see src/data/uat-hubs.ts). A hub node's id must be the stored hub id
+ * (short-notes, exams, life-savers) because the editor chooses its fields from it.
+ * Tips and Revision Notes both store as short-notes, so Tips sits one folder deeper to
+ * keep sibling ids unique.
+ */
+const uatNode: AdminNavNode = {
+  id: "uat",
+  label: "UAT",
+  packageId: "uat",
   useAppwrite: true,
-  children: remedialSubjects.map((subject) => ({
-    id: subject.id,
-    label: subject.name,
-    packageId: "remedial",
-    scopePath: `remedial/${subject.id}`,
-    useAppwrite: true,
-    children: resourceHubs.map((hub) => ({
-      id: hub.id,
-      label: hub.name,
-      packageId: "remedial",
-      scopePath: `remedial/${subject.id}`,
+  children: [
+    {
+      id: "uat-tips",
+      label: "Tips",
+      packageId: "uat",
       useAppwrite: true,
-    })),
-  })),
+      children: [
+        {
+          id: "short-notes",
+          label: "Tip articles",
+          packageId: "uat",
+          scopePath: "uat/tips",
+          useAppwrite: true,
+        },
+      ],
+    },
+    {
+      id: "short-notes",
+      label: "Revision Notes",
+      packageId: "uat",
+      scopePath: "uat",
+      useAppwrite: true,
+    },
+    {
+      id: "exams",
+      label: "Previous Exams",
+      packageId: "uat",
+      scopePath: "uat",
+      useAppwrite: true,
+    },
+    {
+      id: "life-savers",
+      label: "Resources",
+      packageId: "uat",
+      scopePath: "uat",
+      useAppwrite: true,
+    },
+  ],
 };
 
 export const ADMIN_CONTENT_TREE: AdminNavNode[] = [
@@ -120,6 +149,7 @@ export const ADMIN_CONTENT_TREE: AdminNavNode[] = [
     children: gradeNodes,
   },
   entranceNode,
+  uatNode,
   {
     id: "freshman",
     label: "Freshman",
@@ -140,7 +170,6 @@ export const ADMIN_CONTENT_TREE: AdminNavNode[] = [
       })),
     })),
   },
-  remedialNode,
   {
     id: "special",
     label: "Special packages",

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import CustomSelect from "@/components/ui/CustomSelect";
+import StatusSaveButton from "@/components/StatusSaveButton";
 import {
   computeStudentAnalytics,
   type StudentAnalyticsResult,
@@ -128,8 +129,14 @@ export default function StudentAnalyticsDashboard({
             </span>
           </div>
 
-          {/* Academic Track Benchmark Selector */}
-          <div className="flex items-center gap-2.5">
+          {/* Save status + Academic Track Benchmark Selector */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            <StatusSaveButton
+              studentName={studentName}
+              userId={userId}
+              analytics={analytics}
+              disabled={loading}
+            />
             <div className="w-56 sm:w-64">
               <CustomSelect
                 value={selectedTrackKey || defaultResolvedTrack.trackId}

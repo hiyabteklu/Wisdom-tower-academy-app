@@ -1,9 +1,24 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { AlertCircle, CheckCircle2, RefreshCw, Trophy } from "lucide-react";
+import { Ban, Eye, EyeOff, ListOrdered, Pause, Play, RefreshCw, Rocket, Trophy, CalendarClock } from "lucide-react";
 import { supabase } from "@/lib/supabase";
 import { EntryFlagsInfo, useEntryFlags } from "./EntryFlagsInfo";
+import {
+  AdminBadge,
+  AdminCard,
+  AdminEmpty,
+  AdminField,
+  AdminInput,
+  AdminPill,
+  AdminSectionTitle,
+  AdminSelect,
+  AdminSheet,
+  AdminSkeleton,
+  AdminTextarea,
+  AdminToast,
+  type AdminTone,
+} from "./ui";
 
 /**
  * Admin panel for competitions (global timed exams).
@@ -25,6 +40,13 @@ import { EntryFlagsInfo, useEntryFlags } from "./EntryFlagsInfo";
  * C10: the Entries list also shows the integrity flags the student's app
  * recorded during the ranked exam (EntryFlagsInfo.tsx). They are signals for
  * the admin to look at; nothing is disqualified automatically.
+ *
+ * Slice A5 (docs/ADMIN_MOBILE_PLAN.md): LAYOUT ONLY (2-column pill grid, 44 px targets, no animation).
+ *
+ * Slice U5 (docs/ADMIN_UI_V2_PLAN.md, 2026-10-16): LAYOUT ONLY. Kit cards, kit fields, kit badges and pills.
+ * The browser pop-ups are replaced by bottom sheets: Start now and Cancel contest ask in a confirm sheet
+ * (same sentences), Disqualify asks for the reason in a sheet with a text box (same sentence, same empty-reason
+ * check), Reschedule opens as a sheet. Feedback is the kit slim toast. Data calls, checks and texts unchanged.
  */
 
 type Competition = {
@@ -64,13 +86,12 @@ type EntryRow = {
 
 type Phase = "upcoming" | "live" | "ended";
 
+type ConfirmAction = { kind: "start" | "cancel"; c: Competition };
+
 const EAT_OFFSET = "+03:00";
 const LOCAL_DT = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/;
 
-const BTN =
-  "px-3 py-1.5 rounded-xl text-xs font-semibold border border-white/10 bg-white/5 text-white hover:bg-white/10 transition-colors cursor-pointer disabled:opacity-50";
-const INPUT =
-  "w-full px-4 py-2.5 rounded-xl bg-[#050b14] border border-white/12 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-sky-400 transition-colors";
+const CHECK_LABEL = "flex min-h-[44px] cursor-pointer items-center gap-3 text-sm text-white";
 
 function formatEat(iso: string | null): string {
   if (!iso) return "";
@@ -126,18 +147,18 @@ function phaseOf(c: Competition, nowMs: number): Phase {
   return "ended";
 }
 
-function badgeClass(kind: string): string {
+function toneOf(kind: string): AdminTone {
   switch (kind) {
     case "live":
-      return "bg-emerald-500/15 text-emerald-300 border-emerald-400/30";
+      return "green";
     case "upcoming":
-      return "bg-sky-500/15 text-sky-300 border-sky-400/30";
+      return "cyan";
     case "paused":
-      return "bg-amber-500/15 text-amber-300 border-amber-400/30";
+      return "gold";
     case "cancelled":
-      return "bg-rose-500/15 text-rose-300 border-rose-400/30";
+      return "red";
     default:
-      return "bg-slate-500/15 text-slate-300 border-slate-400/30";
+      return "neutral";
   }
 }
 
@@ -170,10 +191,15 @@ export default function CompetitionsAdminPanel() {
   const [requiresPackage, setRequiresPackage] = useState(false);
   const [publishNow, setPublishNow] = useState(false);
 
-  // Reschedule (inline, one row at a time)
+  // Reschedule (a sheet, one row at a time)
   const [editId, setEditId] = useState<string | null>(null);
   const [editStart, setEditStart] = useState("");
   const [editDuration, setEditDuration] = useState("");
+
+  // Confirm sheet (Start now, Cancel contest) and the disqualify sheet
+  const [confirmAct, setConfirmAct] = useState<ConfirmAction | null>(null);
+  const [dqEntry, setDqEntry] = useState<EntryRow | null>(null);
+  const [dqReason, setDqReason] = useState("");
 
   // Entries (one competition at a time)
   const [entriesFor, setEntriesFor] = useState<string | null>(null);
@@ -368,15 +394,13 @@ export default function CompetitionsAdminPanel() {
     setEntriesLoading(false);
   }
 
-  async function handleDisqualify(entry: EntryRow) {
-    const reason = window.prompt(
-      "Reason for disqualifying this entry (the student sees it, and the entry leaves the leaderboard):"
-    );
-    if (reason === null) return;
+  async function handleDisqualify(entry: EntryRow, reason: string) {
     if (!reason.trim()) {
       setFeedback({ type: "error", message: "Please type the reason." });
       return;
     }
+    setDqEntry(null);
+    setDqReason("");
     setBusy(`dq-${entry.id}`);
     setFeedback(null);
     const { error } = await supabase.rpc("admin_disqualify_entry", {
@@ -396,76 +420,64 @@ export default function CompetitionsAdminPanel() {
     }
   }
 
+  function runConfirmed() {
+    const act = confirmAct;
+    setConfirmAct(null);
+    if (!act) return;
+    const c = act.c;
+    if (act.kind === "start") {
+      void run(
+        `start-${c.id}`,
+        () => supabase.rpc("admin_start_competition_now", { p_id: c.id }),
+        "Started now."
+      );
+    } else {
+      void run(
+        `cancel-${c.id}`,
+        () =>
+          supabase.rpc("admin_set_countdown", {
+            p_id: c.id,
+            p_state: "cancelled",
+          }),
+        "Cancelled."
+      );
+    }
+  }
+
+  const editingComp = editId ? rows.find((r) => r.id === editId) ?? null : null;
+
   return (
-    <div className="space-y-8">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-white/10 pb-6">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider bg-amber-500/15 text-amber-300 border border-amber-400/30">
-              <Trophy className="w-3.5 h-3.5" />
-              Competitions
-            </span>
-          </div>
-          <h2 className="font-display text-2xl font-bold text-white tracking-tight">
-            Global Timed Exams
-          </h2>
-          <p className="text-xs sm:text-sm text-wisdom-muted mt-1">
-            Create a contest from an exam of the exam hub, then show, pause, start, reschedule or
-            cancel it. All times are Ethiopia time.
-          </p>
-        </div>
+    <div className="min-w-0 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="min-w-0 text-xs leading-relaxed text-wisdom-muted">
+          Create a contest from an exam of the exam hub, then show, pause, start, reschedule or
+          cancel it. All times are Ethiopia time.
+        </p>
         <button
           type="button"
           onClick={() => void load()}
           disabled={loading}
-          className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold bg-white/5 border border-white/10 text-white hover:bg-white/10 transition-colors self-start sm:self-auto cursor-pointer"
+          aria-label="Refresh"
+          className="inline-flex h-11 w-11 shrink-0 cursor-pointer items-center justify-center rounded-full border border-white/10 bg-wisdom-card text-white active:bg-white/10 disabled:opacity-50"
         >
-          <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
-          <span>Refresh</span>
+          <RefreshCw className="h-4 w-4" />
         </button>
       </div>
 
-      {feedback && (
-        <div
-          className={`p-4 rounded-2xl border text-xs sm:text-sm flex items-start gap-2.5 ${
-            feedback.type === "success"
-              ? "bg-emerald-500/10 border-emerald-400/30 text-emerald-300"
-              : "bg-rose-500/10 border-rose-400/30 text-rose-300"
-          }`}
-        >
-          {feedback.type === "success" ? (
-            <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
-          ) : (
-            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-          )}
-          <span>{feedback.message}</span>
-        </div>
-      )}
-
       {/* Create form */}
-      <form
-        onSubmit={handleCreate}
-        className="rounded-3xl border border-white/10 bg-gradient-to-br from-[#0c1626] to-[#070e1a] p-5 sm:p-7 shadow-xl space-y-5"
-      >
-        <div className="border-b border-white/8 pb-4">
-          <h3 className="text-sm font-bold text-white">Create a Competition</h3>
-          <p className="text-[11px] text-wisdom-muted">
-            Questions, correct answers and solutions are copied from the chosen exam. Every
-            question must have a solution. The contest is created hidden unless you tick
-            &quot;Show to students now&quot;.
-          </p>
-        </div>
+      <form onSubmit={handleCreate} className="min-w-0">
+        <AdminCard className="space-y-3">
+          <div>
+            <h3 className="text-base font-bold text-white">Create a Competition</h3>
+            <p className="mt-0.5 text-xs leading-relaxed text-wisdom-muted">
+              Questions, correct answers and solutions are copied from the chosen exam. Every
+              question must have a solution. The contest is created hidden unless you tick
+              &quot;Show to students now&quot;.
+            </p>
+          </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-semibold text-slate-300">
-              Exam from the exam hub <span className="text-rose-400">*</span>
-            </label>
-            <select
-              value={resourceId}
-              onChange={(e) => setResourceId(e.target.value)}
-              className={INPUT}
-            >
+          <AdminField label="Exam from the exam hub *">
+            <AdminSelect value={resourceId} onChange={(e) => setResourceId(e.target.value)}>
               <option value="">Choose an exam...</option>
               {exams.map((x) => (
                 <option key={x.id} value={x.id}>
@@ -474,175 +486,124 @@ export default function CompetitionsAdminPanel() {
                   {x.durationMin ? ` - ${x.durationMin} min` : ""}
                 </option>
               ))}
-            </select>
-          </div>
+            </AdminSelect>
+          </AdminField>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">
-              Title (optional, default: the exam title)
-            </label>
-            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} className={INPUT} />
-          </div>
+          <AdminField label="Title (optional, default: the exam title)">
+            <AdminInput type="text" value={title} onChange={(e) => setTitle(e.target.value)} />
+          </AdminField>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">
-              Starts at (Ethiopia time) <span className="text-rose-400">*</span>
-            </label>
-            <input
+          <AdminField label="Starts at (Ethiopia time) *">
+            <AdminInput
               type="datetime-local"
               value={startsLocal}
               onChange={(e) => setStartsLocal(e.target.value)}
-              className={INPUT}
             />
-          </div>
+          </AdminField>
 
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">
-              Duration in minutes (optional, default: the exam&apos;s own)
-            </label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={durationMin}
-              onChange={(e) => setDurationMin(e.target.value)}
-              className={INPUT}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">
-              Audience (optional, default: the exam&apos;s package)
-            </label>
-            <input
-              type="text"
-              value={audience}
-              onChange={(e) => setAudience(e.target.value)}
-              className={INPUT}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">Points for the account total</label>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={points}
-              onChange={(e) => setPoints(e.target.value)}
-              className={INPUT}
-            />
-          </div>
-
-          <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-300">
-              Prize title (shown only after the contest ends)
-            </label>
-            <input
-              type="text"
-              value={prizeTitle}
-              onChange={(e) => setPrizeTitle(e.target.value)}
-              className={INPUT}
-            />
-          </div>
-
-          <div className="space-y-1.5 md:col-span-2">
-            <label className="text-xs font-semibold text-slate-300">
-              Prize details (shown only after the contest ends)
-            </label>
-            <textarea
-              rows={2}
-              value={prizeDetails}
-              onChange={(e) => setPrizeDetails(e.target.value)}
-              className={`${INPUT} resize-none`}
-            />
-          </div>
-
-          <div className="md:col-span-2 flex flex-wrap gap-x-6 gap-y-2">
-            <label className="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-white">
-              <input
-                type="checkbox"
-                checked={requiresPackage}
-                onChange={(e) => setRequiresPackage(e.target.checked)}
-                className="accent-sky-400"
+          <div className="grid grid-cols-2 gap-3">
+            <AdminField label="Minutes (default: the exam's own)">
+              <AdminInput
+                type="text"
+                inputMode="numeric"
+                value={durationMin}
+                onChange={(e) => setDurationMin(e.target.value)}
               />
-              <span>Only students who own the exam&apos;s package may enter</span>
-            </label>
-            <label className="inline-flex items-center gap-2 cursor-pointer text-xs sm:text-sm text-white">
-              <input
-                type="checkbox"
-                checked={publishNow}
-                onChange={(e) => setPublishNow(e.target.checked)}
-                className="accent-sky-400"
+            </AdminField>
+            <AdminField label="Points for the account total">
+              <AdminInput
+                type="text"
+                inputMode="numeric"
+                value={points}
+                onChange={(e) => setPoints(e.target.value)}
               />
-              <span>Show to students now</span>
-            </label>
+            </AdminField>
           </div>
-        </div>
 
-        <div className="pt-2 flex justify-end">
-          <button
-            type="submit"
-            disabled={busy === "create"}
-            className="inline-flex items-center gap-2 px-6 py-3 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 font-bold text-sm shadow-lg shadow-sky-500/20 transition-all cursor-pointer disabled:opacity-50"
-          >
-            <Trophy className="w-4 h-4" />
-            <span>{busy === "create" ? "Creating..." : "Create competition"}</span>
-          </button>
-        </div>
+          <AdminField label="Audience (optional, default: the exam's package)">
+            <AdminInput type="text" value={audience} onChange={(e) => setAudience(e.target.value)} />
+          </AdminField>
+
+          <AdminField label="Prize title (shown only after the contest ends)">
+            <AdminInput type="text" value={prizeTitle} onChange={(e) => setPrizeTitle(e.target.value)} />
+          </AdminField>
+
+          <AdminField label="Prize details (shown only after the contest ends)">
+            <AdminTextarea rows={2} value={prizeDetails} onChange={(e) => setPrizeDetails(e.target.value)} />
+          </AdminField>
+
+          <label className={CHECK_LABEL}>
+            <input
+              type="checkbox"
+              checked={requiresPackage}
+              onChange={(e) => setRequiresPackage(e.target.checked)}
+              className="h-5 w-5 shrink-0 accent-amber-400"
+            />
+            <span className="min-w-0">Only students who own the exam&apos;s package may enter</span>
+          </label>
+          <label className={CHECK_LABEL}>
+            <input
+              type="checkbox"
+              checked={publishNow}
+              onChange={(e) => setPublishNow(e.target.checked)}
+              className="h-5 w-5 shrink-0 accent-amber-400"
+            />
+            <span className="min-w-0">Show to students now</span>
+          </label>
+
+          <AdminPill type="submit" tone="primary" fullWidth icon={Trophy} disabled={busy === "create"}>
+            {busy === "create" ? "Creating..." : "Create competition"}
+          </AdminPill>
+        </AdminCard>
       </form>
 
       {/* List */}
-      <div className="rounded-3xl border border-white/10 bg-[#08101e] p-5 sm:p-6 shadow-xl">
-        <h3 className="text-sm font-bold text-white mb-4">All Competitions ({rows.length})</h3>
+      <div className="min-w-0">
+        <AdminSectionTitle>All Competitions ({rows.length})</AdminSectionTitle>
 
         {loading ? (
-          <p className="text-xs text-wisdom-muted py-6 text-center">Loading...</p>
+          <AdminSkeleton rows={3} />
         ) : rows.length === 0 ? (
-          <p className="text-xs text-wisdom-muted py-6 text-center">No competitions yet.</p>
+          <AdminEmpty icon={Trophy} title="No competitions yet." />
         ) : (
-          <div className="divide-y divide-white/8">
+          <div className="space-y-3">
             {rows.map((c) => {
               const phase = phaseOf(c, nowMs);
               const cancelled = c.countdown_state === "cancelled";
               const paused = c.countdown_state === "paused";
               const upcoming = phase === "upcoming" && !cancelled;
               return (
-                <div key={c.id} className="py-4 space-y-3">
+                <AdminCard key={c.id} className="space-y-2">
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2 mb-1">
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${badgeClass(
-                          cancelled ? "cancelled" : paused ? "paused" : phase
-                        )}`}
+                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
+                      <AdminBadge
+                        tone={toneOf(cancelled ? "cancelled" : paused ? "paused" : phase)}
+                        className="uppercase tracking-wider"
                       >
                         {cancelled ? "cancelled" : paused ? "paused" : phase}
-                      </span>
-                      <span
-                        className={`text-[10px] font-bold px-2 py-0.5 rounded-md border uppercase tracking-wider ${badgeClass(
-                          c.published ? "live" : "ended"
-                        )}`}
-                      >
+                      </AdminBadge>
+                      <AdminBadge tone={c.published ? "green" : "neutral"} className="uppercase tracking-wider">
                         {c.published ? "visible" : "hidden"}
-                      </span>
-                      <span className="text-[11px] font-mono text-slate-500">
+                      </AdminBadge>
+                      <span className="min-w-0 font-mono text-xs text-slate-400">
                         {c.audience ? c.audience : "no audience set"}
                         {c.requires_package ? " / package required" : ""}
                       </span>
                     </div>
-                    <h4 className="text-sm font-bold text-white">{c.title}</h4>
-                    <p className="text-xs text-wisdom-muted mt-0.5">
+                    <h4 className="break-words text-sm font-bold text-white">{c.title}</h4>
+                    <p className="mt-0.5 text-xs text-wisdom-muted">
                       {formatEat(c.starts_at)} - {c.duration_min} min
                       {c.ends_at ? ` - ends ${formatEat(c.ends_at)}` : ""} - {c.points} point
                       {c.points === 1 ? "" : "s"}
                     </p>
                     {c.prize_title && (
-                      <p className="text-[11px] text-slate-400 mt-0.5">Prize: {c.prize_title}</p>
+                      <p className="mt-0.5 break-words text-xs text-slate-400">Prize: {c.prize_title}</p>
                     )}
                   </div>
 
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      className={BTN}
+                  <div className="grid grid-cols-2 gap-2">
+                    <AdminPill
+                      icon={c.published ? EyeOff : Eye}
                       disabled={busy !== null}
                       onClick={() =>
                         void run(
@@ -657,12 +618,11 @@ export default function CompetitionsAdminPanel() {
                       }
                     >
                       {c.published ? "Hide" : "Show"}
-                    </button>
+                    </AdminPill>
 
                     {upcoming && !paused && (
-                      <button
-                        type="button"
-                        className={BTN}
+                      <AdminPill
+                        icon={Pause}
                         disabled={busy !== null}
                         onClick={() =>
                           void run(
@@ -674,13 +634,12 @@ export default function CompetitionsAdminPanel() {
                         }
                       >
                         Pause countdown
-                      </button>
+                      </AdminPill>
                     )}
 
                     {paused && !cancelled && (
-                      <button
-                        type="button"
-                        className={BTN}
+                      <AdminPill
+                        icon={Play}
                         disabled={busy !== null}
                         onClick={() =>
                           void run(
@@ -692,138 +651,67 @@ export default function CompetitionsAdminPanel() {
                         }
                       >
                         Resume countdown
-                      </button>
+                      </AdminPill>
                     )}
 
                     {upcoming && (
-                      <button
-                        type="button"
-                        className={BTN}
+                      <AdminPill
+                        tone="gold"
+                        icon={Rocket}
                         disabled={busy !== null}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              "Start this contest right now? Students can enter immediately."
-                            )
-                          ) {
-                            void run(
-                              `start-${c.id}`,
-                              () => supabase.rpc("admin_start_competition_now", { p_id: c.id }),
-                              "Started now."
-                            );
-                          }
-                        }}
+                        onClick={() => setConfirmAct({ kind: "start", c })}
                       >
                         Start now
-                      </button>
+                      </AdminPill>
                     )}
 
                     {upcoming && (
-                      <button
-                        type="button"
-                        className={BTN}
+                      <AdminPill
+                        icon={CalendarClock}
                         disabled={busy !== null}
                         onClick={() => {
-                          setEditId(editId === c.id ? null : c.id);
+                          setEditId(c.id);
                           setEditStart("");
                           setEditDuration(String(c.duration_min));
                         }}
                       >
                         Reschedule
-                      </button>
+                      </AdminPill>
                     )}
 
                     {!cancelled && phase !== "ended" && (
-                      <button
-                        type="button"
-                        className={`${BTN} hover:text-rose-300`}
+                      <AdminPill
+                        tone="danger"
+                        icon={Ban}
                         disabled={busy !== null}
-                        onClick={() => {
-                          if (
-                            window.confirm(
-                              "Cancel this contest? Students will see it as cancelled."
-                            )
-                          ) {
-                            void run(
-                              `cancel-${c.id}`,
-                              () =>
-                                supabase.rpc("admin_set_countdown", {
-                                  p_id: c.id,
-                                  p_state: "cancelled",
-                                }),
-                              "Cancelled."
-                            );
-                          }
-                        }}
+                        onClick={() => setConfirmAct({ kind: "cancel", c })}
                       >
                         Cancel contest
-                      </button>
+                      </AdminPill>
                     )}
 
-                    <button
-                      type="button"
-                      className={BTN}
-                      disabled={busy !== null}
-                      onClick={() => void openEntries(c.id)}
-                    >
+                    <AdminPill icon={ListOrdered} disabled={busy !== null} onClick={() => void openEntries(c.id)}>
                       {entriesFor === c.id ? "Hide entries" : "Entries"}
-                    </button>
+                    </AdminPill>
                   </div>
 
-                  {editId === c.id && (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 grid grid-cols-1 sm:grid-cols-3 gap-3 items-end">
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-300">
-                          New start (Ethiopia time)
-                        </label>
-                        <input
-                          type="datetime-local"
-                          value={editStart}
-                          onChange={(e) => setEditStart(e.target.value)}
-                          className={INPUT}
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="text-xs font-semibold text-slate-300">Duration (minutes)</label>
-                        <input
-                          type="text"
-                          inputMode="numeric"
-                          value={editDuration}
-                          onChange={(e) => setEditDuration(e.target.value)}
-                          className={INPUT}
-                        />
-                      </div>
-                      <button
-                        type="button"
-                        className="px-4 py-2.5 rounded-xl bg-sky-400 hover:bg-sky-300 text-slate-950 font-bold text-sm cursor-pointer disabled:opacity-50"
-                        disabled={busy !== null}
-                        onClick={() => void handleReschedule(c)}
-                      >
-                        Save new time
-                      </button>
-                    </div>
-                  )}
-
                   {entriesFor === c.id && (
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
+                    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
                       {entriesLoading ? (
                         <p className="text-xs text-wisdom-muted">Loading entries...</p>
                       ) : entries.length === 0 ? (
                         <p className="text-xs text-wisdom-muted">No ranked entries yet.</p>
                       ) : (
-                        <div className="divide-y divide-white/8">
+                        <div className="divide-y divide-white/10">
                           {flagsError && (
-                            <p className="text-xs text-rose-300 pb-2">
+                            <p className="pb-2 text-xs text-rose-300">
                               Flags could not be loaded: {flagsError}
                             </p>
                           )}
                           {entries.map((en) => (
-                            <div
-                              key={en.id}
-                              className="py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
-                            >
+                            <div key={en.id} className="flex flex-col gap-2 py-2.5">
                               <div className="min-w-0 text-xs">
-                                <span className="font-bold text-white">
+                                <span className="text-sm font-bold text-white">
                                   {names[en.user_id] ?? "(unknown)"}
                                 </span>
                                 <span className="text-slate-400">
@@ -842,14 +730,17 @@ export default function CompetitionsAdminPanel() {
                                 <EntryFlagsInfo flags={entryFlags[en.id]} />
                               </div>
                               {!en.disqualified && (
-                                <button
-                                  type="button"
-                                  className={`${BTN} hover:text-rose-300`}
+                                <AdminPill
+                                  tone="danger"
+                                  fullWidth
                                   disabled={busy !== null}
-                                  onClick={() => void handleDisqualify(en)}
+                                  onClick={() => {
+                                    setDqReason("");
+                                    setDqEntry(en);
+                                  }}
                                 >
                                   Disqualify
-                                </button>
+                                </AdminPill>
                               )}
                             </div>
                           ))}
@@ -857,12 +748,117 @@ export default function CompetitionsAdminPanel() {
                       )}
                     </div>
                   )}
-                </div>
+                </AdminCard>
               );
             })}
           </div>
         )}
       </div>
+
+      {/* Reschedule sheet */}
+      <AdminSheet
+        open={editingComp !== null}
+        onClose={() => setEditId(null)}
+        title="Reschedule"
+        footer={
+          <div className="flex gap-2">
+            <AdminPill fullWidth onClick={() => setEditId(null)}>
+              Close
+            </AdminPill>
+            <AdminPill
+              fullWidth
+              tone="primary"
+              disabled={busy !== null}
+              onClick={() => {
+                if (editingComp) void handleReschedule(editingComp);
+              }}
+            >
+              Save new time
+            </AdminPill>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="break-words text-sm font-semibold text-white">{editingComp?.title}</p>
+          <AdminField label="New start (Ethiopia time)">
+            <AdminInput type="datetime-local" value={editStart} onChange={(e) => setEditStart(e.target.value)} />
+          </AdminField>
+          <AdminField label="Minutes">
+            <AdminInput
+              type="text"
+              inputMode="numeric"
+              value={editDuration}
+              onChange={(e) => setEditDuration(e.target.value)}
+            />
+          </AdminField>
+        </div>
+      </AdminSheet>
+
+      {/* Confirm sheet: Start now and Cancel contest */}
+      <AdminSheet
+        open={confirmAct !== null}
+        onClose={() => setConfirmAct(null)}
+        title={confirmAct?.kind === "start" ? "Start now" : "Cancel contest"}
+        footer={
+          <div className="flex gap-2">
+            <AdminPill fullWidth onClick={() => setConfirmAct(null)}>
+              Back
+            </AdminPill>
+            <AdminPill
+              fullWidth
+              tone={confirmAct?.kind === "start" ? "gold" : "danger"}
+              icon={confirmAct?.kind === "start" ? Rocket : Ban}
+              onClick={runConfirmed}
+            >
+              {confirmAct?.kind === "start" ? "Start now" : "Cancel contest"}
+            </AdminPill>
+          </div>
+        }
+      >
+        <p className="break-words text-sm text-wisdom-muted">
+          {confirmAct?.kind === "start"
+            ? "Start this contest right now? Students can enter immediately."
+            : "Cancel this contest? Students will see it as cancelled."}
+        </p>
+        <p className="mt-2 break-words text-sm font-semibold text-white">{confirmAct?.c.title}</p>
+      </AdminSheet>
+
+      {/* Disqualify sheet */}
+      <AdminSheet
+        open={dqEntry !== null}
+        onClose={() => setDqEntry(null)}
+        title="Disqualify entry"
+        footer={
+          <div className="flex gap-2">
+            <AdminPill fullWidth onClick={() => setDqEntry(null)}>
+              Back
+            </AdminPill>
+            <AdminPill
+              fullWidth
+              tone="danger"
+              onClick={() => {
+                if (dqEntry) void handleDisqualify(dqEntry, dqReason);
+              }}
+            >
+              Disqualify
+            </AdminPill>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <p className="break-words text-sm text-wisdom-muted">
+            Reason for disqualifying this entry (the student sees it, and the entry leaves the leaderboard):
+          </p>
+          <AdminTextarea rows={3} value={dqReason} onChange={(e) => setDqReason(e.target.value)} />
+        </div>
+      </AdminSheet>
+
+      <AdminToast
+        message={feedback ? feedback.message : null}
+        tone={feedback ? (feedback.type === "success" ? "green" : "red") : "neutral"}
+        onClose={() => setFeedback(null)}
+        durationMs={7000}
+      />
     </div>
   );
 }

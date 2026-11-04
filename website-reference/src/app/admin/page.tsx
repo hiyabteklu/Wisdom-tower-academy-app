@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useState, useCallback, useMemo } from "react";
+import { Suspense, useEffect, useState, useCallback, useMemo, useRef } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabase";
@@ -19,33 +19,40 @@ import AccessGrantsPanel from "@/components/admin/AccessGrantsPanel";
 import DatabaseHubPanel from "@/components/admin/DatabaseHubPanel";
 import NotificationsPanel from "@/components/admin/NotificationsPanel";
 import CompetitionsAdminPanel from "@/components/admin/CompetitionsAdminPanel";
-import DeviceManagementPanel from "@/components/admin/DeviceManagementPanel";
-import ExamIntegrityPanel from "@/components/admin/ExamIntegrityPanel";
 import BrandLoader from "@/components/BrandLoader";
 import {
-  LogOut,
   CreditCard,
   Inbox,
   Users,
   LayoutDashboard,
   ExternalLink,
-  GraduationCap,
   Package,
   BookOpen,
   Shield,
   KeyRound,
-  ArrowLeft,
   Library,
   Database,
   Search,
-  Command,
   Eye,
-  Sliders,
-  CheckCircle2,
   Bell,
   Trophy,
-  Smartphone,
+  X,
 } from "lucide-react";
+
+/*
+ * Admin Console, phone-first shell (slice A1 of docs/ADMIN_MOBILE_PLAN.md).
+ * - Home = grid of module tiles with real counts only. No horizontal tab ribbon.
+ * - Section view = the panel directly on the page. U11 (2026-10-16, owner: "why Course Content on the top again,
+ *   it creates another header below our native app and wastes screen space"): the section bar (back chevron,
+ *   gold chip, title, subtitle) that slice U2 added is REMOVED. The native app top bar already shows the app name
+ *   and each panel has its own page header. The phone Back button (AdminConsoleScreen BackHandler -> web.goBack)
+ *   pops the pushed history entry and returns to the grid; a closing bottom sheet pops only its own entry.
+ * - No own header, no backdrop blur, no pulse animation, no hard-coded status line.
+ * - Deep links `/admin?tab=<id>` (and every alias below) open a section directly.
+ * - Sections are opened with history.pushState so the phone Back button returns to the grid.
+ * - 16 px of space under the app top bar at scroll 0 (the layout adds a 14 px fade there), 24 px at the bottom.
+ * Admin gate, badge queries and the panels themselves are unchanged.
+ */
 
 type AcademyTab =
   | "overview"
@@ -59,9 +66,7 @@ type AcademyTab =
   | "catalog"
   | "free-resources"
   | "inquiries"
-  | "database"
-  | "devices"
-  | "exam-integrity";
+  | "database";
 
 const VALID_TABS: AcademyTab[] = [
   "overview",
@@ -76,11 +81,7 @@ const VALID_TABS: AcademyTab[] = [
   "free-resources",
   "inquiries",
   "database",
-  "devices",
-  "exam-integrity",
 ];
-
-const ADMIN_TAB_STORAGE_KEY = "wt-admin-active-tab";
 
 const TAB_ALIASES: Record<string, AcademyTab> = {
   overview: "overview",
@@ -109,11 +110,6 @@ const TAB_ALIASES: Record<string, AcademyTab> = {
   inquiry: "inquiries",
   database: "database",
   db: "database",
-  devices: "devices",
-  device: "devices",
-  "exam-integrity": "exam-integrity",
-  integrity: "exam-integrity",
-  exam: "exam-integrity",
 };
 
 function parseTab(raw: string | null | undefined): AcademyTab | null {
@@ -124,85 +120,71 @@ function parseTab(raw: string | null | undefined): AcademyTab | null {
   return null;
 }
 
-function resolveInitialTab(urlParam: string | null): AcademyTab {
-  const parsedParam = parseTab(urlParam);
-  if (parsedParam) return parsedParam;
-  if (typeof window !== "undefined") {
-    try {
-      const windowTab = new URLSearchParams(window.location.search).get("tab");
-      const parsedWindow = parseTab(windowTab);
-      if (parsedWindow) return parsedWindow;
-
-      const stored = window.localStorage.getItem(ADMIN_TAB_STORAGE_KEY);
-      const parsedStored = parseTab(stored);
-      if (parsedStored) return parsedStored;
-    } catch {}
+function readTabFromLocation(): AcademyTab | null {
+  if (typeof window === "undefined") return null;
+  try {
+    return parseTab(new URLSearchParams(window.location.search).get("tab"));
+  } catch {
+    return null;
   }
-  return "overview";
 }
+
+type TabDef = {
+  id: AcademyTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+  badge?: number;
+  badgeColor?: string;
+};
 
 function AdminDashboardInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const [academyTab, setAcademyTab] = useState<AcademyTab>(() =>
-    resolveInitialTab(searchParams.get("tab"))
+  // null = home grid; otherwise the open section
+  const [activeTab, setActiveTab] = useState<AcademyTab | null>(() =>
+    parseTab(searchParams.get("tab"))
   );
+  const [showSearch, setShowSearch] = useState(false);
   const [tabSearch, setTabSearch] = useState("");
+  // true only when THIS page pushed a history entry (kept so a closing sheet never clears it by mistake)
+  const pushedRef = useRef(false);
 
-  // Live badges for pending items
-  const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number>(0);
-  const [newInquiriesCount, setNewInquiriesCount] = useState<number>(0);
-  const [usersCount, setUsersCount] = useState<number>(0);
-  const [examFlagsCount, setExamFlagsCount] = useState<number>(0);
-  const [blockedDeviceCount, setBlockedDeviceCount] = useState<number>(0);
+  // Real counts only; null = not loaded (shown as a dash, never a made-up number)
+  const [pendingPaymentsCount, setPendingPaymentsCount] = useState<number | null>(null);
+  const [newInquiriesCount, setNewInquiriesCount] = useState<number | null>(null);
+  const [usersCount, setUsersCount] = useState<number | null>(null);
 
-  // Sync tab from URL on load / browser back-forward / refresh
+  // Keep the open section in step with the URL (deep links, browser/phone Back)
   useEffect(() => {
-    const fromUrl = parseTab(searchParams.get("tab"));
-    if (fromUrl) {
-      setAcademyTab(fromUrl);
-      try {
-        window.localStorage.setItem(ADMIN_TAB_STORAGE_KEY, fromUrl);
-      } catch {}
-    } else {
-      // If refreshed on /admin without ?tab=, keep active section from storage
-      try {
-        const stored = window.localStorage.getItem(ADMIN_TAB_STORAGE_KEY);
-        const parsedStored = parseTab(stored);
-        if (parsedStored && parsedStored !== "overview") {
-          setAcademyTab(parsedStored);
-          const params = new URLSearchParams(searchParams.toString());
-          params.set("tab", parsedStored);
-          const newUrl = `/admin?${params.toString()}`;
-          if (typeof window !== "undefined") {
-            window.history.replaceState(null, "", newUrl);
-          }
-          router.replace(newUrl, { scroll: false });
-        }
-      } catch {}
-    }
-  }, [searchParams, router]);
+    setActiveTab(parseTab(searchParams.get("tab")));
+  }, [searchParams]);
 
-  const goTab = useCallback(
-    (id: AcademyTab) => {
-      setAcademyTab(id);
-      try {
-        window.localStorage.setItem(ADMIN_TAB_STORAGE_KEY, id);
-      } catch {}
-      const params = new URLSearchParams(searchParams.toString());
-      params.set("tab", id);
-      const newUrl = `/admin?${params.toString()}`;
-      if (typeof window !== "undefined") {
-        window.history.replaceState(null, "", newUrl);
-      }
-      router.replace(newUrl, { scroll: false });
-    },
-    [router, searchParams]
-  );
+  useEffect(() => {
+    const onPop = () => {
+      const t = readTabFromLocation();
+      setActiveTab(t);
+      // Only the return to the grid consumes our pushed entry. A closing bottom sheet
+      // pops its own entry and leaves the section (and this flag) as they were.
+      if (t === null) pushedRef.current = false;
+    };
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
 
-  // Load user session & quick badges
+  const openTab = useCallback((id: AcademyTab) => {
+    try {
+      window.history.pushState(null, "", `/admin?tab=${id}`);
+      pushedRef.current = true;
+    } catch {}
+    setActiveTab(id);
+    setShowSearch(false);
+    setTabSearch("");
+    window.scrollTo(0, 0);
+  }, []);
+
+  // Load user session and quick badge counts (unchanged logic)
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       const u = session?.user ?? null;
@@ -214,7 +196,6 @@ function AdminDashboardInner() {
       setUser(u);
       setLoading(false);
 
-      // Fetch counts for badges
       try {
         const [ordersRes, inqRes, usersRes] = await Promise.all([
           supabase.from("orders").select("id", { count: "exact", head: true }).eq("status", "pending_verification"),
@@ -224,50 +205,33 @@ function AdminDashboardInner() {
         if (ordersRes.count != null) setPendingPaymentsCount(ordersRes.count);
         if (inqRes.count != null) setNewInquiriesCount(inqRes.count);
         if (usersRes.count != null) setUsersCount(usersRes.count);
-        const { data: integrityRows } = await supabase.rpc("admin_exam_integrity_report");
-        if (Array.isArray(integrityRows)) { const pending = integrityRows.filter((row: { user_id?: string; reviewed_at?: string | null }) => !row.reviewed_at); setExamFlagsCount(new Set(pending.map((row: { user_id?: string }) => row.user_id).filter(Boolean)).size); }
-        const { data: pendingDeviceCount, error: pendingDeviceError } = await supabase.rpc("admin_count_pending_device_alerts");
-        if (!pendingDeviceError && pendingDeviceCount != null) setBlockedDeviceCount(Number(pendingDeviceCount));
       } catch (e) {
         console.warn("[admin badge counts]", e);
       }
     });
   }, [router]);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    router.push("/login");
-  };
-
-  const academyTabs: {
-    id: AcademyTab;
-    label: string;
-    icon: React.ComponentType<{ className?: string }>;
-    badge?: number | string;
-    badgeColor?: string;
-  }[] = useMemo(
+  const academyTabs: TabDef[] = useMemo(
     () => [
       { id: "overview", label: "Overview", icon: LayoutDashboard },
-      { id: "exam-integrity", label: "Exam Integrity", icon: Shield, badge: examFlagsCount > 0 ? examFlagsCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
       {
         id: "notifications",
         label: "Push Broadcasts",
         icon: Bell,
-        badgeColor: "bg-sky-500/20 text-sky-300 border-sky-400/40",
       },
       { id: "competitions", label: "Competitions", icon: Trophy },
       {
         id: "users",
         label: "Scholars & Users",
         icon: Users,
-        badge: usersCount > 0 ? usersCount : undefined,
+        badge: usersCount != null && usersCount > 0 ? usersCount : undefined,
       },
       {
         id: "payments",
         label: "Payments",
         icon: CreditCard,
-        badge: pendingPaymentsCount > 0 ? pendingPaymentsCount : undefined,
-        badgeColor: "bg-amber-500/20 text-amber-300 border-amber-400/40",
+        badge: pendingPaymentsCount != null && pendingPaymentsCount > 0 ? pendingPaymentsCount : undefined,
+        badgeColor: "bg-amber-500/25 text-amber-200 border-amber-400/40",
       },
       { id: "grants", label: "Access Grants", icon: KeyRound },
       { id: "content", label: "Course Content", icon: BookOpen },
@@ -278,19 +242,17 @@ function AdminDashboardInner() {
         id: "inquiries",
         label: "Inquiries",
         icon: Inbox,
-        badge: newInquiriesCount > 0 ? newInquiriesCount : undefined,
-        badgeColor: "bg-cyan-500/20 text-cyan-300 border-cyan-400/40",
+        badge: newInquiriesCount != null && newInquiriesCount > 0 ? newInquiriesCount : undefined,
+        badgeColor: "bg-cyan-500/25 text-cyan-200 border-cyan-400/40",
       },
       { id: "database", label: "Database & SQL Hub", icon: Database },
-      { id: "devices", label: "Registered Devices", icon: Smartphone, badge: blockedDeviceCount > 0 ? blockedDeviceCount : undefined, badgeColor: "bg-rose-500/20 text-rose-200 border-rose-400/40" },
-
     ],
-    [pendingPaymentsCount, newInquiriesCount, usersCount, examFlagsCount, blockedDeviceCount]
+    [pendingPaymentsCount, newInquiriesCount, usersCount]
   );
 
   const filteredTabs = useMemo(() => {
-    if (!tabSearch.trim()) return academyTabs;
-    const q = tabSearch.toLowerCase();
+    const q = tabSearch.trim().toLowerCase();
+    if (!q) return academyTabs;
     return academyTabs.filter((t) => t.label.toLowerCase().includes(q) || t.id.includes(q));
   }, [academyTabs, tabSearch]);
 
@@ -302,163 +264,134 @@ function AdminDashboardInner() {
     );
   }
 
+  const stats: { id: AcademyTab; label: string; value: number | null }[] = [
+    { id: "users", label: "Scholars", value: usersCount },
+    { id: "payments", label: "Pending payments", value: pendingPaymentsCount },
+    { id: "inquiries", label: "New inquiries", value: newInquiriesCount },
+  ];
+
+  // ---------- Section view (panel only, no extra bar) ----------
+  if (activeTab) {
+    return (
+      <div className="min-h-screen bg-wisdom-dark text-white">
+        <main className="min-w-0 px-3 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+          <div className="min-w-0">
+            {activeTab === "overview" && <AnalyticsPanel />}
+            {activeTab === "notifications" && <NotificationsPanel />}
+            {activeTab === "competitions" && <CompetitionsAdminPanel />}
+            {activeTab === "users" && <UsersPanel adminEmail={user.email || undefined} />}
+            {activeTab === "payments" && user.email && <PaymentsPanel adminEmail={user.email} />}
+            {activeTab === "grants" && user.email && <AccessGrantsPanel adminEmail={user.email} />}
+            {activeTab === "content" && <ContentPanel />}
+            {activeTab === "locks" && <LocksPanel />}
+            {activeTab === "catalog" && <CatalogPanel />}
+            {activeTab === "free-resources" && <FreeResourcesPanel />}
+            {activeTab === "inquiries" && <InquiriesPanel />}
+            {activeTab === "database" && <DatabaseHubPanel />}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // ---------- Home grid ----------
   return (
-    <div className="min-h-screen bg-wisdom-dark text-white pb-20">
-      {/* Top Navigation & Status Bar */}
-      <header className="border-b border-white/8 bg-wisdom-card/60 backdrop-blur-md sticky top-0 z-40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-3.5 flex flex-wrap items-center justify-between gap-3">
-          {/* Brand & Identity */}
-          <div className="flex items-center gap-3 min-w-0">
-            <Link
-              href="/account"
-              className="inline-flex items-center justify-center w-9 h-9 rounded-xl border border-white/12 bg-white/5 text-wisdom-muted hover:text-white hover:bg-white/10 shrink-0 transition-colors"
-              title="Return to Student Account"
-            >
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-
-            <div className="p-2 rounded-xl bg-gradient-to-br from-amber-500/20 to-orange-600/10 text-amber-300 border border-amber-400/20 shrink-0">
-              <GraduationCap className="w-5 h-5" />
-            </div>
-
-            <div className="min-w-0">
-              <div className="flex items-center gap-2">
-                <span className="font-bold text-sm sm:text-base text-white truncate">
-                  Wisdom Tower Academy
-                </span>
-                <span className="hidden sm:inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  Admin Console
-                </span>
-              </div>
-              <p className="text-xs text-wisdom-muted truncate hidden sm:block">
-                Logged in as <span className="text-amber-200/90 font-medium">{user.email}</span>
-              </p>
-            </div>
-          </div>
-
-          {/* Quick Links & Actions */}
-          <div className="flex items-center gap-2">
-            <Link
-              href="/academy"
-              target="_blank"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 text-xs font-semibold text-wisdom-muted hover:text-white hover:bg-white/10 transition-colors"
-              title="View Public Academy"
-            >
-              <Eye className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Live Academy</span>
-            </Link>
-
-            <a
-              href="https://supabase.com/dashboard"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-white/10 bg-white/5 text-xs font-semibold text-wisdom-muted hover:text-white hover:bg-white/10 transition-colors"
-            >
-              <Database className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="hidden sm:inline">Supabase</span>
-              <ExternalLink className="w-3 h-3 opacity-60" />
-            </a>
-
+    <div className="min-h-screen bg-wisdom-dark text-white">
+      <main className="min-w-0 px-3 pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))]">
+        {/* Real counts */}
+        <div className="grid grid-cols-3 gap-2">
+          {stats.map((s) => (
             <button
+              key={s.id}
               type="button"
-              onClick={handleLogout}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-rose-500/20 bg-rose-500/10 text-xs font-semibold text-rose-300 hover:bg-rose-500/20 transition-colors"
+              onClick={() => openTab(s.id)}
+              className="min-h-[64px] min-w-0 rounded-2xl border border-white/10 bg-wisdom-card px-2 py-2 text-center active:bg-white/10"
             >
-              <LogOut className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline">Logout</span>
+              <div className="text-xl font-extrabold tabular-nums text-white">
+                {s.value == null ? "–" : s.value}
+              </div>
+              <div className="text-xs leading-tight text-wisdom-muted">{s.label}</div>
             </button>
-          </div>
+          ))}
         </div>
-      </header>
 
-      {/* Main Workspace */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
-        {examFlagsCount > 0 && (
+        {/* Filter toggle */}
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <h1 className="text-base font-bold">Admin modules</h1>
           <button
             type="button"
-            onClick={() => goTab("exam-integrity")}
-            className="mb-5 flex w-full flex-wrap items-center justify-between gap-3 rounded-2xl border border-rose-400/30 bg-rose-500/[0.08] px-4 py-3 text-left transition-colors hover:bg-rose-500/[0.13]"
+            onClick={() => {
+              setShowSearch((v) => !v);
+              setTabSearch("");
+            }}
+            aria-label={showSearch ? "Close filter" : "Filter modules"}
+            className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-white/10 bg-wisdom-card text-wisdom-muted active:bg-white/10"
           >
-            <span className="flex items-center gap-3">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-rose-400/15 text-rose-200"><Shield className="h-4 w-4" /></span>
-              <span><span className="block text-sm font-bold text-rose-100">Exam activity needs review</span><span className="block text-xs text-rose-100/60">Open the integrity dashboard to inspect flagged ranked attempts and student exit timelines.</span></span>
-            </span>
-            <span className="inline-flex items-center gap-2 rounded-xl border border-rose-300/30 bg-rose-400/15 px-3 py-2 text-sm font-extrabold text-rose-100"><span className="tabular-nums">{examFlagsCount}</span> awaiting review <span aria-hidden="true">→</span></span>
+            {showSearch ? <X className="h-4 w-4" /> : <Search className="h-4 w-4" />}
           </button>
-        )}
-        {/* Horizontal Navigation Command Strip */}
-        <div className="mb-6 space-y-3">
-          <div className="flex items-center justify-between gap-3 flex-wrap">
-            {/* Quick tab filter / search */}
-            <div className="relative w-full sm:w-64">
-              <Search className="w-3.5 h-3.5 text-wisdom-muted absolute left-3 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                value={tabSearch}
-                onChange={(e) => setTabSearch(e.target.value)}
-                placeholder="Filter admin sections..."
-                className="w-full pl-9 pr-3 py-1.5 rounded-xl bg-wisdom-card border border-white/10 text-xs text-white placeholder-wisdom-muted focus:outline-none focus:border-amber-400 transition-colors"
-              />
-            </div>
-
-            <div className="text-xs text-wisdom-muted flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-emerald-400" />
-              <span>All 10 modules operational</span>
-            </div>
-          </div>
-
-          {/* Tab Ribbon (horizontal scrollable on mobile) */}
-          <div className="overflow-x-auto pb-1.5 -mx-4 px-4 sm:mx-0 sm:px-0">
-            <div className="flex items-center gap-2 min-w-max">
-              {filteredTabs.map(({ id, label, icon: Icon, badge, badgeColor }) => {
-                const active = academyTab === id;
-                return (
-                  <button
-                    key={id}
-                    type="button"
-                    onClick={() => goTab(id)}
-                    className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-xl text-xs sm:text-sm font-semibold border transition-all ${
-                      active
-                        ? "border-amber-400/50 bg-amber-500/15 text-amber-200 shadow-sm shadow-amber-500/10 font-bold"
-                        : "border-white/10 bg-wisdom-card/60 text-wisdom-muted hover:text-white hover:border-white/20"
-                    }`}
-                  >
-                    <Icon className={`w-4 h-4 shrink-0 ${active ? "text-amber-300" : ""}`} />
-                    <span>{label}</span>
-                    {badge !== undefined && (
-                      <span
-                        className={`text-[10px] font-extrabold px-1.5 py-0.5 rounded-md border tabular-nums ${
-                          badgeColor || "bg-white/10 text-white/90 border-white/15"
-                        }`}
-                      >
-                        {badge}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </div>
 
-        {/* Dynamic Admin Panel Container */}
-        <section className="rounded-3xl border border-white/10 bg-wisdom-card/40 p-4 sm:p-6 lg:p-7 shadow-2xl min-h-[60vh] backdrop-blur-sm">
-          {academyTab === "overview" && <AnalyticsPanel />}
-          {academyTab === "notifications" && <NotificationsPanel />}
-          {academyTab === "competitions" && <CompetitionsAdminPanel />}
-          {academyTab === "users" && <UsersPanel adminEmail={user.email || undefined} />}
-          {academyTab === "payments" && user.email && <PaymentsPanel adminEmail={user.email} />}
-          {academyTab === "grants" && user.email && <AccessGrantsPanel adminEmail={user.email} />}
-          {academyTab === "content" && <ContentPanel />}
-          {academyTab === "locks" && <LocksPanel />}
-          {academyTab === "catalog" && <CatalogPanel />}
-          {academyTab === "free-resources" && <FreeResourcesPanel />}
-          {academyTab === "inquiries" && <InquiriesPanel />}
-          {academyTab === "database" && <DatabaseHubPanel />}
-          {academyTab === "devices" && <DeviceManagementPanel />}
-          {academyTab === "exam-integrity" && <ExamIntegrityPanel />}
-        </section>
+        {showSearch && (
+          <input
+            type="text"
+            value={tabSearch}
+            onChange={(e) => setTabSearch(e.target.value)}
+            placeholder="Filter admin sections..."
+            autoFocus
+            className="mt-2 w-full rounded-full border border-white/10 bg-wisdom-card px-4 py-3 text-sm text-white placeholder-wisdom-muted focus:border-amber-400 focus:outline-none"
+          />
+        )}
+
+        {/* Module tiles */}
+        <div className="mt-3 grid grid-cols-2 gap-2 min-[340px]:grid-cols-3">
+          {filteredTabs.map(({ id, label, icon: Icon, badge, badgeColor }) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => openTab(id)}
+              className="relative flex min-h-[96px] min-w-0 flex-col items-center justify-center gap-2 rounded-2xl border border-white/10 bg-wisdom-card px-2 py-3 text-center active:bg-white/10"
+            >
+              {badge !== undefined && (
+                <span
+                  className={`absolute right-1.5 top-1.5 rounded-full border px-1.5 py-0.5 text-[11px] font-extrabold leading-none tabular-nums ${
+                    badgeColor || "border-white/15 bg-white/10 text-white/90"
+                  }`}
+                >
+                  {badge}
+                </span>
+              )}
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-400/20 bg-amber-500/10 text-amber-300">
+                <Icon className="h-5 w-5" />
+              </span>
+              <span className="line-clamp-2 text-[13px] font-semibold leading-tight text-white">{label}</span>
+            </button>
+          ))}
+        </div>
+        {filteredTabs.length === 0 && (
+          <p className="mt-4 text-center text-sm text-wisdom-muted">No section matches your filter.</p>
+        )}
+
+        {/* Quiet links (from the old header) */}
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          <Link
+            href="/academy"
+            target="_blank"
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-white/10 bg-wisdom-card px-3 text-sm font-semibold text-wisdom-muted active:bg-white/10"
+          >
+            <Eye className="h-4 w-4" />
+            Live Academy
+          </Link>
+          <a
+            href="https://supabase.com/dashboard"
+            target="_blank"
+            rel="noreferrer"
+            className="inline-flex min-h-[44px] items-center justify-center gap-2 rounded-full border border-white/10 bg-wisdom-card px-3 text-sm font-semibold text-wisdom-muted active:bg-white/10"
+          >
+            <Database className="h-4 w-4 text-cyan-400" />
+            Supabase
+            <ExternalLink className="h-3 w-3 opacity-60" />
+          </a>
+        </div>
       </main>
     </div>
   );

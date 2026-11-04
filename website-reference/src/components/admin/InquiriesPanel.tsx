@@ -7,8 +7,32 @@ import {
   type InquiryRow,
 } from "@/lib/admin-data";
 import { Inbox, RefreshCw, Mail, Check } from "lucide-react";
+import {
+  AdminBadge,
+  AdminCard,
+  AdminEmpty,
+  AdminPageHeader,
+  AdminPill,
+  AdminSkeleton,
+  AdminToast,
+  type AdminTone,
+} from "./ui";
+
+/**
+ * Admin Contact inquiries tab.
+ *
+ * 2026-10-16 (Admin UI V2, slice U9 part 1): LAYOUT ONLY. Kit page header, cards, badges and pills; the current
+ * status pill is gold and shows a check mark; slim toast (closes itself after 2.5 s); static skeleton.
+ * listInquiries, updateInquiryStatus and every text are unchanged.
+ */
 
 const STATUSES = ["new", "read", "replied", "archived"] as const;
+
+function statusTone(status: string): AdminTone {
+  if (status === "new") return "cyan";
+  if (status === "replied") return "green";
+  return "neutral";
+}
 
 export default function InquiriesPanel() {
   const [items, setItems] = useState<InquiryRow[]>([]);
@@ -23,14 +47,8 @@ export default function InquiriesPanel() {
   }, []);
 
   useEffect(() => {
-    load();
+    void load();
   }, [load]);
-
-  useEffect(() => {
-    if (!toast) return;
-    const t = setTimeout(() => setToast(""), 2500);
-    return () => clearTimeout(t);
-  }, [toast]);
 
   async function setStatus(id: string, status: string) {
     setBusyId(id);
@@ -38,7 +56,7 @@ export default function InquiriesPanel() {
     setBusyId("");
     if (res.ok) {
       setToast(`Marked ${status}`);
-      load();
+      void load();
     } else {
       setToast(res.error || "Update failed");
     }
@@ -47,95 +65,59 @@ export default function InquiriesPanel() {
   const newCount = items.filter((i) => i.status === "new").length;
 
   return (
-    <div className="space-y-4">
-      {toast && (
-        <div className="rounded-xl border border-wisdom-cyan/40 bg-wisdom-cyan/10 px-4 py-3 text-sm text-wisdom-cyan">
-          {toast}
-        </div>
-      )}
+    <div className="min-w-0 space-y-4">
+      <AdminPageHeader icon={Inbox} title="Contact inquiries" subtitle={`${newCount} new · ${items.length} total`} />
 
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <Inbox className="w-5 h-5 text-wisdom-cyan" />
-            Contact inquiries
-          </h2>
-          <p className="text-sm text-wisdom-muted mt-0.5">
-            {newCount} new · {items.length} total
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={load}
-          disabled={loading}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/12 text-sm hover:bg-white/5 disabled:opacity-50"
-        >
-          <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin" : ""}`} />
-          Refresh
-        </button>
-      </div>
+      <AdminPill fullWidth icon={RefreshCw} onClick={() => void load()} disabled={loading}>
+        {loading ? "Refreshing…" : "Refresh"}
+      </AdminPill>
 
       {loading && items.length === 0 ? (
-        <p className="py-12 text-center text-wisdom-muted">Loading inquiries…</p>
+        <AdminSkeleton rows={3} />
       ) : items.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-wisdom-muted">
-          <Inbox className="w-10 h-10 mx-auto mb-3 opacity-40" />
-          <p className="font-medium text-white/80 mb-1">Inbox empty</p>
-          <p className="text-sm">
-            Messages from the Contact page land in the{" "}
-            <code className="text-cyan-300">inquiries</code> table.
-          </p>
-        </div>
+        <AdminEmpty
+          icon={Inbox}
+          title="Inbox empty"
+          hint="Messages from the Contact page land in the inquiries table."
+        />
       ) : (
-        <ul className="space-y-3">
+        <div className="space-y-2">
           {items.map((q) => (
-            <li
-              key={q.id}
-              className="rounded-2xl border border-white/12 bg-wisdom-card p-4 sm:p-5"
-            >
-              <div className="flex flex-wrap items-start justify-between gap-2 mb-2">
-                <div>
-                  <p className="font-semibold text-white">{q.name}</p>
-                  <p className="text-sm text-wisdom-muted inline-flex items-center gap-1">
-                    <Mail className="w-3.5 h-3.5" />
+            <AdminCard key={q.id} className="space-y-2">
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="break-words text-sm font-semibold text-white">{q.name}</p>
+                  <p className="flex items-start gap-1 break-all text-xs text-wisdom-muted">
+                    <Mail className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                     {q.email}
                   </p>
                 </div>
-                <span className="rounded-full border border-white/15 px-2.5 py-1 text-[10px] font-bold uppercase text-wisdom-muted">
+                <AdminBadge tone={statusTone(q.status)} className="uppercase tracking-wider">
                   {q.status}
-                </span>
+                </AdminBadge>
               </div>
-              {q.service && (
-                <p className="text-xs text-cyan-300/90 mb-2">Interest: {q.service}</p>
-              )}
-              <p className="text-sm text-white/85 whitespace-pre-wrap leading-relaxed mb-3">
-                {q.message}
-              </p>
-              <p className="text-xs text-wisdom-muted mb-3">
-                {new Date(q.created_at).toLocaleString()}
-              </p>
-              <div className="flex flex-wrap gap-2">
+              {q.service && <p className="break-words text-xs text-cyan-300/90">Interest: {q.service}</p>}
+              <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-white/85">{q.message}</p>
+              <p className="text-xs text-wisdom-muted">{new Date(q.created_at).toLocaleString()}</p>
+              <div className="grid grid-cols-2 gap-2 pt-1">
                 {STATUSES.map((st) => (
-                  <button
+                  <AdminPill
                     key={st}
-                    type="button"
+                    tone={q.status === st ? "gold" : "ghost"}
+                    icon={q.status === st ? Check : undefined}
                     disabled={busyId === q.id || q.status === st}
-                    onClick={() => setStatus(q.id, st)}
-                    className={`inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-40 ${
-                      q.status === st
-                        ? "border-wisdom-cyan/40 bg-wisdom-cyan/15 text-wisdom-cyan"
-                        : "border-white/10 text-wisdom-muted hover:text-white"
-                    }`}
+                    onClick={() => void setStatus(q.id, st)}
                   >
-                    {q.status === st && <Check className="w-3 h-3" />}
                     {st}
-                  </button>
+                  </AdminPill>
                 ))}
               </div>
-            </li>
+            </AdminCard>
           ))}
-        </ul>
+        </div>
       )}
+
+      <AdminToast message={toast || null} onClose={() => setToast("")} durationMs={2500} />
     </div>
   );
 }

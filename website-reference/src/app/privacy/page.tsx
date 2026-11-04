@@ -17,7 +17,7 @@ export const metadata: Metadata = {
     "Institutional privacy policy governing student data protection, academic telemetry, encryption standards, and digital records at Wisdom Tower Academy.",
 };
 
-const LAST_REVISED = "31 October 2026";
+const LAST_REVISED = "12 October 2026";
 const EFFECTIVE_PERIOD = "Academic Year 2026/2027";
 
 export default function PrivacyPage() {
@@ -160,12 +160,7 @@ export default function PrivacyPage() {
                   <h3 className="font-semibold text-white text-sm mb-1">D. Device, Cache & Network Telemetry</h3>
                   <p className="text-xs sm:text-sm text-slate-300/90">
                     IP address (coarse geographic region), browser user agent, operating system, and localized IndexedDB cache storage
-                    used to preserve offline study capability. In the Android app, we also generate a random app-installation ID
-                    in private app storage, hash it with SHA-256 before sending it to our Supabase service, and send the phone
-                    manufacturer/model label. We use these details only for single-installation account protection, to detect
-                    blocked sign-ins from another installation and help administrators verify a device reset request. We do not
-                    collect IMEI, serial number, SIM identifiers, MAC address, or location for this feature. Uninstalling the app
-                    or clearing its data resets the installation ID and may require support to reset the account's registered device.
+                    used strictly to preserve offline study capability during internet interruptions in Ethiopia.
                   </p>
                 </div>
               </div>
