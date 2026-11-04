@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.games.common
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupScrim
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -38,14 +40,14 @@ fun GamePauseOverlay(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(Color(0xCC070C16)),
+            .background(WisdomPopupScrim),
         contentAlignment = Alignment.Center
     ) {
         Column(
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .clip(RoundedCornerShape(20.dp))
-                .background(Color(0xFF121A2A))
+                .background(WisdomPopupFill)
                 .padding(24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.spacedBy(12.dp)
