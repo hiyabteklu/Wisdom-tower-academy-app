@@ -232,6 +232,8 @@ fun PackageDetailScreen(
             }
 
             // UAT has four purpose-built hubs, matching website-reference/docs/UAT-HUBS.md.
+            // Card pictures: the uploaded 16:9 JPGs (website-reference/public/images/uat-hubs/*.jpg, packed into
+            // assets/images/web/uat-hubs/ by `copyWebsiteImages`). The .svg files are only the old placeholders.
             if (isUat) {
                 item(key = "uat_facts") {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -248,10 +250,10 @@ fun PackageDetailScreen(
                 }
                 item(key = "uat_hubs_label") { SubjectsLabel("Learning Hubs") }
                 val uatHubs = listOf(
-                    Triple("Tips", "file:///android_asset/images/web/uat-hubs/tips.svg", "/academy/uat/tips"),
-                    Triple("Revision Notes", "file:///android_asset/images/web/uat-hubs/revision-notes.svg", "/academy/uat/revision-notes"),
-                    Triple("Previous Exams", "file:///android_asset/images/web/uat-hubs/previous-exams.svg", "/academy/uat/previous-exams"),
-                    Triple("Resources", "file:///android_asset/images/web/uat-hubs/resources.svg", "/academy/uat/resources")
+                    Triple("Tips", "file:///android_asset/images/web/uat-hubs/tips.jpg", "/academy/uat/tips"),
+                    Triple("Revision Notes", "file:///android_asset/images/web/uat-hubs/revision-notes.jpg", "/academy/uat/revision-notes"),
+                    Triple("Previous Exams", "file:///android_asset/images/web/uat-hubs/previous-exams.jpg", "/academy/uat/previous-exams"),
+                    Triple("Resources", "file:///android_asset/images/web/uat-hubs/resources.jpg", "/academy/uat/resources")
                 )
                 openGrid("uat_hubs", uatHubs) { hub ->
                     OpenCard(hub.first, hub.second) {
