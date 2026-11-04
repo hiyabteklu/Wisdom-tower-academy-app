@@ -64,13 +64,14 @@ private sealed interface WorkspaceView {
 
 private data class GateMessage(val gate: HubGate, val hubName: String)
 
-private val NEEDS_SUBJECT_LEVEL = Regex("^/academy/(freshman|remedial|grades/[^/]+|special-packages/[^/]+/[^/]+)$")
+private val NEEDS_SUBJECT_LEVEL = Regex("^/academy/(freshman|remedial|grades/[^/]+|special-packages/[^/]+/[^/]+|uat/(tips|revision-notes|previous-exams|resources))$")
 private val ENTRANCE_YEAR_PATH = Regex("^/academy/entrance-questions/[^/]+/[^/]+/[0-9]{4}$")
 private val SCOPE_FRESHMAN = Regex("^/academy/freshman/([^/]+)$")
 private val SCOPE_REMEDIAL = Regex("^/academy/remedial/([^/]+)$")
 private val SCOPE_GRADE = Regex("^/academy/grades/([^/]+)/([^/]+)$")
 private val SCOPE_ECE = Regex("^/academy/special-packages/[^/]+/(sem-[12])/([^/]+)$")
 private val SCOPE_SPECIAL = Regex("^/academy/(coc|uat|gat)$")
+private val SCOPE_UAT_HUB = Regex("^/academy/uat/(tips|revision-notes|previous-exams|resources)$")
 private val SCOPE_ENTRANCE = Regex("^/academy/entrance-questions/([^/]+)/([^/]+)/([0-9]{4})$")
 private val TRACK_ECE = Regex("^/academy/special-packages/([^/]+)/(sem-[12])/([^/]+)$")
 
@@ -89,6 +90,9 @@ internal fun entranceYearUrl(basePath: String): String? {
 
 internal fun contentScopePath(basePath: String): String? {
     var base = cleanBase(basePath)
+    SCOPE_UAT_HUB.matchEntire(base)?.let { match ->
+        return if (match.groupValues[1] == "tips") "uat/tips" else "uat"
+    }
     val last = base.substringAfterLast('/')
     if (NATIVE_LEARNING_HUBS.any { it.id == last }) base = base.substringBeforeLast('/')
     SCOPE_FRESHMAN.matchEntire(base)?.let { return "freshman/${it.groupValues[1]}" }
@@ -111,6 +115,14 @@ internal fun trackerScopeIdFor(basePath: String, hubId: String): String? {
     SCOPE_GRADE.matchEntire(base)?.let { return "grade-${it.groupValues[1]}-${it.groupValues[2]}-$hubId" }
     TRACK_ECE.matchEntire(base)?.let {
         return "special-${it.groupValues[1]}-${it.groupValues[2]}-${it.groupValues[3]}-$hubId"
+    }
+    SCOPE_UAT_HUB.matchEntire(base)?.let { match ->
+        return when (match.groupValues[1]) {
+            "tips" -> "uat-tips"
+            "revision-notes" -> "uat-short-notes"
+            "previous-exams" -> "uat-exams"
+            else -> "uat-life-savers"
+        }
     }
     SCOPE_SPECIAL.matchEntire(base)?.let { return "${it.groupValues[1]}-$hubId" }
     SCOPE_ENTRANCE.matchEntire(base)?.let {
@@ -228,7 +240,16 @@ fun StudyWorkspaceScreen(
     }
 
     val initialHub = remember(basePath) {
-        cleanBase(basePath).substringAfterLast('/').takeIf {
+        val clean = cleanBase(basePath)
+        val uatHub = SCOPE_UAT_HUB.matchEntire(clean)?.groupValues?.get(1)?.let {
+            when (it) {
+                "tips", "revision-notes" -> "short-notes"
+                "previous-exams" -> "exams"
+                "resources" -> "life-savers"
+                else -> null
+            }
+        }
+        uatHub ?: clean.substringAfterLast('/').takeIf {
             it in NATIVE_HUB_IDS && contentScope != null && entranceUrl == null
         }
     }

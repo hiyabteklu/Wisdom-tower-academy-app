@@ -587,6 +587,11 @@ object ContentAccess {
             if (pkg == null) pkg = if (ece.groupValues[1] == "sem-1") "ece-y3-sem-1" else "ece-y3-sem-2"
             scope = "ece/${ece.groupValues[1]}/${ece.groupValues[2]}"
         }
+        val uatHub = Regex("^/academy/uat/(tips|revision-notes|previous-exams|resources)$").matchEntire(base)
+        if (uatHub != null) {
+            if (pkg == null) pkg = "uat"
+            scope = if (uatHub.groupValues[1] == "tips") "uat/tips" else "uat"
+        }
         for (root in listOf("coc", "uat", "gat", "exit-exam")) {
             if (base.endsWith("/academy/$root")) {
                 if (pkg == null) pkg = root

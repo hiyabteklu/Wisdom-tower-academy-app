@@ -136,6 +136,11 @@ tasks.register<Copy>("copyWebsiteImages") {
     rename("Entrance questions.jpeg", "entrance-questions.jpeg")
     into("entrance")
   }
+  // UAT hub artwork: SVG placeholders are the official fallback until 16:9 JPGs are uploaded.
+  from(webImages.resolve("uat-hubs")) {
+    include("*.svg", "*.jpg", "*.jpeg")
+    into("uat-hubs")
+  }
   // Remedial covers: the files in website-reference/public/images/Remedial/ are named remedial-{subject}.jpg
   // ("Remedial-physics.jpg" has a capital R, "remedial-math.jpg" is the Maths cover). They are renamed to the
   // website subject ids (english, maths, physics, ...) so the app can look them up by id.
@@ -252,6 +257,7 @@ dependencies {
   implementation(libs.androidx.room.runtime)
   implementation(libs.coil.compose)
   implementation("io.coil-kt:coil-gif:2.7.0")
+    implementation("io.coil-kt:coil-svg:2.7.0")
   implementation(libs.converter.moshi)
   implementation(libs.kotlinx.coroutines.android)
   implementation(libs.kotlinx.coroutines.core)
