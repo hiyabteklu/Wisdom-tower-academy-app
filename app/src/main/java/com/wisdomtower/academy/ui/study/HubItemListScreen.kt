@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import android.content.Context
@@ -430,7 +432,7 @@ fun HubItemListScreen(
             AlertDialog(
                 modifier = Modifier.wisdomDialogEnter(),
                 onDismissRequest = { confirmRemove = null },
-                containerColor = dayNight(Color(0xF2111B2E), Color(0xF2F8F5EE)),
+                containerColor = WisdomPopupFill,
                 title = {
                     Text(
                         text = if (toRemove.size == 1) "Remove from this phone?" else "Remove ${toRemove.size} saved items?",
