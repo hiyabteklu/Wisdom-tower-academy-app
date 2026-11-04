@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.competition
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
@@ -412,7 +414,7 @@ fun CompetitionExamScreen(
     if (showAwayWarning && !submittedOk) {
         AlertDialog(
             onDismissRequest = { },
-            containerColor = if (AppThemeMode.isDark) Color(0xF20F1829) else Color(0xF2FBF9F4),
+            containerColor = WisdomPopupFill,
             title = {
                 Text(
                     text = "You left the exam window",
