@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.games.climb
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -36,7 +37,7 @@ fun FloorResultSheet(
         modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp))
-            .background(Color(0xFF121A2A))
+            .background(WisdomPopupFill)
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
