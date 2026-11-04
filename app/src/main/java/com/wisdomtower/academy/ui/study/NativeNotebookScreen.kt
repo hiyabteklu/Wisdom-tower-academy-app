@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import android.content.ClipData
 import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.activity.compose.BackHandler
@@ -659,7 +661,7 @@ private val NbTabOffBadgeFill: Color get() = dayNight(Color.Black.copy(alpha = 0
 private val NbPrimaryBg: Color get() = dayNight(Color.White, WisdomCyan)
 private val NbPrimaryInk: Color get() = dayNight(Color(0xFF020617), Color.White)
 
-private val NbDialogFill: Color get() = dayNight(Color(0x4D0B1528), Color(0xF2F8F5EE))
+private val NbDialogFill: Color get() = WisdomPopupFill
 private val NbDialogBorder: Color get() = dayNight(Color.White.copy(alpha = 0.20f), WisdomGlassBorder)
 private val NbDialogFieldFill: Color get() = dayNight(Color(0x4D020617).copy(alpha = 0.80f), WisdomGlassFillStrong)
 private val NbCancelBorder: Color get() = dayNight(Color.White.copy(alpha = 0.15f), WisdomGlassBorder)
