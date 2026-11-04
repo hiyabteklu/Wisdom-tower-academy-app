@@ -2,6 +2,7 @@ package com.wisdomtower.academy.ui.theme
 
 import android.content.Context
 import android.webkit.WebView
+import java.util.WeakHashMap
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -72,6 +73,14 @@ import androidx.compose.ui.graphics.Color
  * script does.
  */
 object AppBackdrop {
+    private val registeredWebViews = WeakHashMap<WebView, Unit>()
+
+    /** Reapply the current page palette to every live local-page WebView after a background-mode change. */
+    fun refreshRegisteredPages() {
+        val views = synchronized(registeredWebViews) { registeredWebViews.keys.toList() }
+        views.forEach { view -> view.post { runCatching { clearPageBackground(view) } } }
+    }
+
     /** The plain page colour of the chosen option. Reading it in a composable follows the choice live. */
     val color: Color
         get() = AppBackground.selected.color
@@ -96,6 +105,7 @@ object AppBackdrop {
      */
     private const val GLASS_JS = """
 (function(){
+ try{document.documentElement.classList.remove('wt-day');}catch(err){}
  if(window.__wtGlass){window.__wtGlass.run();return;}
  var KEY='data-wtg',GLASS='rgba(255,255,255,0.16)',SCRIM='rgba(0,0,0,0.65)',PANEL='rgba(12,20,36,0.88)',timer=null,busy=false;
  function parse(s){var m=s&&s.match(/rgba?\(([^)]+)\)/);if(!m)return null;
@@ -106,8 +116,13 @@ object AppBackdrop {
   for(i=0;i<a.length;i++){t=a[i].transitionProperty;if(t&&t.indexOf('background')===0)a[i].finish();}}catch(err){}}
  function restore(e){var o=e.__wtOrig;
   if(o){e.style.removeProperty('background-color');e.style.removeProperty('background-image');
-   if(o.c)e.style.setProperty('background-color',o.c,o.cp);
-   if(o.i)e.style.setProperty('background-image',o.i,o.ip);}
+   var bg=o['background-color'],img=o['background-image'],fg=o.color,bd=o['border-color'];
+   if(o.c!==undefined){if(o.c)e.style.setProperty('background-color',o.c,o.cp);}
+   else if(bg&&bg[0])e.style.setProperty('background-color',bg[0],bg[1]);
+   if(o.i!==undefined){if(o.i)e.style.setProperty('background-image',o.i,o.ip);}
+   else if(img&&img[0])e.style.setProperty('background-image',img[0],img[1]);
+   if(fg){e.style.removeProperty('color');if(fg[0])e.style.setProperty('color',fg[0],fg[1]);}
+   if(bd){e.style.removeProperty('border-color');if(bd[0])e.style.setProperty('border-color',bd[0],bd[1]);}}
   e.removeAttribute(KEY);e.__wtOrig=null;}
  function run(){
   if(busy||!document.body)return;busy=true;
@@ -190,7 +205,13 @@ object AppBackdrop {
  function save(e){if(e.__wtOrig)return;var o={};
   PROPS.forEach(function(p){o[p]=[e.style.getPropertyValue(p),e.style.getPropertyPriority(p)];});e.__wtOrig=o;}
  function restore(e){var o=e.__wtOrig;
-  if(o){PROPS.forEach(function(p){e.style.removeProperty(p);var v=o[p];if(v&&v[0])e.style.setProperty(p,v[0],v[1]);});}
+  if(o){
+   if(o.c!==undefined||o.i!==undefined){
+    e.style.removeProperty('background-color');e.style.removeProperty('background-image');
+    if(o.c)e.style.setProperty('background-color',o.c,o.cp);
+    if(o.i)e.style.setProperty('background-image',o.i,o.ip);
+   }else{PROPS.forEach(function(p){e.style.removeProperty(p);var v=o[p];if(v&&v[0])e.style.setProperty(p,v[0],v[1]);});}
+  }
   e.removeAttribute(KEY);e.__wtOrig=null;}
  function run(){
   if(busy||!document.body)return;busy=true;
@@ -288,6 +309,7 @@ object AppBackdrop {
      * loading (a page opened in one mode keeps its look until it is opened again).
      */
     fun clearPageBackground(view: WebView) {
+        synchronized(registeredWebViews) { registeredWebViews[view] = Unit }
         val css = "html{background:transparent !important}body{background:transparent !important}"
         view.evaluateJavascript(clearPageJs(css), null)
         val script = if (AppThemeMode.isDark) GLASS_JS else GLASS_JS_DAY
