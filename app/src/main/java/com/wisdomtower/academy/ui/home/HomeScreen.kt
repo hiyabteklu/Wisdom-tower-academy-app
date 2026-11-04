@@ -106,7 +106,7 @@ data class ResourceGuide(
 
 // Cards in the order of the website home / academy page (LandingPathways.tsx, 2026-10-11):
 // ECE, Freshman, Grade 9, 10, 11, 12 (independent cards, no combined "Grade 9-12"), Entrance Questions,
-// COC, UAT, GAT, Exit Exam, Remedial. Grade pictures are the website package images.
+// Entrance Questions, Remedial, UAT, COC, GAT, Exit Exam. Grade pictures are the website package images.
 //
 // ECE: the website card links to /academy/special-packages/electrical-computer-engineering, a page that is not a
 // catalog package, so the app router sent it to the website (online only). The native ECE package screen
@@ -176,13 +176,13 @@ val HOME_PROGRAMS: List<ProgramItem>
             accentColor = WisdomCyan
         ),
         ProgramItem(
-            id = "coc",
-            name = "COC",
-            path = "/academy/coc",
-            assetImage = "file:///android_asset/images/packages/coc_e44a09.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/coc_e44a09.jpeg",
-            accentColor = WisdomAccentIndigo
-        ),
+            id = "remedial",
+            name = "Remedial",
+            path = "/academy/remedial",
+            assetImage = "file:///android_asset/images/packages/remedial.jpg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/remedial.jpg",
+            accentColor = WisdomAccentAmber
+        )
         ProgramItem(
             id = "uat",
             name = "UAT",
@@ -190,6 +190,14 @@ val HOME_PROGRAMS: List<ProgramItem>
             assetImage = "file:///android_asset/images/packages/uat_56b257.jpeg",
             webImageFallback = "https://wisdom-tower-academy.live/images/packages/uat_56b257.jpeg",
             accentColor = WisdomAccentEmerald
+        ),
+        ProgramItem(
+            id = "coc",
+            name = "COC",
+            path = "/academy/coc",
+            assetImage = "file:///android_asset/images/packages/coc_e44a09.jpeg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/packages/coc_e44a09.jpeg",
+            accentColor = WisdomAccentIndigo
         ),
         ProgramItem(
             id = "gat",
@@ -207,14 +215,6 @@ val HOME_PROGRAMS: List<ProgramItem>
             webImageFallback = "https://wisdom-tower-academy.live/images/packages/exit-exam_c32a43.jpeg",
             accentColor = WisdomAccentFuchsia
         ),
-        ProgramItem(
-            id = "remedial",
-            name = "Remedial",
-            path = "/academy/remedial",
-            assetImage = "file:///android_asset/images/packages/remedial.jpg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/remedial.jpg",
-            accentColor = WisdomAccentAmber
-        )
     )
 
 val OTHER_RESOURCES: List<ResourceGuide>
