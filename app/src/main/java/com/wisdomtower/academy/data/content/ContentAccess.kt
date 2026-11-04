@@ -205,9 +205,9 @@ object ContentAccess {
     val IS_FREE_MODE: Boolean = false
 
     /** Texts copied from `data/content-availability.ts`. */
-    const val COMING_SOON_TITLE = "Coming soon"
-    const val COMING_SOON_BODY = "Materials for this section are not available yet. Check back soon."
-    const val COMING_SOON_BUTTON = "Got it: check back later"
+    const val COMING_SOON_TITLE = "Under development"
+    const val COMING_SOON_BODY = "We are preparing this package. We will announce as soon as it is ready."
+    const val COMING_SOON_BUTTON = "Got it"
     const val PURCHASE_TITLE = "Package required"
     const val PURCHASE_BODY = "Unlock this pathway with the matching package to access study materials."
     const val PURCHASE_BUTTON = "Keep exploring"
