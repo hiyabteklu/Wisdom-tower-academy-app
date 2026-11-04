@@ -1,5 +1,7 @@
 package com.wisdomtower.academy
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
@@ -4835,7 +4837,7 @@ private fun TimerControlDialog(
 
     Dialog(onDismissRequest = onDismiss) {
         Surface(
-            color = dayNight(CardSurface, ShellOverlayIvory),
+            color = WisdomPopupFill,
             shape = RoundedCornerShape(20.dp),
             border = BorderStroke(1.dp, CardBorder),
             shadowElevation = 24.dp,
