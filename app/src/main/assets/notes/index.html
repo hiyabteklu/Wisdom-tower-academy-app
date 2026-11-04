@@ -92,7 +92,7 @@
 var noteText = "", seq = 0;
 var lastPct = -1, pendingPct = -1, progTimer = 0, sent100 = false;
 var posTimer = 0, canSavePos = false, userTouched = false;
-/* inline AI tutor state */
+/* Note tutor state */
 var tutorBusy = false, tutorBuilt = false, tutorReqId = "", tutorMsgs = [], tutorNodes = [];
 var TUTOR_BUSY = "The Wisdom Tower AI Tutor is currently experiencing high demand. Please wait a moment and try asking your question again.";
 var TUTOR_STOPPED = "Response stopped. What would you like to explore instead?";
@@ -199,7 +199,7 @@ function tutorChips() {
   var items = [];
   var last = tutorMsgs[tutorMsgs.length - 1];
   if (!last) items = TUTOR_STARTERS.slice();
-  else if (last.role === "assistant" && last.suggestions) items = last.suggestions.slice(0, 3);
+  else if (last.role === "assistant") items = (last.suggestions && last.suggestions.length ? last.suggestions : TUTOR_RETRY).slice(0, 3);
   items.push(TUTOR_CONTINUE);
   for (var i = 0; i < items.length; i++) {
     var b = document.createElement("button");
