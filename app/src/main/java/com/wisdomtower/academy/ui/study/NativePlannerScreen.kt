@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import android.app.TimePickerDialog
 import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.activity.compose.BackHandler
@@ -747,7 +749,7 @@ private val PlLineHalf: Color get() = dayNight(Color.White.copy(alpha = 0.04f), 
 private val PlPrimaryBg: Color get() = dayNight(Color.White, WisdomCyan)
 private val PlPrimaryInk: Color get() = dayNight(Color(0xFF020617), Color.White)
 
-private val PlDialogFill: Color get() = dayNight(Color(0x4D0B1528), Color(0xF2F8F5EE))
+private val PlDialogFill: Color get() = WisdomPopupFill
 private val PlDialogBorder: Color get() = dayNight(Color.White.copy(alpha = 0.20f), WisdomGlassBorder)
 private val PlDivider: Color get() = dayNight(Color.White.copy(alpha = 0.10f), WisdomGlassBorder)
 private val PlFieldFill: Color get() = dayNight(Color(0x4D020617).copy(alpha = 0.80f), WisdomGlassFillStrong)
