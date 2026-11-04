@@ -60,7 +60,9 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.content.HomeBannerRepository
+import com.wisdomtower.academy.data.content.ContentAccess
 import com.wisdomtower.academy.ui.auth.SignInPill
+import com.wisdomtower.academy.ui.study.HubGateDialog
 import com.wisdomtower.academy.ui.packages.ENTRANCE_BASE_PATH
 import com.wisdomtower.academy.ui.packages.ENTRANCE_IMAGE_ASSET
 import com.wisdomtower.academy.ui.packages.OpenCard
@@ -182,7 +184,7 @@ val HOME_PROGRAMS: List<ProgramItem>
             assetImage = "file:///android_asset/images/packages/remedial.jpg",
             webImageFallback = "https://wisdom-tower-academy.live/images/packages/remedial.jpg",
             accentColor = WisdomAccentAmber
-        )
+        ),
         ProgramItem(
             id = "uat",
             name = "UAT",
@@ -237,6 +239,7 @@ fun HomeScreen(
     // D3: the resource list is read once per composition (it is a getter now), so both tiles of a row come from one list.
     val resources = OTHER_RESOURCES
     val programs = HOME_PROGRAMS
+    var comingSoonProgram by remember { mutableStateOf<String?>(null) }
     val listState = rememberLazyListState() // V10 header
     val context = LocalContext.current
     var bannerImage by remember(context) {
@@ -293,7 +296,13 @@ fun HomeScreen(
 
             // 3. Program cards: the shared OpenCard, two per row (each row already rises in through openGrid)
             openGrid("programs", programs) { program ->
-                OpenCard(program.name, program.assetImage) { onNavigateToUrl(program.path) }
+                OpenCard(program.name, program.assetImage) {
+                    if (program.id == "gat" || program.id == "exit-exam") {
+                        comingSoonProgram = program.name
+                    } else {
+                        onNavigateToUrl(program.path)
+                    }
+                }
             }
 
             // 4. "Other resources" heading & 2-column grid (2026-10-14: heavy 26 sp heading, big pill tiles, 18 sp titles)
@@ -347,6 +356,17 @@ fun HomeScreen(
             item(key = "bottom_spacer") {
                 Spacer(modifier = Modifier.height(24.dp))
             }
+        }
+
+        comingSoonProgram?.let { programName ->
+            HubGateDialog(
+                badge = ContentAccess.COMING_SOON_TITLE,
+                title = ContentAccess.COMING_SOON_TITLE,
+                hubName = programName,
+                message = ContentAccess.COMING_SOON_BODY,
+                buttonText = ContentAccess.COMING_SOON_BUTTON,
+                onClose = { comingSoonProgram = null }
+            )
         }
     }
 }
