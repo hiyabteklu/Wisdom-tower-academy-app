@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import android.annotation.SuppressLint
 import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.content.ClipData
@@ -119,7 +121,7 @@ private val TuStopInk: Color get() = dayNight(Color(0xFFFDE68A), WisdomInk)
 private val TuRose: Color get() = dayNight(Color(0xFFFDA4AF), WisdomAccentRose)
 private val TuRoseEdge: Color get() = dayNight(Color(0xFFF43F5E).copy(alpha = 0.25f), WisdomAccentRose.copy(alpha = 0.40f))
 private val TuOnCyanInk: Color get() = dayNight(Color(0xFF020617), Color.White)
-private val TuDialogFill: Color get() = dayNight(Color(0xF20E172A), Color(0xF2F8F5EE))
+private val TuDialogFill: Color get() = WisdomPopupFill
 
 /** Marks a failed stream (thrown inside the collector, caught by the sender). */
 private class TutorStreamFailure : Exception()
