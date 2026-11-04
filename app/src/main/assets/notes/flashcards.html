@@ -33,25 +33,43 @@
    *    it back. Two cards are visible behind it (.stk) as a deck.
    * This replaces the owner request of 2026-10-24 (no sideways move, same turn for everything): the owner's newer plan asks
    * for slide for changing cards and the 3D turn only for the flip. To go back to the 10-24 look, see
-   * docs/SESSION_2026-11-02_F1_FLASHCARDS.md. */
+   * docs/SESSION_2026-11-02_F1_FLASHCARDS.md.
+   *
+   * SOLID CARDS (owner request 2026-11-04: "the card should not be transparent, subtle blue front, subtle green back"):
+   * the app's glass script (AppBackdrop.kt GLASS_JS) turns every dark-navy element background of a page into see-through
+   * glass, and that included the card faces. The colour is therefore NOT painted as the background of .face / .stk (the
+   * script would find and replace it) but by a ::before layer behind them (the script only looks at real elements), so the
+   * cards stay opaque: front = subtle blue, back = subtle green (.flip.flipped switches it while the card is edge-on).
+   * By day (html.wt-day, added by the day script) the same two hues are pale tints, because the day script turns the text
+   * on these faces into dark ink. To go back to the old see-through navy: put the old gradient back on .face / .stk
+   * (front and back were the same navy gradient, 131f38 / 0e172a / 0a101d). */
   .slot { position: relative; height: 56vh; min-height: 300px; margin-bottom: 26px; cursor: pointer; }
-  .stk { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 22px; border: 1px solid rgba(255,255,255,.1);
-         background: linear-gradient(160deg, #101a30, #0c1426 60%, #0a101d); transform-origin: 50% 100%; box-shadow: 0 8px 18px rgba(0,0,0,.3); }
+  .stk { position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 22px; border: 1px solid rgba(96,165,250,.28);
+         background: transparent; isolation: isolate; transform-origin: 50% 100%; box-shadow: 0 8px 18px rgba(0,0,0,.3); }
+  .stk::before { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 21px; z-index: -1;
+                 background: linear-gradient(160deg, #162f58, #11264a 60%, #0d1e3a); }
   .stk.s1 { transform: translateY(11px) scale(.955); opacity: .75; }
   .stk.s2 { transform: translateY(22px) scale(.91); opacity: .45; }
   .mover { position: absolute; top: 0; left: 0; right: 0; bottom: 0; will-change: transform; }
   .mover.in-fwd { animation: fcInFwd .3s cubic-bezier(.22,1,.36,1); }
   .mover.in-back { animation: fcInBack .3s cubic-bezier(.22,1,.36,1); }
   .mover.in-fade { animation: fcFade .18s ease-out; }
-  .flip { position: absolute; top: 0; left: 0; right: 0; bottom: 0; }
+  .flip { position: absolute; top: 0; left: 0; right: 0; bottom: 0; isolation: isolate; }
+  .flip::before { content: ""; position: absolute; top: 0; left: 0; right: 0; bottom: 0; border-radius: 22px; z-index: -1;
+                  background: linear-gradient(160deg, #1b3b6e, #153059 60%, #102545); }
+  .flip.flipped::before { background: linear-gradient(160deg, #18493a, #133b2f 60%, #0e2c23); }
   .flip.turn { animation: fcTurn .4s linear; }
   .flip.turn .face { animation: fcShadow .4s ease-in-out; }
   .face { position: absolute; top: 0; left: 0; right: 0; bottom: 0; box-sizing: border-box; border-radius: 22px; padding: 18px 20px;
-          border: 1px solid rgba(255,255,255,.12); background: linear-gradient(160deg, #131f38, #0e172a 60%, #0a101d);
+          border: 1px solid rgba(96,165,250,.42); background: transparent;
           box-shadow: 0 12px 26px rgba(0,0,0,.4); display: flex; flex-direction: column; overflow-y: auto; }
-  .face.back { display: none; border-color: rgba(34,211,238,.35); }
+  .face.back { display: none; border-color: rgba(52,211,153,.45); }
   .flip.flipped .face.front { display: none; }
   .flip.flipped .face.back { display: flex; }
+  /* day: pale blue front, pale green back (the day script makes the text deep ink); more specific rules come last */
+  html.wt-day .stk::before { background: #e4eefb; }
+  html.wt-day .flip::before { background: linear-gradient(160deg, #e8f1fc, #dbe8f8); }
+  html.wt-day .flip.flipped::before { background: linear-gradient(160deg, #e4f4ea, #d6ecde); }
   @keyframes fcIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
   @keyframes fcInFwd { from { opacity: 0; transform: translateX(52px) rotate(4deg); } to { opacity: 1; transform: none; } }
   @keyframes fcInBack { from { opacity: 0; transform: translateX(-52px) rotate(-4deg); } to { opacity: 1; transform: none; } }
@@ -67,8 +85,8 @@
   @keyframes fcShadow { 0%, 100% { box-shadow: 0 12px 26px rgba(0,0,0,.4); } 50% { box-shadow: 0 2px 6px rgba(0,0,0,.2); } }
 
   .lbl { flex: 0 0 auto; margin: 0 0 8px; text-align: center; font-size: .75rem; letter-spacing: .08em; text-transform: uppercase; font-weight: 800; }
-  .lbl.q { color: #c4b5fd; }
-  .lbl.a { color: #67e8f9; }
+  .lbl.q { color: #93c5fd; }
+  .lbl.a { color: #6ee7b7; }
   /* text sits in the middle of the card; auto margins collapse when the text is longer than the card, so it scrolls */
   .mid { margin: auto 0; text-align: center; }
   .fc-text { color: #fff; font-family: var(--wt-content-font-family, "WT Tinos", serif); font-weight: 700; font-style: var(--wt-content-font-style, italic); font-size: var(--wt-content-size-flashcard, 20px); line-height: var(--wt-content-line-flashcard, 28px); }
