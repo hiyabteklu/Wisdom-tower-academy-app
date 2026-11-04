@@ -1,5 +1,7 @@
 package com.wisdomtower.academy.ui.study
 
+import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+
 import androidx.activity.compose.BackHandler
 import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import androidx.compose.foundation.BorderStroke
@@ -106,7 +108,7 @@ fun StatusDetailCard(
                     .fillMaxWidth()
                     .heightIn(max = 640.dp)
                     .clip(shape)
-                    .background(MaterialTheme.colorScheme.surface)
+                    .background(WisdomPopupFill)
                     .border(BorderStroke(1.dp, WisdomGlassBorder), shape)
                     .clickable(interactionSource = noRipple2, indication = null) { }
                     .navigationBarsPadding()
