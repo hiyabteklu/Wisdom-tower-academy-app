@@ -40,13 +40,13 @@ import androidx.compose.ui.graphics.Color
  * like a page wrapper and made transparent, so nothing dimmed the page, and the pop-up box itself became 8 percent
  * glass, so the text behind showed through it. Now a full-screen FIXED layer that is partly see-through is a scrim: it
  * becomes a dim, and every dark panel inside it becomes a navy panel. Normal glass strength raised from 8 to 16 percent.
- * BG-POPUP-2 (owner: still not readable): scrim 55 to 65 percent black, panel 82 to 96 percent navy (readable first).
+ * BG-POPUP-2 (owner: still not readable): scrim 55 to 65 percent black, panel 85 to 90 percent navy (balanced readability and glass).
  * To go back: glass 0.08, remove the scrim / panel branches in the script.
  *
  * D8a (docs/DAY_MODE_PLAN.md, 2026-10-19): DAY variant, [GLASS_JS_DAY]. The local pages are written for a dark page
  * (light text, navy panels). By day [clearPageBackground] installs the day script instead of [GLASS_JS]; NIGHT RUNS THE
  * OLD SCRIPT UNCHANGED. The day script does the same navy-to-glass job with the Ivory & Navy values (panel = ivory 84
- * percent, pop-up panel = ivory 97 percent, scrim = navy 50 percent, inline dark chips = a 8 percent navy tint) and in
+ * percent, pop-up panel = ivory 93 percent, scrim = navy 50 percent, inline dark chips = a 8 percent navy tint) and in
  * addition:
  *  - TEXT: every element sitting on the page or on a dark panel gets a day text colour (light text = deep navy ink,
  *    mid grey-blue = muted 4A5A70, light colours such as cyan or green = the same hue at 27 percent lightness).
@@ -97,7 +97,7 @@ object AppBackdrop {
     private const val GLASS_JS = """
 (function(){
  if(window.__wtGlass){window.__wtGlass.run();return;}
- var KEY='data-wtg',GLASS='rgba(255,255,255,0.16)',SCRIM='rgba(0,0,0,0.65)',PANEL='rgba(12,20,36,0.96)',timer=null,busy=false;
+ var KEY='data-wtg',GLASS='rgba(255,255,255,0.16)',SCRIM='rgba(0,0,0,0.65)',PANEL='rgba(12,20,36,0.88)',timer=null,busy=false;
  function parse(s){var m=s&&s.match(/rgba?\(([^)]+)\)/);if(!m)return null;
   var p=m[1].split(/[ ,\/]+/).filter(Boolean).map(parseFloat);
   return {r:p[0],g:p[1],b:p[2],a:(p.length>3&&!isNaN(p[3]))?p[3]:1};}
@@ -166,7 +166,7 @@ object AppBackdrop {
 (function(){
  if(window.__wtGlassDay){window.__wtGlassDay.run();return;}
  try{document.documentElement.classList.add('wt-day');}catch(err){}
- var KEY='data-wtg',GLASS='rgba(248,245,238,0.84)',SCRIM='rgba(11,27,51,0.5)',PANEL='rgba(248,245,238,0.97)',
+ var KEY='data-wtg',GLASS='rgba(248,245,238,0.84)',SCRIM='rgba(11,27,51,0.5)',PANEL='rgba(248,245,238,0.93)',
   CHIP='rgba(11,27,51,0.08)',INK='11,27,51',MUTED='rgb(74,90,112)',LINE='rgba(11,27,51,0.16)',
   PROPS=['background-color','background-image','color','border-color'],timer=null,busy=false;
  function parse(s){var m=s&&s.match(/rgba?\(([^)]+)\)/);if(!m)return null;
