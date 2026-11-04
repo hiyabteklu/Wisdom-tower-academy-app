@@ -55,7 +55,7 @@ const gradeNodes: AdminNavNode[] = grades.map((g) => {
  */
 const entranceNode: AdminNavNode = {
   id: "entrance-questions",
-  label: "Entrance Questions",
+  label: "EUEE · Entrance Questions",
   packageId: ENTRANCE_PACKAGE_ID,
   useAppwrite: true,
   children: ENTRANCE_STREAMS.map((stream) => ({
