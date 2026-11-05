@@ -51,12 +51,15 @@ object UpdateRepository {
     suspend fun checkLatest(context: Context): UpdateCheckResult = withContext(Dispatchers.IO) {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-        fun cachedOrUnavailable(): UpdateCheckResult =
-            cached(prefs)?.let { UpdateCheckResult.Published(it) } ?: UpdateCheckResult.Unavailable
+        // The app is locked only by a release that was actually published and seen (live or
+        // cached). If the check cannot be completed and no release was ever cached, the app
+        // opens: a failed check must never lock students out on its own.
+        fun cachedOrOpen(): UpdateCheckResult =
+            cached(prefs)?.let { UpdateCheckResult.Published(it) } ?: UpdateCheckResult.NoPublishedRelease
 
         try {
             if (supabaseUrl.isBlank() || anonKey.isBlank()) {
-                return@withContext cachedOrUnavailable()
+                return@withContext cachedOrOpen()
             }
 
             val request = Request.Builder()
@@ -68,7 +71,7 @@ object UpdateRepository {
                 .build()
 
             http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext cachedOrUnavailable()
+                if (!response.isSuccessful) return@withContext cachedOrOpen()
                 val body = response.body?.string().orEmpty()
                 val array = JSONArray(body)
                 if (array.length() == 0) {
@@ -83,7 +86,7 @@ object UpdateRepository {
                 UpdateCheckResult.Published(release)
             }
         } catch (_: Exception) {
-            cachedOrUnavailable()
+            cachedOrOpen()
         }
     }
 
