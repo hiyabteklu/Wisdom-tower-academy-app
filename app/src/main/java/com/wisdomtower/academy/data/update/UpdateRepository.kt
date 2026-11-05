@@ -1,7 +1,10 @@
 package com.wisdomtower.academy.data.update
 
 import android.content.Context
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import com.wisdomtower.academy.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -133,6 +136,7 @@ object UpdateRepository {
                         "The downloaded file is not a valid APK archive."
                     }
                 }
+                verifyDownloadedApk(context, partial, release)
                 if (target.exists()) target.delete()
                 check(partial.renameTo(target)) { "Could not prepare the downloaded update." }
                 withContext(Dispatchers.Main) { onProgress(1f) }
@@ -140,6 +144,58 @@ object UpdateRepository {
             } catch (error: Exception) {
                 partial.delete()
                 throw error
+            }
+        }
+    }
+
+    private fun verifyDownloadedApk(context: Context, file: File, release: AppRelease) {
+        val flags = if (Build.VERSION.SDK_INT >= 28) {
+            PackageManager.GET_SIGNING_CERTIFICATES
+        } else {
+            @Suppress("DEPRECATION")
+            PackageManager.GET_SIGNATURES
+        }
+        val archive = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
+            ?: error("Android could not read the downloaded APK.")
+        require(archive.packageName == context.packageName) {
+            "This APK is for a different app and cannot update Wisdom Tower Academy."
+        }
+        val archiveVersion = if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else {
+            @Suppress("DEPRECATION")
+            archive.versionCode.toLong()
+        }
+        require(archiveVersion == release.versionCode.toLong()) {
+            "The APK version does not match the published release. Please contact the app administrator."
+        }
+        require(archiveVersion > BuildConfig.VERSION_CODE) {
+            "The downloaded APK is not newer than the installed app."
+        }
+
+        val installed = context.packageManager.getPackageInfo(context.packageName, flags)
+        if (Build.VERSION.SDK_INT >= 28) {
+            val installedInfo = installed.signingInfo
+                ?: error("The installed app signing information is unavailable.")
+            val candidateInfo = archive.signingInfo
+                ?: error("The downloaded APK signing information is unavailable.")
+            val installedSigners = installedInfo.apkContentsSigners.map { it.toByteArray().toList() }.toSet()
+            val candidateSigners = candidateInfo.apkContentsSigners.map { it.toByteArray().toList() }.toSet()
+            val sameSignerSet = installedSigners.isNotEmpty() && installedSigners == candidateSigners
+            val validRotation = installedSigners.size == 1 &&
+                candidateSigners.size == 1 &&
+                candidateInfo.hasPastSigningCertificates() &&
+                candidateInfo.signingCertificateHistory.any {
+                    it.toByteArray().toList() in installedSigners
+                }
+            require(sameSignerSet || validRotation) {
+                "The APK signature does not match the installed Wisdom Tower Academy app."
+            }
+        } else {
+            @Suppress("DEPRECATION")
+            val installedSigners = installed.signatures?.map { it.toByteArray().toList() }?.toSet().orEmpty()
+            @Suppress("DEPRECATION")
+            val candidateSigners = archive.signatures?.map { it.toByteArray().toList() }?.toSet().orEmpty()
+            require(installedSigners.isNotEmpty() && installedSigners == candidateSigners) {
+                "The APK signature does not match the installed Wisdom Tower Academy app."
             }
         }
     }
