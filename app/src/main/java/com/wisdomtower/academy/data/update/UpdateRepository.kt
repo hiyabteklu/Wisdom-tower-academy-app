@@ -40,7 +40,13 @@ sealed class UpdateCheckResult {
 object UpdateRepository {
     private const val PREFS = "wta_app_updates"
     private const val CACHED_RELEASE = "cached_release"
+    // Used for the APK download: long limits, a big file on a slow connection is normal.
     private val http = OkHttpClient.Builder()
+        .connectTimeout(12, TimeUnit.SECONDS)
+        .readTimeout(15, TimeUnit.SECONDS)
+        .build()
+    // Used only for the small version check: short limits so a weak connection never holds the app.
+    private val checkHttp = http.newBuilder()
         .connectTimeout(5, TimeUnit.SECONDS)
         .readTimeout(6, TimeUnit.SECONDS)
         .callTimeout(8, TimeUnit.SECONDS)
@@ -71,7 +77,7 @@ object UpdateRepository {
                 .get()
                 .build()
 
-            http.newCall(request).execute().use { response ->
+            checkHttp.newCall(request).execute().use { response ->
                 if (!response.isSuccessful) return@withContext cachedOrOpen()
                 val body = response.body?.string().orEmpty()
                 val array = JSONArray(body)
