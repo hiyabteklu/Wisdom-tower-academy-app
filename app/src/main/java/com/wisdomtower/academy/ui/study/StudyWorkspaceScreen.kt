@@ -70,7 +70,8 @@ private val SCOPE_FRESHMAN = Regex("^/academy/freshman/([^/]+)$")
 private val SCOPE_REMEDIAL = Regex("^/academy/remedial/([^/]+)$")
 private val SCOPE_GRADE = Regex("^/academy/grades/([^/]+)/([^/]+)$")
 private val SCOPE_ECE = Regex("^/academy/special-packages/[^/]+/(sem-[12])/([^/]+)$")
-private val SCOPE_SPECIAL = Regex("^/academy/(coc|uat|gat)$")
+// 2026-11-05 (docs/PLAN_2026-11-05_PACKAGES_WIRING.md): exit-exam added, so it reads its content natively like gat and coc.
+private val SCOPE_SPECIAL = Regex("^/academy/(coc|uat|gat|exit-exam)$")
 private val SCOPE_UAT_HUB = Regex("^/academy/uat/(tips|revision-notes|previous-exams|resources)$")
 private val SCOPE_ENTRANCE = Regex("^/academy/entrance-questions/([^/]+)/([^/]+)/([0-9]{4})$")
 private val TRACK_ECE = Regex("^/academy/special-packages/([^/]+)/(sem-[12])/([^/]+)$")
@@ -164,6 +165,10 @@ internal fun safeHubUrl(basePath: String, hubId: String): String {
  * website entrance link: the 6-hub grid is never drawn, and back from the hub list leaves this page (back to the 4 UAT
  * cards) instead of landing on the 6-hub grid first. If the hub is closed (coming soon / package required) the gate
  * message is shown on an empty page and "Got it" goes back.
+ *
+ * PACKAGES WIRING (2026-11-05, docs/PLAN_2026-11-05_PACKAGES_WIRING.md): GAT and Exit Exam are no longer closed by a
+ * hard-coded check here. They are decided by the admin lock rows (`package:gat`, `package:exit-exam` = coming_soon until
+ * the admin opens them), exactly like every other package. Status: written, NOT compiled.
  */
 @Composable
 fun StudyWorkspaceScreen(
@@ -177,11 +182,9 @@ fun StudyWorkspaceScreen(
     val entranceUrl = remember(basePath) { entranceYearUrl(basePath) }
     val contentScope = remember(basePath) { contentScopePath(basePath) }
     val uatHubDirect = remember(basePath) { SCOPE_UAT_HUB.matches(cleanBase(basePath)) }
-    val isComingSoonPackage = remember(basePath) {
-        val clean = cleanBase(basePath)
-        clean == "/academy/gat" || clean.startsWith("/academy/gat/") ||
-            clean == "/academy/exit-exam" || clean.startsWith("/academy/exit-exam/")
-    }
+    // 2026-11-05: was a hard-coded "GAT and Exit Exam are always coming soon" that ignored the admin locks. Now always
+    // false; the lock rows decide (static rule for gat / exit-exam is still Coming soon when no row exists).
+    val isComingSoonPackage = false
     var view by remember(basePath) { mutableStateOf<WorkspaceView?>(null) }
 
     val context = LocalContext.current
