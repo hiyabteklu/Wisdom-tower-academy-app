@@ -94,6 +94,7 @@ fun AdminConsoleScreen(
                 "database" -> DatabaseStatusScreen(modifier = Modifier.weight(1f))
                 "exam-integrity" -> ExamIntegrityAdminScreen(modifier = Modifier.weight(1f))
                 "device-security" -> DeviceSecurityAdminScreen(modifier = Modifier.weight(1f))
+                "app-updates" -> AppUpdatesScreen(modifier = Modifier.weight(1f))
                 "notifications" -> if (composerOpen) {
                     AdminWebSection(
                         url = "$origin/admin?tab=notifications",
