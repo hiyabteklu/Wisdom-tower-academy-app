@@ -30,10 +30,12 @@ Deno.serve(async (req: Request) => {
   let id = "";
   let clientVersion: number | null = null;
   let checkOnly = false;
+  let clientType: "app" | "web" = "app";
   try {
     const body = await req.json();
     id = String(body?.id ?? "");
     checkOnly = body?.check_only === true;
+    clientType = body?.client_type === "web" ? "web" : "app";
     const rawVersion = body?.client_version;
     if (rawVersion !== undefined && rawVersion !== null) {
       const parsed = Number(rawVersion);
@@ -60,10 +62,16 @@ Deno.serve(async (req: Request) => {
   }
 
   // Ask the database with the student's own JWT, never with a service key.
-  const rpcName = clientVersion === null ? "open_book" : "open_book_v2";
-  const rpcBody = clientVersion === null
+  const rpcName = clientType === "web"
+    ? "open_book_web"
+    : clientVersion === null
+      ? "open_book"
+      : "open_book_v2";
+  const rpcBody = clientType === "web"
     ? { p_id: id }
-    : { p_id: id, p_client_version: clientVersion };
+    : clientVersion === null
+      ? { p_id: id }
+      : { p_id: id, p_client_version: clientVersion };
   const gate = await fetch(`${supabaseUrl}/rest/v1/rpc/${rpcName}`, {
     method: "POST",
     headers: { apikey: anonKey, Authorization: authHeader, "Content-Type": "application/json" },
