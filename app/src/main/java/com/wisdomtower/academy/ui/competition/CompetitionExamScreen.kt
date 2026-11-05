@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.ui.competition
 
+import com.wisdomtower.academy.ui.study.SecureContentCaptureProtection
 import com.wisdomtower.academy.ui.theme.WisdomPopupFill
 
 import android.annotation.SuppressLint
@@ -127,6 +128,7 @@ fun CompetitionExamScreen(
     modifier: Modifier = Modifier,
     title: String = ""
 ) {
+    SecureContentCaptureProtection()
     val state = remember(session.entryId) { CompetitionRunnerState(session) }
     var version by remember(session.entryId) { mutableIntStateOf(0) }
     var nowMs by remember { mutableLongStateOf(CompetitionRepository.serverNowMs()) }
