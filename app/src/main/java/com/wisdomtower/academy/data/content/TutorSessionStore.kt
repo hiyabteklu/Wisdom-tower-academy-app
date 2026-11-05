@@ -28,6 +28,10 @@ data class TutorSession(
  * (`wt_ai_tutor_sessions_v2` / `wt_ai_tutor_active_session_id_v2`); natively they live in the app's private
  * SharedPreferences file `wt_ai_tutor` (never uploaded). Only the 50 newest chats are kept. Never logs the content.
  *
+ * 2026-11-05: empty chats (no messages) are no longer written, except the active one, so the tutor opening on a new chat
+ * every time (drawer, Learning tab, "Ask AI tutor" in a note) cannot fill the 50 slots with empty chats and push real
+ * conversations out.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 object TutorSessionStore {
@@ -78,7 +82,10 @@ object TutorSessionStore {
     fun save(context: Context, sessions: List<TutorSession>, activeId: String) {
         try {
             val arr = JSONArray()
-            sessions.take(MAX_SESSIONS).forEach { arr.put(sessionToJson(it)) }
+            sessions
+                .filter { it.messages.isNotEmpty() || it.id == activeId }
+                .take(MAX_SESSIONS)
+                .forEach { arr.put(sessionToJson(it)) }
             context.applicationContext
                 .getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .edit()
