@@ -29,6 +29,7 @@ object PaidCheckout {
      * Catalog package id (`catalog_items.id`) that unlocks the course at lock [scope], or null when the scope has no
      * package. Same mapping as `ContentAccess.inferPackageAndScope`, except that an ECE semester maps to ITS OWN
      * semester package (the course page of semester 2 must sell semester 2).
+     * 2026-11-05: "exit-exam" added (docs/PLAN_2026-11-05_PACKAGES_WIRING.md).
      */
     fun packageIdForScope(scope: String): String? {
         val parts = scope.split('/')
@@ -43,6 +44,7 @@ object PaidCheckout {
             "coc" -> "coc"
             "uat" -> "uat"
             "gat" -> "gat"
+            "exit-exam" -> "exit-exam"
             "remedial" -> "remedial"
             "entrance" -> "entrance-questions"
             else -> null
