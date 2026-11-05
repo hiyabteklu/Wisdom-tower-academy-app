@@ -860,7 +860,8 @@ class MainActivity : ComponentActivity() {
         NotificationRepository.refreshNotifications()
         AcademyRepository.refreshCatalog()
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        if (!BuildConfig.DEBUG) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Sensitive student screens apply FLAG_SECURE only while they are visible.
+        // Admin export renders a fresh image from authorized result data; it does not capture the app window.
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#060B15")
         @Suppress("DEPRECATION")
@@ -999,7 +1000,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        if (!BuildConfig.DEBUG) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // Sensitive student screens apply FLAG_SECURE only while they are visible.
+        // Admin export renders a fresh image from authorized result data; it does not capture the app window.
     }
 }
 
