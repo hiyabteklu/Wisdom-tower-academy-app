@@ -394,14 +394,16 @@ object LearningContentRepository {
     /**
      * Re-checks a saved paid PDF against current server entitlement before opening it while online.
      * A locked/deleted/device-revoked item is denied and its app-managed copy is deleted by BookFileStore.
-     * No session or network means the existing saved copy may still be used offline.
+     * Offline copies remain usable only when Android has no validated network. When online, a signed-in account
+     * and a successful server check are required; an unavailable check must not silently bypass revocation.
      */
-    suspend fun checkPaidBookAccess(resourceId: String): PaidBookAccessCheck = withContext(Dispatchers.IO) {
+    suspend fun checkPaidBookAccess(context: Context, resourceId: String): PaidBookAccessCheck = withContext(Dispatchers.IO) {
         if (!UUID_REGEX.matches(resourceId)) return@withContext PaidBookAccessCheck.Denied("This material is no longer available.")
+        if (!hasValidatedNetwork(context)) return@withContext PaidBookAccessCheck.Unavailable
         try {
             AuthStateManager.refreshIfNeeded()
             var token = AuthStateManager.currentUser.value?.accessToken
-            if (token.isNullOrBlank()) return@withContext PaidBookAccessCheck.Unavailable
+            if (token.isNullOrBlank()) return@withContext PaidBookAccessCheck.Denied(SIGN_IN_MESSAGE)
 
             var reply = callBookUrl(resourceId, token, fastAccessHttp, checkOnly = true)
             if (reply.first == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
@@ -419,12 +421,16 @@ object LearningContentRepository {
                 )
                 status == "not_found" || status == "not_paid_file" || reply.first == 404 ->
                     PaidBookAccessCheck.Denied("This material is no longer available.")
-                else -> PaidBookAccessCheck.Unavailable
+                else -> PaidBookAccessCheck.Denied(
+                    "We couldn't verify access to this saved material. Check your connection and try again."
+                )
             }
         } catch (e: CancellationException) {
             throw e
         } catch (_: Exception) {
-            PaidBookAccessCheck.Unavailable
+            PaidBookAccessCheck.Denied(
+                "We couldn't verify access to this saved material. Check your connection and try again."
+            )
         }
     }
 
