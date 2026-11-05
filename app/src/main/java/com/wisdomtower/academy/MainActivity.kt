@@ -925,7 +925,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                LaunchedEffect(Unit) { checkUpdate(true) }
+                // Release the Android system splash as soon as the first Compose gate frame
+                // has been drawn. MainScreen's onReady callback is not reached while the
+                // mandatory-update/checking screens are shown.
+                LaunchedEffect(Unit) {
+                    androidx.compose.runtime.withFrameNanos { }
+                    keepSplash = false
+                    checkUpdate(true)
+                }
                 androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         if (event == Lifecycle.Event.ON_RESUME) {
