@@ -149,12 +149,20 @@ private class TutorStreamHolder {
  *
  * T1 (2026-11-02, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, owner: an AI tutor at the end of every note with the context of
  * that chapter): when the tutor is opened by the "Ask AI tutor" button of the notes reader, [NativeToolRequests] holds the
- * chapter text (and a short instruction). This screen takes it ONCE when it opens ([NativeToolRequests.takeTutorContext]),
- * starts a NEW empty chat for it (the older chats stay in the list) and sends it to the website route as `courseContext`
- * with every question of this visit, instead of the course title the shell passes ([courseContext]). The route appends it
- * to the AI's system instruction, so the student does not have to explain what they are reading. Opened from the drawer
- * or the Learning tab, there is no chapter text and nothing changes. If the student opens an OLDER chat from the list
- * during the same visit, the chapter text is still sent with its questions.
+ * chapter text (and a short instruction). This screen takes it ONCE when it opens ([NativeToolRequests.takeTutorContext])
+ * and sends it to the website route as `courseContext` with every question of this visit, instead of the course title the
+ * shell passes ([courseContext]). The route appends it to the AI's system instruction, so the student does not have to
+ * explain what they are reading. If the student opens an OLDER chat from the list during the same visit, the chapter text
+ * is still sent with its questions.
+ *
+ * NEW CHAT ON EVERY OPEN (owner request 2026-11-05): whichever way the tutor is opened (drawer, Learning tab, "Ask AI tutor"
+ * in a note) it starts on a NEW empty chat. All older chats stay saved and are in the Chats list. Empty chats left over
+ * from earlier visits are dropped when the screen opens, so empty chats do not pile up.
+ *
+ * SAVING (owner report 2026-11-05, "history is not saving right?"): every chat is kept on the phone. The old debounced save
+ * restarted on every streamed chunk, so during a long answer nothing was written until the answer ended. Now a save also runs
+ * every 2 seconds while an answer is being written and once as soon as the answer ends, fails or is stopped, besides the
+ * debounced save and the save when the screen is left.
  *
  * Scroll freeze fix (owner report 2026-10-13): this screen calls [PauseShellWhileShown], which gives the local
  * WebView page the touch fix and quiets the hidden website WebView.
@@ -217,15 +225,13 @@ fun NativeTutorScreen(
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
 
+    // Always open on a NEW empty chat (owner request 2026-11-05). Older chats with messages stay below it in the list;
+    // empty leftovers from earlier visits are dropped so they do not pile up.
     val initial = remember {
         val loaded = TutorSessionStore.load(context)
-        if (chapterContext != null) {
-            // T1: a fresh chat for this chapter on top; the older chats stay in the list.
-            val fresh = TutorSessionStore.newSession()
-            (listOf(fresh) + (loaded?.first ?: emptyList())) to fresh.id
-        } else {
-            loaded ?: TutorSessionStore.newSession().let { listOf(it) to it.id }
-        }
+        val kept = (loaded?.first ?: emptyList()).filter { it.messages.isNotEmpty() }
+        val fresh = TutorSessionStore.newSession()
+        (listOf(fresh) + kept) to fresh.id
     }
     var sessions by remember { mutableStateOf(initial.first) }
     var activeId by remember { mutableStateOf(initial.second) }
@@ -455,6 +461,18 @@ fun NativeTutorScreen(
     LaunchedEffect(sessions, activeId) {
         delay(250)
         TutorSessionStore.save(context, sessions, activeId)
+    }
+    // Save every 2 seconds while an answer is being written (the debounced save above restarts on every chunk), and once
+    // right away when the answer has ended, failed or been stopped (owner report 2026-11-05: history not saving right).
+    LaunchedEffect(busy) {
+        if (busy) {
+            while (true) {
+                delay(2000)
+                TutorSessionStore.save(context, sessions, activeId)
+            }
+        } else {
+            TutorSessionStore.save(context, sessions, activeId)
+        }
     }
     DisposableEffect(Unit) {
         onDispose {
