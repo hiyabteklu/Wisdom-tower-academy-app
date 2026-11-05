@@ -164,7 +164,7 @@ private fun DefensePlayHost(
 
     LaunchedEffect(Unit) {
         GameAudio.init(context)
-        GameAudio.muted = !settings.soundOn
+        GameAudio.setMuted(!settings.soundOn)
         engine.startCountdown()
     }
 
@@ -285,7 +285,7 @@ private fun DefensePlayHost(
                     val on = !settings.soundOn
                     GameStore.setSoundOn(context, on)
                     settings = settings.copy(soundOn = on)
-                    GameAudio.muted = !on
+                    GameAudio.setMuted(!on)
                 },
                 onToggleVibration = {
                     val on = !settings.vibrationOn
