@@ -364,7 +364,10 @@ object LearningContentRepository {
 
     /** One POST to the Edge Function `book-url`. Returns the HTTP code and the body text. */
     private fun callBookUrl(resourceId: String, token: String): Pair<Int, String> {
-        val body = JSONObject().put("id", resourceId).toString().toRequestBody(JSON_MEDIA)
+        val body = JSONObject()
+            .put("id", resourceId)
+            .put("client_version", BuildConfig.VERSION_CODE)
+            .toString().toRequestBody(JSON_MEDIA)
         val request = Request.Builder()
             .url("$supabaseUrl/functions/v1/book-url")
             .addHeader("apikey", anonKey)
