@@ -1,6 +1,8 @@
 package com.wisdomtower.academy.ui.admin
 
 import com.wisdomtower.academy.ui.theme.WisdomPopupFill
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -45,6 +47,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.admin.BroadcastsRepository
@@ -54,6 +57,8 @@ import com.wisdomtower.academy.data.admin.CompetitionsResult
 import com.wisdomtower.academy.data.admin.EntriesResult
 import com.wisdomtower.academy.data.admin.EntryItem
 import com.wisdomtower.academy.data.admin.ExamOption
+import com.wisdomtower.academy.data.admin.LeaderboardExportRepository
+import com.wisdomtower.academy.data.admin.LeaderboardExportResult
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
@@ -62,7 +67,9 @@ import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import com.wisdomtower.academy.ui.theme.WisdomNavy
 import com.wisdomtower.academy.ui.theme.WisdomTextPrimary
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 
 // ADMIN-native N9 (docs/ADMIN_NATIVE_PLAN.md). Native version of the website Competitions panel
@@ -155,6 +162,31 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
     var dqReason by remember { mutableStateOf("") }
 
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    var exportDialogCompetition by remember { mutableStateOf<CompetitionItem?>(null) }
+    var exportBytes by remember { mutableStateOf<ByteArray?>(null) }
+    val jpgSaveLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("image/jpeg")
+    ) { uri ->
+        val bytes = exportBytes
+        if (uri == null || bytes == null) {
+            exportBytes = null
+        } else {
+            scope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(uri)?.use { it.write(bytes) }
+                            ?: error("Could not open the selected save location.")
+                    }
+                    toast = "Leaderboard JPG saved."
+                } catch (_: Exception) {
+                    toast = "Could not save the JPG. Please choose another location."
+                } finally {
+                    exportBytes = null
+                }
+            }
+        }
+    }
 
     LaunchedEffect(reloadKey) {
         loading = true
@@ -191,6 +223,37 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
             toast = if (error == null) okMessage else error
             reloadKey += 1
             entriesKey += 1
+        }
+    }
+
+    fun exportLeaderboard(competition: CompetitionItem, format: LeaderboardJpgFormat) {
+        scope.launch {
+            busyKey = "export-" + competition.id
+            when (val loaded = LeaderboardExportRepository.load(context, competition.id)) {
+                is LeaderboardExportResult.Success -> {
+                    try {
+                        val bytes = withContext(Dispatchers.Default) {
+                            LeaderboardJpgRenderer.render(loaded.data, format)
+                        }
+                        exportBytes = bytes
+                        busyKey = null
+                        val safeTitle = loaded.data.examTitle
+                            .lowercase()
+                            .replace(Regex("[^a-z0-9]+"), "-")
+                            .trim('-')
+                            .take(32)
+                            .ifBlank { "competition" }
+                        jpgSaveLauncher.launch("wta-${safeTitle}-top3-${format.suffix}.jpg")
+                    } catch (_: Exception) {
+                        busyKey = null
+                        toast = "The leaderboard image could not be prepared."
+                    }
+                }
+                is LeaderboardExportResult.Failure -> {
+                    busyKey = null
+                    toast = loaded.message
+                }
+            }
         }
     }
 
@@ -382,6 +445,47 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
             dismissButton = {
                 TextButton(onClick = { dqTarget = null; dqReason = "" }) {
                     Text(text = "Cancel", color = WisdomMuted)
+                }
+            }
+        )
+    }
+
+    val exportCompetition = exportDialogCompetition
+    if (exportCompetition != null) {
+        AlertDialog(
+            onDismissRequest = { exportDialogCompetition = null },
+            containerColor = WisdomPopupFill,
+            title = { Text("Export leaderboard", color = WisdomTextPrimary, fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text(
+                        "Create a branded JPG using the verified top-three results. The app will ask where to save it.",
+                        color = WisdomMuted,
+                        fontSize = 13.sp
+                    )
+                }
+            },
+            confirmButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(
+                        enabled = !anyBusy,
+                        onClick = {
+                            exportDialogCompetition = null
+                            exportLeaderboard(exportCompetition, LeaderboardJpgFormat.LANDSCAPE_4_3)
+                        }
+                    ) { Text("4:3 landscape", color = WisdomCyan) }
+                    TextButton(
+                        enabled = !anyBusy,
+                        onClick = {
+                            exportDialogCompetition = null
+                            exportLeaderboard(exportCompetition, LeaderboardJpgFormat.PORTRAIT_9_16)
+                        }
+                    ) { Text("9:16 portrait", color = WisdomAccentAmber) }
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { exportDialogCompetition = null }) {
+                    Text("Cancel", color = WisdomMuted)
                 }
             }
         )
@@ -723,7 +827,8 @@ internal fun CompetitionsScreen(modifier: Modifier = Modifier) {
                         flagsOpenId = null
                         entriesQuery = ""
                         entriesFor = detailItem.id
-                    }
+                    },
+                    onExport = { exportDialogCompetition = detailItem }
                 )
             }
         }
@@ -954,7 +1059,8 @@ private fun CompetitionDetailBody(
     onStartNow: () -> Unit,
     onCancel: () -> Unit,
     onReschedule: () -> Unit,
-    onEntries: () -> Unit
+    onEntries: () -> Unit,
+    onExport: () -> Unit
 ) {
     val cancelled = c.countdownState == "cancelled"
     val paused = c.countdownState == "paused"
@@ -979,6 +1085,7 @@ private fun CompetitionDetailBody(
     if (upcoming) actions.add(CompAction("Reschedule", WisdomCyan, onReschedule))
     if (!cancelled && phase != "ended") actions.add(CompAction("Cancel contest", AdminRose, onCancel))
     actions.add(CompAction("Entries", CompOrange, onEntries))
+    if (phase == "ended") actions.add(CompAction("Export top 3", WisdomAccentAmber, onExport))
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
