@@ -285,17 +285,20 @@ object LearningContentRepository {
                     try {
                         return@withContext when (val door = fetchItem(id, cacheFile, fastHttp)) {
                             is Door.Row -> ContentItemResult.Found(rowToResource(door.row), false)
-                            is Door.Gone -> ContentItemResult.NotFound
-                            is Door.Locked -> ContentItemResult.Failure(LOCKED_MESSAGE)
-                            is Door.DeviceNotActive -> ContentItemResult.Failure(DEVICE_NOT_ACTIVE_MESSAGE)
-                            is Door.UpdateRequired -> ContentItemResult.Failure(
-                                "Please update Wisdom Tower Academy to continue opening this material (minimum version code: ${door.minimumVersionCode})."
-                            )
+                            is Door.Gone -> { cacheFile.delete(); ContentItemResult.NotFound }
+                            is Door.Locked -> { cacheFile.delete(); ContentItemResult.Failure(LOCKED_MESSAGE) }
+                            is Door.DeviceNotActive -> { cacheFile.delete(); ContentItemResult.Failure(DEVICE_NOT_ACTIVE_MESSAGE) }
+                            is Door.UpdateRequired -> {
+                                cacheFile.delete()
+                                ContentItemResult.Failure(
+                                    "Please update Wisdom Tower Academy to continue opening this material (minimum version code: ${door.minimumVersionCode})."
+                                )
+                            }
                         }
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: IOException) {
-                        return@withContext ContentItemResult.Found(rowToResource(saved), true)
+                        return@withContext ContentItemResult.Failure(NO_INTERNET)
                     } catch (e: Exception) {
                         Log.w(TAG, "saved item access check failed: ${e.javaClass.simpleName}")
                         return@withContext ContentItemResult.Failure(LOAD_FAILED)
@@ -305,16 +308,21 @@ object LearningContentRepository {
             try {
                 when (val door = fetchItem(id, cacheFile, http)) {
                     is Door.Row -> ContentItemResult.Found(rowToResource(door.row), false)
-                    is Door.Gone -> ContentItemResult.NotFound
-                    is Door.Locked -> ContentItemResult.Failure(LOCKED_MESSAGE)
-                    is Door.DeviceNotActive -> ContentItemResult.Failure(DEVICE_NOT_ACTIVE_MESSAGE)
-                    is Door.UpdateRequired -> ContentItemResult.Failure("Please update Wisdom Tower Academy to continue opening this material (minimum version code: ${door.minimumVersionCode}).")
+                    is Door.Gone -> { cacheFile.delete(); ContentItemResult.NotFound }
+                    is Door.Locked -> { cacheFile.delete(); ContentItemResult.Failure(LOCKED_MESSAGE) }
+                    is Door.DeviceNotActive -> { cacheFile.delete(); ContentItemResult.Failure(DEVICE_NOT_ACTIVE_MESSAGE) }
+                    is Door.UpdateRequired -> {
+                        cacheFile.delete()
+                        ContentItemResult.Failure("Please update Wisdom Tower Academy to continue opening this material (minimum version code: ${door.minimumVersionCode}).")
+                    }
                 }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
                 Log.w(TAG, "getResource failed: ${e.javaClass.simpleName}")
-                val cached = readCache(cacheFile)?.let { runCatching { JSONObject(it) }.getOrNull() }
+                val cached = if (!hasValidatedNetwork(context)) {
+                    readCache(cacheFile)?.let { runCatching { JSONObject(it) }.getOrNull() }
+                } else null
                 if (cached != null) {
                     ContentItemResult.Found(rowToResource(cached), true)
                 } else {
