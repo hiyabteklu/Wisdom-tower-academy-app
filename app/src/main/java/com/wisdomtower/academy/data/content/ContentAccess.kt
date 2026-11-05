@@ -188,6 +188,9 @@ class CourseLocks internal constructor(
  * 2026-10-20: hub, chapter and item locks added ([CourseLocks], [resolveLocks], [staticLocks]). [resolve],
  * [staticAccess] and [isUnlocked] are unchanged in shape (course level).
  *
+ * 2026-11-05 (docs/PLAN_2026-11-05_PACKAGES_WIRING.md): [unlockPackageIds] now knows `gat` and `exit-exam`, so a student
+ * who owns one of them is no longer shown "Package required" once the admin opens it.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 object ContentAccess {
@@ -551,6 +554,8 @@ object ContentAccess {
         base.contains("/academy/entrance-questions") -> listOf("entrance-questions")
         base.contains("/academy/uat") -> listOf("uat")
         base.contains("/academy/coc") -> listOf("coc")
+        base.contains("/academy/gat") -> listOf("gat")
+        base.contains("/academy/exit-exam") -> listOf("exit-exam")
         base.contains("/academy/remedial") -> listOf("remedial")
         base.contains("/special-packages/electrical-computer-engineering") ||
             base.contains("/special-packages/ece") -> listOf("ece-y3-sem-1", "ece-y3-sem-2")
