@@ -51,10 +51,10 @@ class BookLockedException(message: String) : IllegalStateException(message)
  * file address). Such a row opens only when the item itself was saved before; otherwise the reader says it needs the
  * internet. A saved list file is still used first, exactly as before. Online behaviour is unchanged.
  *
- * F4 (2026-10-12, owner report problem 4: "opening material should be instant"): [getResource] is now
- * cache-first (a saved item opens at once and is refreshed quietly in the background for the next visit;
- * `refresh = true` forces a real download, used by the Download buttons), and [list] gives up on a slow
- * network after a few seconds when it has a saved copy, instead of waiting 15 seconds.
+ * F4 / R8 (2026-11-05): [getResource] uses the saved item immediately when Android has no validated network. When online,
+ * it asks the checked server door BEFORE displaying a protected cached copy; a newly locked, deleted, device-revoked or
+ * unsupported-version item is refused and its local JSON copy is removed. The short fastHttp timeout keeps this check
+ * bounded. `refresh = true` still forces a server read, used by the Download buttons.
  *
  * P1a (2026-11-03, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, owner problem 8): [listSaved] returns the saved list of a hub
  * with NO network, so the hub list screen can draw it at once and then call [list] in the background (which already uses
@@ -265,11 +265,10 @@ object LearningContentRepository {
 
     /**
      * Loads one resource with its full body and meta (note text, flashcards, questions).
-     * Cache-first: a saved copy is returned at once (`fromCache = false`, it is not necessarily offline) and
-     * refreshed quietly in the background. With [refresh] = true the server is asked first (a Download button):
-     * the result has `fromCache = true` only when the server could not be reached and the old copy was used.
-     * A material the server reports as locked gives [ContentItemResult.Failure] with a plain message and its saved
-     * copy is deleted (a locked material is therefore refused at the latest on the next open).
+     * Offline: a saved copy opens immediately when Android has no validated network. Online: the checked server door is
+     * consulted before a saved copy is shown, so current locks, entitlement/device changes and version gates take effect
+     * on this open. A refused material gives [ContentItemResult.Failure] and its saved copy is deleted.
+     * With [refresh] = true the server is asked first; a network IOException may still fall back to an existing copy.
      */
     suspend fun getResource(context: Context, id: String, refresh: Boolean = false): ContentItemResult =
         withContext(Dispatchers.IO) {
