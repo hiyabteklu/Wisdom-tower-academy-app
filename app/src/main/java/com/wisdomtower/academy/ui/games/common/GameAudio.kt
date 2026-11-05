@@ -19,7 +19,7 @@ object GameAudio {
     }
 
     @Volatile
-    var muted: Boolean = false
+    var isMuted: Boolean = false
 
     @Volatile
     private var masterVolume: Float = 0.5f
@@ -37,7 +37,7 @@ object GameAudio {
      */
     fun init(context: Context) {
         val prefs = context.applicationContext.getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE)
-        muted = !prefs.getBoolean("sound_effects", true)
+        isMuted = !prefs.getBoolean("sound_effects", true)
         masterVolume = prefs.getFloat("sound_volume", 0.5f).coerceIn(0f, 1f)
         applyTrackVolume()
         if (ready) return
@@ -71,7 +71,7 @@ object GameAudio {
 
     /** Apply the Settings screen's master effects switch immediately, including during play. */
     fun setMuted(value: Boolean) {
-        muted = value
+        isMuted = value
     }
 
     /** Apply the Settings screen's master volume immediately to every synthesized effect. */
@@ -95,7 +95,7 @@ object GameAudio {
     }
 
     fun play(sfx: Sfx) {
-        if (muted) return
+        if (isMuted) return
         val track = tracks[sfx] ?: return
         try {
             handler?.post {
