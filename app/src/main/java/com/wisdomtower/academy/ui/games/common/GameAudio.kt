@@ -10,7 +10,7 @@ import kotlin.math.sin
 
 /**
  * Synthesized short PCM tones (22050 Hz, 16-bit mono) into static AudioTracks.
- * Any failure = silent game, never a crash. [muted] skips play.
+ * Any failure = silent game, never a crash. [mutedState] skips play.
  */
 object GameAudio {
 
@@ -19,7 +19,7 @@ object GameAudio {
     }
 
     @Volatile
-    var isMuted: Boolean = false
+    var mutedState: Boolean = false
 
     @Volatile
     private var masterVolume: Float = 0.5f
@@ -37,7 +37,7 @@ object GameAudio {
      */
     fun init(context: Context) {
         val prefs = context.applicationContext.getSharedPreferences("wt_settings_prefs", Context.MODE_PRIVATE)
-        isMuted = !prefs.getBoolean("sound_effects", true)
+        mutedState = !prefs.getBoolean("sound_effects", true)
         masterVolume = prefs.getFloat("sound_volume", 0.5f).coerceIn(0f, 1f)
         applyTrackVolume()
         if (ready) return
@@ -71,7 +71,7 @@ object GameAudio {
 
     /** Apply the Settings screen's master effects switch immediately, including during play. */
     fun setMuted(value: Boolean) {
-        isMuted = value
+        mutedState = value
     }
 
     /** Apply the Settings screen's master volume immediately to every synthesized effect. */
@@ -95,7 +95,7 @@ object GameAudio {
     }
 
     fun play(sfx: Sfx) {
-        if (isMuted) return
+        if (mutedState) return
         val track = tracks[sfx] ?: return
         try {
             handler?.post {
