@@ -860,8 +860,7 @@ class MainActivity : ComponentActivity() {
         NotificationRepository.refreshNotifications()
         AcademyRepository.refreshCatalog()
         WebView.setWebContentsDebuggingEnabled(BuildConfig.DEBUG)
-        // TODO: Re-enable FLAG_SECURE before final production release to prevent unauthorized screen captures
-        // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (!BuildConfig.DEBUG) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         enableEdgeToEdge()
         val navy = AndroidColor.parseColor("#060B15")
         @Suppress("DEPRECATION")
@@ -1000,8 +999,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // TODO: Re-enable FLAG_SECURE before final production release to prevent unauthorized screen captures
-        // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        if (!BuildConfig.DEBUG) window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 }
 
