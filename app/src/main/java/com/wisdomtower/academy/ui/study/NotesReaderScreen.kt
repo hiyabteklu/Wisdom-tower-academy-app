@@ -187,6 +187,7 @@ fun NotesReaderScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    SecureContentCaptureProtection()
     val context = LocalContext.current
     val screenScope = rememberCoroutineScope()
     var attempt by remember { mutableStateOf(0) }
