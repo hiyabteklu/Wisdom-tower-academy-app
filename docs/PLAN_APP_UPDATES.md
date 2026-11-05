@@ -203,3 +203,40 @@ One slice = one commit pushed directly to `main`; update this plan in the same c
 
 
 - 2026-11-05 (R2 follow-up hardening): periodic metadata refreshes no longer unmount the student's current screen while a check is running. If an already-verified session's hourly refresh fails, it retains the previously verified app state; a first launch with no cached/verified release status remains blocked until retry succeeds. Also corrected nullable Telegram-host validation to use explicit host comparisons. CI/device verification is still pending.
+
+
+---
+
+# ALREADY-PUBLISHED APK BASELINE — DO NOT CONFUSE WITH THE NEXT RELEASE
+
+**Owner-confirmed public release baseline (2026-11-05):**
+- Released source commit: `51e92c84f9ec338c02411640b7d2940f30ba7321` — [commit](https://github.com/hiyabteklu/Wisdom-tower-academy-app/commit/51e92c84f9ec338c02411640b7d2940f30ba7321).
+- The owner confirms this is the APK/source version already distributed publicly to students. Treat it as the currently deployed legacy release until the owner confirms a replacement is live.
+- At that commit, Android package ID is `com.wisdomtower.academy`, `versionCode = 3`, `versionName = 1.0.0`.
+- `FLAG_SECURE` is disabled: the two `window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)` calls in `MainActivity.kt` are commented out and marked TODO.
+- The release therefore does not provide the intended screenshot/screen-recording protection. Other gaps are tracked in this plan; do not assume the newer `main` commits or roadmap changes are present in the already-installed public APK.
+- This commit is a baseline reference only. Do not rewrite history, delete it, or treat pushing a newer commit to `main` as updating phones that already have this APK.
+
+## Controlled public-release migration (owner-directed)
+
+The currently released APK remains publicly available while the owner prepares the replacement and communicates the change. Do **not** abruptly revoke the APK, raise the minimum version, or deny student content access before the warning and replacement sequence is complete.
+
+1. **Prepare and verify replacement first.** Build a higher `versionCode` APK with the same package ID and compatible production signing identity. Complete CI and physical-device install-over-existing-app testing, including login/session retention and the mandatory updater.
+2. **Publish the replacement route.** Configure the published release row with the direct HTTPS APK URL and exact Telegram channel post URL. Verify both links and the actual APK before announcing.
+3. **Warn students publicly.** Announce through the owner's social-media channels and Telegram channel that an update is required, explain the improvements and the deadline/grace period, and point to the exact trusted update post. Use more than one reminder before enforcement.
+4. **Migration/grace period.** Keep the current release and protected content doors working during the owner-approved warning window. Do not infer or invent the deadline; record the date/time the owner chooses.
+5. **Enforce after warning.** First publish/confirm the mandatory release metadata and verify new clients receive it. Then raise `min_version_code` and activate server-side rejection for unsupported legacy app requests at protected content doors. Old builds may display only a generic access failure if they cannot understand the new response; the public warning is therefore required.
+6. **Monitor and support.** Check update uptake, student reports, login issues, and failed downloads during the migration. Keep the replacement APK and a recovery path available.
+7. **Only then retire legacy access.** The owner may remove/replace the old public APK link or mark the old release unsupported after the grace period. Removing the download link alone does not uninstall copies already on phones; server-side content enforcement is what prevents an old installed app from continuing to fetch protected material.
+
+### Important distinction
+- **APK availability/revocation:** removing an old APK from Telegram or another download page prevents future downloads from that link, but cannot remove copies already downloaded or installed.
+- **Installed-app blocking:** the old app cannot be remotely uninstalled. It can be denied future access to protected server content once the server checks its version/build path.
+- **Offline copies:** server denial cannot erase files a student already copied outside app-managed storage, and a device that stays offline cannot receive a new revocation. Updated clients can remove app-managed cached materials when they reconnect and receive revocation state.
+- **Do not block the website accidentally.** Version enforcement must distinguish app callers from website callers or use a dedicated app-only protected-content route.
+
+## Baseline-specific execution notes
+- Treat `versionCode 3 / versionName 1.0.0` as the known public baseline for migration planning. Confirm the actual installed APK/signing lineage with a device/build artifact before publishing the next release; do not assume the source commit alone proves the signing certificate of the distributed binary.
+- The next release must have a strictly greater version code and retain `com.wisdomtower.academy` plus the production signing identity.
+- The existing disabled `FLAG_SECURE` in this baseline is a known gap, not a reason to break current users immediately. Enable student protection in the replacement build only after the scoped admin export exception is implemented and tested.
+- 2026-11-05 owner instruction: the public legacy APK may remain available during the social-media warning/migration period; after users have been warned and the replacement is available, the owner intends to retire the old release and/or deny protected content to old versions. The exact warning deadline and enforcement date remain **not yet chosen**.

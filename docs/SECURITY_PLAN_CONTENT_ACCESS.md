@@ -70,3 +70,18 @@ MUST VERIFY BEFORE CODING S5a (the docs page does not state them): the exact nam
 - 2026-10-20 (S4 finishing agent): S4 (the `body_md` / `meta` column revoke) was applied before the owner phone test, on the previous agent's judgement that the app has no live users.
 - 2026-10-20 (owner decision, 10:15): S5 dropped because books are free MoE / MoSHE material.
 - 2026-10-20 (owner decision, 10:32): S5 REINSTATED for Life Savers (real PDFs to be sold) and any other paid PDF; books stay free. Revised design: second private bucket + `appwrite-paid:` prefix. Leaked-password protection, FLAG_SECURE and leaderboard removed from the open items (standing decisions).
+
+
+---
+
+## 2026-11-05 UPDATE — PUBLIC LEGACY APK AND MIGRATION WARNING
+
+The previous standing instruction to keep `FLAG_SECURE` off was tied to development/screenshot needs. The owner has now clarified that the app is already publicly released and that this older release has security gaps.
+
+- Owner-confirmed released baseline: commit `51e92c84f9ec338c02411640b7d2940f30ba7321`, package `com.wisdomtower.academy`, `versionCode 3`, `versionName 1.0.0`.
+- At that commit, `FLAG_SECURE` is commented out in both relevant MainActivity locations. Ordinary users on this build do not receive the intended screenshot/screen-recording restriction.
+- Do not confuse the currently public APK with current `main`: code pushed after this released commit is not automatically installed on student phones.
+- **Migration must be staged:** build and verify a higher-version, same-package, same-signing-identity replacement; publish its direct APK and exact Telegram post; warn students through social media and Telegram; allow the owner-approved grace period; then enforce the new minimum and server-side denial for unsupported app versions.
+- Do not raise the minimum version or deny the old build protected content before the replacement is available and the warning window has ended. The grace-period deadline and enforcement date are still to be chosen by the owner.
+- Removing the old APK link does not uninstall already installed copies. Server-side version-aware checks are needed to deny protected content to old builds. Offline files already copied outside the app cannot be remotely erased.
+- This 2026-11-05 owner clarification supersedes the old “leave FLAG_SECURE off until the app is finished” direction for the next production release. The new build should protect student screens while keeping only the narrowly scoped, fresh-server-verified admin export exception described in the release hardening roadmap. Do not turn protection off globally for admins.
