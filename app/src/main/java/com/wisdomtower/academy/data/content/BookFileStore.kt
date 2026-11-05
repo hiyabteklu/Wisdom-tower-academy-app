@@ -53,6 +53,13 @@ object BookFileStore {
         val safe = safeName(key)
         runCatching { File(dir, "$safe.pdf").delete() }
         runCatching { File(dir, "$safe.part").delete() }
+        sizeMemoryCache.remove(key)
+        runCatching {
+            context.getSharedPreferences("wt_book_sizes", Context.MODE_PRIVATE)
+                .edit()
+                .remove(key)
+                .apply()
+        }
     }
 
     /** Returns the byte size of the downloaded local PDF file, or null if not downloaded. */
@@ -168,6 +175,19 @@ object BookFileStore {
         val safe = safeName(key)
         val target = File(dir, "$safe.pdf")
         if (target.exists() && target.length() > 0L) {
+            if (url.startsWith(LearningContentRepository.PAID_URL_PREFIX)) {
+                when (val access = LearningContentRepository.checkPaidBookAccess(key)) {
+                    is LearningContentRepository.PaidBookAccessCheck.Allowed -> Unit
+                    is LearningContentRepository.PaidBookAccessCheck.Unavailable -> {
+                        saveCachedSize(context, key, target.length())
+                        return@withContext target
+                    }
+                    is LearningContentRepository.PaidBookAccessCheck.Denied -> {
+                        delete(context, key)
+                        throw BookLockedException(access.message)
+                    }
+                }
+            }
             saveCachedSize(context, key, target.length())
             return@withContext target
         }
