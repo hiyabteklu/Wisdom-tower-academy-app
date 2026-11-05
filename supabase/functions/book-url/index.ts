@@ -29,9 +29,11 @@ Deno.serve(async (req: Request) => {
 
   let id = "";
   let clientVersion: number | null = null;
+  let checkOnly = false;
   try {
     const body = await req.json();
     id = String(body?.id ?? "");
+    checkOnly = body?.check_only === true;
     const rawVersion = body?.client_version;
     if (rawVersion !== undefined && rawVersion !== null) {
       const parsed = Number(rawVersion);
@@ -87,6 +89,8 @@ Deno.serve(async (req: Request) => {
   if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,35}$/.test(fileId)) {
     return json({ status: "error", message: "Bad file id" }, 500);
   }
+
+  if (checkOnly) return json({ status: "ok" });
 
   const expires = new Date(Date.now() + TOKEN_MINUTES * 60 * 1000);
   const tokenRes = await fetch(
