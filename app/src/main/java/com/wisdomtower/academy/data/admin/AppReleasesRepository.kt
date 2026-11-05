@@ -48,8 +48,8 @@ object AppReleasesRepository {
     suspend fun save(release: AdminAppRelease): AppReleasesResult {
         if (release.versionCode <= 0) return AppReleasesResult.Failure("Version code must be greater than zero.")
         if (release.versionName.isBlank()) return AppReleasesResult.Failure("Enter a version name.")
-        if (release.minVersionCode < 0 || release.minVersionCode > release.versionCode) {
-            return AppReleasesResult.Failure("Minimum supported version must be between zero and this release's version code.")
+        if (release.minVersionCode < 1 || release.minVersionCode > release.versionCode) {
+            return AppReleasesResult.Failure("Minimum supported version must be at least 1 and no greater than this release's version code.")
         }
         if (!isHttpsUrl(release.apkUrl)) return AppReleasesResult.Failure("APK link must be a valid HTTPS URL.")
         val telegram = release.telegramUrl?.trim()?.takeIf { it.isNotEmpty() }
