@@ -148,6 +148,7 @@ object LearningContentRepository {
         object Gone : Door()
         object Locked : Door()
         object DeviceNotActive : Door()
+        data class UpdateRequired(val minimumVersionCode: Int) : Door()
     }
 
     /**
@@ -284,6 +285,7 @@ object LearningContentRepository {
                     is Door.Gone -> ContentItemResult.NotFound
                     is Door.Locked -> ContentItemResult.Failure(LOCKED_MESSAGE)
                     is Door.DeviceNotActive -> ContentItemResult.Failure(DEVICE_NOT_ACTIVE_MESSAGE)
+                    is Door.UpdateRequired -> ContentItemResult.Failure("Please update Wisdom Tower Academy to continue opening this material (minimum version code: ${door.minimumVersionCode}).")
                 }
             } catch (e: CancellationException) {
                 throw e
@@ -481,10 +483,10 @@ object LearningContentRepository {
         val token = AuthStateManager.currentUser.value?.accessToken
         if (token.isNullOrBlank()) return legacyOrRefuse(id, client)
 
-        var reply = callOpenResource(id, token, client)
+        var reply = callOpenResourceV2(id, token, client)
         if (reply.first == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
             val fresh = AuthStateManager.currentUser.value?.accessToken
-            if (!fresh.isNullOrBlank()) reply = callOpenResource(id, fresh, client)
+            if (!fresh.isNullOrBlank()) reply = callOpenResourceV2(id, fresh, client)
         }
         if (reply.first !in 200..299) {
             Log.w(TAG, "open_resource failed: HTTP ${reply.first}")
@@ -500,15 +502,19 @@ object LearningContentRepository {
             "not_found" -> Door.Gone
             "locked" -> Door.Locked
             "device_not_active" -> Door.DeviceNotActive
+            "update_required" -> Door.UpdateRequired(answer.optInt("min_version_code", 0))
             else -> legacyOrRefuse(id, client)
         }
     }
 
-    /** One POST to `rpc/open_resource`. Returns the HTTP code and the body text. */
-    private fun callOpenResource(id: String, token: String, client: OkHttpClient): Pair<Int, String> {
-        val body = JSONObject().put("p_id", id).toString().toRequestBody(JSON_MEDIA)
+    /** Version-aware checked door used by replacement builds. Legacy clients keep calling open_resource(uuid). */
+    private fun callOpenResourceV2(id: String, token: String, client: OkHttpClient): Pair<Int, String> {
+        val body = JSONObject()
+            .put("p_id", id)
+            .put("p_client_version", BuildConfig.VERSION_CODE)
+            .toString().toRequestBody(JSON_MEDIA)
         val request = Request.Builder()
-            .url("$supabaseUrl/rest/v1/rpc/open_resource")
+            .url("$supabaseUrl/rest/v1/rpc/open_resource_v2")
             .addHeader("apikey", anonKey)
             .addHeader("Authorization", "Bearer $token")
             .addHeader("Accept", "application/json")
