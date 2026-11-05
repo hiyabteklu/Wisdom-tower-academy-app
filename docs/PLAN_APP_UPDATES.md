@@ -200,3 +200,6 @@ One slice = one commit pushed directly to `main`; update this plan in the same c
 
 
 - 2026-11-05 (R2 safety correction): a successful empty published-release query now retains any previously cached release instead of silently clearing a known mandatory update. A first install with no cached release and no published rows may proceed; an API failure with no cache remains blocked. This is a narrow safety correction to the R2 gate.
+
+
+- 2026-11-05 (R2 follow-up hardening): periodic metadata refreshes no longer unmount the student's current screen while a check is running. If an already-verified session's hourly refresh fails, it retains the previously verified app state; a first launch with no cached/verified release status remains blocked until retry succeeds. Also corrected nullable Telegram-host validation to use explicit host comparisons. CI/device verification is still pending.

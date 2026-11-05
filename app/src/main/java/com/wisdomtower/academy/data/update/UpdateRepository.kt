@@ -106,7 +106,7 @@ object UpdateRepository {
         if (telegram != null) {
             val telegramUri = Uri.parse(telegram)
             val host = telegramUri.host?.lowercase()
-            require(telegramUri.scheme == "https" && host in setOf("t.me", "telegram.me")) {
+            require(telegramUri.scheme == "https" && (host == "t.me" || host == "telegram.me")) {
                 "The published Telegram link is invalid. Contact the app administrator."
             }
         }

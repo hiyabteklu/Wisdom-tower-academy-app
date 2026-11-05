@@ -892,7 +892,8 @@ class MainActivity : ComponentActivity() {
                     if (!updateCheckRunning && (force || now - lastUpdateCheckAt >= 60L * 60L * 1000L)) {
                         updateCheckRunning = true
                         lastUpdateCheckAt = now
-                        updateGateState = UpdateGateState.Checking
+                        val wasAlreadyReady = updateGateState == UpdateGateState.Ready
+                        if (!wasAlreadyReady) updateGateState = UpdateGateState.Checking
                         try {
                             when (val result = UpdateRepository.checkLatest(updateContext)) {
                                 is UpdateCheckResult.Published -> {
@@ -911,7 +912,11 @@ class MainActivity : ComponentActivity() {
                                 }
                                 UpdateCheckResult.Unavailable -> {
                                     updateRelease = null
-                                    updateGateState = UpdateGateState.Unavailable
+                                    updateGateState = if (wasAlreadyReady) {
+                                        UpdateGateState.Ready
+                                    } else {
+                                        UpdateGateState.Unavailable
+                                    }
                                 }
                             }
                         } finally {
