@@ -68,7 +68,11 @@ object UpdateRepository {
                 if (!response.isSuccessful) return@withContext cachedOrUnavailable()
                 val body = response.body?.string().orEmpty()
                 val array = JSONArray(body)
-                if (array.length() == 0) return@withContext UpdateCheckResult.NoPublishedRelease
+                if (array.length() == 0) {
+                    // An accidental unpublish must not erase a previously cached mandatory release.
+                    return@withContext cached(prefs)?.let { UpdateCheckResult.Published(it) }
+                        ?: UpdateCheckResult.NoPublishedRelease
+                }
 
                 val row = array.getJSONObject(0)
                 val release = row.toRelease()

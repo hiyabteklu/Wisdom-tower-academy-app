@@ -197,3 +197,6 @@ One slice = one commit pushed directly to `main`; update this plan in the same c
 
 
 - 2026-11-05 (R2 implementation pushed): `UpdateRepository.kt` now reads the published `telegram_url` and distinguishes a published release, no published release, and an unavailable check; all published newer versions are mandatory. `MainActivity.kt` gates normal app content until the version check completes and shows a blocking retry state if it cannot verify release status. `UpdatePrompt.kt` has no dismiss/Later action and consumes Back; it offers in-app installation plus the Telegram fallback and rechecks version when returning. Added blocking/checking gate screens. CI compile and physical-device tests have not yet been run. APK package/version/signature validation remains R4.
+
+
+- 2026-11-05 (R2 safety correction): a successful empty published-release query now retains any previously cached release instead of silently clearing a known mandatory update. A first install with no cached release and no published rows may proceed; an API failure with no cache remains blocked. This is a narrow safety correction to the R2 gate.
