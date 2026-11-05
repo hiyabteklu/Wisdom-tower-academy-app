@@ -70,6 +70,7 @@ fun FlashcardsScreen(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    SecureContentCaptureProtection()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var attempt by remember { mutableStateOf(0) }
