@@ -95,12 +95,15 @@ function esc(s) {
  * The AI pads the delimiters with spaces ("\( f(x) = 2x \)"). The renderer's inline $ rule refuses a space right after the opening $
  * or right before the closing $ (so prices like "$5 and $10" stay text), so the converted text must be trimmed, otherwise the
  * formula shows as raw "$ f(x) = 2x $". Inline math also cannot contain a line break, so those become a space.
+ * The AI also writes padded dollar math directly ("$ Y(n) $"): the last rule below trims spaces on BOTH sides of such a pair
+ * (never touches $$ ... $$, never touches "$5" style prices because those have no space after the $).
  * Also strips a leaked ">>> SUGGESTION:" tail (chats saved before the server fix, or any future leak); the chips come from m.suggestions. */
 function aiText(s) {
   return String(s == null ? "" : s)
     .replace(/\s*>{2,3}\s*(?:SUGGESTION|Follow-up)\s*:[\s\S]*$/i, "")
     .replace(/\\\[([\s\S]+?)\\\]/g, function (m, a) { return "$$" + a.trim() + "$$"; })
-    .replace(/\\\(([\s\S]+?)\\\)/g, function (m, a) { return "$" + a.trim().replace(/\s*\n\s*/g, " ") + "$"; });
+    .replace(/\\\(([\s\S]+?)\\\)/g, function (m, a) { return "$" + a.trim().replace(/\s*\n\s*/g, " ") + "$"; })
+    .replace(/(?<![\\$])\$(?!\$)[ \t]+([^$\n]+?)[ \t]+\$(?!\$)/g, function (m, a) { return "$" + a + "$"; });
 }
 function rich(s) {
   try { return window.WTRich.render(aiText(s)); } catch (e) { return "<p>" + esc(s) + "</p>"; }
