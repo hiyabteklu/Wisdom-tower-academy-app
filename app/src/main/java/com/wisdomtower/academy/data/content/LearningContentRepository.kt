@@ -512,7 +512,7 @@ object LearningContentRepository {
 
             try {
                 val hubFilter = "in.(\"books\",\"short-notes\",\"references\",\"flashcards\",\"question-banks\",\"exams\",\"life-savers\")"
-                val url = "$supabaseUrl/rest/v1/learning_resources".toHttpUrl().newBuilder()
+                val url = "$supabaseUrl/rest/v1/learning_resources_public".toHttpUrl().newBuilder()
                     .addQueryParameter("select", "hub")
                     .addQueryParameter("scope_path", scopeFilter(scopePath))
                     .addQueryParameter("hub", hubFilter)
@@ -521,7 +521,7 @@ object LearningContentRepository {
                 var rows = JSONArray(get(url, fastHttp))
                 val ece = ECE_SCOPE.matchEntire(scopePath)
                 if (rows.length() == 0 && ece != null) {
-                    val fallbackUrl = "$supabaseUrl/rest/v1/learning_resources".toHttpUrl().newBuilder()
+                    val fallbackUrl = "$supabaseUrl/rest/v1/learning_resources_public".toHttpUrl().newBuilder()
                         .addQueryParameter("select", "hub")
                         .addQueryParameter("scope_path", "ilike.*${ece.groupValues[2]}*")
                         .addQueryParameter("hub", hubFilter)
@@ -618,7 +618,7 @@ object LearningContentRepository {
     /** The old direct read (public key), only while [LEGACY_DIRECT_READ] is true; otherwise the item is refused. */
     private fun legacyOrRefuse(id: String, client: OkHttpClient): Door {
         if (!LEGACY_DIRECT_READ) return Door.Locked
-        val url = "$supabaseUrl/rest/v1/learning_resources".toHttpUrl().newBuilder()
+        val url = "$supabaseUrl/rest/v1/learning_resources_public".toHttpUrl().newBuilder()
             .addQueryParameter("select", "*")
             .addQueryParameter("id", "eq.$id")
             .addQueryParameter("published", "eq.true")
@@ -653,7 +653,7 @@ object LearningContentRepository {
     }
 
     private fun queryRows(scopeFilter: String, hubFilter: String, client: OkHttpClient): JSONArray {
-        val url = "$supabaseUrl/rest/v1/learning_resources".toHttpUrl().newBuilder()
+        val url = "$supabaseUrl/rest/v1/learning_resources_public".toHttpUrl().newBuilder()
             .addQueryParameter("select", LIGHT_COLUMNS)
             .addQueryParameter("scope_path", scopeFilter)
             .addQueryParameter("hub", hubFilter)
