@@ -1,14 +1,13 @@
 package com.wisdomtower.academy.data.content
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.MediaType.Companion.toMediaType
@@ -133,9 +132,6 @@ object LearningContentRepository {
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
-    /** Quiet background refreshes of saved items (never tied to a screen). */
-    private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
-
     private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     private val ECE_SCOPE = Regex("^ece/(sem-[12])/([^/]+)$")
     private val UUID_REGEX = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
@@ -143,6 +139,15 @@ object LearningContentRepository {
 
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
+
+    /** A cached protected item is only treated as offline when Android has no validated network. */
+    private fun hasValidatedNetwork(context: Context): Boolean {
+        val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return false
+        val network = manager.activeNetwork ?: return false
+        val capabilities = manager.getNetworkCapabilities(network) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
+    }
 
     /** Columns of a list (no note text, no quiz/flashcard JSON; `item_count` replaces counting inside `meta`). */
     private const val LIGHT_COLUMNS =
@@ -273,16 +278,29 @@ object LearningContentRepository {
             if (!refresh) {
                 val saved = readCache(cacheFile)?.let { runCatching { JSONObject(it) }.getOrNull() }
                 if (saved != null) {
-                    refreshScope.launch {
-                        try {
-                            fetchItem(id, cacheFile, fastHttp)
-                        } catch (e: CancellationException) {
-                            throw e
-                        } catch (e: Exception) {
-                            Log.w(TAG, "background refresh failed: ${e.javaClass.simpleName}")
-                        }
+                    // Offline opens stay instant. When the phone is online, ask the server BEFORE displaying a
+                    // protected cached copy so a new lock, refund, deletion or minimum-version change takes effect.
+                    if (!hasValidatedNetwork(context)) {
+                        return@withContext ContentItemResult.Found(rowToResource(saved), true)
                     }
-                    return@withContext ContentItemResult.Found(rowToResource(saved), false)
+                    try {
+                        return@withContext when (val door = fetchItem(id, cacheFile, fastHttp)) {
+                            is Door.Row -> ContentItemResult.Found(rowToResource(door.row), false)
+                            is Door.Gone -> ContentItemResult.NotFound
+                            is Door.Locked -> ContentItemResult.Failure(LOCKED_MESSAGE)
+                            is Door.DeviceNotActive -> ContentItemResult.Failure(DEVICE_NOT_ACTIVE_MESSAGE)
+                            is Door.UpdateRequired -> ContentItemResult.Failure(
+                                "Please update Wisdom Tower Academy to continue opening this material (minimum version code: ${door.minimumVersionCode})."
+                            )
+                        }
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: IOException) {
+                        return@withContext ContentItemResult.Found(rowToResource(saved), true)
+                    } catch (e: Exception) {
+                        Log.w(TAG, "saved item access check failed: ${e.javaClass.simpleName}")
+                        return@withContext ContentItemResult.Failure(LOAD_FAILED)
+                    }
                 }
             }
             try {
