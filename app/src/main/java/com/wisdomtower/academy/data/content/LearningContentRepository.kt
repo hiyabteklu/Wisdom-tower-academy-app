@@ -127,6 +127,12 @@ object LearningContentRepository {
         .readTimeout(8, TimeUnit.SECONDS)
         .build()
 
+    /** Access-only checks should fail quickly so a genuinely offline saved PDF can still open. */
+    private val fastAccessHttp = http.newBuilder()
+        .connectTimeout(4, TimeUnit.SECONDS)
+        .readTimeout(8, TimeUnit.SECONDS)
+        .build()
+
     /** Quiet background refreshes of saved items (never tied to a screen). */
     private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -362,11 +368,60 @@ object LearningContentRepository {
         }
     }
 
+    sealed class PaidBookAccessCheck {
+        object Allowed : PaidBookAccessCheck()
+        object Unavailable : PaidBookAccessCheck()
+        data class Denied(val message: String) : PaidBookAccessCheck()
+    }
+
+    /**
+     * Re-checks a saved paid PDF against current server entitlement before opening it while online.
+     * A locked/deleted/device-revoked item is denied and its app-managed copy is deleted by BookFileStore.
+     * No session or network means the existing saved copy may still be used offline.
+     */
+    suspend fun checkPaidBookAccess(resourceId: String): PaidBookAccessCheck = withContext(Dispatchers.IO) {
+        if (!UUID_REGEX.matches(resourceId)) return@withContext PaidBookAccessCheck.Denied("This material is no longer available.")
+        try {
+            AuthStateManager.refreshIfNeeded()
+            var token = AuthStateManager.currentUser.value?.accessToken
+            if (token.isNullOrBlank()) return@withContext PaidBookAccessCheck.Unavailable
+
+            var reply = callBookUrl(resourceId, token, fastAccessHttp, checkOnly = true)
+            if (reply.first == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
+                token = AuthStateManager.currentUser.value?.accessToken
+                if (!token.isNullOrBlank()) reply = callBookUrl(resourceId, token, fastAccessHttp, checkOnly = true)
+            }
+            val answer = runCatching { JSONObject(reply.second) }.getOrNull()
+            val status = answer?.optString("status").orEmpty()
+            when {
+                reply.first in 200..299 && status == "ok" -> PaidBookAccessCheck.Allowed
+                status == "locked" -> PaidBookAccessCheck.Denied(LOCKED_MESSAGE)
+                status == "device_not_active" -> PaidBookAccessCheck.Denied(DEVICE_NOT_ACTIVE_MESSAGE)
+                status == "update_required" -> PaidBookAccessCheck.Denied(
+                    "Please update Wisdom Tower Academy to continue opening this material."
+                )
+                status == "not_found" || status == "not_paid_file" || reply.first == 404 ->
+                    PaidBookAccessCheck.Denied("This material is no longer available.")
+                else -> PaidBookAccessCheck.Unavailable
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            PaidBookAccessCheck.Unavailable
+        }
+    }
+
     /** One POST to the Edge Function `book-url`. Returns the HTTP code and the body text. */
-    private fun callBookUrl(resourceId: String, token: String): Pair<Int, String> {
+    private fun callBookUrl(
+        resourceId: String,
+        token: String,
+        client: OkHttpClient = http,
+        checkOnly: Boolean = false
+    ): Pair<Int, String> {
         val body = JSONObject()
             .put("id", resourceId)
             .put("client_version", BuildConfig.VERSION_CODE)
+            .put("check_only", checkOnly)
             .toString().toRequestBody(JSON_MEDIA)
         val request = Request.Builder()
             .url("$supabaseUrl/functions/v1/book-url")
@@ -375,7 +430,7 @@ object LearningContentRepository {
             .addHeader("Accept", "application/json")
             .post(body)
             .build()
-        return http.newCall(request).execute().use { resp ->
+        return client.newCall(request).execute().use { resp ->
             resp.code to resp.body?.string().orEmpty()
         }
     }
