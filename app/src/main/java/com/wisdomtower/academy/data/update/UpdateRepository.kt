@@ -1,6 +1,7 @@
 package com.wisdomtower.academy.data.update
 
 import android.content.Context
+import android.net.Uri
 import com.wisdomtower.academy.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -9,17 +10,27 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
-import java.io.File
 
 data class AppRelease(
     val versionCode: Int,
     val versionName: String,
     val changelog: List<String>,
     val apkUrl: String,
+    val telegramUrl: String?,
     val minVersionCode: Int
 ) {
     val isUpdateAvailable: Boolean get() = versionCode > BuildConfig.VERSION_CODE
-    val isForced: Boolean get() = BuildConfig.VERSION_CODE < minVersionCode
+
+    // Every published newer release is mandatory. min_version_code also protects older
+    // builds if the release metadata is ever staged with a later minimum.
+    val isForced: Boolean get() =
+        isUpdateAvailable || BuildConfig.VERSION_CODE < minVersionCode
+}
+
+sealed class UpdateCheckResult {
+    data class Published(val release: AppRelease) : UpdateCheckResult()
+    object NoPublishedRelease : UpdateCheckResult()
+    object Unavailable : UpdateCheckResult()
 }
 
 /** Reads published release metadata and keeps the last successful row for offline checks. */
@@ -34,95 +45,80 @@ object UpdateRepository {
     private val supabaseUrl get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
 
-    suspend fun latest(context: Context): AppRelease? = withContext(Dispatchers.IO) {
+    suspend fun checkLatest(context: Context): UpdateCheckResult = withContext(Dispatchers.IO) {
         val prefs = context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+
+        fun cachedOrUnavailable(): UpdateCheckResult =
+            cached(prefs)?.let { UpdateCheckResult.Published(it) } ?: UpdateCheckResult.Unavailable
+
         try {
-            if (supabaseUrl.isBlank() || anonKey.isBlank()) return@withContext cached(prefs)
+            if (supabaseUrl.isBlank() || anonKey.isBlank()) {
+                return@withContext cachedOrUnavailable()
+            }
+
             val request = Request.Builder()
-                .url("$supabaseUrl/rest/v1/app_versions?select=version_code,version_name,changelog,apk_url,min_version_code&published=eq.true&order=version_code.desc&limit=1")
+                .url("$supabaseUrl/rest/v1/app_versions?select=version_code,version_name,changelog,apk_url,telegram_url,min_version_code&published=eq.true&order=version_code.desc&limit=1")
                 .header("apikey", anonKey)
                 .header("Authorization", "Bearer $anonKey")
                 .header("Accept", "application/json")
                 .get()
                 .build()
+
             http.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext cached(prefs)
+                if (!response.isSuccessful) return@withContext cachedOrUnavailable()
                 val body = response.body?.string().orEmpty()
                 val array = JSONArray(body)
-                if (array.length() == 0) return@withContext cached(prefs)
+                if (array.length() == 0) return@withContext UpdateCheckResult.NoPublishedRelease
+
                 val row = array.getJSONObject(0)
                 val release = row.toRelease()
                 prefs.edit().putString(CACHED_RELEASE, row.toString()).apply()
-                release
+                UpdateCheckResult.Published(release)
             }
         } catch (_: Exception) {
-            cached(prefs)
+            cachedOrUnavailable()
         }
     }
-
-    /** Downloads a published APK to app-private cache; partial files are never offered to Android. */
-    suspend fun downloadApk(context: Context, release: AppRelease, onProgress: (Float?) -> Unit): File =
-        withContext(Dispatchers.IO) {
-            val uri = android.net.Uri.parse(release.apkUrl)
-            require(uri.scheme == "https" && !uri.host.isNullOrBlank()) {
-                "The release APK link must use HTTPS."
-            }
-            val request = Request.Builder().url(release.apkUrl).get().build()
-            http.newCall(request).execute().use { response ->
-                check(response.isSuccessful) { "APK download failed (HTTP ${response.code})." }
-                val body = response.body ?: error("The APK download was empty.")
-                val total = body.contentLength()
-                val directory = File(context.cacheDir, "updates").apply { mkdirs() }
-                // Remove leftovers from earlier installer sessions before starting a fresh download.
-                directory.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
-                val target = File(directory, "wisdom-tower-update-${release.versionCode}.apk")
-                val partial = File(directory, "update-${release.versionCode}.part")
-                try {
-                    body.byteStream().use { input ->
-                        partial.outputStream().buffered().use { output ->
-                            val buffer = ByteArray(64 * 1024)
-                            var copied = 0L
-                            while (true) {
-                                val count = input.read(buffer)
-                                if (count < 0) break
-                                output.write(buffer, 0, count)
-                                copied += count
-                                onProgress(if (total > 0L) (copied.toFloat() / total).coerceIn(0f, 1f) else null)
-                            }
-                        }
-                    }
-                    require(partial.length() > 4L) { "The downloaded APK is empty or incomplete." }
-                    partial.inputStream().use { input ->
-                        require(input.read() == 0x50 && input.read() == 0x4b) {
-                            "The downloaded file is not a valid APK archive."
-                        }
-                    }
-                    if (target.exists()) target.delete()
-                    check(partial.renameTo(target)) { "Could not prepare the downloaded update." }
-                    onProgress(1f)
-                    target
-                } catch (error: Exception) {
-                    partial.delete()
-                    throw error
-                }
-            }
-        }
 
     private fun cached(prefs: android.content.SharedPreferences): AppRelease? =
         try { prefs.getString(CACHED_RELEASE, null)?.let { JSONObject(it).toRelease() } }
         catch (_: Exception) { null }
 
     private fun JSONObject.toRelease(): AppRelease {
+        val releaseVersionCode = getInt("version_code")
+        val minimumVersionCode = getInt("min_version_code")
+        require(releaseVersionCode > 0) { "The published release has an invalid version code." }
+        require(minimumVersionCode >= 0 && minimumVersionCode <= releaseVersionCode) {
+            "The published minimum version is invalid. Contact the app administrator."
+        }
+
+        val apk = getString("apk_url").trim()
+        val apkUri = Uri.parse(apk)
+        require(apkUri.scheme == "https" && !apkUri.host.isNullOrBlank()) {
+            "The published APK link is invalid. Contact the app administrator."
+        }
+
+        val telegram = optString("telegram_url", "").trim().takeIf { it.isNotEmpty() }
+        if (telegram != null) {
+            val telegramUri = Uri.parse(telegram)
+            val host = telegramUri.host?.lowercase()
+            require(telegramUri.scheme == "https" && host in setOf("t.me", "telegram.me")) {
+                "The published Telegram link is invalid. Contact the app administrator."
+            }
+        }
+
         val lines = getString("changelog")
             .lines()
             .map { it.trim().removePrefix("-").removePrefix("•").trim() }
             .filter { it.isNotBlank() }
+
         return AppRelease(
-            versionCode = getInt("version_code"),
+            versionCode = releaseVersionCode,
             versionName = getString("version_name"),
             changelog = lines,
-            apkUrl = getString("apk_url"),
-            minVersionCode = getInt("min_version_code")
+            apkUrl = apk,
+            telegramUrl = telegram,
+            minVersionCode = minimumVersionCode
         )
     }
 }
