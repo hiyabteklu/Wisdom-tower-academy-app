@@ -110,7 +110,7 @@ fun ClimbPlayScreen(
         loading = true
         loadError = null
         GameAudio.init(context)
-        GameAudio.muted = !settings.soundOn
+        GameAudio.setMuted(!settings.soundOn)
         val banks = if (floor.isBoss) {
             allFloorsForBoss.filter { !it.sealed }.flatMap { ClimbTowerBuilder.openBanks(it, locks) }
         } else {
@@ -327,7 +327,7 @@ fun ClimbPlayScreen(
                     val on = !settings.soundOn
                     GameStore.setSoundOn(context, on)
                     settings = settings.copy(soundOn = on)
-                    GameAudio.muted = !on
+                    GameAudio.setMuted(!on)
                 },
                 onToggleVibration = {
                     val on = !settings.vibrationOn
