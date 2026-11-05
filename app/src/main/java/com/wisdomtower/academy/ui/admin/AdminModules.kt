@@ -14,6 +14,7 @@ import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.People
 import androidx.compose.material.icons.filled.SportsEsports
 import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Update
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Smartphone
 import androidx.compose.material.icons.filled.VpnKey
@@ -53,7 +54,8 @@ internal val ADMIN_MODULES: List<AdminModule> = listOf(
     AdminModule("catalog", "Pricing & Catalog", Icons.Filled.Inventory2, aliases = listOf("pricing")),
     AdminModule("free-resources", "Free Resources", Icons.Filled.LocalLibrary, aliases = listOf("free-resource", "free")),
     AdminModule("inquiries", "Inquiries", Icons.Filled.Inbox, AdminCountKind.INQUIRIES, listOf("inquiry")),
-    AdminModule("database", "Database Status", Icons.Filled.Storage, aliases = listOf("db"))
+    AdminModule("database", "Database Status", Icons.Filled.Storage, aliases = listOf("db")),
+    AdminModule("app-updates", "App Releases", Icons.Filled.Update, aliases = listOf("releases", "updates"))
 )
 
 /** Same lookup as parseTab() on the website: id or alias, case-insensitive. Null when unknown. */
@@ -70,6 +72,6 @@ internal fun adminModuleForTab(raw: String?): AdminModule? {
 internal val NATIVE_ADMIN_MODULE_IDS: Set<String> =
     setOf(
         "inquiries", "payments", "users", "overview", "grants", "locks", "catalog", "content",
-        "notifications", "competitions", "free-resources", "database", "game-sets", "exam-integrity", "device-security", "home-banner"
+        "notifications", "competitions", "free-resources", "database", "game-sets", "exam-integrity", "device-security", "home-banner", "app-updates"
     )
 
