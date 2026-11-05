@@ -3,7 +3,10 @@ package com.wisdomtower.academy.data.admin
 // ADMIN-native N6b. Hand copy of ADMIN_CONTENT_TREE in website-reference/src/data/admin-nav.ts, built from the same
 // source lists (grades and hubs: data/academy.ts; subjects per grade: data/grade-subjects.ts; freshman courses:
 // data/freshman.ts; remedial subjects: data/remedial.ts; ECE courses: data/special-packages.ts; entrance streams,
-// subjects and years: data/entrance-questions.ts). Only ids and names are kept (no pictures, no descriptions, no prices).
+// subjects and years: data/entrance-questions.ts; UAT hubs: data/uat-hubs.ts). Only ids and names are kept (no pictures,
+// no descriptions, no prices).
+// 2026-11-05: UAT (4 hubs), COC, GAT and Exit Exam added (docs/PLAN_2026-11-05_PACKAGES_WIRING.md). COC, GAT and Exit
+// Exam each have ONE set of the six hubs at package level (scope = package id: coc, gat, exit-exam).
 // HYPOTHESIS: when the website adds or renames a subject, course, year or hub, this file must be updated by hand.
 // The Course Content slice (N7) will reuse this tree.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
@@ -152,6 +155,35 @@ private fun entranceNode(): AdminNavNode {
     )
 }
 
+/**
+ * UAT has its own 4 hubs (website data/uat-hubs.ts). They store under existing hub ids and are told apart by scope:
+ * Tips = short-notes on scope uat/tips; Revision Notes = short-notes on scope uat; Previous Exams = exams on scope uat;
+ * Resources = life-savers on scope uat. A hub node's id is the stored hub id (the editor chooses its fields from it),
+ * so Tips sits one folder deeper to keep sibling ids unique (same as the website admin tree).
+ */
+private fun uatNode(): AdminNavNode = AdminNavNode(
+    id = "uat",
+    label = "UAT",
+    packageId = "uat",
+    scopePath = null,
+    children = listOf(
+        AdminNavNode(
+            id = "uat-tips",
+            label = "Tips",
+            packageId = "uat",
+            scopePath = null,
+            children = listOf(AdminNavNode("short-notes", "Tip articles", "uat", "uat/tips", emptyList()))
+        ),
+        AdminNavNode("short-notes", "Revision Notes", "uat", "uat", emptyList()),
+        AdminNavNode("exams", "Previous Exams", "uat", "uat", emptyList()),
+        AdminNavNode("life-savers", "Resources", "uat", "uat", emptyList())
+    )
+)
+
+/** COC, GAT and Exit Exam: ONE set of the six hubs at package level, scope = package id (app route /academy/<id>). */
+private fun packageHubsNode(packageId: String, label: String): AdminNavNode =
+    subjectNode(packageId, packageId, packageId, label)
+
 private val FRESHMAN_SUBJECTS: List<Pair<String, String>> = listOf(
     "math-natural" to "Math Natural",
     "math-social" to "Math Social",
@@ -240,6 +272,10 @@ private fun specialNode(): AdminNavNode = AdminNavNode(
 val ADMIN_CONTENT_TREE: List<AdminNavNode> = listOf(
     AdminNavNode("grades", "Grades 9–12", null, null, gradeNodes()),
     entranceNode(),
+    uatNode(),
+    packageHubsNode("coc", "COC"),
+    packageHubsNode("gat", "GAT"),
+    packageHubsNode("exit-exam", "Exit Exam"),
     freshmanNode(),
     remedialNode(),
     specialNode()
