@@ -41,8 +41,9 @@ object UpdateRepository {
     private const val PREFS = "wta_app_updates"
     private const val CACHED_RELEASE = "cached_release"
     private val http = OkHttpClient.Builder()
-        .connectTimeout(12, TimeUnit.SECONDS)
-        .readTimeout(15, TimeUnit.SECONDS)
+        .connectTimeout(5, TimeUnit.SECONDS)
+        .readTimeout(6, TimeUnit.SECONDS)
+        .callTimeout(8, TimeUnit.SECONDS)
         .build()
 
     private val supabaseUrl get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
