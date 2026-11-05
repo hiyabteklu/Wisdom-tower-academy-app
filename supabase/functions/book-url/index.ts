@@ -53,7 +53,8 @@ Deno.serve(async (req: Request) => {
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const appwriteKey = Deno.env.get("APPWRITE_PAID_TOKEN_KEY") ?? Deno.env.get("APPWRITE_API_KEY");
+  // Dedicated narrow key only (can create file tokens for the paid bucket). No fallback to a broader key.
+  const appwriteKey = Deno.env.get("APPWRITE_PAID_TOKEN_KEY");
   if (!supabaseUrl || !anonKey || !appwriteKey) {
     console.error("book-url: missing configuration", {
       supabaseUrl: !!supabaseUrl, anonKey: !!anonKey, appwriteKey: !!appwriteKey,
