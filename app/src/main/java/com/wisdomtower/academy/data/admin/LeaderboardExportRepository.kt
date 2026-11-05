@@ -50,6 +50,9 @@ object LeaderboardExportRepository {
                 "insufficient_results" -> LeaderboardExportResult.Failure(
                     "At least three eligible ranked results are needed. Available: ${json.optInt("available_results", 0)}."
                 )
+                "incomplete_results" -> LeaderboardExportResult.Failure(
+                    "One of the top-three results is missing required score, time or submission data."
+                )
                 "ok" -> {
                     val top = json.getJSONArray("top")
                     val winners = (0 until top.length()).map { index ->
