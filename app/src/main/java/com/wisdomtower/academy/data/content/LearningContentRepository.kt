@@ -343,8 +343,9 @@ object LearningContentRepository {
     fun appwriteViewUrl(storagePath: String?): String? {
         if (storagePath == null) return null
         if (storagePath.startsWith(PAID_PATH_PREFIX)) {
-            val paidId = storagePath.removePrefix(PAID_PATH_PREFIX).substringBefore('|').trim()
-            return if (APPWRITE_ID_REGEX.matches(paidId)) "$PAID_URL_PREFIX$paidId" else null
+            // The private Appwrite file ID is never copied into student list rows or URL markers.
+            // BookFileStore uses the resource UUID to request a short-lived URL from book-url.
+            return PAID_URL_PREFIX
         }
         if (!storagePath.startsWith("appwrite:")) return null
         val fileId = storagePath.removePrefix("appwrite:").substringBefore('|').trim()
@@ -680,6 +681,8 @@ object LearningContentRepository {
 
     private fun rowToResource(row: JSONObject): LearningResource {
         val rawHub = row.optString("hub")
+        val rawStoragePath = row.nstr("storage_path")
+        val safeStoragePath = if (rawStoragePath?.startsWith(PAID_PATH_PREFIX) == true) PAID_PATH_PREFIX else rawStoragePath
         return LearningResource(
             id = row.optString("id"),
             packageId = row.optString("package_id"),
@@ -689,7 +692,7 @@ object LearningContentRepository {
             chapter = if (row.isNull("chapter")) null else row.optInt("chapter"),
             sortOrder = row.optInt("sort_order", 0),
             contentType = row.optString("content_type"),
-            storagePath = row.nstr("storage_path"),
+            storagePath = safeStoragePath,
             bodyMd = row.nstr("body_md"),
             metaJson = row.optJSONObject("meta")?.toString() ?: "{}",
             itemCount = if (row.isNull("item_count")) null else row.optInt("item_count"),
