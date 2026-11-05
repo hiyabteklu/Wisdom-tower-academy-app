@@ -15,6 +15,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,7 +30,15 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.wisdomtower.academy.data.update.ApkInstaller
 import com.wisdomtower.academy.data.update.AppRelease
 import com.wisdomtower.academy.data.update.UpdateRepository
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.io.File
+
+/**
+ * Update flow states (Slice 1). The button always reflects the real state, so there is
+ * never a silent gap after the download finishes and a second tap cannot restart it.
+ */
+private enum class UpdatePhase { Idle, Downloading, Installing, ReadyToInstall }
 
 @Composable
 fun UpdatePrompt(
@@ -40,27 +49,51 @@ fun UpdatePrompt(
     val lifecycleOwner = LocalLifecycleOwner.current
     val scope = rememberCoroutineScope()
     var progress by remember(release.versionCode) { mutableStateOf<Float?>(null) }
-    var downloading by remember(release.versionCode) { mutableStateOf(false) }
+    var phase by remember(release.versionCode) { mutableStateOf(UpdatePhase.Idle) }
+    // Downloaded + verified APK kept in memory so "Install" never downloads again.
+    var readyApk by remember(release.versionCode) { mutableStateOf<File?>(null) }
+    var sawPause by remember(release.versionCode) { mutableStateOf(false) }
     var waitingForInstallPermission by remember(release.versionCode) { mutableStateOf(false) }
     var waitingForTelegram by remember(release.versionCode) { mutableStateOf(false) }
     var status by remember(release.versionCode) { mutableStateOf<String?>(null) }
 
+    val busy = phase == UpdatePhase.Downloading || phase == UpdatePhase.Installing
+
     fun hasInstallPermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.O || context.packageManager.canRequestPackageInstalls()
 
+    fun launchInstaller(apk: File) {
+        phase = UpdatePhase.Installing
+        sawPause = false
+        status = "Opening Android installer…"
+        scope.launch {
+            try {
+                ApkInstaller.install(context, apk)
+            } catch (error: Exception) {
+                phase = UpdatePhase.ReadyToInstall
+                status = error.message?.take(180) ?: "Could not open the installer. Tap Install to try again."
+            }
+        }
+    }
+
     fun downloadAndInstall() {
-        if (downloading) return
-        downloading = true
+        if (busy) return
+        val existing = readyApk
+        if (existing != null && existing.isFile) {
+            launchInstaller(existing)
+            return
+        }
+        phase = UpdatePhase.Downloading
+        progress = null
         status = "Downloading update…"
         scope.launch {
             try {
                 val apk = UpdateRepository.downloadApk(context, release) { value -> progress = value }
-                status = "Opening Android installer…"
-                ApkInstaller.install(context, apk)
+                readyApk = apk
+                launchInstaller(apk)
             } catch (error: Exception) {
+                phase = UpdatePhase.Idle
                 status = error.message?.take(180) ?: "Check your internet connection and try again."
-            } finally {
-                downloading = false
             }
         }
     }
@@ -75,9 +108,29 @@ fun UpdatePrompt(
         }
     }
 
+    // If the installer never shows (or the user comes back without installing),
+    // turn the button into "Install" so they can reopen it without downloading again.
+    LaunchedEffect(phase) {
+        if (phase == UpdatePhase.Installing) {
+            delay(8_000)
+            if (phase == UpdatePhase.Installing) {
+                phase = UpdatePhase.ReadyToInstall
+                status = "Tap Install to open the Android installer."
+            }
+        }
+    }
+
     DisposableEffect(lifecycleOwner, waitingForInstallPermission, waitingForTelegram) {
         val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_PAUSE && phase == UpdatePhase.Installing) {
+                sawPause = true
+            }
             if (event == Lifecycle.Event.ON_RESUME) {
+                if (phase == UpdatePhase.Installing && sawPause) {
+                    sawPause = false
+                    phase = UpdatePhase.ReadyToInstall
+                    status = "Installation not finished. Tap Install to try again."
+                }
                 if (waitingForInstallPermission && hasInstallPermission()) {
                     waitingForInstallPermission = false
                     downloadAndInstall()
@@ -105,7 +158,7 @@ fun UpdatePrompt(
                     Text("What's new", style = MaterialTheme.typography.titleSmall)
                     release.changelog.forEach { line -> Text("• $line", style = MaterialTheme.typography.bodyMedium) }
                 }
-                if (downloading) {
+                if (phase == UpdatePhase.Downloading) {
                     if (progress == null) {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                     } else {
@@ -115,10 +168,12 @@ fun UpdatePrompt(
                         )
                     }
                     Text(progress?.let { "${(it * 100).toInt()}%" } ?: "Downloading…")
+                } else if (phase == UpdatePhase.Installing) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
                 }
                 status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
                 if (release.telegramUrl != null) {
-                    TextButton(enabled = !downloading, onClick = { openTelegramFallback() }) {
+                    TextButton(enabled = !busy, onClick = { openTelegramFallback() }) {
                         Text("Get APK from Telegram")
                     }
                 }
@@ -126,7 +181,7 @@ fun UpdatePrompt(
         },
         confirmButton = {
             TextButton(
-                enabled = !downloading,
+                enabled = !busy,
                 onClick = {
                     if (hasInstallPermission()) {
                         downloadAndInstall()
@@ -146,7 +201,16 @@ fun UpdatePrompt(
                         }
                     }
                 }
-            ) { Text(if (downloading) "Downloading…" else "Update now") }
+            ) {
+                Text(
+                    when (phase) {
+                        UpdatePhase.Idle -> "Update now"
+                        UpdatePhase.Downloading -> "Downloading…"
+                        UpdatePhase.Installing -> "Opening installer…"
+                        UpdatePhase.ReadyToInstall -> "Install"
+                    }
+                )
+            }
         }
     )
 }
