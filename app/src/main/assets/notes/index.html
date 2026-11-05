@@ -66,39 +66,56 @@
 <script src="richtext.js"></script>
 <script>
 /* Short-notes page (plan step N6). The renderer lives in richtext.js (shared with flashcards).
- * Called from the app: window.setNote(text, startFrac).
+ * Called from the app: window.setNote(text, startFrac, chatJson).
  * The AI tutor opens automatically in a full-width panel after the note. No launch button or separate Summary action.
  * The page keeps the conversation (tutorMsgs) and asks the app
  * through WTBridge.onTutorAsk({ id, messages: [{ role, content }...] }); the app sends it to the tutor route with the chapter
  * as context and streams the answer back with window.wtTutorSet(id, fullTextSoFar, state) (state: stream, done, failed) and
  * window.wtTutorSuggest(id, jsonArray). WTBridge.onTutorStop() cancels a running answer. The box has no scroll of its own,
- * it grows with the chat and the whole page scrolls. The chat is kept only while the note is open.
+ * it grows with the chat and the whole page scrolls.
+ * CHAT KEPT ON THE PHONE (owner report 2026-11-05: the note's tutor was empty after closing and reopening the app): the page
+ * reports the conversation through WTBridge.onTutorState(json) (json = array of { role, content, suggestions, partial }) when
+ * a question is sent, every 1.5 seconds while an answer streams, when an answer ends or is stopped, when the chat is cleared
+ * and when the page is hidden. The app keeps it per note in the phone's private storage and hands it back as the third
+ * argument of setNote(text, startFrac, chatJson). An answer that was cut off (the app was closed while it was written) is
+ * marked "partial" and comes back with the usual "Response stopped" notice.
  * Reading progress (plan step N10, as the website's NotesViewer): the scrolled share of the page is reported
  * through WTBridge.onProgress({ pct }) (0 to 100, at most about every 2 seconds, 100 at once from 95 percent on
  * and after a successful Summary); the app saves it to learning_progress.
  * N1 (docs/READER_EXAM_FLASHCARD_FIX_PLAN.md): the note remembers where the student stopped, like the PDF reader.
  * The app passes the saved position as startFrac (0 to 1, share of the scrollable height; a share, not pixels, so it
  * still fits when the text size or the screen width is different). When the page is laid out (fonts ready) it scrolls
- * there, once more after 400 ms if the student has not touched the screen yet (maths and fonts can still change the
- * height), and then reports every position through WTBridge.onPosition({ frac }) (trailing, every 300 ms at most).
+ * there, once more after 400 ms and after 1200 ms if the student has not touched the screen yet (maths and fonts can
+ * still change the height), and then reports every position through WTBridge.onPosition({ frac }) (trailing, every
+ * 300 ms at most, and at once when the page is hidden).
  * Nothing is reported before the restore, so the first screen (top) never overwrites the saved position. No saved
- * position (0), a position at the very start or a note that was read to the end (98 percent or more) opens at the top. */
+ * position (0) or a position at the very start opens at the top.
+ * FIX 2026-11-05 (owner: "leave the note at the end, close the app, it must reopen where I left it"): the old rule that a
+ * position of 98 percent or more opens at the top is gone. Since the tutor panel is now part of the page, the end of the
+ * page is the bottom of the tutor, and every student who stopped there was sent back to the top. */
 var noteText = "", seq = 0;
 var lastPct = -1, pendingPct = -1, progTimer = 0, sent100 = false;
 var posTimer = 0, canSavePos = false, userTouched = false;
 /* Note tutor state */
-var tutorBusy = false, tutorBuilt = false, tutorReqId = "", tutorMsgs = [], tutorNodes = [];
+var tutorBusy = false, tutorBuilt = false, tutorReqId = "", tutorMsgs = [], tutorNodes = [], tutorSaveTimer = 0;
 var TUTOR_BUSY = "The Wisdom Tower AI Tutor is currently experiencing high demand. Please wait a moment and try asking your question again.";
 var TUTOR_STOPPED = "Response stopped. What would you like to explore instead?";
+var TUTOR_CUT = "\n\n*(Response stopped due to high server demand. You can ask to continue.)*";
 var TUTOR_STARTERS = ["Explain this chapter in simple terms", "What are the key ideas in this chapter?", "Give me worked examples"];
 var TUTOR_CONTINUE = "Continue teaching me from where we left off";
 var TUTOR_RETRY = ["Try asking again", "Explain in simpler terms", "Give me an example"];
 
-/* the AI writes math as \( ... \) and \[ ... \]; the shared renderer reads $ ... $ and $$ ... $$ */
+/* the AI writes math as \( ... \) and \[ ... \]; the shared renderer reads $ ... $ and $$ ... $$.
+ * The renderer's inline $ rule refuses a space right after the opening $ or right before the closing $ (so prices like
+ * "$5 and $10" stay text). The AI pads its math with spaces, either as "\( f(x) \)" or directly as "$ f(x) $", so the
+ * text is trimmed on both forms, otherwise the formula shows as raw "$ f(x) $" (owner screenshot 2026-11-05).
+ * Inline math cannot contain a line break, so those become a space. A leaked ">>> SUGGESTION:" tail is removed. */
 function aiText(s) {
   return String(s == null ? "" : s)
-    .replace(/\\\[([\s\S]+?)\\\]/g, function (m, a) { return "$$" + a + "$$"; })
-    .replace(/\\\(([\s\S]+?)\\\)/g, function (m, a) { return "$" + a + "$"; });
+    .replace(/\s*>{2,3}\s*(?:SUGGESTION|Follow-up)\s*:[\s\S]*$/i, "")
+    .replace(/\\\[([\s\S]+?)\\\]/g, function (m, a) { return "$$" + a.trim() + "$$"; })
+    .replace(/\\\(([\s\S]+?)\\\)/g, function (m, a) { return "$" + a.trim().replace(/\s*\n\s*/g, " ") + "$"; })
+    .replace(/(?<![\\$])\$(?!\$)[ \t]+([^$\n]+?)[ \t]+\$(?!\$)/g, function (m, a) { return "$" + a + "$"; });
 }
 
 function sendProgress(pct) {
@@ -149,6 +166,67 @@ window.addEventListener("scroll", reportScroll, { passive: true });
 window.addEventListener("scroll", schedulePos, { passive: true });
 window.addEventListener("resize", reportScroll, { passive: true });
 window.addEventListener("touchstart", function () { userTouched = true; }, { passive: true });
+
+/* when the page is hidden (home button, app switch, screen off) keep the position and the chat at once */
+function flushOnHide() {
+  if (posTimer) { window.clearTimeout(posTimer); }
+  sendPos();
+  tutorSave();
+}
+document.addEventListener("visibilitychange", function () { if (document.hidden) flushOnHide(); });
+window.addEventListener("pagehide", flushOnHide);
+
+/* ---- Chat kept on the phone (per note) ---- */
+
+/* turns the saved JSON back into messages; an answer that was cut off comes back with the stop notice */
+function restoreChat(json) {
+  var out = [];
+  try {
+    var a = json ? JSON.parse(json) : [];
+    if (!a || !a.length) return out;
+    for (var i = 0; i < a.length; i++) {
+      var m = a[i];
+      if (!m || (m.role !== "user" && m.role !== "assistant")) continue;
+      var item = {
+        role: m.role,
+        content: String(m.content == null ? "" : m.content),
+        suggestions: (m.suggestions && m.suggestions.length) ? m.suggestions.slice(0, 3).map(String) : []
+      };
+      if (item.role === "assistant") {
+        if (m.partial) {
+          item.content = item.content ? item.content + TUTOR_CUT : TUTOR_STOPPED;
+          item.suggestions = ["Please continue where you left off", "Summarize this topic"];
+        } else if (!item.content) {
+          item.content = TUTOR_STOPPED;
+        }
+      }
+      out.push(item);
+    }
+  } catch (e) { /* a bad saved chat must never break the note */ }
+  return out;
+}
+
+/* sends the conversation to the app (the app keeps it on the phone) */
+function tutorSave() {
+  if (tutorSaveTimer) { window.clearTimeout(tutorSaveTimer); tutorSaveTimer = 0; }
+  if (!tutorBuilt) return;
+  if (!(window.WTBridge && window.WTBridge.onTutorState)) return;
+  var out = [];
+  var start = Math.max(0, tutorMsgs.length - 40);
+  for (var i = start; i < tutorMsgs.length; i++) {
+    var m = tutorMsgs[i];
+    var o = { role: m.role, content: m.content || "", suggestions: m.suggestions || [] };
+    if (tutorBusy && i === tutorMsgs.length - 1 && m.role === "assistant") o.partial = true;
+    out.push(o);
+  }
+  try { window.WTBridge.onTutorState(JSON.stringify(out)); } catch (e) { /* ignore */ }
+}
+
+/* while an answer streams: at most one save every 1.5 seconds */
+function tutorSaveSoon() {
+  if (tutorSaveTimer) return;
+  tutorSaveTimer = window.setTimeout(function () { tutorSaveTimer = 0; tutorSave(); }, 1500);
+}
 
 /* ---- Full-width AI tutor, automatically open at the end of every note ---- */
 
@@ -250,6 +328,7 @@ function tutorSend(text) {
   tutorDraw();
   tutorChips();
   tutorBtn();
+  tutorSave();
   /* the question goes to the top of the screen, so the answer grows below it and the student reads on from there */
   var userNode = tutorNodes[tutorMsgs.length - 2];
   if (userNode && userNode.scrollIntoView) { try { userNode.scrollIntoView({ behavior: "smooth", block: "start" }); } catch (e) { /* ignore */ } }
@@ -278,6 +357,7 @@ function tutorStop() {
   }
   tutorChips();
   tutorBtn();
+  tutorSave();
 }
 
 /* the app streams the answer: the full text so far each time, state = stream | done | failed */
@@ -292,6 +372,9 @@ window.wtTutorSet = function (id, text, state) {
     if (state === "failed" && !m.suggestions.length) m.suggestions = TUTOR_RETRY.slice();
     tutorChips();
     tutorBtn();
+    tutorSave();
+  } else {
+    tutorSaveSoon();
   }
 };
 
@@ -305,20 +388,25 @@ window.wtTutorSuggest = function (id, json) {
     if (a && a.length) m.suggestions = a.slice(0, 3).map(String);
   } catch (e) { /* ignore */ }
   tutorChips();
+  tutorSave();
 };
 
-window.setNote = function (text, startFrac) {
+window.setNote = function (text, startFrac, chatJson) {
   var note = document.getElementById("note");
   var root = document.getElementById("root");
   var startF = Number(startFrac);
-  var restore = isFinite(startF) && startF > 0.01 && startF < 0.98;
+  /* any saved position from just below the top up to the very end (the end of the page is the bottom of the tutor panel) */
+  var restore = isFinite(startF) && startF > 0.01;
+  if (startF > 1) startF = 1;
   if (root) root.classList.remove("ready");
   noteText = String(text == null ? "" : text);
 
   lastPct = -1; pendingPct = -1; sent100 = false;
   canSavePos = false; userTouched = false;
-  /* a new note starts with a closed, empty tutor */
-  tutorBusy = false; tutorBuilt = false; tutorReqId = ""; tutorMsgs = []; tutorNodes = [];
+  /* a new note starts with an empty tutor, plus the conversation kept on the phone for this note (if any) */
+  tutorBusy = false; tutorBuilt = false; tutorReqId = ""; tutorNodes = [];
+  tutorMsgs = restoreChat(chatJson);
+  if (tutorSaveTimer) { window.clearTimeout(tutorSaveTimer); tutorSaveTimer = 0; }
   var tw = document.getElementById("tutorwrap");
   if (tw) { tw.innerHTML = ""; tw.style.display = "block"; }
   if (progTimer) { window.clearTimeout(progTimer); progTimer = 0; }
@@ -349,6 +437,9 @@ window.setNote = function (text, startFrac) {
           window.setTimeout(function () {
             if (!userTouched) { try { applyPos(); } catch (e) { /* ignore */ } }
           }, 400);
+          window.setTimeout(function () {
+            if (!userTouched) { try { applyPos(); } catch (e) { /* ignore */ } }
+          }, 1200);
         }
       });
     });
@@ -378,6 +469,7 @@ document.getElementById("tutorwrap").addEventListener("click", function (e) {
     var box = document.getElementById("tmsgs"); if (box) box.innerHTML = "";
     var cf = document.getElementById("tclearconfirm"); if (cf) cf.style.display = "none";
     tutorDraw(); tutorChips(); tutorBtn();
+    tutorSave();
     return;
   }
   if (t.id === "tsend") {
