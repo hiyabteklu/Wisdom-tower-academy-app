@@ -64,18 +64,19 @@ object LeaderboardExportRepository {
                         )
                     }
                     if (winners.size != 3 || winners.map { it.rank }.toSet() != setOf(1, 2, 3)) {
-                        return@try LeaderboardExportResult.Failure("The server did not return a complete top-three result.")
-                    }
-                    val scope = json.optString("subject_scope")
-                    LeaderboardExportResult.Success(
-                        LeaderboardExportData(
-                            competitionTitle = json.optString("competition_title"),
-                            examTitle = json.optString("exam_title"),
-                            subjectTitle = resolveSubjectTitle(context, scope),
-                            eventDate = json.optString("event_date"),
-                            winners = winners
+                        LeaderboardExportResult.Failure("The server did not return a complete top-three result.")
+                    } else {
+                        val scope = json.optString("subject_scope")
+                        LeaderboardExportResult.Success(
+                            LeaderboardExportData(
+                                competitionTitle = json.optString("competition_title"),
+                                examTitle = json.optString("exam_title"),
+                                subjectTitle = resolveSubjectTitle(context, scope),
+                                eventDate = json.optString("event_date"),
+                                winners = winners
+                            )
                         )
-                    )
+                    }
                 }
                 else -> LeaderboardExportResult.Failure("The server returned an unexpected export response.")
             }
