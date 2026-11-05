@@ -22,7 +22,8 @@ import java.util.concurrent.Executors
  * - The app never bypasses website ownership. Only content the user was already
  *   allowed to open while online is cached. Offline replay still respects the
  *   session / cookies the website set.
- * - FLAG_SECURE is enabled on the Activity so screenshots of these files are blocked.
+ * - The native student PDF / notes / flashcard / exam readers apply scoped FLAG_SECURE while visible; the whole Activity
+ *   is not locked, so home and admin screens remain capturable.
  *
  * Future hardening (when needed): encrypt files at rest with a key derived from
  * the user’s session or Android Keystore. Current private-dir approach is already
@@ -342,6 +343,27 @@ object OfflineVault {
         val index = JSONObject(prefs(ctx).getString(KEY_INDEX, "{}") ?: "{}")
         index.put(cleanUrl, fileName)
         prefs(ctx).edit().putString(KEY_INDEX, index.toString()).apply()
+    }
+
+    /** Removes one app-managed cached PDF and its size/index entries. Never touches an external copy. */
+    fun delete(ctx: Context, url: String) {
+        if (url.isBlank()) return
+        val cleanUrl = url.trim()
+        runCatching {
+            ensureLegacyCleaned(ctx)
+            val index = JSONObject(prefs(ctx).getString(KEY_INDEX, "{}") ?: "{}")
+            val savedName = index.optString(cleanUrl, "")
+            if (savedName.isNotBlank() && File(savedName).name == savedName) {
+                File(vaultDir(ctx), savedName).delete()
+            }
+            index.remove(cleanUrl)
+            File(vaultDir(ctx), "${keyFor(cleanUrl)}.pdf").delete()
+            prefs(ctx).edit().putString(KEY_INDEX, index.toString()).apply()
+            ctx.getSharedPreferences(PREFS_SIZES, Context.MODE_PRIVATE)
+                .edit().remove(keyFor(cleanUrl)).apply()
+            memorySizeCache.remove(cleanUrl)
+            clearProgress(cleanUrl)
+        }
     }
 
     fun saveBytes(ctx: Context, url: String, bytes: ByteArray, ext: String = "pdf"): File? {
