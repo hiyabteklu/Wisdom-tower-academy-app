@@ -47,7 +47,7 @@ export async function GET(req: NextRequest) {
     // Students and signed-out visitors receive catalog metadata only. Full note text,
     // questions and flashcard JSON are returned only by the per-resource checked door.
     // Admin editors use the admin-only view, which checks private.is_admin() server-side.
-    const source = isAdmin ? "learning_resources_admin" : "learning_resources";
+    const source = isAdmin ? "learning_resources_admin" : "learning_resources_public";
     const columns = isAdmin ? "*" : PUBLIC_COLUMNS;
     let q = supabase.from(source).select(columns).order("sort_order", { ascending: true });
 
@@ -113,7 +113,11 @@ export async function GET(req: NextRequest) {
         chapter: row.chapter != null ? Number(row.chapter) : null,
         sortOrder: Number(row.sort_order ?? 0),
         contentType: row.content_type,
-        storagePath: row.storage_path ? String(row.storage_path) : null,
+        storagePath: row.storage_path
+          ? (isAdmin || !String(row.storage_path).toLowerCase().startsWith("appwrite-paid:")
+              ? String(row.storage_path)
+              : null)
+          : null,
         bodyMd: isAdmin && row.body_md != null ? String(row.body_md) : null,
         meta: isAdmin ? ((row.meta as Record<string, unknown>) || {}) : {},
         published: Boolean(row.published),
