@@ -176,7 +176,7 @@ object BookFileStore {
         val target = File(dir, "$safe.pdf")
         if (target.exists() && target.length() > 0L) {
             if (url.startsWith(LearningContentRepository.PAID_URL_PREFIX)) {
-                when (val access = LearningContentRepository.checkPaidBookAccess(key)) {
+                when (val access = LearningContentRepository.checkPaidBookAccess(context, key)) {
                     is LearningContentRepository.PaidBookAccessCheck.Allowed -> Unit
                     is LearningContentRepository.PaidBookAccessCheck.Unavailable -> {
                         saveCachedSize(context, key, target.length())
