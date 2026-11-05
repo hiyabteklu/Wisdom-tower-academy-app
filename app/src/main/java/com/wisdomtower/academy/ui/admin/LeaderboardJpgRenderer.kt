@@ -223,7 +223,7 @@ object LeaderboardJpgRenderer {
             }
         }
         if (current.isNotEmpty()) lines.add(current)
-        val visible = lines.take(maxLines)
+        val visible = lines.take(maxLines).toMutableList()
         if (lines.size > maxLines && visible.isNotEmpty()) {
             val last = visible.last()
             visible[visible.lastIndex] = last.take(max(1, last.length - 3)) + "..."
