@@ -55,3 +55,135 @@
 - 2026-11-03: U4 implementation committed to `main`: secure FileProvider, APK download/progress/validation, unknown-source permission handoff, Android installer intent, and versioned GitHub Release asset publishing in the manual Telegram workflow. Build/device test pending. No release row published; old v3 remains unblocked; FLAG_SECURE remains disabled.
 
 - 2026-11-03: Telegram workflow publish step failed after APK compilation because the sed replacement emitted literal `\\1`, producing an invalid release tag. Fixed on `main` in commit `27e388e` by parsing versionCode/versionName with awk and validating both before creating the tag. Re-run manual workflow; APK build itself had succeeded in run #1152, but release publishing/device update tests remain pending.
+
+
+---
+
+# RELEASE HARDENING + ADMIN EXPORT ROADMAP (owner approval 2026-11-05)
+
+> **This section is the newest owner-approved direction and overrides conflicting older notes above and in older plans.** It is a plan only: no code or live database change is claimed by this addendum. Keep pushing each implementation slice directly to `main`, one commit per slice, and update this plan in that same commit. Do not put secrets, signing keys, APKs, student data, or private URLs containing tokens in this public repository.
+
+## 9. Owner decisions — authoritative from 2026-11-05
+
+1. **Mandatory updates only.** The app must not offer Later, Not now, close, swipe-away, Back dismissal, or any route into normal app content while the installed version is below the published minimum. Android's own installer confirmation remains required. If the user installs a newer APK externally, the next app launch must detect the installed `versionCode` and continue normally when it meets the minimum.
+2. **Both update routes.** In-app APK download/install is the primary route. A Telegram channel post is the external fallback. The in-app update screen must offer the Telegram post link as an alternative download route. The app must not assume that opening Telegram means the update succeeded; it checks the installed version again on the next launch/resume.
+3. **Older versions must lose protected access.** A new app's popup alone cannot force an already-installed old app to update. Old builds must be blocked at the server/content-door layer after the new release has been published and users have been announced and given the owner-approved migration window. Do not block the old release before the replacement APK is available and verified.
+4. **Student content protection with verified admin exceptions.** Enable screenshot/screen-recording protection for ordinary student use in production. Admin exceptions must be narrowly scoped to a dedicated admin export/capture surface and granted only after fresh server-verified admin authorization. Never use a hardcoded email, client-side role flag, cached preference, or a hidden UI switch as authorization.
+5. **Admin leaderboard JPG export.** Add admin-only export of the actual top-three competition results in both 4:3 landscape and 9:16 portrait. Generate the artwork from result data; do not take a screenshot of the leaderboard UI.
+6. **Offline material revocation.** Add revocation checks and cache deletion for updated clients. Be honest that a device which stays offline cannot receive a revocation, and a file already legitimately copied outside app storage cannot be remotely erased.
+7. **This approval supersedes the 2026-10-20 standing decision to leave FLAG_SECURE off until finishing the app, and the earlier instruction not to revisit leaderboard export.** The new scoped admin exception and export work are now explicitly requested. Other standing content-security decisions remain in force: Books are free public MoE/MoSHE material; Life Savers and other paid PDFs require the private-bucket/token work in S5; do not ask about leaked-password protection.
+
+## 10. Mandatory update experience — required behaviour
+
+### 10.1 Release metadata and admin control
+- Continue using `public.app_versions` as the source of truth. Existing fields are `version_code`, `version_name`, `changelog`, `apk_url`, `min_version_code`, `published`, `created_at`.
+- Add a separate Telegram post URL field (proposed `telegram_url`) so the app can distinguish a direct APK URL used by the in-app downloader from the Telegram fallback post. Confirm the exact field name and migration before applying it.
+- Add an Admin Console release-management screen. A verified admin can draft/edit release name, version code, user-facing changelog, direct HTTPS APK URL, Telegram post URL, minimum supported version, and publish/unpublish status.
+- Validate before publishing: positive and never-reused version code; version name present; changelog present; direct APK URL is HTTPS and returns an APK; Telegram URL points to the intended channel post; minimum version is not greater than the published release version; no accidental rollback. Only admins may write release metadata. Public clients may read published rows only.
+- Never publish a release row until its APK has been built with the real production upload key, installed over the previous release on a test device, and passed the release smoke test.
+
+### 10.2 Student update screen
+- On launch and resume, compare installed `BuildConfig.VERSION_CODE` with the latest published release and `min_version_code`. Preserve reasonable network throttling for ordinary checks, but a known mandatory update must remain locked.
+- If installed version is below minimum: show a blocking update screen with release name, version, admin-written changelog, and two actions: **Update in app** (primary) and **Get APK from Telegram** (fallback). No dismiss control, Later action, outside-tap dismissal, Back dismissal, or access to tabs/content.
+- In-app route: download only over HTTPS into app-private cache; show progress and recoverable errors; validate APK bytes/package metadata/version before offering the Android installer; use the existing non-exported FileProvider; hand off to Android's package installer. Never silently install, bypass Android prompts, or delete the only valid downloaded installer before Android has consumed it.
+- Telegram route: open the exact published Telegram post. On return, re-check installed version. If still below minimum, show the blocking screen again. If the user installed a newer compatible APK, allow entry only after the new installed version is verified.
+- Android may still display its “install unknown apps” permission request and Play Protect warning. Do not attempt to bypass or suppress Android security UI. A direct in-app download does not guarantee that Play Protect will stop warning.
+- A successful update requires the same application ID (`com.wisdomtower.academy`), the same signing certificate lineage, and a strictly greater `versionCode`. A greater version number alone is not sufficient. Keep the production signing key backed up securely outside GitHub; never commit it.
+- If the update service is unavailable, do not silently treat an unknown version as current. Use the last successfully cached release/minimum data where available. If no trustworthy release metadata has ever been cached, show a blocking retry/help state rather than an unverified bypass. Preserve offline access only when the app can establish that no mandatory update is already known.
+
+### 10.3 Release and migration order
+1. Increment `versionCode`; never reuse it. Keep package ID and signing identity stable.
+2. Build the Telegram production APK with the real upload key. Confirm CI build and release publication succeeded.
+3. Install the new APK over the currently shipped APK on a physical phone; verify no uninstall/data wipe is required.
+4. Test the in-app download/install route and Telegram fallback route separately. Verify that a newer APK installed externally is recognized after relaunch.
+5. Publish the release row with changelog and both URLs. Confirm the blocking update appears on an older supported test build.
+6. Announce the exact Telegram post and new version. Send the existing admin broadcast/push notification.
+7. Allow the migration window chosen by the owner. Only then raise `min_version_code` and activate server-side rejection for old app builds.
+8. Verify old builds cannot fetch protected notes, flashcards, quizzes, exams, or paid materials; verify the new build and website continue to work as intended.
+9. Keep a rollback/recovery release ready. Never lower the minimum or republish an old APK as a silent workaround without recording the security impact.
+
+## 11. Server-side old-version enforcement
+
+- A forced popup is not sufficient: an old installed APK has no new updater code and can ignore client-side UI. Enforcement must happen at every protected server content door.
+- Inventory every app-facing RPC, Edge Function, API route, and storage-token route used to fetch protected content. Identify which are also used by the website before changing them.
+- Add an explicit app-version-aware access path for the new release. The app must send its installed version code through a request field/header that the server validates; never trust a version value supplied only by an untrusted UI.
+- After the replacement APK and migration announcement are live, make legacy protected-content doors reject unsupported app versions/build paths. If a legacy door cannot distinguish app from website callers, create a separate app-only door and migrate the new app before disabling the legacy app door. Do not break the website or student progress accidentally.
+- Apply the version check consistently to notes, flashcards, quizzes, exams, paid PDFs, offline reauthorization, and any new protected content endpoint. A hidden/disabled button is not enforcement.
+- Return a clear machine-readable `update_required` status where the caller supports it. Older releases that cannot understand that status must still be denied access; their generic failure screen is an accepted limitation, so Telegram/push announcement is essential.
+- Do not activate the old-version block until the owner confirms the replacement APK is publicly available and the migration window has ended. Record the exact minimum version and activation date in this file.
+
+## 12. Screenshot, recording, and copy protection
+
+### 12.1 Student protection
+- Enable `WindowManager.LayoutParams.FLAG_SECURE` for production student sessions. Keep debug builds usable for development/mock-up screenshots.
+- Apply protection consistently to the native Activity and every WebView/Compose content surface that can display protected materials. Verify screen capture, screen recording, and recent-apps preview behaviour on a physical phone.
+- Review existing WebView anti-copy handling and add scoped restrictions against selecting/copying protected student material where appropriate. Do not break text inputs, accessibility, normal navigation, or legitimate learning interactions.
+- Treat client-side anti-copy as a deterrent only. The server remains the actual access-control boundary.
+
+### 12.2 Verified admin exception
+- Keep the normal app window protected. Do not clear `FLAG_SECURE` for the whole app merely because a user is signed in or a local role flag says “admin”.
+- Provide a dedicated, non-exported admin export/capture Activity or equally isolated surface. Before opening it, perform a fresh server-side admin-role check using the current authenticated session. Deny access on network/auth failure, expired session, role mismatch, or sign-out.
+- Remove screenshot protection only inside that isolated export surface and only for the duration of the authorized export. Re-enable protection on exit, backgrounding, session loss, and every error path. Do not grant broad capture access to protected student content.
+- Test with a normal student, a verified admin, an expired admin session, and a user whose local UI state is stale. Only the verified admin export surface may be capturable.
+
+## 13. Offline material revocation and paid PDF security
+
+- Preserve the existing OfflineVault private app-storage model. First inventory all cached file types, index entries, and all code paths that open cached content.
+- Add a server-controlled revocation/authorization version for each protected material (or a central revocation manifest). On every online refresh and before opening a protected offline item when online, check current access and revocation state.
+- If a material is locked, deleted, expired, refunded, or the user's entitlement is revoked, remove its cached file and index entry and prevent reopening. Also purge stale/partial downloads and handle missing/corrupt cache entries safely.
+- For protected paid PDFs, complete the existing S5 design before publishing: private Appwrite bucket with file security enabled; server-issued short-lived file tokens only after the Supabase access check; move Life Savers/paid PDFs; delete the old public copies; keep free Books in the existing public bucket. Never expose private file IDs or long-lived storage credentials in public list responses.
+- Evaluate encryption-at-rest using Android Keystore for protected offline files, with a clear migration path for existing cached files. Do not claim encryption makes offline revocation absolute.
+- Honest limitation: a phone that remains offline cannot receive a new revocation. A student may also retain a copy made outside the app. Revocation can reliably remove app-managed copies and deny future server access after the device reconnects; it cannot remotely erase arbitrary copies.
+
+## 14. Admin competition leaderboard JPG export
+
+- Add export actions only in the admin competition/results workflow. Every export request must perform fresh server-side admin authorization; normal students must not see or invoke the export endpoint/action.
+- Use the actual competition result records, not manually typed or screenshot-derived values. Validate that the selected competition has at least three eligible ranked results; handle ties and missing values according to the competition's existing ranking rules.
+- Include: Wisdom Tower Academy branding; competition/exam title; subject title; date; top three ranks and winner names; score and total; time taken in readable format. Use the actual saved values and existing rank order. Do not invent missing metadata.
+- Produce two polished JPG layouts from one shared result model:
+  - 4:3 landscape for posts/cards.
+  - 9:16 portrait for stories/status.
+- Use a dedicated export renderer (for example Compose/Android drawing to a bitmap) so the output is a clean designed graphic, not a screenshot of the protected app screen. Keep typography legible and allow long names/titles to wrap safely.
+- Save/share the JPG through Android's supported media/file APIs with clear success/error feedback. Do not request broad storage access if MediaStore or the system document picker is sufficient.
+- Verify both aspect ratios, image dimensions, text clipping, special characters, ties, long names, missing time values, and that only a verified admin can export. Student leaderboard viewing remains unchanged.
+
+## 15. Implementation slices — execution order
+
+One slice = one commit pushed directly to `main`; update this plan in the same commit. Append exact CI run/result and phone-test result. If CI was not seen, the commit message must end in `not compiled`.
+
+- [ ] **R1 — Baseline and release audit.** Re-read current updater, CI workflow, signing config, version metadata, update prompt, manifest/FileProvider, and recent commits. Verify U2-U4 against actual `main` code; do not assume the earlier plan status means a green current build. No signing secret is to be read or printed. Confirm actual currently distributed APK version/signing identity with the owner when needed.
+- [ ] **R2 — Mandatory update UX.** Remove every dismissal route from the forced state; add Telegram fallback URL support and re-check installed version after returning from Telegram/installer. Ensure unknown metadata cannot silently bypass a mandatory state.
+- [ ] **R3 — Release admin console + metadata migration.** Add `telegram_url` (or the final agreed field) with RLS/admin-only writes; add admin release-management UI and validation. Record migration name and live verification below.
+- [ ] **R4 — In-app APK delivery verification.** Compile, run CI, install over the previous APK, test download progress, permission handoff, installer launch, failed/corrupt download recovery, external Telegram install, and post-install version detection. Fix issues before publishing.
+- [ ] **R5 — Version-aware server access.** Inventory all callers and build app-only version-aware protected doors; migrate the new app; test website compatibility; stage legacy-door denial. Activate only after owner approves announcement and migration window.
+- [ ] **R6 — Student screenshot/copy protection + isolated admin exception.** Enable production FLAG_SECURE; add the dedicated server-authorized admin export surface; restore protection on every exit/background/auth-loss path; device-test student/admin separation.
+- [ ] **R7 — Offline revocation.** Add revocation manifest/versions, purge files and index entries, reauthorize protected offline opens, and test online revocation plus offline/reconnect behaviour.
+- [ ] **R8 — Paid PDF S5.** Complete private Appwrite bucket and short-lived token flow; migrate Life Savers/paid PDFs; delete public duplicates; keep Books free/public. Requires the owner's Appwrite setup steps documented in the security plan.
+- [ ] **R9 — Leaderboard export renderer.** Add verified-admin-only 4:3 and 9:16 JPG exports for the top three, using actual competition data and all required metadata.
+- [ ] **R10 — Full release gate.** Run a full production build and phone regression checklist: sign-in/session refresh; all five tabs; learning hubs; GAT/Exit Exam/COC/EUEE/Remedial paths; AI Tutor and math rendering; notes/flashcards/question banks/exams; notifications; offline vault; paid locks; mandatory updater; Telegram fallback; screenshot/admin exception; leaderboard exports; website compatibility; and old-build denial after activation.
+
+## 16. Acceptance criteria — do not call the release ready until all applicable checks pass
+
+- [ ] Production APK is signed with the same valid signing identity as the currently distributed APK and has a greater version code.
+- [ ] A student on a below-minimum build sees a blocking update screen with no dismissal route.
+- [ ] In-app download/install works, and Android's installer confirmation is handled correctly.
+- [ ] Telegram fallback opens the exact published post; after an external install, the app recognizes the new version.
+- [ ] No below-minimum app can fetch protected server content after the enforcement date; current website flows remain intact.
+- [ ] Student screenshot/screen-recording protection works on protected screens.
+- [ ] Only a freshly server-verified admin can enter the isolated export surface; protection is restored on exit/background/session loss.
+- [ ] Revoked protected content is removed from app-managed offline storage after the device reconnects; limitations are communicated honestly.
+- [ ] Paid PDFs are inaccessible through public bucket URLs before they are released as products.
+- [ ] Verified admins can export accurate top-three JPGs in both formats; students cannot.
+- [ ] CI and physical-device regression checks are green. A code commit or successful compile alone is not a release sign-off.
+
+## 17. Live Supabase / Appwrite change log for this roadmap
+
+- Existing Supabase migration `app_versions_update_delivery` (2026-11-03): creates `public.app_versions` with published release read and admin write policies. No new database change is made by this 2026-11-05 planning commit.
+- Future migrations/functions must be recorded here with exact names, purpose, RLS/policy verification, and whether deployed live. Do not write “done” until the connector or owner has verified the live state.
+- Appwrite S5 setup is owner-assisted and must record the private bucket ID only if it is safe to be public; never record API keys or tokens.
+
+## 18. Plan changes / status log
+
+- 2026-11-05 (owner approval): mandatory update only; no Later/dismiss/Back escape. In-app APK update is primary and Telegram post is fallback. A newer compatible APK installed externally must be recognized by installed version code. Old versions will be server-blocked only after the replacement release is available, announced, and the migration window ends.
+- 2026-11-05 (owner approval): supersedes prior FLAG_SECURE-off and “do not revisit leaderboard” decisions. Student screenshot/recording protection is required, with a narrowly scoped exception only for a dedicated export surface after fresh server-side admin verification. Add admin-only top-three leaderboard JPG export in 4:3 and 9:16.
+- 2026-11-05 (planning only): no app code, database migration, Appwrite configuration, release row, or minimum-version change was applied. Existing U2-U4 implementation claims remain unverified until R1/R4. Existing old-version block remains inactive until the staged release/migration process is completed.
