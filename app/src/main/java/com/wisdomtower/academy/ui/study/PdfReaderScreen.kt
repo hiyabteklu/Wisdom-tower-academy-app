@@ -127,6 +127,7 @@ fun PdfReaderScreen(
     resourceId: String? = null,
     sizeBytes: Long? = null
 ) {
+    SecureContentCaptureProtection()
     val context = LocalContext.current
     val managerProgress by OfflineDownloadManager.progress.collectAsState()
     var progress by remember { mutableStateOf<Float?>(null) }
