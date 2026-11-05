@@ -132,7 +132,9 @@ function rowToResource(row: Record<string, unknown>): LearningResource {
     chapter: row.chapter != null ? Number(row.chapter) : null,
     sortOrder: Number(row.sort_order ?? 0),
     contentType: row.content_type as ContentType,
-    storagePath: row.storage_path ? String(row.storage_path) : null,
+    storagePath: row.storage_path
+      ? (String(row.storage_path).toLowerCase().startsWith("appwrite-paid:") ? "appwrite-paid:" : String(row.storage_path))
+      : null,
     bodyMd: row.body_md != null ? String(row.body_md) : null,
     meta: (row.meta as Record<string, unknown>) || {},
     published: Boolean(row.published),
@@ -162,6 +164,8 @@ export async function listResources(opts: {
   packageId?: string;
   publishedOnly?: boolean;
   skipAuthCheck?: boolean;
+  /** Admin-only full rows for the content editor; never set from student UI. */
+  adminView?: boolean;
 }): Promise<{ items: LearningResource[]; error?: string }> {
   try {
     if (!opts.skipAuthCheck) {
@@ -188,7 +192,8 @@ export async function listResources(opts: {
       }
     }
 
-    let q = supabase.from("learning_resources").select("*").order("sort_order", {
+    const source = opts.adminView ? "learning_resources_admin" : "learning_resources_public";
+    let q = supabase.from(source).select("*").order("sort_order", {
       ascending: true,
     });
 
@@ -224,11 +229,11 @@ export async function listResources(opts: {
     let { data, error } = await q;
 
     // If PostgREST rejected because of a corrupt/invalid JWT token, retry with clean anonymous client
-    if (error && isCryptoOrTokenError(error.message)) {
+    if (error && isCryptoOrTokenError(error.message) && !opts.adminView) {
       cleanCorruptAuthTokens();
       try {
         const anon = getAnonSupabaseClient();
-        let retryQ = anon.from("learning_resources").select("*").order("sort_order", {
+        let retryQ = anon.from(source).select("*").order("sort_order", {
           ascending: true,
         });
         if (opts.scopePath) {
@@ -276,7 +281,7 @@ export async function listResources(opts: {
     if ((!data || data.length === 0) && eceMatch) {
       const courseSlug = eceMatch[2];
       let fallbackQ = supabase
-        .from("learning_resources")
+        .from(source)
         .select("*")
         .ilike("scope_path", `%${courseSlug}%`)
         .order("sort_order", { ascending: true });
@@ -289,12 +294,12 @@ export async function listResources(opts: {
       if (opts.publishedOnly) fallbackQ = fallbackQ.eq("published", true);
 
       let fallbackRes = await fallbackQ;
-      if (fallbackRes.error && isCryptoOrTokenError(fallbackRes.error.message)) {
+      if (fallbackRes.error && isCryptoOrTokenError(fallbackRes.error.message) && !opts.adminView) {
         cleanCorruptAuthTokens();
         try {
           const anon = getAnonSupabaseClient();
           let anonFallbackQ = anon
-            .from("learning_resources")
+            .from(source)
             .select("*")
             .ilike("scope_path", `%${courseSlug}%`)
             .order("sort_order", { ascending: true });
