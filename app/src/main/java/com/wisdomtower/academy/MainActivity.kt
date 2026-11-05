@@ -98,8 +98,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.lifecycle.lifecycleScope
 import kotlinx.coroutines.launch
 import com.wisdomtower.academy.data.update.UpdateRepository
+import com.wisdomtower.academy.data.update.UpdateCheckResult
 import com.wisdomtower.academy.data.update.AppRelease
 import com.wisdomtower.academy.ui.update.UpdatePrompt
+import com.wisdomtower.academy.ui.update.UpdateCheckBlocked
+import com.wisdomtower.academy.ui.update.UpdateCheckingScreen
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -827,6 +830,8 @@ private const val AUTH_BRIDGE_JS =
         "}" +
     "}catch(e){}})();"
 
+private enum class UpdateGateState { Checking, Ready, Mandatory, Unavailable }
+
 class MainActivity : ComponentActivity() {
 
     private val pendingNotificationUrl = mutableStateOf<String?>(null)
@@ -874,45 +879,90 @@ class MainActivity : ComponentActivity() {
         WindowCompat.getInsetsController(window, window.decorView).isAppearanceLightNavigationBars = false
         setContent {
             MyApplicationTheme {
-                // WTA_U2_UPDATE_CHECK_INTEGRATION: update metadata is optional; network failure never blocks startup.
+                // The app remains behind this gate until release metadata is checked.
                 val updateContext = LocalContext.current
                 val updateLifecycleOwner = LocalLifecycleOwner.current
                 var updateRelease by remember { mutableStateOf<AppRelease?>(null) }
+                var updateGateState by remember { mutableStateOf(UpdateGateState.Checking) }
                 var lastUpdateCheckAt by remember { mutableStateOf(0L) }
-                val checkUpdate: suspend () -> Unit = {
+                var updateCheckRunning by remember { mutableStateOf(false) }
+
+                val checkUpdate: suspend (Boolean) -> Unit = { force ->
                     val now = System.currentTimeMillis()
-                    if (now - lastUpdateCheckAt >= 60L * 60L * 1000L) {
+                    if (!updateCheckRunning && (force || now - lastUpdateCheckAt >= 60L * 60L * 1000L)) {
+                        updateCheckRunning = true
                         lastUpdateCheckAt = now
-                        val latest = UpdateRepository.latest(updateContext)
-                        if (latest != null && latest.isUpdateAvailable) updateRelease = latest
+                        updateGateState = UpdateGateState.Checking
+                        try {
+                            when (val result = UpdateRepository.checkLatest(updateContext)) {
+                                is UpdateCheckResult.Published -> {
+                                    val release = result.release
+                                    if (release.isForced) {
+                                        updateRelease = release
+                                        updateGateState = UpdateGateState.Mandatory
+                                    } else {
+                                        updateRelease = null
+                                        updateGateState = UpdateGateState.Ready
+                                    }
+                                }
+                                UpdateCheckResult.NoPublishedRelease -> {
+                                    updateRelease = null
+                                    updateGateState = UpdateGateState.Ready
+                                }
+                                UpdateCheckResult.Unavailable -> {
+                                    updateRelease = null
+                                    updateGateState = UpdateGateState.Unavailable
+                                }
+                            }
+                        } finally {
+                            updateCheckRunning = false
+                        }
                     }
                 }
-                LaunchedEffect(Unit) { checkUpdate() }
+
+                LaunchedEffect(Unit) { checkUpdate(true) }
                 androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
                         if (event == Lifecycle.Event.ON_RESUME) {
-                            updateLifecycleOwner.lifecycleScope.launch { checkUpdate() } // WTA_U2_LIFECYCLE_SCOPE_FIX
+                            updateLifecycleOwner.lifecycleScope.launch {
+                                checkUpdate(
+                                    updateRelease != null || updateGateState == UpdateGateState.Unavailable
+                                )
+                            }
                         }
                     }
                     updateLifecycleOwner.lifecycle.addObserver(observer)
                     onDispose { updateLifecycleOwner.lifecycle.removeObserver(observer) }
                 }
-                MainScreen(
-                    onReady = { keepSplash = false },
-                    initialNotificationUrl = pendingNotificationUrl.value,
-                    onNotificationUrlConsumed = { pendingNotificationUrl.value = null }
-                )
-                updateRelease?.let { release ->
-                    UpdatePrompt(
-                        release = release,
-                        onUpdateNow = {
-                            try {
-                                updateContext.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(release.apkUrl)))
-                            } catch (_: Exception) {
-                                Toast.makeText(updateContext, "Check your internet connection and try again.", Toast.LENGTH_LONG).show()
-                            }
-                        },
-                        onLater = { updateRelease = null }
+
+                when (updateGateState) {
+                    UpdateGateState.Checking -> UpdateCheckingScreen()
+                    UpdateGateState.Unavailable -> UpdateCheckBlocked(
+                        onRetry = {
+                            updateLifecycleOwner.lifecycleScope.launch { checkUpdate(true) }
+                        }
+                    )
+                    UpdateGateState.Mandatory -> {
+                        val release = updateRelease
+                        if (release == null) {
+                            UpdateCheckBlocked(
+                                onRetry = {
+                                    updateLifecycleOwner.lifecycleScope.launch { checkUpdate(true) }
+                                }
+                            )
+                        } else {
+                            UpdatePrompt(
+                                release = release,
+                                onCheckAgain = {
+                                    updateLifecycleOwner.lifecycleScope.launch { checkUpdate(true) }
+                                }
+                            )
+                        }
+                    }
+                    UpdateGateState.Ready -> MainScreen(
+                        onReady = { keepSplash = false },
+                        initialNotificationUrl = pendingNotificationUrl.value,
+                        onNotificationUrlConsumed = { pendingNotificationUrl.value = null }
                     )
                 }
             }

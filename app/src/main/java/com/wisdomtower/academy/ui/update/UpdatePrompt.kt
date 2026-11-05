@@ -15,7 +15,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -35,8 +34,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun UpdatePrompt(
     release: AppRelease,
-    onUpdateNow: () -> Unit,
-    onLater: () -> Unit
+    onCheckAgain: () -> Unit
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -44,6 +42,7 @@ fun UpdatePrompt(
     var progress by remember(release.versionCode) { mutableStateOf<Float?>(null) }
     var downloading by remember(release.versionCode) { mutableStateOf(false) }
     var waitingForInstallPermission by remember(release.versionCode) { mutableStateOf(false) }
+    var waitingForTelegram by remember(release.versionCode) { mutableStateOf(false) }
     var status by remember(release.versionCode) { mutableStateOf<String?>(null) }
 
     fun hasInstallPermission(): Boolean =
@@ -66,24 +65,39 @@ fun UpdatePrompt(
         }
     }
 
-    DisposableEffect(lifecycleOwner, waitingForInstallPermission) {
+    fun openTelegramFallback() {
+        val url = release.telegramUrl ?: return
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+            waitingForTelegram = true
+        } catch (_: Exception) {
+            status = "Telegram could not be opened. Try the in-app update instead."
+        }
+    }
+
+    DisposableEffect(lifecycleOwner, waitingForInstallPermission, waitingForTelegram) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME && waitingForInstallPermission && hasInstallPermission()) {
-                waitingForInstallPermission = false
-                downloadAndInstall()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                if (waitingForInstallPermission && hasInstallPermission()) {
+                    waitingForInstallPermission = false
+                    downloadAndInstall()
+                }
+                if (waitingForTelegram) {
+                    waitingForTelegram = false
+                    onCheckAgain()
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    if (release.isForced) {
-        BackHandler(enabled = true) { (context as? android.app.Activity)?.finish() }
-    }
+    // A required update cannot be dismissed with Back or by tapping outside the dialog.
+    BackHandler(enabled = true) { }
 
     AlertDialog(
-        onDismissRequest = { if (!release.isForced && !downloading) onLater() },
-        title = { Text(if (release.isForced) "Update required" else "Update available") },
+        onDismissRequest = { },
+        title = { Text("Update required") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("Wisdom Tower Academy ${release.versionName}", style = MaterialTheme.typography.titleMedium)
@@ -103,6 +117,11 @@ fun UpdatePrompt(
                     Text(progress?.let { "${(it * 100).toInt()}%" } ?: "Downloading…")
                 }
                 status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
+                if (release.telegramUrl != null) {
+                    TextButton(enabled = !downloading, onClick = { openTelegramFallback() }) {
+                        Text("Get APK from Telegram")
+                    }
+                }
             }
         },
         confirmButton = {
@@ -128,11 +147,6 @@ fun UpdatePrompt(
                     }
                 }
             ) { Text(if (downloading) "Downloading…" else "Update now") }
-        },
-        dismissButton = {
-            if (!release.isForced) {
-                TextButton(enabled = !downloading, onClick = onLater) { Text("Later") }
-            }
         }
     )
 }
