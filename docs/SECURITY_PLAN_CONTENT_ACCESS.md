@@ -7,8 +7,8 @@
 1. **Books hub (PDF textbooks) = free MoE / MoSHE material.** Not locked on the server. The public Appwrite bucket and `storage_path` in the light list stay for books.
 2. **Life Savers PDFs are REAL PRODUCTS TO BE SOLD.** They must be protected on the server like notes (slice S5, now REINSTATED, scope = Life Savers and any other paid PDF; books excluded).
 3. **Leaked-password protection (Supabase Pro feature): the owner is on the free tier and cannot enable it. No agent may ask him about it or list it as a security issue / open item.** Ignore that advisor line.
-4. **`FLAG_SECURE` stays commented out until the owner says the app is finished** (he needs screenshots for mock-ups and UI fixes). Do not ask again, do not enable.
-5. **Leaderboard:** nothing is broken that the owner has to decide; leave `leaderboard_by_scope` as it is. Do not raise it again unless the owner does (earlier agents only copied an advisor note about a SECURITY DEFINER view; no real leak was ever demonstrated in this plan).
+4. **No app-wide `FLAG_SECURE`.** The later release-hardening request authorizes scoped protection only while designated student content screens are visible (PDF reader, notes, flashcards, question banks, exams, ranked competition exams). Admin screens remain capturable. Admin leaderboard JPGs must be rendered from verified result data, never from a screenshot. Debug builds remain capturable for UI work.
+5. **Leaderboard:** leave `leaderboard_by_scope` unchanged; the owner later requested a separate admin-only top-three JPG export. Implement that as a dedicated RPC with a fresh `private.is_admin()` check; do not widen the public leaderboard view.
 6. Chapter #4 (a note not saved offline) downloaded and opened on the owner's phone after S4 (2026-10-20): the checked door works for a student.
 
 ## STATE FOUND 2026-10-20 (read from live Supabase + repo, not guessed)
