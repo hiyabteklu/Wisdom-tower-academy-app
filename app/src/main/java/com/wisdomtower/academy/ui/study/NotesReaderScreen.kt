@@ -129,9 +129,14 @@ private fun buildTutorContext(title: String, noteText: String): String =
  * Answers stream back through `window.wtTutorSet` and follow-up prompts through `window.wtTutorSuggest`.
  * The page always keeps a fourth "Continue learning with me" action after its three recommended prompts.
  * Clear chat cancels a running answer and resets the current conversation after confirmation.
- * The chat is not saved; it lives while the note is open. The old global tutor overlay remains separate for drawer/Learning use.
  * The screen reuses the existing tutor API; it adds no new endpoint, API key, cache or sign-in path.
  *
+ * CHAT KEPT ON THE PHONE (owner report 2026-11-05: the tutor under a note was empty after closing and reopening the app):
+ * the page reports the whole conversation with `WTBridge.onTutorState(json)` (a JSON array of role, content, suggestions
+ * and a partial flag) and it is kept per note in [NOTES_STATE_PREFS], key `tutor_<resourceId>`, next to the reading
+ * position. It is handed back as the third argument of `window.setNote(text, frac, chat)` when the note opens, so the
+ * conversation is there exactly as it was left. An empty conversation removes the key. It never leaves the phone and is
+ * separate from the chats list of the drawer tutor ([NativeTutorScreen]), which stays as it was.
  *
  * Reading position (N1, docs/READER_EXAM_FLASHCARD_FIX_PLAN.md, 2026-11-02, owner: the book reader remembers the last
  * page, the notes reader must too): the page reports where the student is with `WTBridge.onPosition({ frac })`
@@ -140,7 +145,10 @@ private fun buildTutorContext(title: String, noteText: String): String =
  * works offline and for a signed-out student. On opening, the saved share is handed to the page with
  * `window.setNote(text, frac)`, which scrolls there once the page is laid out. Not synced to the server on purpose:
  * `learning_progress` has a `last_page` for books but nothing for a scroll share, and the plan says not to add a table.
- * A note edited since then simply opens at the same share (clamped); a saved 0 or a note read to the end opens at the top.
+ * A note edited since then simply opens at the same share (clamped); a saved 0 opens at the top.
+ * FIX 2026-11-05 (owner: a note left at the end opened at the top the next day): the page no longer treats a share of 98
+ * percent or more as "read to the end, open at the top". The tutor panel is part of the page now, so its bottom IS the end
+ * of the page and that rule sent everyone who stopped there back to the top.
  *
  * Loading look (owner request 2026-10-13): while the note is fetched and while the page lays itself out (the maths
  * is typeset and the lines change length, so the page would visibly jump), the app-start loader ([BrandSplashLoader])
@@ -189,6 +197,8 @@ fun NotesReaderScreen(
     // N1: where the student stopped last time (read once when the note opens)
     val statePrefs = remember { context.getSharedPreferences(NOTES_STATE_PREFS, Context.MODE_PRIVATE) }
     val startFrac = remember(resourceId) { statePrefs.getFloat("pos_$resourceId", 0f).coerceIn(0f, 1f) }
+    // The tutor conversation of this note, kept on the phone (read once when the note opens; empty text = none)
+    val savedChat = remember(resourceId) { statePrefs.getString("tutor_$resourceId", "") ?: "" }
 
     LaunchedEffect(resourceId, attempt) {
         result = null
@@ -329,6 +339,19 @@ fun NotesReaderScreen(
                 }
                 Unit
             },
+            onTutorState = { json ->
+                try {
+                    // An empty conversation removes the saved one; anything absurdly large is not kept.
+                    if (json.length <= 2) {
+                        statePrefs.edit().remove("tutor_$resourceId").apply()
+                    } else if (json.length < 600_000) {
+                        statePrefs.edit().putString("tutor_$resourceId", json).apply()
+                    }
+                } catch (e: Exception) {
+                    // Saving the chat is best effort and must never break the reader.
+                }
+                Unit
+            },
             onTutorAsk = { json ->
                 // Runs on the main thread: the answer is pushed back with evaluateJavascript.
                 screenScope.launch { startTutor(json) }
@@ -379,6 +402,7 @@ fun NotesReaderScreen(
                         NoteWebView(
                             body = r.item.bodyMd.orEmpty(),
                             startFrac = startFrac,
+                            chatJson = savedChat,
                             bridge = bridge,
                             webRef = webRef,
                             modifier = Modifier
@@ -421,6 +445,7 @@ fun NotesReaderScreen(
 private class NotesBridge(
     private val onProgress: (String) -> Unit,
     private val onPosition: (String) -> Unit,
+    private val onTutorState: (String) -> Unit,
     private val onTutorAsk: (String) -> Unit,
     private val onTutorStop: () -> Unit,
     private val onReady: () -> Unit
@@ -433,6 +458,11 @@ private class NotesBridge(
     @JavascriptInterface
     fun onPosition(json: String) {
         onPosition.invoke(json)
+    }
+
+    @JavascriptInterface
+    fun onTutorState(json: String) {
+        onTutorState.invoke(json)
     }
 
     @JavascriptInterface
@@ -453,9 +483,10 @@ private class NotesBridge(
 
 @SuppressLint("SetJavaScriptEnabled", "JavascriptInterface")
 @Composable
-private fun NoteWebView(body: String, startFrac: Float, bridge: Any, webRef: Array<WebView?>, modifier: Modifier) {
+private fun NoteWebView(body: String, startFrac: Float, chatJson: String, bridge: Any, webRef: Array<WebView?>, modifier: Modifier) {
     // JSONObject.quote gives a safe JavaScript string literal (quotes, backslashes, newlines escaped)
     val literal = remember(body) { JSONObject.quote(body) }
+    val chatLiteral = remember(chatJson) { JSONObject.quote(chatJson) }
     key(literal) {
         AndroidView(
             modifier = modifier,
@@ -479,8 +510,9 @@ private fun NoteWebView(body: String, startFrac: Float, bridge: Any, webRef: Arr
 
                         override fun onPageFinished(view: WebView, url: String?) {
                             AppBackdrop.clearPageBackground(view)
-                            // N1: the second argument is where the student stopped last time (0 = the top)
-                            view.evaluateJavascript("window.setNote($literal, $startFrac);", null)
+                            // N1: the second argument is where the student stopped last time (0 = the top);
+                            // the third is the tutor conversation kept for this note (empty text = none)
+                            view.evaluateJavascript("window.setNote($literal, $startFrac, $chatLiteral);", null)
                         }
 
                         // The note page never navigates away; ignore every link tap.
