@@ -1,7 +1,6 @@
 package com.wisdomtower.academy.data.update
 
 import android.content.Context
-import android.content.pm.PackageInfo
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -148,11 +147,11 @@ object UpdateRepository {
         }
     }
 
+    @Suppress("DEPRECATION")
     private fun verifyDownloadedApk(context: Context, file: File, release: AppRelease) {
         val flags = if (Build.VERSION.SDK_INT >= 28) {
             PackageManager.GET_SIGNING_CERTIFICATES
         } else {
-            @Suppress("DEPRECATION")
             PackageManager.GET_SIGNATURES
         }
         val archive = context.packageManager.getPackageArchiveInfo(file.absolutePath, flags)
@@ -161,7 +160,6 @@ object UpdateRepository {
             "This APK is for a different app and cannot update Wisdom Tower Academy."
         }
         val archiveVersion = if (Build.VERSION.SDK_INT >= 28) archive.longVersionCode else {
-            @Suppress("DEPRECATION")
             archive.versionCode.toLong()
         }
         require(archiveVersion == release.versionCode.toLong()) {
@@ -190,9 +188,7 @@ object UpdateRepository {
                 "The APK signature does not match the installed Wisdom Tower Academy app."
             }
         } else {
-            @Suppress("DEPRECATION")
             val installedSigners = installed.signatures?.map { it.toByteArray().toList() }?.toSet().orEmpty()
-            @Suppress("DEPRECATION")
             val candidateSigners = archive.signatures?.map { it.toByteArray().toList() }?.toSet().orEmpty()
             require(installedSigners.isNotEmpty() && installedSigners == candidateSigners) {
                 "The APK signature does not match the installed Wisdom Tower Academy app."
