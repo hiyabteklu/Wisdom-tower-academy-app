@@ -158,6 +158,12 @@ internal fun safeHubUrl(basePath: String, hubId: String): String {
  * this course at once ([LearningContentRepository.getHubCountsSaved], no network); the server is asked in the background
  * ([LearningContentRepository.getHubCounts]) and the cards change only when a number really changed. A failed or empty
  * refresh never wipes counts that are already shown.
+ *
+ * UAT BACK FIX (2026-11-05): the four UAT hub cards (Tips, Revision Notes, Previous Exams, Resources) open ONE hub
+ * straight away. They have no 6-hub grid (the old one was removed), so `uatHubDirect` makes this page behave like the
+ * website entrance link: the 6-hub grid is never drawn, and back from the hub list leaves this page (back to the 4 UAT
+ * cards) instead of landing on the 6-hub grid first. If the hub is closed (coming soon / package required) the gate
+ * message is shown on an empty page and "Got it" goes back.
  */
 @Composable
 fun StudyWorkspaceScreen(
@@ -170,6 +176,7 @@ fun StudyWorkspaceScreen(
 ) {
     val entranceUrl = remember(basePath) { entranceYearUrl(basePath) }
     val contentScope = remember(basePath) { contentScopePath(basePath) }
+    val uatHubDirect = remember(basePath) { SCOPE_UAT_HUB.matches(cleanBase(basePath)) }
     val isComingSoonPackage = remember(basePath) {
         val clean = cleanBase(basePath)
         clean == "/academy/gat" || clean.startsWith("/academy/gat/") ||
@@ -196,6 +203,7 @@ fun StudyWorkspaceScreen(
     var locks by remember(basePath, loggedIn) {
         mutableStateOf<CourseLocks>(ContentAccess.staticLocks(basePath, loggedIn))
     }
+    var locksResolved by remember(basePath, loggedIn) { mutableStateOf(false) }
     var gateMessage by remember(basePath) { mutableStateOf<GateMessage?>(null) }
 
     // P3 (Telegram build): what the "Package required" card needs. Harmless in the Play build (the card ignores it).
@@ -213,6 +221,7 @@ fun StudyWorkspaceScreen(
 
     LaunchedEffect(basePath, loggedIn) {
         locks = ContentAccess.resolveLocks(basePath, loggedIn)
+        locksResolved = true
     }
 
     // P4: read the locks and ownership again when the app comes back to the front (skips the first resume at start).
@@ -254,16 +263,22 @@ fun StudyWorkspaceScreen(
         }
     }
     var initialHubHandled by remember(basePath) { mutableStateOf(false) }
-    LaunchedEffect(basePath, locks) {
-        if (initialHub != null && !initialHubHandled && locks.hubGate(initialHub) == HubGate.Open) {
-            initialHubHandled = true
-            view = WorkspaceView.HubList(initialHub)
+    LaunchedEffect(basePath, locks, locksResolved) {
+        if (initialHub != null && !initialHubHandled) {
+            val gate = locks.hubGate(initialHub)
+            if (gate == HubGate.Open) {
+                initialHubHandled = true
+                view = WorkspaceView.HubList(initialHub)
+            } else if (uatHubDirect && locksResolved) {
+                // UAT has no 6-hub grid to fall back to: say why it is closed (the page goes back on "Got it").
+                gateMessage = GateMessage(gate, title)
+            }
         }
     }
 
     BackHandler(enabled = view != null && view !is WorkspaceView.Quiz) {
         val open = view
-        if (open is WorkspaceView.HubList && entranceUrl != null) {
+        if (open is WorkspaceView.HubList && (entranceUrl != null || uatHubDirect)) {
             onBack()
             return@BackHandler
         }
@@ -301,7 +316,7 @@ fun StudyWorkspaceScreen(
                 hubId = shown.hubId,
                 hubName = NATIVE_LEARNING_HUBS.firstOrNull { it.id == shown.hubId }?.name ?: shown.hubId,
                 courseTitle = title,
-                onBack = { if (entranceUrl != null) onBack() else view = null },
+                onBack = { if (entranceUrl != null || uatHubDirect) onBack() else view = null },
                 onOpenItem = { item ->
                     when (item.contentType) {
                         "pdf" -> view = WorkspaceView.Pdf(item, shown.hubId)
@@ -351,9 +366,39 @@ fun StudyWorkspaceScreen(
     }
 
     val layerItem: WorkspaceView? = if (contentScope != null) shown else null
-    if (entranceUrl != null && layerItem != null && contentScope != null) {
-        // V5d hub grow: opened straight into a hub from a website link. No grid behind it, no grow (as before).
+    if ((entranceUrl != null || uatHubDirect) && layerItem != null && contentScope != null) {
+        // V5d hub grow: opened straight into a hub (website link, or a UAT hub card). No grid behind it, no grow (as before).
         Box(modifier = modifier.fillMaxSize()) { subView(layerItem, contentScope) }
+        return
+    }
+    if (uatHubDirect) {
+        // UAT BACK FIX: never draw the 6-hub grid for a UAT hub card. Empty page while the lock check runs; if the hub is
+        // closed the gate message shows here and "Got it" goes back to the 4 UAT cards.
+        Box(modifier = modifier.fillMaxSize()) {
+            AtmosphereBackground(modifier = Modifier.fillMaxSize())
+            val message = gateMessage
+            if (message != null) {
+                if (message.gate == HubGate.ComingSoon) {
+                    HubGateDialog(
+                        badge = ContentAccess.COMING_SOON_TITLE,
+                        title = ContentAccess.COMING_SOON_TITLE,
+                        hubName = message.hubName,
+                        message = ContentAccess.COMING_SOON_BODY,
+                        buttonText = ContentAccess.COMING_SOON_BUTTON,
+                        onClose = onBack
+                    )
+                } else {
+                    HubGateDialog(
+                        badge = null,
+                        title = ContentAccess.PURCHASE_TITLE,
+                        hubName = message.hubName,
+                        message = ContentAccess.PURCHASE_BODY,
+                        buttonText = ContentAccess.PURCHASE_BUTTON,
+                        onClose = onBack
+                    )
+                }
+            }
+        }
         return
     }
 
