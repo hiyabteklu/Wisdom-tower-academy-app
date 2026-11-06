@@ -25,12 +25,12 @@ enum class LeaderboardJpgFormat(val width: Int, val height: Int, val suffix: Str
 }
 
 // U5 (2026-11-06, owner): golden celebration poster for the Top 3, in 4:3 and 9:16.
-// Night-navy background with a warm gold glow and light rays, confetti and sparkles, a gold frame, a golden trophy,
-// the word CHAMPIONS, the exam title, subject and date, then a real podium (2nd left, 1st centre and tallest, 3rd right)
-// with gold, silver and bronze blocks. Above each block: the name, the score and the time taken.
+// Owner feedback on the first version: too scattered, the confetti and sparkles were disturbing. This version keeps the
+// colours and shapes (navy background, warm gold glow, soft light rays, gold frame, golden trophy, CHAMPIONS, podium with
+// gold, silver and bronze blocks) but has NO confetti and NO sparkles, softer rays (no hard horizontal band), and a
+// closing motto "There is a better way to learn" in gold italic serif between two fading gold lines with small diamonds.
 // No minimum number of participants: a missing rank leaves its podium slot empty; nobody ranked = a short card.
-// No phone, e-mail or other personal data is drawn (names, scores and times only). Confetti is seeded, so the same
-// competition always produces the same picture.
+// No phone, e-mail or other personal data is drawn (names, scores and times only).
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 object LeaderboardJpgRenderer {
     private val navyTop = Color.rgb(3, 8, 20)
@@ -60,8 +60,7 @@ object LeaderboardJpgRenderer {
         val contentWidth = w - 220f
 
         drawBackground(canvas, w, h, if (portrait) 330f else 245f)
-        drawRays(canvas, cx, if (portrait) 330f else 245f, max(w, h).toFloat())
-        drawConfetti(canvas, w, h, portrait)
+        drawRays(canvas, cx, if (portrait) 330f else 245f, max(w, h) * 0.9f)
         drawFrame(canvas, w, h)
 
         // header
@@ -110,14 +109,10 @@ object LeaderboardJpgRenderer {
         } else if (portrait) {
             drawPodium(canvas, ordered, w, 1700f, 300f, 16f, 560f, 430f, 330f, true)
         } else {
-            drawPodium(canvas, ordered, w, 1110f, 440f, 24f, 300f, 230f, 180f, false)
+            drawPodium(canvas, ordered, w, 1090f, 440f, 24f, 300f, 230f, 180f, false)
         }
 
-        drawCentered(
-            canvas, "WISDOM TOWER ACADEMY  \u00b7  LEARN WITH PURPOSE", cx,
-            if (portrait) h - 72f else h - 56f, w - 160f,
-            paintOf(if (portrait) 22f else 20f, muted, false, false, 0.12f)
-        )
+        drawMotto(canvas, cx, if (portrait) 1805f else 1142f, w - 200f, if (portrait) 46f else 38f)
 
         val output = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 94, output)
@@ -145,19 +140,21 @@ object LeaderboardJpgRenderer {
         canvas.drawRect(0f, 0f, w.toFloat(), h.toFloat(), glow)
     }
 
+    // Soft rays. The start angle is turned a little so no ray is exactly horizontal (that made a hard band across the poster).
     private fun drawRays(canvas: Canvas, ox: Float, oy: Float, radius: Float) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             shader = RadialGradient(
                 ox, oy, radius,
-                Color.argb(70, 255, 214, 110), Color.TRANSPARENT,
+                Color.argb(46, 255, 214, 110), Color.TRANSPARENT,
                 Shader.TileMode.CLAMP
             )
         }
         val count = 16
         val step = 360.0 / count
+        val offset = 11.0
         for (i in 0 until count) {
-            val a1 = Math.toRadians(i * step)
-            val a2 = Math.toRadians(i * step + step * 0.42)
+            val a1 = Math.toRadians(offset + i * step)
+            val a2 = Math.toRadians(offset + i * step + step * 0.42)
             val path = Path()
             path.moveTo(ox, oy)
             path.lineTo(ox + (radius * cos(a1)).toFloat(), oy + (radius * sin(a1)).toFloat())
@@ -165,51 +162,6 @@ object LeaderboardJpgRenderer {
             path.close()
             canvas.drawPath(path, paint)
         }
-    }
-
-    private fun drawConfetti(canvas: Canvas, w: Int, h: Int, portrait: Boolean) {
-        val rnd = java.util.Random(20261106L)
-        val colors = intArrayOf(goldLight, gold, silverLight, cyan, bronzeLight, Color.WHITE)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-        val count = if (portrait) 130 else 115
-        repeat(count) {
-            val x = rnd.nextFloat() * w
-            val y = rnd.nextFloat() * h
-            val size = 8f + rnd.nextFloat() * 14f
-            paint.color = colors[rnd.nextInt(colors.size)]
-            paint.alpha = 90 + rnd.nextInt(130)
-            val kind = rnd.nextInt(3)
-            canvas.save()
-            canvas.rotate(rnd.nextFloat() * 360f, x, y)
-            when (kind) {
-                0 -> canvas.drawRect(x, y, x + size, y + size * 0.5f, paint)
-                1 -> canvas.drawCircle(x, y, size * 0.35f, paint)
-                else -> canvas.drawRoundRect(RectF(x, y, x + size * 1.8f, y + size * 0.28f), 4f, 4f, paint)
-            }
-            canvas.restore()
-        }
-        val spots = arrayOf(
-            floatArrayOf(0.12f, 0.10f), floatArrayOf(0.88f, 0.12f), floatArrayOf(0.07f, 0.30f),
-            floatArrayOf(0.93f, 0.33f), floatArrayOf(0.20f, 0.50f), floatArrayOf(0.80f, 0.48f),
-            floatArrayOf(0.06f, 0.68f), floatArrayOf(0.95f, 0.70f), floatArrayOf(0.30f, 0.07f),
-            floatArrayOf(0.70f, 0.06f)
-        )
-        for (spot in spots) {
-            paint.color = if (rnd.nextBoolean()) Color.WHITE else goldLight
-            paint.alpha = 235
-            drawSparkle(canvas, spot[0] * w, spot[1] * h, 18f + rnd.nextFloat() * 18f, paint)
-        }
-    }
-
-    private fun drawSparkle(canvas: Canvas, cx: Float, cy: Float, r: Float, paint: Paint) {
-        val path = Path()
-        path.moveTo(cx, cy - r)
-        path.quadTo(cx, cy, cx + r, cy)
-        path.quadTo(cx, cy, cx, cy + r)
-        path.quadTo(cx, cy, cx - r, cy)
-        path.quadTo(cx, cy, cx, cy - r)
-        path.close()
-        canvas.drawPath(path, paint)
     }
 
     private fun drawFrame(canvas: Canvas, w: Int, h: Int) {
@@ -225,6 +177,51 @@ object LeaderboardJpgRenderer {
             color = Color.argb(90, 246, 195, 74)
         }
         canvas.drawRoundRect(RectF(44f, 44f, w - 44f, h - 44f), 26f, 26f, inner)
+    }
+
+    private fun drawMotto(canvas: Canvas, cx: Float, baseline: Float, maxWidth: Float, size: Float) {
+        val text = "There is a better way to learn"
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = size
+            textAlign = Paint.Align.CENTER
+            letterSpacing = 0.04f
+            typeface = Typeface.create("serif", Typeface.BOLD_ITALIC)
+            shader = LinearGradient(0f, baseline - size, 0f, baseline, goldLight, gold, Shader.TileMode.CLAMP)
+        }
+        while (paint.measureText(text) > maxWidth && paint.textSize > 14f) paint.textSize -= 1f
+        canvas.drawText(text, cx, baseline, paint)
+
+        val half = paint.measureText(text) / 2f
+        val lineY = baseline - paint.textSize * 0.32f
+        val gap = 30f
+        val len = min(150f, cx - half - gap - 80f)
+        if (len > 30f) {
+            val leftEnd = cx - half - gap
+            val rightStart = cx + half + gap
+            val leftPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                strokeWidth = 2f
+                shader = LinearGradient(leftEnd - len, 0f, leftEnd, 0f, Color.TRANSPARENT, gold, Shader.TileMode.CLAMP)
+            }
+            val rightPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                strokeWidth = 2f
+                shader = LinearGradient(rightStart, 0f, rightStart + len, 0f, gold, Color.TRANSPARENT, Shader.TileMode.CLAMP)
+            }
+            canvas.drawLine(leftEnd - len, lineY, leftEnd, lineY, leftPaint)
+            canvas.drawLine(rightStart, lineY, rightStart + len, lineY, rightPaint)
+            val diamond = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = gold }
+            drawDiamond(canvas, leftEnd, lineY, 7f, diamond)
+            drawDiamond(canvas, rightStart, lineY, 7f, diamond)
+        }
+    }
+
+    private fun drawDiamond(canvas: Canvas, cx: Float, cy: Float, r: Float, paint: Paint) {
+        val path = Path()
+        path.moveTo(cx, cy - r)
+        path.lineTo(cx + r, cy)
+        path.lineTo(cx, cy + r)
+        path.lineTo(cx - r, cy)
+        path.close()
+        canvas.drawPath(path, paint)
     }
 
     private fun drawTrophy(canvas: Canvas, cx: Float, top: Float, s: Float) {
