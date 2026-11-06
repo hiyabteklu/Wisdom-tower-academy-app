@@ -90,6 +90,8 @@ private val LbBronze: Color
 // Session M9 (docs/UI_MOTION_PLAN.md, motion only): the three trophy cards rise in the order 2nd, 1st, 3rd
 // (wisdomReveal, once per contest per app session), the own row and the prize panel rise after them, and ranks 4 to
 // 10 open and close with WisdomExpandable instead of appearing at once. No text, data or logic changed.
+// U5 (2026-11-06, owner): admins only see a small card with the Top 3 JPG download (4:3 and 9:16) right under the
+// participant count (LeaderboardAdminExport). Students never see it. No minimum number of participants.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 @Composable
 fun CompetitionLeaderboardScreen(
@@ -196,6 +198,9 @@ private fun LeaderboardBody(competitionId: String, res: LeaderboardResult.Availa
             color = LbMuted,
             fontSize = 12.sp
         )
+
+        // U5: admins only (the card draws nothing for a student)
+        LeaderboardAdminExport(competitionId = competitionId)
 
         if (res.top.isEmpty()) {
             Text(text = "No ranked results yet.", color = LbMuted, fontSize = 14.sp)
