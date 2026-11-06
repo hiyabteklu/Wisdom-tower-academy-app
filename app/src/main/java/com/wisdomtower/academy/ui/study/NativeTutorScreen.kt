@@ -80,6 +80,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.wisdomtower.academy.data.competition.ExamLockdown
+import androidx.compose.runtime.collectAsState
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.AiTutorRepository
 import com.wisdomtower.academy.data.content.TutorEvent
 import com.wisdomtower.academy.data.content.TutorMessage
@@ -215,6 +217,13 @@ fun NativeTutorScreen(
             Toast.makeText(gateContext, "AI Tutor is switched off while a ranked competition exam is open.", Toast.LENGTH_SHORT).show()
             gateBack()
         }
+        return
+    }
+
+    // U1b (2026-11-06, docs/PLAN_2026-11-06_URGENT_FIVE_FIXES.md): the AI tutor is for signed-in students only.
+    val tutorSignedIn by AuthStateManager.isLoggedIn.collectAsState()
+    if (!tutorSignedIn) {
+        TutorSignInGate(onBack = onBack, modifier = modifier)
         return
     }
 
