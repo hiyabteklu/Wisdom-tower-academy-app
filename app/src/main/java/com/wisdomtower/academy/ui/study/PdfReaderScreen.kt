@@ -297,7 +297,7 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
     val prefs = remember { context.getSharedPreferences(READER_PREFS, Context.MODE_PRIVATE) }
     // false until the saved page has been restored, so the first screen (page 1) never overwrites it
     var restored by remember(file) { mutableStateOf(false) }
-    val sessionStart = remember(file) { longArrayOf(System.currentTimeMillis()) }
+    val studyTimer = rememberActiveStudyTimer(file) // U3b: counts only while the book is in front
     val latestPage = rememberUpdatedState(currentPage)
     val latestRestored = rememberUpdatedState(restored)
 
@@ -326,7 +326,7 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
         delay(400)
         prefs.edit().putInt("last_page_$id", currentPage).apply()
         delay(2100)
-        saveReading(id, currentPage, pageCount, sessionStart)
+        saveReading(id, currentPage, pageCount, studyTimer)
     }
 
     DisposableEffect(file, resourceId) {
@@ -337,7 +337,7 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
                 prefs.edit().putInt("last_page_$id", page).apply()
                 // The screen is closing, so use a scope that is not cancelled with it.
                 CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
-                    saveReading(id, page, pageCount, sessionStart)
+                    saveReading(id, page, pageCount, studyTimer)
                 }
             }
         }
@@ -430,10 +430,8 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
  * value) and the seconds since the last save (at most 10 minutes per save, so a phone left open does not
  * count as reading). Does nothing when the student is signed out.
  */
-private suspend fun saveReading(resourceId: String, page: Int, pageCount: Int, sessionStart: LongArray) {
-    val now = System.currentTimeMillis()
-    val seconds = ((now - sessionStart[0]) / 1000L).toInt().coerceIn(0, 600)
-    sessionStart[0] = now
+private suspend fun saveReading(resourceId: String, page: Int, pageCount: Int, timer: ActiveStudyTimer) {
+    val seconds = timer.take(600) // U3b: active seconds only, at most 10 minutes per save
     val percent = (page * 100 / pageCount.coerceAtLeast(1)).coerceIn(0, 100)
     LearningProgressRepository.saveProgress(
         resourceId = resourceId,

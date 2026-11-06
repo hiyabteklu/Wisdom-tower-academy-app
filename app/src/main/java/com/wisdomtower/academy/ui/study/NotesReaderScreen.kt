@@ -84,15 +84,15 @@ private class NoteProgress {
     @Volatile var pct: Int = 0
     @Volatile var active: Boolean = false
     @Volatile var lastFlush: Long = 0L
+    @Volatile var timer: ActiveStudyTimer? = null // U3b
 }
 
 /** Adds the reading seconds since the last flush (and the current percent) to `learning_progress`. */
 private fun flushNoteProgress(resourceId: String, progress: NoteProgress) {
     if (!progress.active) return
-    val now = SystemClock.elapsedRealtime()
-    val seconds = ((now - progress.lastFlush) / 1000L).toInt()
+    // U3b: only the seconds the note was really in front (screen on, app open), at most 10 minutes per save
+    val seconds = progress.timer?.take(600) ?: 0
     if (seconds < 1) return
-    progress.lastFlush = now
     val pct = progress.pct
     notesSaveScope.launch {
         LearningProgressRepository.saveProgress(
@@ -194,6 +194,8 @@ fun NotesReaderScreen(
     var result by remember(resourceId) { mutableStateOf<ContentItemResult?>(null) }
     val webRef = remember { arrayOfNulls<WebView>(1) }
     val progress = remember(resourceId) { NoteProgress() }
+    val studyTimer = rememberActiveStudyTimer(resourceId) // U3b
+    progress.timer = studyTimer
     var pageReady by remember(resourceId) { mutableStateOf(false) }
     // N1: where the student stopped last time (read once when the note opens)
     val statePrefs = remember { context.getSharedPreferences(NOTES_STATE_PREFS, Context.MODE_PRIVATE) }
