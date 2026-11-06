@@ -100,6 +100,9 @@ object UpdateRepository {
     /**
      * Downloads the release APK into app-private cache. A partial download is never
      * passed to Android's package installer.
+     *
+     * If a complete, verified APK for this release is already in the cache (for example after
+     * the app was closed during install), it is reused and nothing is downloaded again.
      */
     suspend fun downloadApk(
         context: Context,
@@ -109,6 +112,21 @@ object UpdateRepository {
         val uri = Uri.parse(release.apkUrl)
         require(uri.scheme == "https" && !uri.host.isNullOrBlank()) {
             "The release APK link must use HTTPS."
+        }
+
+        val cachedApk = File(
+            File(context.cacheDir, "updates"),
+            "wisdom-tower-update-${release.versionCode}.apk"
+        )
+        if (cachedApk.isFile && cachedApk.length() > 4L) {
+            try {
+                verifyDownloadedApk(context, cachedApk, release)
+                withContext(Dispatchers.Main) { onProgress(1f) }
+                return@withContext cachedApk
+            } catch (_: Exception) {
+                // Stale or damaged cache: remove it and download a fresh copy below.
+                cachedApk.delete()
+            }
         }
 
         val request = Request.Builder().url(release.apkUrl).get().build()
