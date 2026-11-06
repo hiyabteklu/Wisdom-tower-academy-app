@@ -8,7 +8,7 @@
 Navigation, hubs, Other resources, free resources and every visible feature stay exactly as they are. Do not ask the owner
 questions he did not ask for; use the defaults written below.
 
-Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done. U3b is in main (both readers use `ActiveStudyTimer`, seen 2026-11-06; phone test still the owner's). U3c written: ONE owner tap left: run patch `apply_u3c_focus.py` (see U3c). Next: U3d (range control + graphs). U2c is the owner's switch test. U1c waits for the release.**
+Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done. U3b is in main (both readers use `ActiveStudyTimer`, seen 2026-11-06; phone test still the owner's). U3c written: owner runs patch `apply_u3c_focus.py`. U3d written: owner runs patch `apply_u3d_range_panel.py` (after U3c is merged). Next: U3e (the four cards use the capped day-log total), then U4. U2c is the owner's switch test. U1c waits for the release.**
 
 ## Context
 - Update screen (slices 1-3) is merged (PR #106 and #107) and built. Not device-tested yet (needs a newer release, see U0).
@@ -146,14 +146,25 @@ then define and write focus (U3c), then the screen (U3d).
   Tested on mock copies; all-or-nothing anchors; safe to run twice. Details and phone tests: `docs/SESSION_2026-11-06_U3C_FOCUS.md`.
   **Owner runs: Actions > Apply pending patches > script `apply_u3c_focus.py`, branch `fix/u3c-focus`.**
   Wait for the build, test, then merge the pull request.
-- Old rows keep their focus as it is (mostly 0 for the app); U3d decides how to show old days.
+- Old rows keep their focus as it is (mostly 0 for the app); the U3d panel shows a dash for Focus until focus exists in the range.
 - [x] U3c files + patch written  - [ ] U3c patch applied + build + phone test + merge (owner)
 
-Plan for the rest:
-3. Old wrong totals: default = recompute from the day log, never delete.
-4. New screen (U3d): one control **Today | Week | Month | Total**; clear graphs (bars per day/week, goal ring, study vs focus split,
-   subject share). Real numbers only; unknown = dash.
-- [x] U3a audit + findings  - [x] U3b written + merged  - [x] U3c written  - [ ] U3d range control + graphs
+### U3d — "Study time" panel: Today | Week | Month | Total (written 2026-11-06)
+- New panel `StatusRangePanel` in My Status (after the four cards, also in the offline skeleton): the control Today | Week | Month | Total,
+  the study time of the range, a bar per day (Week 7, Month 30) or per month (Total, last 12), green = focus part, blue = rest, amber
+  line = daily goal; Today = bar against the daily goal; a Focus box; Active days / Average per active day / Best day.
+- Numbers come from the student's own `study_day_log` (saved copy first, so it works offline). Each day counts at most 8 hours and the
+  panel says when it limited a day. Nothing is deleted. `StudyDayLogReader` row limit 60 -> 500 so a long history is read from its newest end.
+- Written as `scripts/u3d/StatusRangePanel.kt.txt` (text on main, so main still builds) + patch `scripts/apply_u3d_range_panel.py`
+  (copies the panel, 2 lines in `NativeStatusScreen.kt`, the limit in `StudyDayLogReader.kt`). Tested on mock copies only; the Kotlin is
+  not compiled yet, so the first branch build is the real test. Details and phone tests: `docs/SESSION_2026-11-06_U3D_RANGE_PANEL.md`.
+  **Owner runs (after U3c is merged): Actions > Apply pending patches > script `apply_u3d_range_panel.py`, branch `fix/u3d-range-panel`.**
+- [x] U3d panel + patch written  - [ ] U3d patch applied + build + phone test + merge (owner)
+
+### U3e — the four cards use the capped total (next)
+The cards "Study Time" and the sentence "Your cumulative study time is ..." still add up the old per-resource rows (the 70+ h).
+Default (no question to the owner): show the total of the day log with each day capped at 8 h, same as the Total button; keep every row.
+- [x] U3a audit + findings  - [x] U3b written + merged  - [x] U3c written  - [x] U3d written  - [ ] U3e cards use capped total
 
 ## U4 — Scholarship guide design (Other resources)
 Problem: every line is its own "Good to know" card. Code: `ui/guides/GuidesScreen.kt`.
@@ -181,3 +192,4 @@ for top-3 students). No phone/email on the image.
 - 2026-11-06: U3a audit done: cause found in the two readers (uncapped/background time) and a missing focus writer.
 - 2026-11-06: U3b written (ActiveStudyTimer + patch script for the two readers).
 - 2026-11-06: U3b found merged in main. U3c written (focus = touched in the last 3 minutes; ActiveStudyTimer.touch/takeSlice + patch script for the two readers).
+- 2026-11-06: U3d written (Study time panel with Today | Week | Month | Total, reads study_day_log with each day capped at 8 h). New slice U3e added: the four cards use the same capped total.
