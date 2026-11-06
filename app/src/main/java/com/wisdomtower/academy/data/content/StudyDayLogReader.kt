@@ -135,11 +135,26 @@ object StudyDayLogReader {
         return SimpleDateFormat("yyyy-MM-dd", Locale.US).format(cal.time)
     }
 
-    /** Saves the latest good read for this student. Never throws. */
+    /**
+     * Saves the latest good read for this student. Never throws.
+     * U3e: MERGED by day with the copy already saved (the days of this read win), so a short read (the 7-day panel) cannot
+     * cut the long history that a longer read (Study time panel, cards: about a year) saved before.
+     */
     private fun saveSnapshot(userId: String, rows: List<StudyDayRow>) {
         runCatching {
+            val merged = java.util.TreeMap<String, StudyDayRow>()
+            val old = runCatching { StatusSnapshotStore.load(userId, KIND) }.getOrNull()
+            if (old != null) {
+                for (i in 0 until old.rows.length()) {
+                    val o = old.rows.getJSONObject(i)
+                    val day = o.optString("day", "")
+                    if (day.length < 10) continue
+                    merged[day.substring(0, 10)] = StudyDayRow(day.substring(0, 10), o.optInt("s", 0), o.optInt("f", 0))
+                }
+            }
+            for (r in rows) merged[r.day] = r
             val arr = JSONArray()
-            for (r in rows) {
+            for (r in merged.values) {
                 arr.put(JSONObject().put("day", r.day).put("s", r.seconds).put("f", r.focusSeconds))
             }
             StatusSnapshotStore.save(userId, KIND, arr)
