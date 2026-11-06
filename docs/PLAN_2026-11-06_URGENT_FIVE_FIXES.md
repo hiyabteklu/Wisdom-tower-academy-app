@@ -8,7 +8,7 @@
 Navigation, hubs, Other resources, free resources and every visible feature stay exactly as they are. Do not ask the owner
 questions he did not ask for; use the defaults written below.
 
-Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). Next: U2c (owner switch test), then U3a audit. U1c waits for the release.**
+Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done (findings in U3). Next: U3b (fix time counting), then U3c. U2c is the owner's switch test. U1c waits for the release.**
 
 ## Context
 - Update screen (slices 1-3) is merged (PR #106 and #107) and built. Not device-tested yet (needs a newer release, see U0).
@@ -97,18 +97,39 @@ Default provider order if the owner says nothing: the providers whose keys alrea
 Owner report: Total hours keeps rising (70+ h), Focus shows 0%. A day chart exists but there is no clean
 Today / Week / Month / Total control.
 Known from code: `ui/study/StatusBreakdown.kt` computes `focusPct = focusSeconds / studySeconds` from `progress` rows
-(`focus_seconds` vs `total_seconds`). Focus 0% with 75 h of study means `focus_seconds` is probably never written (or only by
-the Focus timer) while `total_seconds` is written by every reader/video session.
-Plan:
-1. **Audit against the database FIRST** (no UI change): who writes `total_seconds`, `focus_seconds`, and the day log (S6).
-   Query Supabase for the owner's rows: sum per day vs lifetime, days over 24 h, overlapping sessions (chart shows 715 and 573
-   minutes on two days: too high), sessions that never stop (background, screen off, reader left open). Write findings here.
+(`focus_seconds` vs `total_seconds`).
+
+### U3a — audit findings (2026-11-06, read-only; counts and sums only, no student rows copied)
+Who writes time (whole app, searched `addSeconds` / `addFocusSeconds`): ONLY two screens, through
+`LearningProgressRepository.saveProgress` -> `learning_progress.total_seconds` and, in the same call, `study_day_log` via the
+function `add_study_seconds` (the function itself is correct: it caps a day at 86400 s and handles focus).
+1. **Focus is never written by the app.** No screen anywhere passes `addFocusSeconds`, so every app session adds study time and
+   zero focus time. In the database: `learning_progress` 812 rows / 101 students, 113.9 h total, only 3.5 h focus (92 rows; this
+   can only come from the website). `study_day_log` 147 days / 54 students: 82.6 h total, **0.0 h focus on every day**. So Focus 0%
+   is a missing writer, not a display bug.
+2. **Time is counted too generously and without limit in the notes reader.** `NotesReaderScreen.kt`: a 30 s ticker adds
+   `elapsedRealtime - lastFlush`, with no cap and no check that the screen is on or the app is in front; the same sum is added
+   once more when the screen is left. If the phone sleeps or the app sits in the background with the note open, the next flush
+   adds the whole gap (hours) in one save.
+3. **The PDF reader counts wall-clock time too.** `PdfReaderScreen.kt` `saveReading`: seconds since the last save, capped at 600 s
+   per save, but a save happens on every page change and when the reader closes, and nothing stops counting while the app is in
+   the background or the screen is off. A phone left open can add 10 minutes per page turn and 10 more on closing.
+4. **The big totals are a few runaway sessions, not normal studying.** 7 of 812 progress rows hold 67.2 h of the 113.9 h (59 %);
+   the largest single row is 20.8 h; 2 rows are over 12 h. In the day log, 4 days over 6 h hold 40.6 h of 82.6 h (49 %); 2 days
+   are 10 h or more; the longest day is 715 min (the number the owner saw). The typical day is tiny: median 3.4 min, average
+   33.7 min. No day exceeds 24 h (the 86400 s cap holds).
+5. Videos, flashcards, quizzes and the AI tutor write no time at all (only notes and PDF books do).
+Conclusion: "Total hours keeps rising" = idle/background/sleep time counted by the two readers. Fix the writers first (U3b),
+then define and write focus (U3c), then the screen (U3d).
+- Default for old totals (no question to the owner): keep every row, never delete; the new Total/Week/Month view reads the day
+  log with each day capped at a sane limit (default 8 h) so the 4 runaway days stop dominating.
+- Plan for the rest:
 2. Fix the writing side: count only while the screen is on and the app is in the foreground; stop on pause/background/idle; cap one
-   session; never two screens counting at once. Define "focus" in plain words and record it.
+   flush (default 10 min) in BOTH readers; never two screens counting at once. Define "focus" in plain words and record it.
 3. Old wrong totals: default = recompute from the day log, never delete.
 4. New screen: one control **Today | Week | Month | Total**; clear graphs (bars per day/week, goal ring, study vs focus split,
    subject share). Real numbers only; unknown = dash.
-- [ ] U3a audit + findings  - [ ] U3b fix time counting  - [ ] U3c fix/define focus  - [ ] U3d range control + graphs
+- [x] U3a audit + findings  - [ ] U3b fix time counting  - [ ] U3c fix/define focus  - [ ] U3d range control + graphs
 
 ## U4 — Scholarship guide design (Other resources)
 Problem: every line is its own "Good to know" card. Code: `ui/guides/GuidesScreen.kt`.
@@ -133,3 +154,4 @@ for top-3 students). No phone/email on the image.
 - 2026-11-06: U1 gains a server part (U1c) because the tutor route accepted anyone.
 - 2026-11-06 (owner): scope rule added; U1 narrowed to the AI tutor only, extra audit items and questions removed.
 - 2026-11-06: U2a + U2b written and pushed (table + web route). U2c is the owner's switch test.
+- 2026-11-06: U3a audit done: cause found in the two readers (uncapped/background time) and a missing focus writer.
