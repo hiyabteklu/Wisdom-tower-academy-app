@@ -19,6 +19,8 @@ enum class LeaderboardJpgFormat(val width: Int, val height: Int, val suffix: Str
     PORTRAIT_9_16(1080, 1920, "9x16")
 }
 
+// U5 (2026-11-06, owner): no minimum number of participants. The image is drawn with 0, 1, 2 or 3 winners: a missing
+// rank is simply not drawn, and with nobody ranked a short "no participants" card is shown. Design otherwise unchanged.
 object LeaderboardJpgRenderer {
     private val navy = Color.rgb(5, 13, 27)
     private val ink = Color.rgb(244, 248, 255)
@@ -64,33 +66,57 @@ object LeaderboardJpgRenderer {
         val datePaint = textPaint(if (portrait) 24f else 22f, muted, false)
         canvas.drawText("Competition date: $eventDate", pad, subjectY + if (portrait) 54f else 46f, datePaint)
 
-        if (portrait) {
+        val ordered = data.winners.sortedBy { it.rank }
+        if (ordered.isEmpty()) {
+            val top = if (portrait) max(subjectY + 100f, 455f) else 430f
+            drawNoParticipants(canvas, pad, top, contentWidth, portrait)
+        } else if (portrait) {
             val cardTop = max(subjectY + 100f, 455f)
             val cardGap = 26f
             val cardHeight = 350f
-            data.winners.sortedBy { it.rank }.forEach { winner ->
+            ordered.forEach { winner ->
                 drawWinnerCard(
                     canvas, winner, pad, cardTop + (winner.rank - 1) * (cardHeight + cardGap),
                     contentWidth, cardHeight, portrait = true
                 )
             }
-            drawFooter(canvas, format.width, format.height, pad, true)
         } else {
-            val winner = data.winners.first { it.rank == 1 }
-            val podium = data.winners.filter { it.rank == 2 || it.rank == 3 }.sortedBy { it.rank }
+            val winner = ordered.firstOrNull { it.rank == 1 } ?: ordered.first()
+            val podium = ordered.filter { it.rank == 2 || it.rank == 3 }
             val firstTop = 430f
             drawWinnerCard(canvas, winner, pad, firstTop, contentWidth, 290f, portrait = false)
             val gap = 34f
             val cardWidth = (contentWidth - gap) / 2f
-            drawWinnerCard(canvas, podium[0], pad, 760f, cardWidth, 300f, portrait = false)
-            drawWinnerCard(canvas, podium[1], pad + cardWidth + gap, 760f, cardWidth, 300f, portrait = false)
-            drawFooter(canvas, format.width, format.height, pad, false)
+            podium.getOrNull(0)?.let {
+                drawWinnerCard(canvas, it, pad, 760f, cardWidth, 300f, portrait = false)
+            }
+            podium.getOrNull(1)?.let {
+                drawWinnerCard(canvas, it, pad + cardWidth + gap, 760f, cardWidth, 300f, portrait = false)
+            }
         }
+        drawFooter(canvas, format.width, format.height, pad, portrait)
 
         val output = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.JPEG, 94, output)
         bitmap.recycle()
         return output.toByteArray()
+    }
+
+    private fun drawNoParticipants(canvas: Canvas, x: Float, y: Float, width: Float, portrait: Boolean) {
+        val height = if (portrait) 300f else 260f
+        val rect = RectF(x, y, x + width, y + height)
+        val fill = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.argb(30, 28, 47, 69) }
+        canvas.drawRoundRect(rect, 34f, 34f, fill)
+        val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.argb(150, 55, 211, 232)
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+        }
+        canvas.drawRoundRect(rect, 34f, 34f, border)
+        val inset = if (portrait) 38f else 42f
+        val inner = width - inset * 2f
+        drawFit(canvas, "NO PARTICIPANTS", x + inset, y + height / 2f - 6f, inner, textPaint(if (portrait) 48f else 44f, gold, true))
+        drawFit(canvas, "No ranked results for this competition.", x + inset, y + height / 2f + 48f, inner, textPaint(26f, muted, false))
     }
 
     private fun drawBackground(canvas: Canvas, width: Int, height: Int) {
