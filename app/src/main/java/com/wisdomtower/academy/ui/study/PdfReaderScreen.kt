@@ -364,8 +364,10 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
             .pointerInput(Unit) {
                 awaitEachGesture {
                     awaitFirstDown(requireUnconsumed = false, pass = PointerEventPass.Initial)
+                    studyTimer.touch() // U3c
                     do {
                         val event = awaitPointerEvent(PointerEventPass.Initial)
+                        studyTimer.touch() // U3c
                         val pressed = event.changes.count { it.pressed }
                         if (pressed >= 2) {
                             val zoomChange = event.calculateZoom()
@@ -431,12 +433,14 @@ private fun PdfPages(file: File, resourceId: String?, modifier: Modifier) {
  * count as reading). Does nothing when the student is signed out.
  */
 private suspend fun saveReading(resourceId: String, page: Int, pageCount: Int, timer: ActiveStudyTimer) {
-    val seconds = timer.take(600) // U3b: active seconds only, at most 10 minutes per save
+    val slice = timer.takeSlice(600) // U3b + U3c: active seconds only (at most 10 minutes per save) and the focus part
+    val seconds = slice.seconds
     val percent = (page * 100 / pageCount.coerceAtLeast(1)).coerceIn(0, 100)
     LearningProgressRepository.saveProgress(
         resourceId = resourceId,
         progressPct = percent,
         addSeconds = seconds,
+        addFocusSeconds = slice.focusSeconds, // U3c
         lastPage = page
     )
 }

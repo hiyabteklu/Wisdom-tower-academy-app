@@ -91,14 +91,17 @@ private class NoteProgress {
 private fun flushNoteProgress(resourceId: String, progress: NoteProgress) {
     if (!progress.active) return
     // U3b: only the seconds the note was really in front (screen on, app open), at most 10 minutes per save
-    val seconds = progress.timer?.take(600) ?: 0
+    val slice = progress.timer?.takeSlice(600) // U3c: study seconds and the focus part of them
+    val seconds = slice?.seconds ?: 0
+    val focusSeconds = slice?.focusSeconds ?: 0
     if (seconds < 1) return
     val pct = progress.pct
     notesSaveScope.launch {
         LearningProgressRepository.saveProgress(
             resourceId = resourceId,
             progressPct = pct,
-            addSeconds = seconds
+            addSeconds = seconds,
+            addFocusSeconds = focusSeconds // U3c
         )
     }
 }
@@ -325,6 +328,7 @@ fun NotesReaderScreen(
                 try {
                     val pct = JSONObject(json).optInt("pct", 0).coerceIn(0, 100)
                     progress.pct = pct
+                    progress.timer?.touch() // U3c
                     notesSaveScope.launch {
                         LearningProgressRepository.saveProgress(resourceId = resourceId, progressPct = pct)
                     }
@@ -336,6 +340,7 @@ fun NotesReaderScreen(
             onPosition = { json ->
                 try {
                     val frac = JSONObject(json).optDouble("frac", 0.0).toFloat().coerceIn(0f, 1f)
+                    progress.timer?.touch() // U3c
                     statePrefs.edit().putFloat("pos_$resourceId", frac).apply()
                 } catch (e: Exception) {
                     // A bad position message must never break the reader.
@@ -357,6 +362,7 @@ fun NotesReaderScreen(
             },
             onTutorAsk = { json ->
                 // Runs on the main thread: the answer is pushed back with evaluateJavascript.
+                progress.timer?.touch() // U3c
                 screenScope.launch { startTutor(json) }
                 Unit
             },
