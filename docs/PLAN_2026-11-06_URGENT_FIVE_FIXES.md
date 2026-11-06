@@ -8,7 +8,7 @@
 Navigation, hubs, Other resources, free resources and every visible feature stay exactly as they are. Do not ask the owner
 questions he did not ask for; use the defaults written below.
 
-Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done (findings in U3). Next: U3b (fix time counting), then U3c. U2c is the owner's switch test. U1c waits for the release.**
+Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done. U3b written: ONE owner tap left: run patch `apply_u3b_study_time.py` (see U3b). Next: U3c (focus). U2c is the owner's switch test. U1c waits for the release.**
 
 ## Context
 - Update screen (slices 1-3) is merged (PR #106 and #107) and built. Not device-tested yet (needs a newer release, see U0).
@@ -123,13 +123,26 @@ Conclusion: "Total hours keeps rising" = idle/background/sleep time counted by t
 then define and write focus (U3c), then the screen (U3d).
 - Default for old totals (no question to the owner): keep every row, never delete; the new Total/Week/Month view reads the day
   log with each day capped at a sane limit (default 8 h) so the 4 runaway days stop dominating.
-- Plan for the rest:
-2. Fix the writing side: count only while the screen is on and the app is in the foreground; stop on pause/background/idle; cap one
-   flush (default 10 min) in BOTH readers; never two screens counting at once. Define "focus" in plain words and record it.
+
+### U3b — fix time counting (written 2026-11-06)
+- `ui/study/ActiveStudyTimer.kt` (new, pushed to main): `ActiveStudyTimer` counts only between resume and pause of the screen's
+  lifecycle (screen off and app in the background both pause it); `take(600)` hands out the counted seconds, at most 10 minutes per
+  save, and restarts from zero. `rememberActiveStudyTimer(key)` wires it to the screen.
+- `NotesReaderScreen.kt` and `PdfReaderScreen.kt` are big, so the small edits are a patch script: `scripts/apply_u3b_study_time.py`
+  (notes: `flushNoteProgress` adds `timer.take(600)`; PDF: `saveReading` adds `timer.take(600)`). Tested on mock copies; all-or-nothing
+  anchors; safe to run twice. Details and phone tests: `docs/SESSION_2026-11-06_U3B_STUDY_TIME.md`.
+  **Owner runs: Actions > Apply pending patches > script `apply_u3b_study_time.py`, branch `fix/u3b-study-time`.**
+  Wait for the build, test, then merge the pull request.
+- Old totals are not changed (default above).
+- [x] U3b files + patch written  - [ ] U3b patch applied + build + phone test + merge (owner)
+
+Plan for the rest:
+2. (done in U3b) count only while the screen is on and the app is in the foreground; cap one flush at 10 min; one reader at a time.
+   STILL TO DO in U3c: define "focus" in plain words and record it.
 3. Old wrong totals: default = recompute from the day log, never delete.
 4. New screen: one control **Today | Week | Month | Total**; clear graphs (bars per day/week, goal ring, study vs focus split,
    subject share). Real numbers only; unknown = dash.
-- [x] U3a audit + findings  - [ ] U3b fix time counting  - [ ] U3c fix/define focus  - [ ] U3d range control + graphs
+- [x] U3a audit + findings  - [x] U3b written  - [ ] U3c fix/define focus  - [ ] U3d range control + graphs
 
 ## U4 — Scholarship guide design (Other resources)
 Problem: every line is its own "Good to know" card. Code: `ui/guides/GuidesScreen.kt`.
@@ -155,3 +168,4 @@ for top-3 students). No phone/email on the image.
 - 2026-11-06 (owner): scope rule added; U1 narrowed to the AI tutor only, extra audit items and questions removed.
 - 2026-11-06: U2a + U2b written and pushed (table + web route). U2c is the owner's switch test.
 - 2026-11-06: U3a audit done: cause found in the two readers (uncapped/background time) and a missing focus writer.
+- 2026-11-06: U3b written (ActiveStudyTimer + patch script for the two readers).
