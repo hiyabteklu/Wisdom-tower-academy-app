@@ -267,6 +267,8 @@ fun NativeStatusScreen(
     var trackMenuOpen by remember { mutableStateOf(false) }
     val track = STATUS_TRACKS.firstOrNull { it.id == selectedTrackId } ?: defaultTrack
     val summary = remember(rows, track) { rows?.let { computeStatus(it, track) } }
+    // U3e: study time + focus of the four cards and of the summary sentence come from study_day_log (each day capped at 8 h)
+    val cappedTotals = rememberCappedStudyTotals(isLoggedIn)
     val name = studentName?.takeIf { it.isNotBlank() } ?: "Scholar"
 
     BackHandler(enabled = true) { onBack() }
@@ -375,7 +377,7 @@ fun NativeStatusScreen(
                         ) {
                             Text("STUDY PROGRESS SUMMARY", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = StSkyText, letterSpacing = 0.8.sp)
                             Text(
-                                "Your cumulative study time is ${formatStatusNumber(summary.totalStudyHours)} hours (${summary.totalStudyMinutes} minutes). Your active streak is ${summary.streakDays} days.",
+                                cumulativeStudySentence(cappedTotals, summary.streakDays), // U3e
                                 fontSize = 13.sp,
                                 color = StBody,
                                 lineHeight = 19.sp
@@ -419,7 +421,7 @@ fun NativeStatusScreen(
                         isError = errorText != null,
                         onRetry = { reloadKey += 1 }
                     )
-                    StHudCards(summary = null, track = track, dailyGoalMinutes = dailyGoalMinutes)
+                    StHudCards(summary = null, track = track, dailyGoalMinutes = dailyGoalMinutes, capped = cappedTotals)
                     // OFFLINE STATUS (O3): subject rows (empty, names from the packed list) and the day panel (its own saved copy)
                     StatusSubjectsPanel(rows = emptyList(), educationLevel = educationLevel, progressKnown = false)
                     StatusRangePanel(dailyGoalMinutes = dailyGoalMinutes) // U3d
@@ -430,7 +432,7 @@ fun NativeStatusScreen(
                     StRecommendationsPanel(recommendations = fixedRecommendations, name = name)
                 } else {
                     // 2. HUD cards
-                    StHudCards(summary = summary, track = track, dailyGoalMinutes = dailyGoalMinutes)
+                    StHudCards(summary = summary, track = track, dailyGoalMinutes = dailyGoalMinutes, capped = cappedTotals)
                     val accuracy = summary.accuracyPct
                     val accuracyAccent = when {
                         accuracy == null -> StMuted
@@ -572,7 +574,7 @@ private fun buildCountedLine(pickedKeys: Set<String>, excludedRecords: Int): Str
  * data (weekly target of the track, daily goal of the student) stay.
  */
 @Composable
-private fun StHudCards(summary: StatusSummary?, track: StatusTrack, dailyGoalMinutes: Int) {
+private fun StHudCards(summary: StatusSummary?, track: StatusTrack, dailyGoalMinutes: Int, capped: CappedStudyTotals? = null) {
     val streakAccent = when {
         summary == null -> StMuted
         summary.streakDays >= 7 -> StEmerald
@@ -592,7 +594,7 @@ private fun StHudCards(summary: StatusSummary?, track: StatusTrack, dailyGoalMin
         accuracy >= 50.0 -> "Developing"
         else -> "Needs Review"
     }
-    val focus = summary?.focusRatioPct
+    val focus = capped?.focusPct // U3e: from study_day_log (each day capped); a dash until focus is recorded
     val focusAccent = when {
         focus == null -> StMuted
         focus >= 75 -> StEmerald
@@ -606,8 +608,8 @@ private fun StHudCards(summary: StatusSummary?, track: StatusTrack, dailyGoalMin
         title = "Study Time",
         badge = null,
         accent = StSky,
-        big = if (summary != null) formatStatusNumber(summary.totalStudyHours) else "—",
-        unit = if (summary != null) "hrs" else null,
+        big = if (capped != null) formatStatusNumber(capped.hours) else "—", // U3e: capped day-log total
+        unit = if (capped != null) "hrs" else null,
         line = "Target: ${formatStatusNumber(track.weeklyTargetHours)} hrs/wk",
         footer = null
     )
