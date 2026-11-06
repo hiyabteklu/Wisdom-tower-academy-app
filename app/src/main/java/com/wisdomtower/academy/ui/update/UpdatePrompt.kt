@@ -5,10 +5,22 @@ import android.net.Uri
 import android.os.Build
 import android.provider.Settings
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBarsPadding
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -21,8 +33,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -37,6 +53,8 @@ import java.io.File
 /**
  * Update flow states (Slice 1). The button always reflects the real state, so there is
  * never a silent gap after the download finishes and a second tap cannot restart it.
+ * Slice 3: the screen is a full-screen gate (card on the app background, filled pill button,
+ * quiet Telegram link) instead of an AlertDialog. The logic below is unchanged.
  */
 private enum class UpdatePhase { Idle, Downloading, Installing, ReadyToInstall }
 
@@ -108,6 +126,26 @@ fun UpdatePrompt(
         }
     }
 
+    fun onUpdateClick() {
+        if (hasInstallPermission()) {
+            downloadAndInstall()
+        } else {
+            waitingForInstallPermission = true
+            status = "Allow installs for Wisdom Tower Academy, then return here."
+            try {
+                context.startActivity(
+                    Intent(
+                        Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
+                        Uri.parse("package:${context.packageName}")
+                    )
+                )
+            } catch (_: Exception) {
+                waitingForInstallPermission = false
+                status = "Open Android Settings and allow Install unknown apps for Wisdom Tower Academy."
+            }
+        }
+    }
+
     // If the installer never shows (or the user comes back without installing),
     // turn the button into "Install" so they can reopen it without downloading again.
     LaunchedEffect(phase) {
@@ -145,62 +183,99 @@ fun UpdatePrompt(
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
 
-    // A required update cannot be dismissed with Back or by tapping outside the dialog.
+    // A required update cannot be dismissed with Back.
     BackHandler(enabled = true) { }
 
-    AlertDialog(
-        onDismissRequest = { },
-        title = { Text("Update required") },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text("Wisdom Tower Academy ${release.versionName}", style = MaterialTheme.typography.titleMedium)
-                if (release.changelog.isNotEmpty()) {
-                    Text("What's new", style = MaterialTheme.typography.titleSmall)
-                    release.changelog.forEach { line -> Text("• $line", style = MaterialTheme.typography.bodyMedium) }
-                }
-                if (phase == UpdatePhase.Downloading) {
-                    if (progress == null) {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                    } else {
-                        LinearProgressIndicator(
-                            progress = { progress!!.coerceIn(0f, 1f) },
-                            modifier = Modifier.fillMaxWidth()
+    val colors = MaterialTheme.colorScheme
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(colors.background)
+            .systemBarsPadding()
+            .padding(20.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 480.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(28.dp))
+                .background(colors.surfaceContainer)
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                "Update required",
+                style = MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.Bold,
+                color = colors.onSurface,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                "Wisdom Tower Academy ${release.versionName}",
+                style = MaterialTheme.typography.titleSmall,
+                color = colors.primary,
+                textAlign = TextAlign.Center
+            )
+
+            if (release.changelog.isNotEmpty()) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 240.dp)
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        "What's new",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = colors.onSurface
+                    )
+                    release.changelog.forEach { line ->
+                        Text(
+                            "• $line",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = colors.onSurface
                         )
-                    }
-                    Text(progress?.let { "${(it * 100).toInt()}%" } ?: "Downloading…")
-                } else if (phase == UpdatePhase.Installing) {
-                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
-                }
-                status?.let { Text(it, style = MaterialTheme.typography.bodySmall) }
-                if (release.telegramUrl != null) {
-                    TextButton(enabled = !busy, onClick = { openTelegramFallback() }) {
-                        Text("Get APK from Telegram")
                     }
                 }
             }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = !busy,
-                onClick = {
-                    if (hasInstallPermission()) {
-                        downloadAndInstall()
-                    } else {
-                        waitingForInstallPermission = true
-                        status = "Allow installs for Wisdom Tower Academy, then return here."
-                        try {
-                            context.startActivity(
-                                Intent(
-                                    Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES,
-                                    Uri.parse("package:${context.packageName}")
-                                )
-                            )
-                        } catch (_: Exception) {
-                            waitingForInstallPermission = false
-                            status = "Open Android Settings and allow Install unknown apps for Wisdom Tower Academy."
-                        }
-                    }
+
+            if (phase == UpdatePhase.Downloading) {
+                if (progress == null) {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                } else {
+                    LinearProgressIndicator(
+                        progress = { progress!!.coerceIn(0f, 1f) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
+                Text(
+                    progress?.let { "${(it * 100).toInt()}%" } ?: "Downloading…",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurface
+                )
+            } else if (phase == UpdatePhase.Installing) {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+
+            status?.let {
+                Text(
+                    it,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = colors.onSurface,
+                    textAlign = TextAlign.Center
+                )
+            }
+
+            Button(
+                enabled = !busy,
+                onClick = { onUpdateClick() },
+                shape = CircleShape,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(52.dp)
             ) {
                 Text(
                     when (phase) {
@@ -208,9 +283,20 @@ fun UpdatePrompt(
                         UpdatePhase.Downloading -> "Downloading…"
                         UpdatePhase.Installing -> "Opening installer…"
                         UpdatePhase.ReadyToInstall -> "Install"
-                    }
+                    },
+                    fontWeight = FontWeight.SemiBold
                 )
             }
+
+            if (release.telegramUrl != null) {
+                TextButton(enabled = !busy, onClick = { openTelegramFallback() }) {
+                    Text(
+                        "Get APK from Telegram",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.onSurface.copy(alpha = 0.7f)
+                    )
+                }
+            }
         }
-    )
+    }
 }
