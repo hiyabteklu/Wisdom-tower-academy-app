@@ -8,7 +8,7 @@
 Navigation, hubs, Other resources, free resources and every visible feature stay exactly as they are. Do not ask the owner
 questions he did not ask for; use the defaults written below.
 
-Status: **U1a audit done. U1b written; ONE owner tap left: run patch `apply_u1b_tutor_gate.py` (see U1b). Next: U1c.**
+Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). Next: U2c (owner switch test), then U3a audit. U1c waits for the release.**
 
 ## Context
 - Update screen (slices 1-3) is merged (PR #106 and #107) and built. Not device-tested yet (needs a newer release, see U0).
@@ -50,13 +50,14 @@ course locks, free/Other resources, navigation. (They use the separate `/api/ai/
   then opens the normal sign-in route (`SignInNavigator`).
 - `NativeTutorScreen.kt` is a big file, so the 2-place edit is a patch script: `scripts/apply_u1b_tutor_gate.py`
   (adds 2 imports + "if signed out show TutorSignInGate and return" before `PauseShellWhileShown()`).
-  **Owner runs: Actions > Apply pending patches > script `apply_u1b_tutor_gate.py`, branch `fix/u1b-tutor-signin`.**
-  Wait for the build, test, then merge the pull request. Until it is merged the gate screen exists but is not shown.
+  **Owner ran it (2026-11-06): Actions > Apply pending patches > `apply_u1b_tutor_gate.py`, branch `fix/u1b-tutor-signin`.**
+  Checked in the branch on 2026-11-06: the gate (`AuthStateManager.isLoggedIn` -> `TutorSignInGate`) is in `NativeTutorScreen.kt`.
+  Still the owner's: wait for the build, test, then merge the pull request. Until it is merged the gate is not in `main`.
 - Test on the phone: signed out -> open AI Tutor from the drawer, from the Learning tile and from a note -> sign-in card each
   time (Night, Day, Transparent); tap Sign in -> sign-in page, no tutor screen left on top; signed in -> tutor answers as before.
-- [x] U1a audit  - [x] U1b files written  - [ ] U1b patch applied + merged (owner)
+- [x] U1a audit  - [x] U1b files written  - [x] U1b patch applied on its branch  - [ ] U1b build + phone test + merge (owner)
 
-### U1c — server side (next)
+### U1c — server side (next, but only after the release)
 Website repo `Wisdom-tower-academy-web`, route `/api/ai/tutor`: read the `Authorization` bearer token, verify it with Supabase
 (get-user), reject with 401 when missing/invalid. Do this AFTER the new app is released: apps older than U1b send no token and
 would stop getting tutor answers. Record any Supabase change under "Live Supabase changes".
@@ -74,7 +75,23 @@ Design:
 4. Owner changes it in the Supabase table editor first; later (optional U2d) a small native Admin screen "AI provider".
 5. Keys stay in the website host's environment variables, one per provider. Never in GitHub or in `ai_config`.
 Default provider order if the owner says nothing: the providers whose keys already exist on the website host.
-- [ ] U2a table + RLS  - [ ] U2b route reads config + fallback (web repo)  - [ ] U2c test switch  - [ ] U2d admin screen (optional)
+
+### U2a/U2b — done 2026-11-06
+- Supabase migration `u2a_ai_config_table`: table `public.ai_config`, exactly one row (`id = true`), seeded with `enabled = false`
+  (so nothing changes today). RLS on: only academy admins (`private.is_admin()`) can read/insert/update; the website server reads
+  it with the service role key (already a website host variable `SUPABASE_SERVICE_ROLE_KEY`).
+  `primary_provider` is one of `gateway`, `gemini`, `groq`; `fallback_order` is a JSON list like
+  `[{"provider":"gemini","model":"gemini-3.1-flash-lite"},{"provider":"groq","model":"llama-3.3-70b-versatile"}]`.
+- Web repo `Wisdom-tower-academy-web`: `src/lib/aiTutorConfig.ts` (new) + `src/app/api/ai/tutor/route.ts` (8 lines added, 2 removed).
+  When `enabled = true` the owner's primary + fallback list is tried FIRST, and the built-in default order is always kept at the END,
+  so a short or wrong list cannot leave the tutor with no model. A bad provider or model name in the table is skipped.
+  The table is read with a 1.5 s limit and a 60 s cache; if the read fails the built-in order is used (the student never waits).
+  The existing loop already moves to the next model on any error (429, 5xx, timeout).
+- How the owner switches (U2c): Supabase > Table editor > `ai_config` > set `primary_provider`, `primary_model` (and optionally
+  `fallback_order`), then set `enabled` to true. Live in about a minute. Set `enabled` back to false to return to the built-in order.
+  The provider's key must already exist on the website host (gateway: `AI_GATEWAY_API_KEY_TUTOR`, gemini: `GEMINI_API_KEY`,
+  groq: `GROQ_API_KEY_TUTOR`); a provider without its key is skipped.
+- [x] U2a table + RLS  - [x] U2b route reads config + fallback (web repo)  - [ ] U2c test switch (needs the Vercel deploy of the web repo)  - [ ] U2d admin screen (optional)
 
 ## U3 — My Status: check the numbers, then better screen
 Owner report: Total hours keeps rising (70+ h), Focus shows 0%. A day chart exists but there is no clean
@@ -110,8 +127,9 @@ for top-3 students). No phone/email on the image.
 - [ ] U5a design renderer  - [ ] U5b both sizes  - [ ] U5c entry points
 
 ## Live Supabase changes (record every one: migration name + one line)
-- none yet
+- 2026-11-06 `u2a_ai_config_table`: new table `public.ai_config` (one row, `enabled = false`, admin-only RLS, `updated_at` trigger). No existing table touched.
 
 ## Plan changes
 - 2026-11-06: U1 gains a server part (U1c) because the tutor route accepted anyone.
 - 2026-11-06 (owner): scope rule added; U1 narrowed to the AI tutor only, extra audit items and questions removed.
+- 2026-11-06: U2a + U2b written and pushed (table + web route). U2c is the owner's switch test.
