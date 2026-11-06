@@ -8,7 +8,7 @@
 Navigation, hubs, Other resources, free resources and every visible feature stay exactly as they are. Do not ask the owner
 questions he did not ask for; use the defaults written below.
 
-Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done. U3b written: ONE owner tap left: run patch `apply_u3b_study_time.py` (see U3b). Next: U3c (focus). U2c is the owner's switch test. U1c waits for the release.**
+Status: **U1a audit done. U1b patch applied by the owner on branch `fix/u1b-tutor-signin` (build, phone test and merge of the pull request are the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done. U3b is in main (both readers use `ActiveStudyTimer`, seen 2026-11-06; phone test still the owner's). U3c written: ONE owner tap left: run patch `apply_u3c_focus.py` (see U3c). Next: U3d (range control + graphs). U2c is the owner's switch test. U1c waits for the release.**
 
 ## Context
 - Update screen (slices 1-3) is merged (PR #106 and #107) and built. Not device-tested yet (needs a newer release, see U0).
@@ -131,18 +131,29 @@ then define and write focus (U3c), then the screen (U3d).
 - `NotesReaderScreen.kt` and `PdfReaderScreen.kt` are big, so the small edits are a patch script: `scripts/apply_u3b_study_time.py`
   (notes: `flushNoteProgress` adds `timer.take(600)`; PDF: `saveReading` adds `timer.take(600)`). Tested on mock copies; all-or-nothing
   anchors; safe to run twice. Details and phone tests: `docs/SESSION_2026-11-06_U3B_STUDY_TIME.md`.
-  **Owner runs: Actions > Apply pending patches > script `apply_u3b_study_time.py`, branch `fix/u3b-study-time`.**
-  Wait for the build, test, then merge the pull request.
+  **Applied and merged: both reader files on `main` use `rememberActiveStudyTimer` (checked 2026-11-06).**
 - Old totals are not changed (default above).
-- [x] U3b files + patch written  - [ ] U3b patch applied + build + phone test + merge (owner)
+- [x] U3b files + patch written  - [x] U3b patch applied + merged (seen in main)  - [ ] U3b phone test (owner)
+
+### U3c — define and record focus (written 2026-11-06)
+- **Focus in plain words (default, no question to the owner):** a second is focus when the student touched, scrolled or turned a
+  page in the last 3 minutes. Continuous reading with no pause longer than 3 minutes = all focus. After 3 minutes with no touch the
+  time still counts as study time, but not as focus, until the next touch. Coming back to the screen counts as a touch.
+- `ui/study/ActiveStudyTimer.kt` (updated on main): `touch()`, `takeSlice(maxSeconds)` (study seconds + focus seconds), `StudySlice`;
+  `take()` still works. Focus is never more than study time.
+- `scripts/apply_u3c_focus.py` (patch script): the notes reader and the PDF reader report touches and save `addFocusSeconds`.
+  `LearningProgressRepository` already writes it to `learning_progress.focus_seconds` and `study_day_log`, so no database change.
+  Tested on mock copies; all-or-nothing anchors; safe to run twice. Details and phone tests: `docs/SESSION_2026-11-06_U3C_FOCUS.md`.
+  **Owner runs: Actions > Apply pending patches > script `apply_u3c_focus.py`, branch `fix/u3c-focus`.**
+  Wait for the build, test, then merge the pull request.
+- Old rows keep their focus as it is (mostly 0 for the app); U3d decides how to show old days.
+- [x] U3c files + patch written  - [ ] U3c patch applied + build + phone test + merge (owner)
 
 Plan for the rest:
-2. (done in U3b) count only while the screen is on and the app is in the foreground; cap one flush at 10 min; one reader at a time.
-   STILL TO DO in U3c: define "focus" in plain words and record it.
 3. Old wrong totals: default = recompute from the day log, never delete.
-4. New screen: one control **Today | Week | Month | Total**; clear graphs (bars per day/week, goal ring, study vs focus split,
+4. New screen (U3d): one control **Today | Week | Month | Total**; clear graphs (bars per day/week, goal ring, study vs focus split,
    subject share). Real numbers only; unknown = dash.
-- [x] U3a audit + findings  - [x] U3b written  - [ ] U3c fix/define focus  - [ ] U3d range control + graphs
+- [x] U3a audit + findings  - [x] U3b written + merged  - [x] U3c written  - [ ] U3d range control + graphs
 
 ## U4 — Scholarship guide design (Other resources)
 Problem: every line is its own "Good to know" card. Code: `ui/guides/GuidesScreen.kt`.
@@ -169,3 +180,4 @@ for top-3 students). No phone/email on the image.
 - 2026-11-06: U2a + U2b written and pushed (table + web route). U2c is the owner's switch test.
 - 2026-11-06: U3a audit done: cause found in the two readers (uncapped/background time) and a missing focus writer.
 - 2026-11-06: U3b written (ActiveStudyTimer + patch script for the two readers).
+- 2026-11-06: U3b found merged in main. U3c written (focus = touched in the last 3 minutes; ActiveStudyTimer.touch/takeSlice + patch script for the two readers).
