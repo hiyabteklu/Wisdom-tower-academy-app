@@ -4,7 +4,7 @@
 > Owner rule: plan first, push every slice straight to `main`, one slice = one commit, tick this file in the same commit
 > (see `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`). Talk to the owner in plain words.
 
-Status: **PLAN WRITTEN, NO CODE YET.** Read this file first, then continue at the first unticked slice.
+Status: **U1a (audit) DONE. Next: U1b (app gate).** No app code changed yet.
 
 ## Context
 - Update screen (slices 1-3) is merged (PR #106 and #107) and built. Not device-tested yet (needs a newer release, see U0).
@@ -23,16 +23,35 @@ So the release recipe is:
 
 ## U1 — Login first for anything that talks to the database (do first)
 Problem: AI tutor (and other database features) open for signed-out users.
-Plan:
-1. Audit: list every screen/button that reaches `AiTutorRepository`, `AiExplainRepository`, progress/status/notes sync,
-   competitions, downloads and any other Supabase call. Record the list in this file under "U1 audit".
-2. One shared gate: if signed out, show the sign-in screen (with a plain sentence: "Sign in to use this") instead of opening
-   the feature. One reusable wrapper, not a copy per screen. Works in Night, Day and Transparent looks.
-3. Server side too (the app gate alone can be bypassed): the website route `/api/ai/tutor` must reject requests without a valid
-   Supabase login token (401), and Supabase tables must have row-level security so a signed-out request reads/writes nothing
-   private. Record each live Supabase change below.
-4. Free resources stay open only where the owner already decided they are free (confirm list with owner in the audit).
-- [ ] U1a audit written  - [ ] U1b app gate  - [ ] U1c server/RLS check
+
+### U1 audit (2026-11-06, read from code on main)
+Main finding: **the AI tutor route needs no sign-in at all.** `data/content/AiTutorRepository.kt` posts to
+`<site>/api/ai/tutor` with NO login token, and its own comment says "the route needs no sign-in". So anyone with the app
+(or the URL) can use up the free AI quota. An app-side gate alone is not enough; the server must check the token too.
+
+Tools already in the code that we reuse (do not invent new ones):
+- `AuthStateManager.isLoggedIn` (StateFlow), `AuthStateManager.currentUser.value?.accessToken`,
+  `AuthStateManager.refreshIfNeeded()` (renews the token before it expires).
+- `ui/theme/WisdomMessageCard.kt`: shared message card with `showSignIn = true`; `onSignIn = null` uses the app's normal
+  sign-in route (`SignInNavigator`). This is the gate's look; works in Night/Day/Transparent.
+
+| # | Place (file) | What it calls | Signed-out today | Needed |
+|---|---|---|---|---|
+| 1 | `ui/study/NativeTutorScreen.kt` (global tutor overlay; opened from drawer/Learning tile via `NativeToolRequests.requestTutor`, from `LearningScreen`, `MainActivity`) | `AiTutorRepository.stream` | opens and works | show sign-in card instead of chat |
+| 2 | `ui/study/NotesReaderScreen.kt` ("Ask AI tutor" button, `requestTutorWithContext`) | same | opens | hide/replace the button with sign-in card |
+| 3 | `ui/study/QuizExamScreen.kt` (AI explain after a question) | `AiExplainRepository` -> same route | works | sign-in card in the explain panel |
+| 4 | `ui/competition/CompetitionReviewScreen.kt` (AI explain in review) | `AiExplainRepository` | works (competitions need login anyway; verify) | same gate |
+| 5 | Server route `/api/ai/tutor` (web repo `Wisdom-tower-academy-web`) | AI providers | accepts anyone | require `Authorization: Bearer <Supabase token>`, verify it, else 401 |
+| 6 | `AiTutorRepository` and `AiExplainRepository` | request has no auth header | - | send the token; if no session return a "sign in" event, not "Failed" |
+
+Already gated (seen in code, only re-check on device): Your Status (`NativeStatusScreen` has `isLoggedIn`), notifications
+(sign-in card), hub lists and course locks (`ContentAccess.staticLocks(basePath, loggedIn)`).
+Still TO CHECK in U1b/U1c (not yet read): Planner/Notebook/Targets sync, Competitions hub entry, Leaderboard, downloads,
+free-resource entries (owner decides which stay open), Supabase RLS on `progress`, `ai_*`, planner, notes tables.
+
+- [x] U1a audit written (this table)
+- [ ] U1b app gate: one `SignedOutGate` composable (wraps `WisdomMessageCard(showSignIn=true)`), used by rows 1-4; repositories add the token (row 6)
+- [ ] U1c server + database: route requires and verifies the token (row 5); check RLS on the tables above; record each change under "Live Supabase changes"
 
 ## U2 — Change the main AI tutor model without releasing an app update
 Facts: the app calls the website route `/api/ai/tutor` (repo `hiyabteklu/Wisdom-tower-academy-web`); the AI keys already live on
@@ -98,9 +117,10 @@ Plan:
 - AI providers you want in the chain, in order (default: whatever keys already exist on the website host).
 - Should students also download the top-3 image, or only admin? (default: admin export + a share button for top 3 students)
 - Old wrong study hours: hide / recompute / reset? (default: recompute from the day log, never delete)
+- Which free resources may stay open without sign-in? (default: only the public guides/resources the owner already marked free)
 
 ## Live Supabase changes (record every one: migration name + one line)
 - none yet
 
 ## Plan changes
-- none yet
+- 2026-11-06: U1 gains a server part (row 5) because the tutor route currently needs no login; an app-only gate would not protect the quota.
