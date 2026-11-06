@@ -1,0 +1,273 @@
+/* ============================== 5b. SCHOLARSHIP ARTICLE (U4) ============================== */
+/*
+ * U4 (docs/PLAN_2026-11-06_URGENT_FIVE_FIXES.md): the scholarship guide text (free_resource_pages.body_md, slug
+ * "scholarships") is a written article: "## " headings, "### " sub-headings, "> " tips, "- " lists, **bold**, *italic*.
+ * The old Tip landing cut it at EVERY blank line, so each paragraph became its own card and everything after the
+ * fourth was labelled "Good to know". Here: ONE card per "## " heading (title + number), the "### " lines are
+ * sub-headings inside the card, "- " lines are an icon checklist, "> " lines are one unlabelled tip box.
+ * The WORDING IS NEVER CHANGED (only the markdown marks are turned into bold / italic). If the text has no "## "
+ * heading (for example the built-in default intro), the old Tip landing is used as before.
+ *
+ * This block is inserted by scripts/apply_u4_scholarship_article.py into GuidesScreen.kt (it uses that file's
+ * private helpers). STATUS: written, NOT compiled; the first branch build is the real test.
+ */
+
+private sealed class SchArtItem {
+    class Para(val text: String) : SchArtItem()
+    class Sub(val title: String) : SchArtItem()
+    class Bullets(val items: List<String>) : SchArtItem()
+    class Callout(val text: String) : SchArtItem()
+}
+
+private class SchArtSection(val title: String, val items: List<SchArtItem>)
+
+private val SCH_ARTICLE_ICONS = listOf(
+    Icons.Filled.Warning, Icons.Filled.School, Icons.Filled.Create,
+    Icons.Filled.DateRange, Icons.Filled.Search, Icons.Filled.CheckCircle
+)
+private val SCH_ARTICLE_ACCENTS = listOf(
+    WisdomAccentRose, WisdomAccentAmber, WisdomAccentSky,
+    WisdomAccentViolet, WisdomAccentOrange, WisdomAccentEmerald
+)
+
+/**
+ * Reads the markdown line by line. Blank line = end of a paragraph / list / tip. A "## " (or "# ") line starts a new
+ * card. Text before the first heading becomes an untitled card.
+ */
+private fun parseSchArticle(raw: String): List<SchArtSection> {
+    val sections = mutableListOf<SchArtSection>()
+    var title = ""
+    var items = mutableListOf<SchArtItem>()
+    var para = mutableListOf<String>()
+    var bullets = mutableListOf<String>()
+    var quote = mutableListOf<String>()
+
+    fun flush() {
+        if (para.isNotEmpty()) {
+            items.add(SchArtItem.Para(para.joinToString(" ")))
+            para = mutableListOf()
+        }
+        if (bullets.isNotEmpty()) {
+            items.add(SchArtItem.Bullets(bullets))
+            bullets = mutableListOf()
+        }
+        if (quote.isNotEmpty()) {
+            items.add(SchArtItem.Callout(quote.joinToString(" ")))
+            quote = mutableListOf()
+        }
+    }
+
+    fun closeSection() {
+        flush()
+        if (title.isNotBlank() || items.isNotEmpty()) {
+            sections.add(SchArtSection(title, items))
+        }
+        title = ""
+        items = mutableListOf()
+    }
+
+    for (rawLine in raw.lines()) {
+        val line = rawLine.trim()
+        when {
+            line.isEmpty() -> flush()
+            line.startsWith("### ") -> {
+                flush()
+                items.add(SchArtItem.Sub(line.removePrefix("### ").trim()))
+            }
+            line.startsWith("## ") -> {
+                closeSection()
+                title = line.removePrefix("## ").trim()
+            }
+            line.startsWith("# ") -> {
+                closeSection()
+                title = line.removePrefix("# ").trim()
+            }
+            line.startsWith(">") -> {
+                if (para.isNotEmpty() || bullets.isNotEmpty()) flush()
+                val q = line.removePrefix(">").trim()
+                if (q.isNotEmpty()) quote.add(q)
+            }
+            line.startsWith("•") || line.startsWith("- ") || line.startsWith("* ") -> {
+                if (para.isNotEmpty() || quote.isNotEmpty()) flush()
+                bullets.add(if (line.startsWith("•")) line.drop(1).trim() else line.drop(2).trim())
+            }
+            else -> {
+                if (bullets.isNotEmpty() || quote.isNotEmpty()) flush()
+                para.add(line)
+            }
+        }
+    }
+    closeSection()
+    return sections
+}
+
+/** **bold** and *italic* marks become real bold / italic text. The words are not changed. */
+private fun schInline(text: String): AnnotatedString {
+    val segs = mutableListOf<Triple<String, Boolean, Boolean>>()
+    val sb = StringBuilder()
+    var bold = false
+    var italic = false
+
+    fun cut() {
+        if (sb.isNotEmpty()) {
+            segs.add(Triple(sb.toString(), bold, italic))
+            sb.setLength(0)
+        }
+    }
+
+    var i = 0
+    while (i < text.length) {
+        if (text.startsWith("**", i)) {
+            cut()
+            bold = !bold
+            i += 2
+        } else if (text[i] == '*') {
+            cut()
+            italic = !italic
+            i += 1
+        } else {
+            sb.append(text[i])
+            i += 1
+        }
+    }
+    cut()
+    return buildAnnotatedString {
+        segs.forEach { (t, isBold, isItalic) ->
+            withStyle(
+                SpanStyle(
+                    fontWeight = if (isBold) FontWeight.Bold else null,
+                    fontStyle = if (isItalic) FontStyle.Italic else null
+                )
+            ) { append(t) }
+        }
+    }
+}
+
+/** The whole article: one card per heading, soft rise-in like the other guide pages. */
+@Composable
+private fun SchArticleView(sections: List<SchArtSection>) {
+    Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        sections.forEachIndexed { i, section ->
+            Reveal(i) {
+                SchArticleCard(
+                    number = (i + 1).toString().padStart(2, '0'),
+                    icon = SCH_ARTICLE_ICONS[i % SCH_ARTICLE_ICONS.size],
+                    accent = SCH_ARTICLE_ACCENTS[i % SCH_ARTICLE_ACCENTS.size],
+                    section = section
+                )
+            }
+        }
+    }
+}
+
+/** One card: gradient glass, big faded number, round icon + heading, then paragraphs / sub-headings / lists / tips. */
+@Composable
+private fun SchArticleCard(number: String, icon: ImageVector, accent: Color, section: SchArtSection) {
+    val shape = RoundedCornerShape(26.dp)
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(Brush.linearGradient(listOf(accent.copy(alpha = 0.18f), accent.copy(alpha = 0.04f))))
+            .border(
+                BorderStroke(
+                    1.dp,
+                    Brush.linearGradient(listOf(accent.copy(alpha = 0.6f), WisdomInk.copy(alpha = 0.06f)))
+                ),
+                shape
+            )
+    ) {
+        Text(
+            text = number,
+            fontFamily = OutfitFontFamily,
+            fontWeight = FontWeight.Bold,
+            fontSize = 56.sp,
+            color = accent.copy(alpha = 0.10f),
+            modifier = Modifier
+                .align(Alignment.TopEnd)
+                .padding(top = 4.dp, end = 18.dp)
+        )
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            if (section.title.isNotBlank()) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    IconTile(icon = icon, accent = accent, tile = 44.dp, glyph = 24.dp)
+                    Text(
+                        text = section.title,
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp,
+                        color = WisdomInk,
+                        modifier = Modifier
+                            .weight(1f)
+                            .padding(end = 40.dp)
+                    )
+                }
+            }
+            section.items.forEach { item ->
+                when (item) {
+                    is SchArtItem.Para -> Text(text = schInline(item.text), style = TipBodyStyle)
+                    is SchArtItem.Sub -> Text(
+                        text = item.title,
+                        fontFamily = OutfitFontFamily,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 16.sp,
+                        lineHeight = 22.sp,
+                        color = accent,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+                    is SchArtItem.Bullets -> Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        item.items.forEach { b -> SchArticleBullet(text = schInline(b), accent = accent) }
+                    }
+                    is SchArtItem.Callout -> SchArticleCallout(text = schInline(item.text))
+                }
+            }
+        }
+    }
+}
+
+/** Checklist line: round accent tile with a tick, then the text (bold / italic marks applied). */
+@Composable
+private fun SchArticleBullet(text: AnnotatedString, accent: Color) {
+    Row(horizontalArrangement = Arrangement.spacedBy(12.dp), verticalAlignment = Alignment.Top) {
+        Box(
+            modifier = Modifier
+                .padding(top = 1.dp)
+                .size(26.dp)
+                .clip(CircleShape)
+                .background(accent.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CheckCircle,
+                contentDescription = null,
+                tint = accent,
+                modifier = Modifier.size(16.dp)
+            )
+        }
+        Text(text = text, style = TipBodyStyle, modifier = Modifier.weight(1f))
+    }
+}
+
+/** A "> " tip of the article: amber box, bulb, text in the guide quote style. No label. */
+@Composable
+private fun SchArticleCallout(text: AnnotatedString) {
+    val shape = RoundedCornerShape(22.dp)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .background(WisdomAccentAmber.copy(alpha = 0.08f))
+            .border(BorderStroke(1.dp, WisdomAccentAmber.copy(alpha = 0.3f)), shape)
+            .padding(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.Top
+    ) {
+        IconTile(icon = Icons.Filled.Lightbulb, accent = WisdomAccentAmber, tile = 36.dp, glyph = 20.dp)
+        Text(text = text, style = GuideQuoteStyle, modifier = Modifier.weight(1f))
+    }
+}
+

@@ -8,7 +8,7 @@
 Navigation, hubs, Other resources, free resources and every visible feature stay exactly as they are. Do not ask the owner
 questions he did not ask for; use the defaults written below.
 
-Status: **U1a audit done. U1b is merged (PR #108; phone test still the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done. U3b, U3c (PR #110) and U3d (PR #111) are merged in main (seen 2026-11-06; phone tests still the owner's). U3e written: owner runs patch `apply_u3e_cards.py`. Next: U4. U2c is the owner's switch test. U1c waits for the release.**
+Status: **U1a audit done. U1b is merged (PR #108; phone test still the owner's). U2a + U2b done (web route reads `ai_config`, switched OFF). U3a audit done. U3b, U3c (PR #110), U3d (PR #111) and U3e (PR #112) are merged in main (seen 2026-11-06; phone tests still the owner's). U4 written: owner runs patch `apply_u4_scholarship_article.py`. Next: U5. U2c is the owner's switch test. U1c waits for the release.**
 
 ## Context
 - Update screen (slices 1-3) is merged (PR #106 and #107) and built. Not device-tested yet (needs a newer release, see U0).
@@ -171,11 +171,11 @@ most 8 h, nothing deleted. The Focus card uses the day-log focus (a dash until f
   so it could cut the year saved for the Study time panel (Total button and cards would show a small number offline). `saveSnapshot` now MERGES by day.
   Tested on a copy of the real `NativeStatusScreen.kt` of main and a mock of the reader: patches all, second run = "already patched", a wrong anchor
   changes nothing. The Kotlin is NOT compiled, so the first branch build is the real test. Details and phone tests: `docs/SESSION_2026-11-06_U3E_CARDS.md`.
-  **Owner runs: Actions > Apply pending patches > script `apply_u3e_cards.py`, branch `fix/u3e-cards`.** Wait for the build, test, merge.
+  **Owner ran: Actions > Apply pending patches > script `apply_u3e_cards.py`, branch `fix/u3e-cards`; merged as PR #112.**
 - Students whose study is only in the old rows (before the day log existed) will see a smaller total: the planned default, nothing is deleted.
 - NOT changed (not asked): "Your week" block and the status picture (`StatusCardData`), the retention panel and the alert/tip texts in `NativeStatusModel.kt`
   still use the old rows. Ask the owner only if he wants them to follow.
-- [x] U3a audit + findings  - [x] U3b written + merged  - [x] U3c written + merged  - [x] U3d written + merged  - [x] U3e written  - [ ] U3e patch applied + build + phone test + merge (owner)
+- [x] U3a audit + findings  - [x] U3b written + merged  - [x] U3c written + merged  - [x] U3d written + merged  - [x] U3e written + merged (PR #112, seen 2026-11-06)  - [ ] U3e phone test (owner)
 
 ## U4 — Scholarship guide design (Other resources)
 Problem: every line is its own "Good to know" card. Code: `ui/guides/GuidesScreen.kt`.
@@ -183,7 +183,20 @@ Plan: group the lines into real categories (Who can apply, Documents needed, Dea
 benefits, Tips and warnings), one heading + one card per category with a tidy list; "Good to know" at most once, for real tips.
 Same layout for the other guides if they share the code. Keep Night/Day/Transparent and text-size settings. Only the design of
 this guide changes; its place in navigation does not.
-- [ ] U4a regroup content  - [ ] U4b new layout
+
+### U4 audit + written (2026-11-06)
+The guide text is the owner's own article in `public.free_resource_pages.body_md` (slug `scholarships`, read-only check): 6 headings (`##`), 9 sub-headings (`###`),
+2 tips (`>`), 2 lists (`-`), **bold** and *italic*. The old Tip landing (`parseTipBlocks` + `TipLanding`) cut it at every blank line, so every paragraph became a card and
+everything after the fourth was labelled "Good to know". Default (no question to the owner): the owner's headings ARE the categories, so the wording is never changed or regrouped.
+- One card per `##` heading (number, icon, title); `###` = sub-headings inside the card; `-` = tick list; `>` = one unlabelled tip box (so "Good to know" disappears); bold / italic marks shown as real bold / italic.
+  Text without any `##` heading (the built-in default intro) keeps the old Tip landing. Only the Scholarships tab changes; the other guides do not share this text.
+- `scripts/u4/ScholarshipArticle.kt.txt` (text on main, so main still builds) + patch `scripts/apply_u4_scholarship_article.py` (4 imports, inserts the block into `GuidesScreen.kt`
+  because it needs that file's private helpers, switches `ScholarshipsFullSection`). Tested on a mock copy with the real anchors (second run = "already patched", a wrong anchor writes
+  nothing) and the parsing logic with a Python port on the real structure (6 cards, 2 tips, every word kept). The Kotlin is NOT compiled, so the first branch build is the real test.
+  Details and phone tests: `docs/SESSION_2026-11-06_U4_SCHOLARSHIP_ARTICLE.md`.
+  **Owner runs: Actions > Apply pending patches > script `apply_u4_scholarship_article.py`, branch `fix/u4-scholarship-article`.** Wait for the build, test, merge.
+- No live Supabase change in U4 (the guide text itself is untouched).
+- [x] U4a audit + regroup by the owner's headings  - [x] U4b new layout written  - [ ] U4 patch applied + build + phone test + merge (owner)
 
 ## U5 — Golden celebration for the top 3 (leaderboard) as a JPG, 4:3 and 9:16
 Facts: `ui/admin/LeaderboardJpgRenderer.kt` draws a 9:16 (1080x1920) leaderboard JPG used only from Admin > Competitions, plain
@@ -205,3 +218,4 @@ for top-3 students). No phone/email on the image.
 - 2026-11-06: U3b found merged in main. U3c written (focus = touched in the last 3 minutes; ActiveStudyTimer.touch/takeSlice + patch script for the two readers).
 - 2026-11-06: U3d written (Study time panel with Today | Week | Month | Total, reads study_day_log with each day capped at 8 h). New slice U3e added: the four cards use the same capped total.
 - 2026-11-06: U1b, U3c and U3d found merged in main (PR #108, #110, #111). U3e written (cards + summary sentence use the capped day-log total; Focus card uses day-log focus). Extra: the offline day-log copy now merges by day so the 7-day panel cannot cut the long history.
+- 2026-11-06: U3e found merged in main (PR #112). U4 audited and written: the scholarship text is an article, so the layout is one card per `##` heading (not the six categories first guessed); wording unchanged; no Supabase change.
