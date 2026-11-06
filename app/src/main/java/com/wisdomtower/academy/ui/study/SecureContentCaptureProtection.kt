@@ -15,6 +15,11 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 /**
  * Applies FLAG_SECURE only while a protected student reader/exam is composed.
  * Admin screens remain capturable; leaderboard exports are rendered from data, not screenshots.
+ *
+ * OWNER ORDER 2026-11-06 (marketing screenshots and screen recordings): FLAG_SECURE is switched OFF everywhere.
+ * The two `window.addFlags(...FLAG_SECURE)` calls below are commented out. The `clearFlags` calls stay on purpose,
+ * so a window can never keep the flag. To turn protection back on, remove the `//` in front of both addFlags lines
+ * (marked "DISABLED 2026-11-06") and ship a new build.
  */
 @Composable
 fun SecureContentCaptureProtection() {
@@ -52,12 +57,14 @@ private object SecureWindowFlag {
             activeReaders = 0
         }
         activeReaders += 1
-        window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+        // DISABLED 2026-11-06 (owner order, marketing captures):
+        // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
     }
 
     fun refresh(window: Window) = synchronized(lock) {
         if (protectedWindow === window && activeReaders > 0) {
-            window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
+            // DISABLED 2026-11-06 (owner order, marketing captures):
+            // window.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         }
     }
 
