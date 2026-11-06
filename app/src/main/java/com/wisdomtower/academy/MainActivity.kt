@@ -102,7 +102,7 @@ import com.wisdomtower.academy.data.update.UpdateCheckResult
 import com.wisdomtower.academy.data.update.AppRelease
 import com.wisdomtower.academy.ui.update.UpdatePrompt
 import com.wisdomtower.academy.ui.update.UpdateCheckBlocked
-import com.wisdomtower.academy.ui.update.UpdateCheckingScreen
+import kotlinx.coroutines.flow.first
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -884,6 +884,7 @@ class MainActivity : ComponentActivity() {
                 val updateLifecycleOwner = LocalLifecycleOwner.current
                 var updateRelease by remember { mutableStateOf<AppRelease?>(null) }
                 var updateGateState by remember { mutableStateOf(UpdateGateState.Checking) }
+                var gateOpenEarly by remember { mutableStateOf(false) }
                 var lastUpdateCheckAt by remember { mutableStateOf(0L) }
                 var updateCheckRunning by remember { mutableStateOf(false) }
 
@@ -892,7 +893,7 @@ class MainActivity : ComponentActivity() {
                     if (!updateCheckRunning && (force || now - lastUpdateCheckAt >= 60L * 60L * 1000L)) {
                         updateCheckRunning = true
                         lastUpdateCheckAt = now
-                        val wasAlreadyReady = updateGateState == UpdateGateState.Ready
+                        val wasAlreadyReady = updateGateState == UpdateGateState.Ready || gateOpenEarly
                         if (!wasAlreadyReady) updateGateState = UpdateGateState.Checking
                         try {
                             when (val result = UpdateRepository.checkLatest(updateContext)) {
@@ -928,10 +929,17 @@ class MainActivity : ComponentActivity() {
                 // Release the Android system splash as soon as the first Compose gate frame
                 // has been drawn. MainScreen's onReady callback is not reached while the
                 // mandatory-update/checking screens are shown.
+                // Silent check: keep the system splash up to 1.5 s while the check runs. If it is slow,
+                // open the app anyway (fail open); a later forced-update result still shows the prompt.
                 LaunchedEffect(Unit) {
+                    launch { checkUpdate(true) }
+                    kotlinx.coroutines.withTimeoutOrNull(1500L) {
+                        androidx.compose.runtime.snapshotFlow { updateGateState }
+                            .first { it != UpdateGateState.Checking }
+                    }
+                    if (updateGateState == UpdateGateState.Checking) gateOpenEarly = true
                     androidx.compose.runtime.withFrameNanos { }
                     keepSplash = false
-                    checkUpdate(true)
                 }
                 androidx.compose.runtime.DisposableEffect(updateLifecycleOwner) {
                     val observer = LifecycleEventObserver { _, event ->
@@ -948,7 +956,15 @@ class MainActivity : ComponentActivity() {
                 }
 
                 when (updateGateState) {
-                    UpdateGateState.Checking -> UpdateCheckingScreen()
+                    UpdateGateState.Checking -> if (gateOpenEarly) {
+                        MainScreen(
+                            onReady = { keepSplash = false },
+                            initialNotificationUrl = pendingNotificationUrl.value,
+                            onNotificationUrlConsumed = { pendingNotificationUrl.value = null }
+                        )
+                    } else {
+                        Box(Modifier.fillMaxSize().background(Color(0xFF060B15)))
+                    }
                     UpdateGateState.Unavailable -> UpdateCheckBlocked(
                         onRetry = {
                             updateLifecycleOwner.lifecycleScope.launch { checkUpdate(true) }
