@@ -170,7 +170,7 @@ object StudyDayLogReader {
             .addQueryParameter("user_id", "eq.$userId")
             .addQueryParameter("day", "gte.$sinceDay")
             .addQueryParameter("order", "day.asc")
-            .addQueryParameter("limit", "60")
+            .addQueryParameter("limit", "500") // U3d: was 60; the status panel reads about a year
             .build()
         val request = Request.Builder()
             .url(url)

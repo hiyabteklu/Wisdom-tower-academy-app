@@ -422,6 +422,7 @@ fun NativeStatusScreen(
                     StHudCards(summary = null, track = track, dailyGoalMinutes = dailyGoalMinutes)
                     // OFFLINE STATUS (O3): subject rows (empty, names from the packed list) and the day panel (its own saved copy)
                     StatusSubjectsPanel(rows = emptyList(), educationLevel = educationLevel, progressKnown = false)
+                    StatusRangePanel(dailyGoalMinutes = dailyGoalMinutes) // U3d
                     StatusDayPanel(dailyGoalMinutes = dailyGoalMinutes)
                     // Competition points (own saved copy, own offline states)
                     StatusCompetitionPanel()
@@ -437,6 +438,9 @@ fun NativeStatusScreen(
                         accuracy >= 50.0 -> StAmber
                         else -> StRose
                     }
+
+                    // U3d: Today | Week | Month | Total (study and focus from study_day_log, each day capped at 8 h)
+                    StatusRangePanel(dailyGoalMinutes = dailyGoalMinutes)
 
                     // STATUS CARD (S2): plain "Your week" sentences (own file, reads StatusCardData)
                     StatusWeekBlock(rows = rows.orEmpty(), summary = summary, track = track, studentName = name, educationLevel = educationLevel)
