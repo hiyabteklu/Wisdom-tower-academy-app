@@ -28,6 +28,8 @@ sealed class LeaderboardExportResult {
 /**
  * The export data is fetched through an admin-only SECURITY DEFINER RPC.
  * The function checks private.is_admin() on every request; no UI-only admin flag is trusted.
+ * U5 (2026-11-06, owner): NO minimum number of participants. The server now returns 0, 1, 2 or 3 winners
+ * (migration u5_admin_competition_export_no_minimum) and the image is drawn with whoever exists.
  */
 object LeaderboardExportRepository {
     suspend fun load(context: Context, competitionId: String): LeaderboardExportResult {
@@ -47,39 +49,36 @@ object LeaderboardExportRepository {
             val json = JSONObject(reply.body)
             when (json.optString("status")) {
                 "not_closed" -> LeaderboardExportResult.Failure("The leaderboard export opens after the competition closes.")
-                "insufficient_results" -> LeaderboardExportResult.Failure(
-                    "At least three eligible ranked results are needed. Available: ${json.optInt("available_results", 0)}."
-                )
-                "incomplete_results" -> LeaderboardExportResult.Failure(
-                    "One of the top-three results is missing required score, time or submission data."
-                )
                 "ok" -> {
-                    val top = json.getJSONArray("top")
-                    val winners = (0 until top.length()).map { index ->
-                        val row = top.getJSONObject(index)
-                        LeaderboardExportWinner(
-                            rank = row.getInt("rank"),
-                            name = row.optString("name", "Student"),
-                            score = row.getInt("score"),
-                            total = row.getInt("total"),
-                            timeTakenMs = if (row.isNull("time_taken_ms")) null else row.optLong("time_taken_ms"),
-                            submittedAt = row.optString("submitted_at").takeIf { it.isNotBlank() && it != "null" }
-                        )
-                    }
-                    if (winners.size != 3 || winners.map { it.rank }.toSet() != setOf(1, 2, 3)) {
-                        LeaderboardExportResult.Failure("The server did not return a complete top-three result.")
-                    } else {
-                        val scope = json.optString("subject_scope")
-                        LeaderboardExportResult.Success(
-                            LeaderboardExportData(
-                                competitionTitle = json.optString("competition_title"),
-                                examTitle = json.optString("exam_title"),
-                                subjectTitle = resolveSubjectTitle(context, scope),
-                                eventDate = json.optString("event_date"),
-                                winners = winners
+                    val top = json.optJSONArray("top")
+                    val winners = ArrayList<LeaderboardExportWinner>()
+                    if (top != null) {
+                        for (index in 0 until top.length()) {
+                            val row = top.getJSONObject(index)
+                            val rank = row.optInt("rank", 0)
+                            if (rank !in 1..3) continue
+                            winners.add(
+                                LeaderboardExportWinner(
+                                    rank = rank,
+                                    name = row.optString("name", "Student"),
+                                    score = row.optInt("score", 0),
+                                    total = row.optInt("total", 0),
+                                    timeTakenMs = if (row.isNull("time_taken_ms")) null else row.optLong("time_taken_ms"),
+                                    submittedAt = row.optString("submitted_at").takeIf { it.isNotBlank() && it != "null" }
+                                )
                             )
-                        )
+                        }
                     }
+                    val scope = json.optString("subject_scope")
+                    LeaderboardExportResult.Success(
+                        LeaderboardExportData(
+                            competitionTitle = json.optString("competition_title"),
+                            examTitle = json.optString("exam_title"),
+                            subjectTitle = resolveSubjectTitle(context, scope),
+                            eventDate = json.optString("event_date"),
+                            winners = winners.sortedBy { it.rank }
+                        )
+                    )
                 }
                 else -> LeaderboardExportResult.Failure("The server returned an unexpected export response.")
             }
