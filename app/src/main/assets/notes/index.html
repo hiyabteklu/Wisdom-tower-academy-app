@@ -48,6 +48,17 @@
   #tinput:focus { border-color:rgba(56,189,248,.55); }
   #tsend { flex:none; min-width:76px; padding:15px 18px; border:0; border-radius:14px; background:#0e7490; color:#fff; font:700 14px/1 -apple-system,Roboto,sans-serif; }
   #tsend:disabled { opacity:.55; }
+  /* Pictures (admin only, owner request 2026-11-08): round attach button, thumbnail strip above the box, thumbnails above a sent question */
+  .tattach { display:none; flex:none; width:50px; height:50px; padding:0; border-radius:50%; border:1px solid rgba(148,163,184,.24); background:rgba(255,255,255,.055); color:#67e8f9; align-items:center; justify-content:center; }
+  .tattach.on { display:flex; }
+  .tattach svg { pointer-events:none; }
+  .tthumbs { display:flex; flex-wrap:wrap; gap:10px; margin-top:16px; }
+  .tthumbs:empty { display:none; }
+  .tth { position:relative; width:60px; height:60px; }
+  .tth img { width:60px; height:60px; object-fit:cover; border-radius:12px; border:1px solid rgba(148,163,184,.3); display:block; }
+  .tth button { position:absolute; top:-6px; right:-6px; width:24px; height:24px; padding:0; border-radius:50%; border:1px solid rgba(148,163,184,.4); background:#1e293b; color:#e2e8f0; font:700 14px/1 -apple-system,Roboto,sans-serif; }
+  .tb .imgs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:8px; }
+  .tb .imgs img { width:72px; height:72px; object-fit:cover; border-radius:10px; border:1px solid rgba(148,163,184,.3); display:block; }
   .chips { display:grid; grid-template-columns:1fr; gap:8px; margin:20px 0 0; padding-top:16px; border-top:1px solid rgba(148,163,184,.16); }
   .chip { width:100%; box-sizing:border-box; border:1px solid rgba(148,163,184,.2); background:rgba(255,255,255,.035); color:#d7e2ec; font:550 14px/1.4 -apple-system,Roboto,sans-serif; font-style:normal; padding:12px 14px; border-radius:13px; text-align:left; }
   .chip.continue { border-color:rgba(56,189,248,.28); background:rgba(14,116,144,.12); color:#a8e9f5; }
@@ -73,6 +84,12 @@
  * as context and streams the answer back with window.wtTutorSet(id, fullTextSoFar, state) (state: stream, done, failed) and
  * window.wtTutorSuggest(id, jsonArray). WTBridge.onTutorStop() cancels a running answer. The box has no scroll of its own,
  * it grows with the chat and the whole page scrolls.
+ * PICTURES (owner request 2026-11-08, ADMIN ONLY): the round attach button only shows when the app says the signed-in account
+ * is the admin (WTBridge.canAttachPictures() when the tutor is built, or window.wtTutorPicsEnabled(true) later). The button calls
+ * WTBridge.onPickPictures(); the app opens the gallery, shrinks the pictures and hands the small thumbnails back with
+ * window.wtTutorPicsSet(jsonArrayOfDataUrls); the page draws them above the box (x = WTBridge.onRemovePicture(index)). A question
+ * typed in the box is sent with onTutorAsk({ id, messages, usePics: true }); the app attaches the full pictures it holds. The page
+ * keeps the thumbnails on that user message only in memory (they are not saved with the chat). WTBridge.onClearPictures() on Clear chat.
  * CHAT KEPT ON THE PHONE (owner report 2026-11-05: the note's tutor was empty after closing and reopening the app): the page
  * reports the conversation through WTBridge.onTutorState(json) (json = array of { role, content, suggestions, partial }) when
  * a question is sent, every 1.5 seconds while an answer streams, when an answer ends or is stopped, when the chat is cleared
@@ -98,6 +115,10 @@ var lastPct = -1, pendingPct = -1, progTimer = 0, sent100 = false;
 var posTimer = 0, canSavePos = false, userTouched = false;
 /* Note tutor state */
 var tutorBusy = false, tutorBuilt = false, tutorReqId = "", tutorMsgs = [], tutorNodes = [], tutorSaveTimer = 0;
+/* Pictures (admin only): picsEnabled is set by the app, picThumbs are the small pictures waiting for the next question */
+var picsEnabled = false, picThumbs = [];
+var PIC_ONLY_TEXT = "Please look at my picture and help me with it.";
+var ATTACH_SVG = '<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor"><path d="M19 7v2.99s-1.99.01-2 0V7h-3s.01-1.99 0-2h3V2h2v3h3v2h-3zm-3 4V8h-3V5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8h-3zM5 19l3-4 2 3 3-4 4 5H5z"/></svg>';
 var TUTOR_BUSY = "The Wisdom Tower AI Tutor is currently experiencing high demand. Please wait a moment and try asking your question again.";
 var TUTOR_STOPPED = "Response stopped. What would you like to explore instead?";
 var TUTOR_CUT = "\n\n*(Response stopped due to high server demand. You can ask to continue.)*";
@@ -235,7 +256,19 @@ function tutorPaint(i) {
   if (!m || !el) return;
   if (m.role === "user") {
     el.className = "tb user";
-    el.textContent = m.content;
+    el.textContent = "";
+    if (m.thumbs && m.thumbs.length) {
+      var g = document.createElement("div");
+      g.className = "imgs";
+      for (var k = 0; k < m.thumbs.length; k++) {
+        var im = document.createElement("img");
+        im.alt = "";
+        im.src = m.thumbs[k];
+        g.appendChild(im);
+      }
+      el.appendChild(g);
+    }
+    el.appendChild(document.createTextNode(m.content));
     return;
   }
   if (!m.content) {
@@ -287,16 +320,64 @@ function tutorBtn() {
   if (b) b.textContent = tutorBusy ? "Stop" : "Send";
 }
 
+/* Pictures (admin only): shows or hides the attach button, draws the waiting thumbnails, adjusts the placeholder */
+function tutorPicsPaint() {
+  var b = document.getElementById("tattach");
+  if (b) b.className = "tattach" + (picsEnabled ? " on" : "");
+  var s = document.getElementById("tthumbs");
+  if (s) {
+    s.innerHTML = "";
+    if (picsEnabled) {
+      for (var i = 0; i < picThumbs.length; i++) {
+        var d = document.createElement("div");
+        d.className = "tth";
+        var im = document.createElement("img");
+        im.alt = "Attached picture";
+        im.src = picThumbs[i];
+        var x = document.createElement("button");
+        x.textContent = "\u00d7";
+        x.setAttribute("aria-label", "Remove picture");
+        x.setAttribute("data-rm", String(i));
+        d.appendChild(im);
+        d.appendChild(x);
+        s.appendChild(d);
+      }
+    }
+  }
+  var inp = document.getElementById("tinput");
+  if (inp) inp.placeholder = (picsEnabled && picThumbs.length) ? "Add a question about the picture\u2026" : "Ask anything about this chapter\u2026";
+}
+
+/* the app says the signed-in account may attach pictures (also called again if the sign-in finishes after the page) */
+window.wtTutorPicsEnabled = function (on) {
+  picsEnabled = !!on;
+  tutorPicsPaint();
+};
+
+/* the app hands over the small thumbnails of the pictures waiting for the next question (json = array of data URLs) */
+window.wtTutorPicsSet = function (json) {
+  try {
+    var a = JSON.parse(json);
+    picThumbs = (a && a.length) ? a.map(String) : [];
+  } catch (e) { picThumbs = []; }
+  tutorPicsPaint();
+};
+
 function buildTutor() {
   if (tutorBuilt) return;
   tutorBuilt = true;
+  try {
+    if (window.WTBridge && window.WTBridge.canAttachPictures) picsEnabled = !!window.WTBridge.canAttachPictures();
+  } catch (e) { /* ignore */ }
   var w = document.getElementById("tutorwrap");
   w.innerHTML = '<section class="tutorbox">' +
     '<div class="tutorhead"><div class="tutorbrand">Ask AI Tutor</div><button class="clearbtn" id="tclear">Clear chat</button></div>' +
     '<div class="welcome">Let’s work through this chapter together.<small>Ask a question, get a clear explanation, or explore a worked example. I can keep helping as you learn.</small></div>' +
     '<div id="tmsgs"></div>' +
     '<div class="clearconfirm" id="tclearconfirm">Clear this conversation and start fresh?<br><button id="tclearconfirmyes">Clear chat</button><button id="tclearconfirmno">Keep chatting</button></div>' +
-    '<div class="tform"><textarea id="tinput" rows="1" placeholder="Ask anything about this chapter…"></textarea>' +
+    '<div class="tthumbs" id="tthumbs"></div>' +
+    '<div class="tform"><button class="tattach" id="tattach" aria-label="Attach a picture">' + ATTACH_SVG + '</button>' +
+    '<textarea id="tinput" rows="1" placeholder="Ask anything about this chapter…"></textarea>' +
     '<button class="tutorbtn" id="tsend">Send</button></div>' +
     '<div class="chips" id="tchips" aria-label="Suggested questions"></div></section>';
   var input = document.getElementById("tinput");
@@ -310,13 +391,23 @@ function buildTutor() {
   tutorDraw();
   tutorChips();
   tutorBtn();
+  tutorPicsPaint();
 }
 
-function tutorSend(text) {
+/* fromBox = the question was typed in the box: only then the waiting pictures go with it (not with a suggestion chip) */
+function tutorSend(text, fromBox) {
   text = String(text == null ? "" : text).trim();
+  var withPics = !!(fromBox && picsEnabled && picThumbs.length);
+  if (!text && withPics) text = PIC_ONLY_TEXT;
   if (!text || tutorBusy) return;
   var input = document.getElementById("tinput");
-  tutorMsgs.push({ role: "user", content: text });
+  var um = { role: "user", content: text };
+  if (withPics) {
+    um.thumbs = picThumbs.slice();
+    picThumbs = [];
+    tutorPicsPaint();
+  }
+  tutorMsgs.push(um);
   tutorMsgs.push({ role: "assistant", content: "", suggestions: [] });
   var history = [];
   for (var i = 0; i < tutorMsgs.length - 1; i++) {
@@ -337,7 +428,7 @@ function tutorSend(text) {
     return;
   }
   try {
-    window.WTBridge.onTutorAsk(JSON.stringify({ id: tutorReqId, messages: history }));
+    window.WTBridge.onTutorAsk(JSON.stringify({ id: tutorReqId, messages: history, usePics: withPics }));
   } catch (e) {
     window.wtTutorSet(tutorReqId, TUTOR_BUSY, "failed");
   }
@@ -405,6 +496,7 @@ window.setNote = function (text, startFrac, chatJson) {
   canSavePos = false; userTouched = false;
   /* a new note starts with an empty tutor, plus the conversation kept on the phone for this note (if any) */
   tutorBusy = false; tutorBuilt = false; tutorReqId = ""; tutorNodes = [];
+  picThumbs = [];
   tutorMsgs = restoreChat(chatJson);
   if (tutorSaveTimer) { window.clearTimeout(tutorSaveTimer); tutorSaveTimer = 0; }
   var tw = document.getElementById("tutorwrap");
@@ -453,7 +545,8 @@ window.setNote = function (text, startFrac, chatJson) {
 };
 
 document.getElementById("tutorwrap").addEventListener("click", function (e) {
-  var t = e.target;
+  /* a tap on the icon inside a button counts as a tap on the button */
+  var t = e.target && e.target.closest ? (e.target.closest("button") || e.target) : e.target;
   if (!t) return;
   if (t.id === "tclear") {
     var cf = document.getElementById("tclearconfirm"); if (cf) cf.style.display = "block";
@@ -466,19 +559,30 @@ document.getElementById("tutorwrap").addEventListener("click", function (e) {
   if (t.id === "tclearconfirmyes") {
     if (tutorBusy && window.WTBridge && window.WTBridge.onTutorStop) { try { window.WTBridge.onTutorStop(); } catch (e) {} }
     tutorBusy = false; tutorReqId = ""; tutorMsgs = []; tutorNodes = [];
+    picThumbs = [];
+    if (window.WTBridge && window.WTBridge.onClearPictures) { try { window.WTBridge.onClearPictures(); } catch (e) {} }
     var box = document.getElementById("tmsgs"); if (box) box.innerHTML = "";
     var cf = document.getElementById("tclearconfirm"); if (cf) cf.style.display = "none";
-    tutorDraw(); tutorChips(); tutorBtn();
+    tutorDraw(); tutorChips(); tutorBtn(); tutorPicsPaint();
     tutorSave();
+    return;
+  }
+  if (t.id === "tattach") {
+    if (window.WTBridge && window.WTBridge.onPickPictures) { try { window.WTBridge.onPickPictures(); } catch (e) {} }
+    return;
+  }
+  var rm = t.getAttribute && t.getAttribute("data-rm");
+  if (rm !== null && rm !== undefined && rm !== "") {
+    if (window.WTBridge && window.WTBridge.onRemovePicture) { try { window.WTBridge.onRemovePicture(Number(rm)); } catch (e) {} }
     return;
   }
   if (t.id === "tsend") {
     if (tutorBusy) tutorStop();
-    else tutorSend((document.getElementById("tinput") || {}).value);
+    else tutorSend((document.getElementById("tinput") || {}).value, true);
     return;
   }
   var q = t.getAttribute && t.getAttribute("data-q");
-  if (q) tutorSend(q);
+  if (q) tutorSend(q, false);
 });
 
 </script>
