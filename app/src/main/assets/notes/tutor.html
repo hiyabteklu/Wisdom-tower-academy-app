@@ -21,6 +21,10 @@
   .bub .body > :first-child { margin-top: 0; }
   .bub .body > :last-child { margin-bottom: 0; }
 
+  /* Pictures the student attached to a question (admin picture feature, 2026-11-08): small thumbnails above the text */
+  .imgs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
+  .imgs img { width: 84px; height: 84px; object-fit: cover; border-radius: 10px; border: 1px solid rgba(2,6,23,.25); display: block; }
+
   /* Tables and wide equations scroll sideways inside their own box instead of breaking words letter by letter (tutor spec patch B) */
   .bub .body .scroll-x { overflow-x: auto; -webkit-overflow-scrolling: touch; max-width: 100%; }
   .bub .body table.study-table { width: max-content; min-width: 100%; }
@@ -83,10 +87,11 @@
 <script>
 /* AI tutor message list (plan step N10). The page cannot reach the network or keep data; the app owns the chats.
  * App -> page: window.wtTutorSet(json)  json = { sid, busy, thinking, messages:[{id, role, content, timestamp, suggestions}] }
+ * App -> page: window.wtTutorThumbs(messageId, jsonArrayOfDataUrls)  small pictures shown above a user message (admin picture feature)
  * page -> App: WTBridge.onSend(text) (a suggestion or example prompt was tapped), WTBridge.onCopy(text).
  * Only the messages that changed are redrawn, so a streaming answer stays smooth.
  * U2 change 4a: round "jump to latest" arrow button (#jump), no text, shown when the reader is more than 240 px above the end. */
-var els = {}, order = [], msgs = {}, sid = "", cur = null, copiedId = "", copyTimer = 0;
+var els = {}, order = [], msgs = {}, sid = "", cur = null, copiedId = "", copyTimer = 0, thumbsById = {};
 
 function esc(s) {
   return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -109,11 +114,16 @@ function rich(s) {
   try { return window.WTRich.render(aiText(s)); } catch (e) { return "<p>" + esc(s) + "</p>"; }
 }
 function sigOf(m, showSug) {
-  return m.content.length + "|" + (m.suggestions || []).join("\u0001") + "|" + (showSug ? 1 : 0) + "|" + (copiedId === m.id ? 1 : 0);
+  return m.content.length + "|" + (m.suggestions || []).join("\u0001") + "|" + (showSug ? 1 : 0) + "|" + (copiedId === m.id ? 1 : 0) + "|" + (thumbsById[m.id] ? thumbsById[m.id].length : 0);
+}
+function thumbsHtml(id) {
+  var t = thumbsById[id];
+  if (!t || !t.length) return "";
+  return '<div class="imgs">' + t.map(function (u) { return '<img alt="" src="' + esc(u) + '">'; }).join("") + "</div>";
 }
 function msgHtml(m, showSug) {
   var bot = m.role === "assistant";
-  var h = '<div class="row ' + (bot ? "bot" : "usr") + '"><div class="bub ' + (bot ? "b" : "u") + '"><div class="body">' + rich(m.content) +
+  var h = '<div class="row ' + (bot ? "bot" : "usr") + '"><div class="bub ' + (bot ? "b" : "u") + '">' + (bot ? "" : thumbsHtml(m.id)) + '<div class="body">' + rich(m.content) +
     '</div><div class="meta"><span>' + esc(m.timestamp) + "</span>" +
     (bot ? '<button class="cpy" data-copy="' + esc(m.id) + '">' + (copiedId === m.id ? "Copied" : "Copy") + "</button>" : "") +
     "</div></div></div>";
@@ -171,6 +181,12 @@ window.wtTutorSet = function (json) {
   try { s = JSON.parse(json); } catch (e) { return; }
   cur = s;
   apply(s, false);
+};
+
+/* Pictures of one user message. The app sends this just before the message itself, so it is stored here and drawn with the message. */
+window.wtTutorThumbs = function (id, json) {
+  try { thumbsById[id] = JSON.parse(json); } catch (e) { return; }
+  if (cur) apply(cur, false);
 };
 
 window.addEventListener("scroll", updateJump, { passive: true });

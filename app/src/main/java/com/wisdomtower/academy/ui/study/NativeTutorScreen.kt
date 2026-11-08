@@ -7,6 +7,7 @@ import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.net.Uri
 import android.os.SystemClock
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
@@ -14,7 +15,10 @@ import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -43,6 +47,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AddPhotoAlternate
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Menu
@@ -68,7 +73,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -84,7 +91,9 @@ import androidx.compose.runtime.collectAsState
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.AiTutorRepository
 import com.wisdomtower.academy.data.content.TutorEvent
+import com.wisdomtower.academy.data.content.TutorImageUtil
 import com.wisdomtower.academy.data.content.TutorMessage
+import com.wisdomtower.academy.data.content.TutorPicture
 import com.wisdomtower.academy.data.content.TutorSession
 import com.wisdomtower.academy.data.content.TutorSessionStore
 import com.wisdomtower.academy.ui.theme.AppBackdrop
@@ -98,9 +107,11 @@ import com.wisdomtower.academy.ui.theme.WisdomGlassFill
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -109,6 +120,9 @@ private const val CALM_BUSY =
     "The Wisdom Tower AI Tutor is currently experiencing high demand. Please wait a moment and try asking your question again."
 private const val STOPPED = "Response stopped. What would you like to explore instead?"
 private const val CUT_NOTICE = "\n\n*(Response stopped due to high server demand. You can ask to continue.)*"
+
+/** Question text used when a picture is sent with no typed words (admin picture feature). */
+private const val PICTURE_ONLY_TEXT = "Please look at my picture and help me with it."
 
 // ---- D6j day / night colours. Night value = the exact old literal; day value = Ivory & Navy token. Getters: read while composing. ----
 private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
@@ -195,6 +209,14 @@ private class TutorStreamHolder {
  * V6/V7 (docs/SESSION_2026-11-03_V17_TUTOR_MOTION.md): the chats list rows animate when a chat is added, deleted or moved
  * (animateItem), and the menu icons, Chats toggle, New chat, Send, Stop and chat rows press in with the light tick.
  *
+ * PICTURES (owner request 2026-11-08, ADMIN ONLY, branch tutor-image-attach): when [TutorImageUtil.isAllowed] says the signed-in
+ * e-mail is the admin, a round "attach picture" button appears left of the message pill. It opens the phone's gallery
+ * (up to [TutorImageUtil.MAX_IMAGES] pictures), shows small thumbnails above the pill (tap the x to remove one), and the
+ * pictures are sent with the next question (also with no typed words). The chat page shows the thumbnails above that
+ * question (`window.wtTutorThumbs`). Follow-up questions in the SAME chat keep sending the newest pictures so the tutor still
+ * sees them; they are kept in memory only (not saved with the chat). Every other account sees no button and sends nothing
+ * extra, so the released behaviour is unchanged.
+ *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
 @Composable
@@ -256,6 +278,30 @@ fun NativeTutorScreen(
     val latestSessions by rememberUpdatedState(sessions)
     val latestActive by rememberUpdatedState(activeId)
 
+    // ---- pictures (admin only, owner request 2026-11-08) ----
+    val authUser by AuthStateManager.currentUser.collectAsState()
+    val canAttach = TutorImageUtil.isAllowed(authUser?.email)
+    var pendingPics by remember { mutableStateOf<List<TutorPicture>>(emptyList()) }
+    var attaching by remember { mutableStateOf(false) }
+    // chat id -> the newest pictures of that chat (full size data URLs), kept in memory so follow-up questions still see them
+    val chatPics = remember { HashMap<String, List<String>>() }
+
+    val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+        val room = TutorImageUtil.MAX_IMAGES - pendingPics.size
+        val take = uris.take(if (room > 0) room else 0)
+        if (take.isNotEmpty()) {
+            attaching = true
+            scope.launch {
+                val made = withContext(Dispatchers.IO) { take.mapNotNull { TutorImageUtil.encode(context, it) } }
+                pendingPics = (pendingPics + made).take(TutorImageUtil.MAX_IMAGES)
+                attaching = false
+                if (made.size < take.size) {
+                    Toast.makeText(context, "Some pictures could not be read.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
     val activeSession = sessions.firstOrNull { it.id == activeId } ?: sessions.first()
     val busy = isThinking || isStreaming
 
@@ -289,13 +335,29 @@ fun NativeTutorScreen(
     }
 
     fun send(textOverride: String?) {
-        val q = (textOverride ?: input).trim()
-        if (q.isEmpty() || isThinking || isStreaming) return
+        val typed = (textOverride ?: input).trim()
+        // Pictures only go with a question typed in the box (not with a suggestion chip), and only for the admin.
+        val newPics = if (textOverride == null && canAttach) pendingPics else emptyList()
+        val q = if (typed.isEmpty() && newPics.isNotEmpty()) PICTURE_ONLY_TEXT else typed
+        if (q.isEmpty() || isThinking || isStreaming || attaching) return
 
         val sid = activeId
+        if (newPics.isNotEmpty()) chatPics[sid] = newPics.map { it.dataUrl }
+        val sendPics: List<String> = if (canAttach) (chatPics[sid] ?: emptyList()) else emptyList()
+
         val userMsg = TutorMessage("user-" + System.currentTimeMillis(), "user", q, timeLabel())
         val before = sessions.firstOrNull { it.id == sid }?.messages ?: emptyList()
         val history = (before + userMsg).map { it.role to it.content }
+        if (newPics.isNotEmpty()) {
+            // the page draws these small pictures above this question
+            val thumbs = JSONArray()
+            newPics.forEach { thumbs.put(it.thumbUrl) }
+            webRef[0]?.evaluateJavascript(
+                "window.wtTutorThumbs(" + JSONObject.quote(userMsg.id) + "," + JSONObject.quote(thumbs.toString()) + ");",
+                null
+            )
+            pendingPics = emptyList()
+        }
         updateSession(sid) { it + userMsg }
         input = ""
         isThinking = true
@@ -311,7 +373,7 @@ fun NativeTutorScreen(
         holder.job = scope.launch {
             var acc = ""
             try {
-                AiTutorRepository.stream(history, effectiveContext).collect { ev ->
+                AiTutorRepository.stream(history, effectiveContext, sendPics).collect { ev ->
                     if (holder.token == token) {
                         when (ev) {
                             is TutorEvent.Chunk -> {
@@ -421,6 +483,7 @@ fun NativeTutorScreen(
 
     fun deleteSession(id: String) {
         if (id == activeId) abortStream()
+        chatPics.remove(id)
         val filtered = sessions.filter { it.id != id }
         if (filtered.isEmpty()) {
             val fresh = TutorSessionStore.newSession()
@@ -434,6 +497,7 @@ fun NativeTutorScreen(
 
     fun clearAll() {
         abortStream()
+        chatPics.clear()
         val fresh = TutorSessionStore.newSession()
         sessions = listOf(fresh)
         activeId = fresh.id
@@ -443,6 +507,7 @@ fun NativeTutorScreen(
 
     fun clearChat() {
         if (isThinking || isStreaming) abortStream()
+        chatPics.remove(activeId)
         updateSession(activeId) { emptyList() }
     }
 
@@ -489,6 +554,10 @@ fun NativeTutorScreen(
             holder.job?.cancel()
             TutorSessionStore.save(context, latestSessions, latestActive)
         }
+    }
+    // Pictures waiting to be sent belong to the chat they were picked in: switching chats drops them.
+    LaunchedEffect(activeId) {
+        pendingPics = emptyList()
     }
 
     // ---- push the messages into the page (at most about every 80 ms while streaming) ----
@@ -568,75 +637,155 @@ fun NativeTutorScreen(
                 MenuIcon(Icons.Default.Delete, "Clear chat", TuSlate300) { showClearConfirm = true }
             }
 
-            // Bottom: slim translucent message pill + round send / stop button, floating over the chat.
-            Row(
+            // Bottom: (picture strip), slim translucent message pill + round send / stop button, floating over the chat.
+            Column(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .onSizeChanged { composerPx = it.height }
-                    .padding(horizontal = 8.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .weight(1f)
-                        .heightIn(min = 44.dp)
-                        .clip(RoundedCornerShape(22.dp))
-                        .background(FloatFill)
-                        .border(BorderStroke(1.dp, FloatEdge), RoundedCornerShape(22.dp))
-                        .padding(horizontal = 16.dp, vertical = 11.dp),
-                    contentAlignment = Alignment.CenterStart
-                ) {
-                    if (input.isEmpty()) {
-                        Text(
-                            text = if (busy) "AI Tutor is responding…" else "Ask a concept, formula, or problem…",
-                            fontSize = 14.sp,
-                            color = WisdomMuted,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
+                // Admin only: the pictures picked for the next question (tap x to remove one)
+                if (canAttach && (pendingPics.isNotEmpty() || attaching)) {
+                    Row(
+                        modifier = Modifier.padding(start = 12.dp, end = 12.dp, top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        pendingPics.forEachIndexed { idx, pic ->
+                            Box(modifier = Modifier.size(60.dp)) {
+                                Image(
+                                    bitmap = pic.thumb.asImageBitmap(),
+                                    contentDescription = "Attached picture",
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .border(BorderStroke(1.dp, FloatEdge), RoundedCornerShape(12.dp))
+                                )
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(22.dp)
+                                        .clip(CircleShape)
+                                        .background(FloatFill)
+                                        .border(BorderStroke(1.dp, FloatEdge), CircleShape)
+                                        .wisdomPressClickable {
+                                            pendingPics = pendingPics.filterIndexed { i, _ -> i != idx }
+                                        },
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = "Remove picture",
+                                        tint = WisdomInk,
+                                        modifier = Modifier.size(14.dp)
+                                    )
+                                }
+                            }
+                        }
+                        if (attaching) {
+                            Box(modifier = Modifier.size(60.dp), contentAlignment = Alignment.Center) {
+                                Text("…", fontSize = 18.sp, color = WisdomMuted)
+                            }
+                        }
                     }
-                    BasicTextField(
-                        value = input,
-                        onValueChange = { input = it },
-                        modifier = Modifier.fillMaxWidth(),
-                        textStyle = TextStyle(color = WisdomInk, fontSize = 14.sp, lineHeight = 20.sp),
-                        cursorBrush = SolidColor(WisdomCyan),
-                        maxLines = 4,
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { send(null) })
-                    )
                 }
-                if (busy) {
-                    Box(
-                        modifier = Modifier
-                            .wisdomPressClickable { stop() }
-                            .height(44.dp)
-                            .clip(RoundedCornerShape(22.dp))
-                            .background(WisdomAccentAmber.copy(alpha = 0.3f))
-                            .border(BorderStroke(1.dp, WisdomAccentAmber.copy(alpha = 0.45f)), RoundedCornerShape(22.dp))
-                            .padding(horizontal = 18.dp),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("Stop", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TuStopInk)
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp, vertical = 8.dp),
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Admin only: round "attach picture" button, opens the gallery
+                    if (canAttach && !busy) {
+                        Box(
+                            modifier = Modifier
+                                .wisdomPressClickable {
+                                    if (attaching) {
+                                        // still reading the pictures picked a moment ago
+                                    } else if (pendingPics.size >= TutorImageUtil.MAX_IMAGES) {
+                                        Toast.makeText(context, "Up to 3 pictures per question.", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        pickLauncher.launch("image/*")
+                                    }
+                                }
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(FloatFill)
+                                .border(BorderStroke(1.dp, FloatEdge), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.AddPhotoAlternate,
+                                contentDescription = "Attach a picture",
+                                tint = TuCyanText,
+                                modifier = Modifier.size(22.dp)
+                            )
+                        }
                     }
-                } else {
                     Box(
                         modifier = Modifier
-                            .wisdomPressClickable { send(null) }
-                            .size(44.dp)
-                            .clip(CircleShape)
-                            .background(WisdomCyan.copy(alpha = if (input.isBlank()) 0.22f else 0.65f))
-                            .border(BorderStroke(1.dp, FloatEdge), CircleShape),
-                        contentAlignment = Alignment.Center
+                            .weight(1f)
+                            .heightIn(min = 44.dp)
+                            .clip(RoundedCornerShape(22.dp))
+                            .background(FloatFill)
+                            .border(BorderStroke(1.dp, FloatEdge), RoundedCornerShape(22.dp))
+                            .padding(horizontal = 16.dp, vertical = 11.dp),
+                        contentAlignment = Alignment.CenterStart
                     ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.Send,
-                            contentDescription = "Send question",
-                            tint = if (AppThemeMode.isDark || input.isNotBlank()) Color.White else WisdomCyan,
-                            modifier = Modifier.size(20.dp)
+                        if (input.isEmpty()) {
+                            Text(
+                                text = if (busy) "AI Tutor is responding…"
+                                else if (pendingPics.isNotEmpty()) "Add a question about the picture…"
+                                else "Ask a concept, formula, or problem…",
+                                fontSize = 14.sp,
+                                color = WisdomMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        BasicTextField(
+                            value = input,
+                            onValueChange = { input = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = TextStyle(color = WisdomInk, fontSize = 14.sp, lineHeight = 20.sp),
+                            cursorBrush = SolidColor(WisdomCyan),
+                            maxLines = 4,
+                            keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                            keyboardActions = KeyboardActions(onSend = { send(null) })
                         )
+                    }
+                    if (busy) {
+                        Box(
+                            modifier = Modifier
+                                .wisdomPressClickable { stop() }
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(22.dp))
+                                .background(WisdomAccentAmber.copy(alpha = 0.3f))
+                                .border(BorderStroke(1.dp, WisdomAccentAmber.copy(alpha = 0.45f)), RoundedCornerShape(22.dp))
+                                .padding(horizontal = 18.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("Stop", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = TuStopInk)
+                        }
+                    } else {
+                        val canSend = input.isNotBlank() || pendingPics.isNotEmpty()
+                        Box(
+                            modifier = Modifier
+                                .wisdomPressClickable { send(null) }
+                                .size(44.dp)
+                                .clip(CircleShape)
+                                .background(WisdomCyan.copy(alpha = if (canSend) 0.65f else 0.22f))
+                                .border(BorderStroke(1.dp, FloatEdge), CircleShape),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.Send,
+                                contentDescription = "Send question",
+                                tint = if (AppThemeMode.isDark || canSend) Color.White else WisdomCyan,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
                     }
                 }
             }

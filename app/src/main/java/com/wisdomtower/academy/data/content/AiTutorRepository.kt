@@ -47,7 +47,11 @@ sealed class TutorEvent {
  * sign-in card before this is ever reached; this is the second lock. The website route will start REJECTING calls
  * without a valid token in slice U1c, so an app older than this change stops getting answers after that.
  *
- * Cancelling the collector cancels the HTTP call. Never logs the questions, answers or the token.
+ * PICTURES (owner request 2026-11-08, admin only): [images] are small JPEG data URLs (see [TutorImageUtil]) attached to the
+ * LAST user message as `images`. With no pictures the request body is byte for byte what it was before. The server only
+ * reads `images` for the admin account and ignores them for everyone else.
+ *
+ * Cancelling the collector cancels the HTTP call. Never logs the questions, answers, pictures or the token.
  *
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
@@ -59,8 +63,15 @@ object AiTutorRepository {
 
     private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
-    /** [history] = (role, content) pairs, role is "user" or "assistant", oldest first. */
-    fun stream(history: List<Pair<String, String>>, courseContext: String?): Flow<TutorEvent> = callbackFlow {
+    /**
+     * [history] = (role, content) pairs, role is "user" or "assistant", oldest first.
+     * [images] = pictures for the last message of [history] (empty = none).
+     */
+    fun stream(
+        history: List<Pair<String, String>>,
+        courseContext: String?,
+        images: List<String> = emptyList()
+    ): Flow<TutorEvent> = callbackFlow {
         // U1b: no login, no request. Renew the token first when it is close to expiring.
         AuthStateManager.refreshIfNeeded()
         val token = AuthStateManager.currentUser.value?.accessToken
@@ -72,8 +83,12 @@ object AiTutorRepository {
         }
 
         val messages = JSONArray()
-        history.forEach { (role, content) ->
-            messages.put(JSONObject().put("role", role).put("content", content))
+        history.forEachIndexed { index, (role, content) ->
+            val m = JSONObject().put("role", role).put("content", content)
+            if (images.isNotEmpty() && index == history.lastIndex && role == "user") {
+                m.put("images", JSONArray(images))
+            }
+            messages.put(m)
         }
         val body = JSONObject().put("messages", messages)
         if (!courseContext.isNullOrBlank()) body.put("courseContext", courseContext)
