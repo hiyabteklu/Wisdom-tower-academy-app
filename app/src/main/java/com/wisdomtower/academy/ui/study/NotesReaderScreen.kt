@@ -3,11 +3,15 @@ package com.wisdomtower.academy.ui.study
 import android.annotation.SuppressLint
 import com.wisdomtower.academy.ui.theme.wisdomTouchFeel
 import android.content.Context
+import android.net.Uri
 import android.os.SystemClock
 import android.webkit.JavascriptInterface
 import android.webkit.WebResourceRequest
 import android.webkit.WebView
 import android.webkit.WebViewClient
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
@@ -25,6 +29,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
@@ -43,11 +48,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import com.wisdomtower.academy.BrandSplashLoader
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.AiTutorRepository
 import com.wisdomtower.academy.data.content.ContentItemResult
 import com.wisdomtower.academy.data.content.LearningContentRepository
 import com.wisdomtower.academy.data.content.LearningProgressRepository
 import com.wisdomtower.academy.data.content.TutorEvent
+import com.wisdomtower.academy.data.content.TutorImageUtil
+import com.wisdomtower.academy.data.content.TutorPicture
 import com.wisdomtower.academy.ui.theme.AppBackdrop
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.WisdomCyan
@@ -59,6 +67,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -134,6 +143,16 @@ private fun buildTutorContext(title: String, noteText: String): String =
  * Clear chat cancels a running answer and resets the current conversation after confirmation.
  * The screen reuses the existing tutor API; it adds no new endpoint, API key, cache or sign-in path.
  *
+ * PICTURES (owner request 2026-11-08, ADMIN ONLY, branch tutor-image-attach): same feature as the drawer tutor
+ * ([NativeTutorScreen]), now also in this inline tutor. When [TutorImageUtil.isAllowed] says the signed-in e-mail is the admin,
+ * the page shows a round attach button (it asks `WTBridge.canAttachPictures()`, and this screen also calls
+ * `window.wtTutorPicsEnabled(true)` once the page is ready, in case the sign-in finished later). The button calls
+ * `WTBridge.onPickPictures()`: the phone's gallery opens (up to [TutorImageUtil.MAX_IMAGES]), each picture is shrunk by
+ * [TutorImageUtil.encode] and the small thumbnails go to the page with `window.wtTutorPicsSet`. The full pictures stay here in
+ * memory ([pendingPics]). A question typed in the box arrives with `usePics = true`: the waiting pictures become the pictures of
+ * this note's chat and are sent with the question; follow-up questions keep sending the newest pictures so the tutor still sees
+ * them. Nothing is saved to disk. Every other account sees no button and sends nothing extra, so the released behaviour is unchanged.
+ *
  * CHAT KEPT ON THE PHONE (owner report 2026-11-05: the tutor under a note was empty after closing and reopening the app):
  * the page reports the whole conversation with `WTBridge.onTutorState(json)` (a JSON array of role, content, suggestions
  * and a partial flag) and it is kept per note in [NOTES_STATE_PREFS], key `tutor_<resourceId>`, next to the reading
@@ -206,6 +225,42 @@ fun NotesReaderScreen(
     // The tutor conversation of this note, kept on the phone (read once when the note opens; empty text = none)
     val savedChat = remember(resourceId) { statePrefs.getString("tutor_$resourceId", "") ?: "" }
 
+    // ---- pictures (admin only, owner request 2026-11-08) ----
+    val authUser by AuthStateManager.currentUser.collectAsState()
+    val canAttach = TutorImageUtil.isAllowed(authUser?.email)
+    var pendingPics by remember(resourceId) { mutableStateOf<List<TutorPicture>>(emptyList()) }
+    // the newest pictures of this note's chat (full size data URLs), kept in memory so follow-up questions still see them
+    val chatPics = remember(resourceId) { arrayOf<List<String>>(emptyList()) }
+
+    /** Gives the page the small thumbnails of the pictures waiting for the next question. Main thread only. */
+    fun pushPics() {
+        val thumbs = JSONArray()
+        pendingPics.forEach { thumbs.put(it.thumbUrl) }
+        webRef[0]?.evaluateJavascript("window.wtTutorPicsSet(${JSONObject.quote(thumbs.toString())});", null)
+    }
+
+    val pickLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris: List<Uri> ->
+        val room = TutorImageUtil.MAX_IMAGES - pendingPics.size
+        val take = uris.take(if (room > 0) room else 0)
+        if (take.isNotEmpty()) {
+            screenScope.launch {
+                val made = withContext(Dispatchers.IO) { take.mapNotNull { TutorImageUtil.encode(context, it) } }
+                pendingPics = (pendingPics + made).take(TutorImageUtil.MAX_IMAGES)
+                pushPics()
+                if (made.size < take.size) {
+                    Toast.makeText(context, "Some pictures could not be read.", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    // The page asks for the attach button when it is built; this also covers a sign-in that finishes after the page.
+    LaunchedEffect(canAttach, pageReady, resourceId) {
+        if (canAttach && pageReady) {
+            webRef[0]?.evaluateJavascript("window.wtTutorPicsEnabled(true);", null)
+        }
+    }
+
     LaunchedEffect(resourceId, attempt) {
         result = null
         result = LearningContentRepository.getResource(context, resourceId)
@@ -253,13 +308,13 @@ fun NotesReaderScreen(
         )
     }
 
-    suspend fun streamTutor(id: String, history: List<Pair<String, String>>, chapterContext: String) {
+    suspend fun streamTutor(id: String, history: List<Pair<String, String>>, chapterContext: String, images: List<String>) {
         var acc = ""
         var suggestions: List<String> = emptyList()
         var lastPush = 0L
         var failed = false
         try {
-            AiTutorRepository.stream(history, chapterContext).collect { ev ->
+            AiTutorRepository.stream(history, chapterContext, images).collect { ev ->
                 when (ev) {
                     is TutorEvent.Chunk -> {
                         acc += ev.text
@@ -313,9 +368,16 @@ fun NotesReaderScreen(
                 }
             }
             if (id.isEmpty() || history.isEmpty()) return
+            // Pictures (admin only): the waiting pictures belong to this question and become the chat's newest pictures
+            val admin = TutorImageUtil.isAllowed(authUser?.email)
+            if (admin && data.optBoolean("usePics", false) && pendingPics.isNotEmpty()) {
+                chatPics[0] = pendingPics.map { it.dataUrl }
+                pendingPics = emptyList()
+            }
+            val sendPics: List<String> = if (admin) chatPics[0] else emptyList()
             val noteText = (result as? ContentItemResult.Found)?.item?.bodyMd.orEmpty().take(14000)
             tutorJob[0]?.cancel()
-            tutorJob[0] = screenScope.launch { streamTutor(id, history, buildTutorContext(title, noteText)) }
+            tutorJob[0] = screenScope.launch { streamTutor(id, history, buildTutorContext(title, noteText), sendPics) }
         } catch (e: Exception) {
             // A bad tutor message must never break the reader.
             if (id.isNotEmpty()) pushTutor(id, NOTE_TUTOR_BUSY, "failed")
@@ -370,6 +432,33 @@ fun NotesReaderScreen(
                 screenScope.launch {
                     tutorJob[0]?.cancel()
                     tutorJob[0] = null
+                }
+                Unit
+            },
+            canAttachPictures = { TutorImageUtil.isAllowed(authUser?.email) },
+            onPickPictures = {
+                screenScope.launch {
+                    if (!TutorImageUtil.isAllowed(authUser?.email)) {
+                        // not the admin: nothing to do
+                    } else if (pendingPics.size >= TutorImageUtil.MAX_IMAGES) {
+                        Toast.makeText(context, "Up to 3 pictures per question.", Toast.LENGTH_SHORT).show()
+                    } else {
+                        pickLauncher.launch("image/*")
+                    }
+                }
+                Unit
+            },
+            onRemovePicture = { index ->
+                screenScope.launch {
+                    pendingPics = pendingPics.filterIndexed { i, _ -> i != index }
+                    pushPics()
+                }
+                Unit
+            },
+            onClearPictures = {
+                screenScope.launch {
+                    pendingPics = emptyList()
+                    chatPics[0] = emptyList()
                 }
                 Unit
             },
@@ -457,6 +546,10 @@ private class NotesBridge(
     private val onTutorState: (String) -> Unit,
     private val onTutorAsk: (String) -> Unit,
     private val onTutorStop: () -> Unit,
+    private val canAttachPictures: () -> Boolean,
+    private val onPickPictures: () -> Unit,
+    private val onRemovePicture: (Int) -> Unit,
+    private val onClearPictures: () -> Unit,
     private val onReady: () -> Unit
 ) {
     @JavascriptInterface
@@ -482,6 +575,25 @@ private class NotesBridge(
     @JavascriptInterface
     fun onTutorStop() {
         onTutorStop.invoke()
+    }
+
+    /** Admin only: tells the page whether to show the attach-picture button. */
+    @JavascriptInterface
+    fun canAttachPictures(): Boolean = canAttachPictures.invoke()
+
+    @JavascriptInterface
+    fun onPickPictures() {
+        onPickPictures.invoke()
+    }
+
+    @JavascriptInterface
+    fun onRemovePicture(index: Int) {
+        onRemovePicture.invoke(index)
+    }
+
+    @JavascriptInterface
+    fun onClearPictures() {
+        onClearPictures.invoke()
     }
 
     @JavascriptInterface
