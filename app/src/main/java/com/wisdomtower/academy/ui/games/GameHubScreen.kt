@@ -36,6 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.content.HubGate
+import com.wisdomtower.academy.data.games.GameAccess
 import com.wisdomtower.academy.data.games.GameHubIndex
 import com.wisdomtower.academy.data.games.GameHubSubject
 import com.wisdomtower.academy.data.games.GameLevelPrefs
@@ -78,7 +80,12 @@ import kotlinx.coroutines.launch
  * stars kept on this phone for the level used last in this game ([GameLevelPrefs.last]). Nothing is shown for a chapter
  * that was never played (no invented value).
  *
- * [onPlay] is called when the student taps a chapter that has a set.
+ * 2026-11-09 (docs/PLAN_2026-11-09_GAMES_OWNERSHIP.md, step A): a chapter the student may not open (package not owned,
+ * or coming soon) shows "Package required" / "Coming soon" instead of "Play", has no download icon, and a tap calls
+ * [onLocked] instead of [onPlay]. The gate comes from [GameAccess.gates]; it is only for display, the authoritative
+ * check is done again in GameTabScreen before a set is loaded.
+ *
+ * [onPlay] is called when the student taps a chapter that has a set and may be opened.
  *
  * STATUS: [~] written, NOT compiled, NOT tested on a phone.
  */
@@ -86,6 +93,7 @@ import kotlinx.coroutines.launch
 fun GameHubScreen(
     packageList: List<NativePackage>,
     modifier: Modifier = Modifier,
+    onLocked: (gate: HubGate) -> Unit = {},
     onPlay: (game: String, scopePath: String, chapter: Int) -> Unit = { _, _, _ -> }
 ) {
     var game by remember { mutableStateOf<String?>(null) }
@@ -109,7 +117,7 @@ fun GameHubScreen(
             g == null -> GamePickStep(onPick = { game = it })
             p == null -> CourseStep(g, packageList, onPick = { pkg = it })
             s == null -> SubjectStep(g, p, onPick = { subject = it })
-            else -> ChapterStep(g, s, onPlay)
+            else -> ChapterStep(g, s, onPlay, onLocked)
         }
     }
 }
@@ -209,7 +217,12 @@ private fun SubjectStep(game: String, pkg: NativePackage, onPick: (GameHubSubjec
 }
 
 @Composable
-private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, String, Int) -> Unit) {
+private fun ChapterStep(
+    game: String,
+    subject: GameHubSubject,
+    onPlay: (String, String, Int) -> Unit,
+    onLocked: (HubGate) -> Unit
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var chapters by remember(subject.scopePath) { mutableStateOf<List<GameSetChapter>?>(null) }
@@ -218,6 +231,9 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
     val downloads = remember(subject.scopePath, game) { mutableStateMapOf<Int, DownloadState>() }
     // R3 part 2: the level used last in this game; the best line of a chapter is shown for this level.
     val lastLevel = remember(game) { GameLevelPrefs.last(context, game) }
+    // Package ownership (plan 2026-11-09): chapter number -> gate. A chapter without an entry is treated as open for
+    // display only; the tap is checked again before the set loads.
+    var gates by remember(subject.scopePath) { mutableStateOf<Map<Int, HubGate>>(emptyMap()) }
 
     LaunchedEffect(subject.scopePath) {
         when (val result = GameSetsRepository.chapters(context, subject.scopePath)) {
@@ -227,6 +243,12 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
     }
     val list = chapters
     val error = failure
+
+    LaunchedEffect(list) {
+        if (list != null) {
+            gates = GameAccess.gates(subject.scopePath, list.map { it.chapter })
+        }
+    }
 
     // Which chapters are already saved on the phone (checked once when the list appears)
     LaunchedEffect(list, game) {
@@ -252,6 +274,8 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
                 items(list, key = { it.chapter }) { chapter ->
                     val available =
                         if (game == GameSetsRepository.GAME_DEFENSE) chapter.hasDefense else chapter.hasMatch
+                    val gate = gates[chapter.chapter] ?: HubGate.Open
+                    val lockedLabel: String? = if (available) GameAccess.label(gate) else null
                     val label = if (chapter.title.isEmpty()) "Chapter ${chapter.chapter}"
                     else "Chapter ${chapter.chapter}: ${chapter.title}"
                     val best = remember(chapter.chapter, game, lastLevel) {
@@ -266,9 +290,19 @@ private fun ChapterStep(game: String, subject: GameHubSubject, onPlay: (String, 
                     ChapterCard(
                         title = label,
                         available = available,
-                        downloadState = if (available) downloads[chapter.chapter] ?: DownloadState.IDLE else null,
+                        lockedLabel = lockedLabel,
+                        downloadState = if (available && lockedLabel == null) {
+                            downloads[chapter.chapter] ?: DownloadState.IDLE
+                        } else {
+                            null
+                        },
                         bestLine = bestLine,
-                        onClick = { if (available) onPlay(game, subject.scopePath, chapter.chapter) },
+                        onClick = {
+                            if (available) {
+                                if (lockedLabel != null) onLocked(gate)
+                                else onPlay(game, subject.scopePath, chapter.chapter)
+                            }
+                        },
                         onDownloadClick = {
                             when (downloads[chapter.chapter]) {
                                 DownloadState.DOWNLOADING -> Unit
@@ -309,11 +343,13 @@ private fun StatusText(text: String) {
 /**
  * Chapter card: glass card like the other lists, "Play" / "Coming soon", and the learning download gauge on the right.
  * [bestLine] (null = hidden) is a small line under the title with the best stars of the last used level.
+ * [lockedLabel] (null = open) replaces "Play" with "Package required" or "Coming soon" when the student may not open it.
  */
 @Composable
 private fun ChapterCard(
     title: String,
     available: Boolean,
+    lockedLabel: String?,
     downloadState: DownloadState?,
     bestLine: String?,
     onClick: () -> Unit,
@@ -348,8 +384,8 @@ private fun ChapterCard(
                 }
             }
             Text(
-                if (available) "Play" else "Coming soon",
-                color = if (available) WisdomCyan else WisdomMuted,
+                lockedLabel ?: if (available) "Play" else "Coming soon",
+                color = if (available && lockedLabel == null) WisdomCyan else WisdomMuted,
                 fontWeight = FontWeight.SemiBold,
                 fontSize = 13.sp,
                 modifier = Modifier.padding(horizontal = 8.dp)
