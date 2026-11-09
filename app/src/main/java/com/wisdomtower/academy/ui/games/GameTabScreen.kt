@@ -20,6 +20,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.data.auth.AuthStateManager
+import com.wisdomtower.academy.data.content.HubGate
+import com.wisdomtower.academy.data.games.GameAccess
 import com.wisdomtower.academy.data.games.GameLevel
 import com.wisdomtower.academy.data.games.GameLevelPrefs
 import com.wisdomtower.academy.data.games.GameResultsRepository
@@ -46,6 +48,11 @@ import kotlinx.coroutines.launch
  * 2026-10-22 (slices R2, R3 part 1): the subject path of the chapter being played ([gameScope]) goes to both game screens
  * so a finished game is saved (GameResultsRepository), the level picker shows the best result kept on this phone, and
  * results waiting from an offline game are sent when this tab opens.
+ *
+ * 2026-11-09 (docs/PLAN_2026-11-09_GAMES_OWNERSHIP.md, step A): package ownership. Right before a set is loaded the
+ * chapter is checked with [GameAccess.gate] (same lock rows and ownership answer as the learning hubs). A chapter that
+ * is not open shows "Package required" or "Coming soon" here and nothing is loaded. The hub list also shows the label
+ * on the card and calls onLocked for a tap, so this check is the authoritative one and the list is only display.
  */
 @Composable
 fun GameTabScreen(
@@ -180,6 +187,7 @@ fun GameTabScreen(
                 GameHubScreen(
                     packageList = enrolledPackages,
                     modifier = Modifier.fillMaxSize(),
+                    onLocked = { gate -> error = GameAccess.message(gate) },
                     onPlay = { game, scopePath, chapter ->
                         if (game != GameSetsRepository.GAME_MATCH && game != GameSetsRepository.GAME_DEFENSE) {
                             error = "Unknown game."
@@ -189,6 +197,13 @@ fun GameTabScreen(
                         error = null
                         gameScope = scopePath
                         scope.launch {
+                            // Authoritative ownership check: nothing is loaded for a chapter that is not open.
+                            val gate = GameAccess.gate(scopePath, chapter)
+                            if (gate != HubGate.Open) {
+                                error = GameAccess.message(gate)
+                                loading = false
+                                return@launch
+                            }
                             when (val result = GameSetsRepository.loadSet(
                                 context, scopePath, chapter, game
                             )) {
