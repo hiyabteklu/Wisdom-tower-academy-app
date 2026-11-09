@@ -53,6 +53,10 @@ import kotlinx.coroutines.launch
  * chapter is checked with [GameAccess.gate] (same lock rows and ownership answer as the learning hubs). A chapter that
  * is not open shows "Package required" or "Coming soon" here and nothing is loaded. The hub list also shows the label
  * on the card and calls onLocked for a tap, so this check is the authoritative one and the list is only display.
+ * A copy of a set saved on the phone never bypasses this check (it is only read after the check passed).
+ *
+ * 2026-11-09 (owner order): the WHOLE game tab needs a signed-in student. Signed out shows a sign-in message and no
+ * course list, no chapter list and nothing playable.
  */
 @Composable
 fun GameTabScreen(
@@ -63,6 +67,7 @@ fun GameTabScreen(
     @Suppress("UNUSED_PARAMETER")
     val unusedSelect = onSelectPackage
 
+    val user by AuthStateManager.currentUser.collectAsState()
     val profile by AuthStateManager.currentProfile.collectAsState()
     val enrolledPackages = remember(packageList, profile?.educationLevel) {
         enrolledGamePackages(profile?.educationLevel, packageList)
@@ -86,8 +91,8 @@ fun GameTabScreen(
     LaunchedEffect(Unit) { GameResultsRepository.flushPending(context) }
 
     BackHandler(
-        enabled = pendingMatch != null || activeMatch != null ||
-            pendingDefense != null || activeDefense != null || error != null
+        enabled = user != null && (pendingMatch != null || activeMatch != null ||
+            pendingDefense != null || activeDefense != null || error != null)
     ) {
         pendingMatch = null
         activeMatch = null
@@ -99,6 +104,17 @@ fun GameTabScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         when {
+            user == null -> {
+                AtmosphereBackground(modifier = Modifier.fillMaxSize())
+                Text(
+                    text = "Sign in to play the games.",
+                    color = WisdomMuted,
+                    fontSize = 16.sp,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp)
+                )
+            }
             activeMatch != null -> {
                 MatchScreen(
                     set = activeMatch!!,
