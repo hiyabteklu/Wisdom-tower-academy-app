@@ -22,6 +22,10 @@
  * confirm box before "Send now" (same message; pressing Send runs the same checks again and then sends).
  * One small change: scrolling to the form when Edit is pressed is no longer animated (the admin layout turns
  * smooth scrolling off because it may fight touch scrolling in the WebView).
+ *
+ * 2026-11-09 (slice DRAFTS-1): Drafts inbox at the top. Claude saves finished drafts into
+ * public.notification_drafts; "Load into composer" fills title, category, blocks, preview and path. After a
+ * successful send or schedule the draft is marked used. Sending logic is unchanged.
  */
 
 import { useEffect, useRef, useState } from "react";
@@ -46,6 +50,7 @@ import {
 } from "@/lib/notification-paths";
 import { NotificationBlockEditor, NotificationPreview } from "./NotificationBlockEditor";
 import NotificationAudiencePicker from "./NotificationAudiencePicker";
+import NotificationDraftsInbox, { type NotificationDraft } from "./NotificationDraftsInbox";
 import {
   formatEat,
   friendlyScheduleError,
@@ -162,6 +167,8 @@ export default function NotificationComposerV2({
   const [sending, setSending] = useState(false);
   const [feedback, setFeedback] = useState<{ ok: boolean; message: string } | null>(null);
   const [confirmWho, setConfirmWho] = useState<string | null>(null);
+  const [draftId, setDraftId] = useState<string | null>(null);
+  const [draftsKey, setDraftsKey] = useState(0);
 
   const editing = Boolean(editRow);
   const pickedPath = category === "material" ? pathFromTrail(trail) : null;
@@ -170,6 +177,7 @@ export default function NotificationComposerV2({
   // Load a waiting row into the form when the admin presses Edit.
   useEffect(() => {
     if (!editRow) return;
+    setDraftId(null);
     setCategory(isNotificationCategory(editRow.category) ? editRow.category : "admin");
     setTitle(editRow.title);
     const parsed = editRow.content ? sanitizeContent(editRow.content) : null;
@@ -184,6 +192,30 @@ export default function NotificationComposerV2({
     setFeedback(null);
     rootRef.current?.scrollIntoView({ behavior: "auto", block: "start" });
   }, [editRow]);
+
+  // Fill the boxes and the preview from a saved draft. Nothing is sent.
+  function loadDraft(d: NotificationDraft) {
+    const parsed = sanitizeContent(d.content);
+    if (!parsed.ok) {
+      setFeedback({ ok: false, message: "This draft has a content error and cannot be loaded. Ask Claude to rewrite it." });
+      return;
+    }
+    setDraftId(d.id);
+    setCategory(isNotificationCategory(d.category) ? d.category : "admin");
+    setTitle(d.title);
+    setBlocks(contentToEditor(parsed.content));
+    setTrail(d.url ? trailForPath(d.url) ?? [] : []);
+    setMode("groups");
+    setWhen("now");
+    setFeedback({ ok: true, message: "Draft loaded. Check the preview, pick the audience and time, then send." });
+  }
+
+  async function markDraftUsed() {
+    if (!draftId) return;
+    await supabase.from("notification_drafts").update({ status: "used" }).eq("id", draftId);
+    setDraftId(null);
+    setDraftsKey((k) => k + 1);
+  }
 
   function setLevel(depth: number, id: string) {
     const next = trail.slice(0, depth);
@@ -278,6 +310,7 @@ export default function NotificationComposerV2({
             sendAtIso
           )} (within a minute after that).`,
         });
+        void markDraftUsed();
         resetForm();
         setWhen("now");
         onScheduled?.();
@@ -325,6 +358,7 @@ export default function NotificationComposerV2({
           (data.broadcast ? "Everyone can see it. " : recipients > 0 ? `Students reached: ${recipients}. ` : "") +
           (pushed !== null ? `Push sent to ${pushed} device(s).` : ""),
       });
+      void markDraftUsed();
       resetForm();
       onSent?.();
     } catch (err: unknown) {
@@ -372,6 +406,8 @@ export default function NotificationComposerV2({
             </AdminPill>
           )}
         </div>
+
+        {!editing && <NotificationDraftsInbox onLoad={loadDraft} refreshKey={draftsKey} />}
 
         {feedback && (
           <div
