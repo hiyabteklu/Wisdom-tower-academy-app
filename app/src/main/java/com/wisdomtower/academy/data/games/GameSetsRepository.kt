@@ -3,12 +3,14 @@ package com.wisdomtower.academy.data.games
 import android.content.Context
 import android.util.Log
 import com.wisdomtower.academy.BuildConfig
+import com.wisdomtower.academy.data.auth.AuthStateManager
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -53,8 +55,17 @@ sealed class GameSetsResult<out T> {
 
 /**
  * Reads the dedicated game question sets from `public.game_sets` (docs/GAMES_HUB_PLAN.md, step 2a).
- * Published rows are readable with the public key (RLS), so no secret is involved. Nothing here is invented:
- * a chapter without a set simply has no entry, and an item that does not match the documented shape is skipped.
+ * Nothing here is invented: a chapter without a set simply has no entry, and an item that does not match the
+ * documented shape is skipped.
+ *
+ * 2026-11-09 (docs/PLAN_2026-11-09_GAMES_OWNERSHIP.md, step B2): the app no longer reads the table directly. It calls
+ * two database functions (they return the same row shapes as before, so parsing and the saved copies are unchanged):
+ *  - `game_set_chapters(p_scope_paths)`: chapter, chapter_title, game. No `items`. Public key is enough.
+ *  - `get_game_set(p_scope_paths, p_chapter, p_game)`: one set WITH `items`, only when the caller may see the chapter
+ *    (`content_guard.resource_visible`, hub `games`, lock key `chapter:<scope>:games:<n>`, then scope / package).
+ *    The student's own token is sent when signed in, so an owner of the package gets chapters 3 and up; a locked
+ *    chapter returns an empty list (parsed as "no usable set"). Nothing locked is ever saved on the phone.
+ * Once every student runs a build with this code, the open read rule on the table can be closed (database step B2b).
  *
  * Item shapes (owner's JSON, pasted in bulk through the admin dashboard):
  *  - defense: [{"q":"...","choices":["a","b","c","d"],"correct":0,"hint":"..."}]
@@ -83,6 +94,8 @@ object GameSetsRepository {
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
 
+    private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
+
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
         .readTimeout(30, TimeUnit.SECONDS)
@@ -100,7 +113,7 @@ object GameSetsRepository {
             val cacheFile = cacheFile(context, "chapters_$scopePath")
             try {
                 val client = if (cacheFile.exists()) fastHttp else http
-                val text = get(chaptersUrl(scopePath), client)
+                val text = rpc("game_set_chapters", chaptersBody(scopePath), client, withLogin = false)
                 val rows = JSONArray(text)
                 writeCache(cacheFile, text)
                 GameSetsResult.Success(parseChapters(rows), false)
@@ -119,7 +132,8 @@ object GameSetsRepository {
 
     /**
      * The published set of one chapter for one game ([GAME_DEFENSE] or [GAME_MATCH]).
-     * Success(null) means there is no usable set: the screen shows "coming soon" for that game only.
+     * Success(null) means there is no usable set (or the chapter is locked for this student): the screen shows
+     * "coming soon" for that game only. The screen checks the lock first (`GameAccess`), this is the server side.
      */
     suspend fun loadSet(
         context: Context,
@@ -131,10 +145,12 @@ object GameSetsRepository {
         val cacheFile = setCacheFile(context, scopePath, chapter, game)
         try {
             val client = if (cacheFile.exists()) fastHttp else http
-            val text = get(setUrl(scopePath, chapter, game), client)
+            val text = rpc("get_game_set", setBody(scopePath, chapter, game), client, withLogin = true)
             val rows = JSONArray(text)
-            writeCache(cacheFile, text)
-            GameSetsResult.Success(parseSet(rows, game), false)
+            val set = parseSet(rows, game)
+            // Only a usable set is saved; an empty answer (locked chapter) must not overwrite or create a copy.
+            if (set != null) writeCache(cacheFile, text)
+            GameSetsResult.Success(set, false)
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -157,11 +173,11 @@ object GameSetsRepository {
             runCatching { parseSet(JSONArray(text), game) != null }.getOrDefault(false)
         }
 
-    /** Fetches the set from the server and saves it. Returns true only when a usable set was saved. */
+    /** Fetches the set from the server and saves it. Returns true only when a usable set was saved (never a locked one). */
     suspend fun download(context: Context, scopePath: String, chapter: Int, game: String): Boolean =
         withContext(Dispatchers.IO) {
             try {
-                val text = get(setUrl(scopePath, chapter, game), http)
+                val text = rpc("get_game_set", setBody(scopePath, chapter, game), http, withLogin = true)
                 if (parseSet(JSONArray(text), game) == null) {
                     false
                 } else {
@@ -183,54 +199,61 @@ object GameSetsRepository {
         }
     }
 
-    // ---------- queries ----------
+    // ---------- database function calls ----------
 
-    /** PostgREST filter for `scope_path`, with the ECE and freshman-math quirks of `LearningContentRepository`. */
-    private fun scopeFilter(scopePath: String): String {
+    /** `scope_path` values to match, with the ECE and freshman-math quirks of `LearningContentRepository`. */
+    private fun scopePaths(scopePath: String): List<String> {
         val ece = ECE_SCOPE.matchEntire(scopePath)
         return when {
             ece != null -> {
                 val other = if (ece.groupValues[1] == "sem-1") "sem-2" else "sem-1"
-                "in.(\"$scopePath\",\"ece/$other/${ece.groupValues[2]}\")"
+                listOf(scopePath, "ece/$other/${ece.groupValues[2]}")
             }
             scopePath == "freshman/math-natural" || scopePath == "freshman/mathematics" ->
-                "in.(\"freshman/math-natural\",\"freshman/mathematics\")"
-            else -> "eq.$scopePath"
+                listOf("freshman/math-natural", "freshman/mathematics")
+            else -> listOf(scopePath)
         }
     }
 
-    private fun chaptersUrl(scopePath: String): String =
-        "$supabaseUrl/rest/v1/game_sets".toHttpUrl().newBuilder()
-            .addQueryParameter("select", "chapter,chapter_title,game")
-            .addQueryParameter("scope_path", scopeFilter(scopePath))
-            .addQueryParameter("published", "eq.true")
-            .addQueryParameter("order", "chapter.asc")
-            .build().toString()
+    private fun chaptersBody(scopePath: String): JSONObject =
+        JSONObject().put("p_scope_paths", JSONArray(scopePaths(scopePath)))
 
-    private fun setUrl(scopePath: String, chapter: Int, game: String): String =
-        "$supabaseUrl/rest/v1/game_sets".toHttpUrl().newBuilder()
-            .addQueryParameter("select", "id,game,chapter,chapter_title,title,items")
-            .addQueryParameter("scope_path", scopeFilter(scopePath))
-            .addQueryParameter("chapter", "eq.$chapter")
-            .addQueryParameter("game", "eq.$game")
-            .addQueryParameter("published", "eq.true")
-            .addQueryParameter("order", "sort_order.asc")
-            .addQueryParameter("limit", "1")
-            .build().toString()
+    private fun setBody(scopePath: String, chapter: Int, game: String): JSONObject =
+        JSONObject()
+            .put("p_scope_paths", JSONArray(scopePaths(scopePath)))
+            .put("p_chapter", chapter)
+            .put("p_game", game)
 
-    /** GET with the public key. Network trouble throws IOException; any other HTTP error throws IllegalStateException. */
-    private fun get(url: String, client: OkHttpClient): String {
+    /**
+     * POST `rpc/<name>`. With [withLogin] the signed-in student's own token is sent (refreshed first; one retry after a
+     * 401), otherwise, or when signed out, the public key. Network trouble throws IOException; any other HTTP error
+     * throws IllegalStateException.
+     */
+    private suspend fun rpc(name: String, body: JSONObject, client: OkHttpClient, withLogin: Boolean): String {
+        var token: String? = null
+        if (withLogin) {
+            AuthStateManager.refreshIfNeeded()
+            token = AuthStateManager.currentUser.value?.accessToken?.takeIf { it.isNotBlank() }
+        }
+        var reply = postRpc(name, body, token ?: anonKey, client)
+        if (reply.first == 401 && token != null && AuthStateManager.refreshIfNeeded(force = true)) {
+            val fresh = AuthStateManager.currentUser.value?.accessToken
+            if (!fresh.isNullOrBlank()) reply = postRpc(name, body, fresh, client)
+        }
+        if (reply.first !in 200..299) throw IllegalStateException("HTTP ${reply.first}")
+        return reply.second
+    }
+
+    private fun postRpc(name: String, body: JSONObject, bearer: String, client: OkHttpClient): Pair<Int, String> {
         val request = Request.Builder()
-            .url(url)
+            .url("$supabaseUrl/rest/v1/rpc/$name")
             .addHeader("apikey", anonKey)
-            .addHeader("Authorization", "Bearer $anonKey")
+            .addHeader("Authorization", "Bearer $bearer")
             .addHeader("Accept", "application/json")
-            .get()
+            .post(body.toString().toRequestBody(JSON_MEDIA))
             .build()
-        return client.newCall(request).execute().use { resp ->
-            val text = resp.body?.string().orEmpty()
-            if (!resp.isSuccessful) throw IllegalStateException("HTTP ${resp.code}")
-            text
+        client.newCall(request).execute().use { resp ->
+            return Pair(resp.code, resp.body?.string().orEmpty())
         }
     }
 

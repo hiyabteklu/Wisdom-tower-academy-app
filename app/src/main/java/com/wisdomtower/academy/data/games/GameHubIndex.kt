@@ -9,10 +9,12 @@ import com.wisdomtower.academy.data.admin.AdminNavNode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
+import org.json.JSONObject
 import java.io.File
 import java.io.IOException
 import java.util.concurrent.TimeUnit
@@ -26,8 +28,9 @@ class GameHubSubject(val name: String, val scopePath: String)
  *  - [knownSubjects]: the subjects of a package from the admin content tree (the same ids and scope paths the
  *    admin locks and the hubs use, e.g. `grade/9/chemistry`, `freshman/physics`, `ece/sem-1/eceg3051`).
  *  - [packageSubjects]: for packages that are NOT in that tree (UAT, GAT, COC, Exit Exam, Remedial ...): the subjects
- *    that really have a published game set, read from `game_sets` by `package_id`. Nothing is invented: the name is
- *    the last part of the scope path made readable.
+ *    that really have a published game set. Since 2026-11-09 (docs/PLAN_2026-11-09_GAMES_OWNERSHIP.md, step B2) this
+ *    calls the database function `game_set_subjects(p_package_id)` (scope paths only, no questions) instead of reading
+ *    the table. Nothing is invented: the name is the last part of the scope path made readable.
  *
  * STATUS: written, NOT compiled, NOT tested (plan step 2b).
  */
@@ -39,6 +42,8 @@ object GameHubIndex {
 
     private val supabaseUrl: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_URL.trim().trimEnd('/')
     private val anonKey: String get() = BuildConfig.NEXT_PUBLIC_SUPABASE_ANON_KEY.trim()
+
+    private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -71,13 +76,8 @@ object GameHubIndex {
         withContext(Dispatchers.IO) {
             val cacheFile = cacheFile(context, "subjects_$packageId")
             try {
-                val url = "$supabaseUrl/rest/v1/game_sets".toHttpUrl().newBuilder()
-                    .addQueryParameter("select", "scope_path")
-                    .addQueryParameter("package_id", "eq.$packageId")
-                    .addQueryParameter("published", "eq.true")
-                    .build().toString()
                 val client = if (cacheFile.exists()) fastHttp else http
-                val text = get(url, client)
+                val text = post("game_set_subjects", JSONObject().put("p_package_id", packageId), client)
                 val rows = JSONArray(text)
                 runCatching { cacheFile.writeText(text) }
                 GameSetsResult.Success(parseSubjects(rows), false)
@@ -110,13 +110,14 @@ object GameHubIndex {
             .filter { it.isNotEmpty() }
             .joinToString(" ") { word -> word.replaceFirstChar { it.uppercase() } }
 
-    private fun get(url: String, client: OkHttpClient): String {
+    /** POST `rpc/<name>` with the public key (the list holds no questions). */
+    private fun post(name: String, body: JSONObject, client: OkHttpClient): String {
         val request = Request.Builder()
-            .url(url)
+            .url("$supabaseUrl/rest/v1/rpc/$name")
             .addHeader("apikey", anonKey)
             .addHeader("Authorization", "Bearer $anonKey")
             .addHeader("Accept", "application/json")
-            .get()
+            .post(body.toString().toRequestBody(JSON_MEDIA))
             .build()
         return client.newCall(request).execute().use { resp ->
             val text = resp.body?.string().orEmpty()
