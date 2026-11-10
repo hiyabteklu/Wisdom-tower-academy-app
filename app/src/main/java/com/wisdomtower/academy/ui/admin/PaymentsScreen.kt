@@ -73,7 +73,14 @@ import java.util.Locale
 // reloaded list. After a successful approve or reject the panel closes (the order leaves the Pending list) and the toast
 // shows the result; after an error the panel stays open. The list stays composed underneath, so the scroll position, the
 // search text and the chips survive.
+// 2026-11-10 (owner request): the payments dashboard is switched off. SHOW_PAYMENT_DASHBOARD = false hides the money
+// totals tiles and the Pending/Verified/Rejected/All chips, so the screen shows only the orders awaiting approval, with
+// Approve and Reject unchanged. SHOW_RECEIPT = false hides the View Receipt button. Set either flag to true to bring it
+// back; nothing else was removed. This is only the screen: the data is still in the database.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
+
+private const val SHOW_PAYMENT_DASHBOARD = false
+private const val SHOW_RECEIPT = false
 
 private val STATUS_FILTERS: List<Pair<String, String>> = listOf(
     "pending_verification" to "Pending",
@@ -146,11 +153,13 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
     val pendingAmount = pending.sumOf { it.amountEtb }
     val verifiedAmount = verified.sumOf { it.amountEtb }
     val detailOrder = all.firstOrNull { it.id == detailId }
+    // With the dashboard off, the list is always the pending orders, whatever was saved in statusFilter.
+    val activeStatus = if (SHOW_PAYMENT_DASHBOARD) statusFilter else "pending_verification"
 
-    val filtered = remember(all, statusFilter, methodFilter, query) {
+    val filtered = remember(all, activeStatus, methodFilter, query) {
         val q = query.trim().lowercase()
         all.filter { o ->
-            if (statusFilter != "all" && o.status != statusFilter) return@filter false
+            if (activeStatus != "all" && o.status != activeStatus) return@filter false
             if (methodFilter != "all") {
                 val method = (o.paymentMethod ?: "").lowercase()
                 if (!method.contains(methodFilter)) return@filter false
@@ -250,31 +259,42 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
             }
 
             if (current is OrdersResult.Success) {
-                item(key = "totals") {
-                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
-                            TotalTile(
-                                label = "Pending verification",
-                                amount = etb(pendingAmount),
-                                caption = "${pending.size} awaiting approval",
-                                tone = WisdomAccentAmber,
-                                modifier = Modifier.weight(1f)
-                            )
-                            TotalTile(
-                                label = "Verified revenue",
-                                amount = etb(verifiedAmount),
-                                caption = "${verified.size} confirmed paid",
-                                tone = WisdomAccentEmerald,
-                                modifier = Modifier.weight(1f)
+                if (SHOW_PAYMENT_DASHBOARD) {
+                    item(key = "totals") {
+                        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                TotalTile(
+                                    label = "Pending verification",
+                                    amount = etb(pendingAmount),
+                                    caption = "${pending.size} awaiting approval",
+                                    tone = WisdomAccentAmber,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                TotalTile(
+                                    label = "Verified revenue",
+                                    amount = etb(verifiedAmount),
+                                    caption = "${verified.size} confirmed paid",
+                                    tone = WisdomAccentEmerald,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+                            Text(
+                                text = "${all.size} orders in total",
+                                color = WisdomMuted,
+                                fontSize = 12.sp
                             )
                         }
+                    }
+                } else {
+                    item(key = "pendingCount") {
                         Text(
-                            text = "${all.size} orders in total",
-                            color = WisdomMuted,
-                            fontSize = 12.sp
+                            text = "${pending.size} awaiting approval",
+                            color = WisdomAccentAmber,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -288,23 +308,25 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
                 )
             }
 
-            item(key = "statusChips") {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    for (entry in STATUS_FILTERS) {
-                        val label = if (entry.first == "pending_verification" && current is OrdersResult.Success) {
-                            "Pending (${pending.size})"
-                        } else {
-                            entry.second
+            if (SHOW_PAYMENT_DASHBOARD) {
+                item(key = "statusChips") {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        for (entry in STATUS_FILTERS) {
+                            val label = if (entry.first == "pending_verification" && current is OrdersResult.Success) {
+                                "Pending (${pending.size})"
+                            } else {
+                                entry.second
+                            }
+                            AdminChoiceChip(
+                                label = label,
+                                selected = statusFilter == entry.first,
+                                onClick = { statusFilter = entry.first },
+                                modifier = Modifier.weight(if (entry.first == "pending_verification") 1.4f else 1f)
+                            )
                         }
-                        AdminChoiceChip(
-                            label = label,
-                            selected = statusFilter == entry.first,
-                            onClick = { statusFilter = entry.first },
-                            modifier = Modifier.weight(if (entry.first == "pending_verification") 1.4f else 1f)
-                        )
                     }
                 }
             }
@@ -350,8 +372,12 @@ internal fun PaymentsScreen(origin: String, modifier: Modifier = Modifier) {
             } else if (filtered.isEmpty()) {
                 item(key = "empty") {
                     PaymentsMessage(
-                        title = "No orders found",
-                        body = "No orders matching the selected status or search filter.",
+                        title = if (SHOW_PAYMENT_DASHBOARD) "No orders found" else "Nothing waiting for approval",
+                        body = if (SHOW_PAYMENT_DASHBOARD) {
+                            "No orders matching the selected status or search filter."
+                        } else {
+                            "New payments waiting for your approval will appear here."
+                        },
                         actionLabel = null,
                         onAction = {}
                     )
@@ -639,7 +665,7 @@ private fun OrderDetailBody(
             )
         }
     }
-    if (receiptUrl != null) {
+    if (SHOW_RECEIPT && receiptUrl != null) {
         AdminActionButton(
             label = "View Receipt",
             tone = WisdomCyan,
