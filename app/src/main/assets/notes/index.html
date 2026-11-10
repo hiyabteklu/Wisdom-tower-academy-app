@@ -8,7 +8,9 @@
 <style>
   /* NOTE-SIZE (2026-10-17, owner: notes text is a bit small): note text 17px -> 20px, line 26px -> 32px. The root size is
      raised too (16px -> 19px) so headings, tables, code and the Summary box (all in rem) grow with it. Only this page
-     changes; questions, exams and flashcards keep their own sizes. To go back: remove the html rule, 17px / 26px. */
+     changes; questions, exams and flashcards keep their own sizes. To go back: remove the html rule, 17px / 26px.
+     NOTE-SIZE-2 (2026-11-10, owner: notes text is too big): note text 20px -> 17px, line 32px -> 28px. The root size
+     (headings, tables, code) is left at 19px. To go back: 20px / 32px on #note. */
   :root { color-scheme: dark; }
   html { font-size: 19px; }
   /* BG-NOFLASH (2026-10-23): the page paints NO background of its own (it was #0a101d). The app draws the chosen
@@ -20,7 +22,7 @@
   #root.ready { opacity: 1; }
   .msg { text-align: center; color: #94a3b8; padding: 40px 0; }
 
-  #note { font-family: var(--wt-content-font-family, "WT Tinos", serif); font-style: var(--wt-content-font-style, italic); font-size: 20px; line-height: 32px; }
+  #note { font-family: var(--wt-content-font-family, "WT Tinos", serif); font-style: var(--wt-content-font-style, italic); font-size: 17px; line-height: 28px; }
 
   /* Clean, readable AI tutor panel: quiet surfaces, clear hierarchy, and prompts grouped at the bottom. */
   #tutorwrap { margin: 30px 0 26px; width: 100%; }
