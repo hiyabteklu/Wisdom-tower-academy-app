@@ -1,0 +1,68 @@
+name: Clean all Actions artifacts
+
+on:
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+concurrency:
+  group: cleanup-actions-artifacts
+  cancel-in-progress: false
+
+jobs:
+  cleanup:
+    name: Delete all stored Actions artifacts
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Delete every artifact in this repository
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPOSITORY: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          api="https://api.github.com/repos/${GH_REPOSITORY}/actions/artifacts"
+          ids_file="$(mktemp)"
+          page=1
+
+          echo "Collecting artifact IDs..."
+          while true; do
+            response="$(curl --fail --silent --show-error \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${api}?per_page=100&page=${page}")"
+
+            count="$(jq '.artifacts | length' <<< "${response}")"
+            jq -r '.artifacts[].id' <<< "${response}" >> "${ids_file}"
+
+            echo "Collected ${count} artifacts from page ${page}."
+            if [ "${count}" -lt 100 ]; then
+              break
+            fi
+            page=$((page + 1))
+          done
+
+          total="$(wc -l < "${ids_file}" | tr -d ' ')"
+          echo "Found ${total} artifacts. Deleting them..."
+
+          deleted=0
+          while IFS= read -r artifact_id; do
+            [ -n "${artifact_id}" ] || continue
+            curl --fail --silent --show-error -X DELETE \
+              -H "Authorization: Bearer ${GH_TOKEN}" \
+              -H "Accept: application/vnd.github+json" \
+              -H "X-GitHub-Api-Version: 2022-11-28" \
+              "${api}/${artifact_id}"
+            deleted=$((deleted + 1))
+            if (( deleted % 100 == 0 )); then
+              echo "Deleted ${deleted}/${total} artifacts."
+            fi
+          done < "${ids_file}"
+
+          rm -f "${ids_file}"
+          echo "Cleanup complete. Deleted ${deleted} artifacts."
