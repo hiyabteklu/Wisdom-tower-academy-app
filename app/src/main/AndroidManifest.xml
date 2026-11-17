@@ -6,8 +6,12 @@
     <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <!-- Planner reminders (native Study Planner): normal (inexact) alarms, no special permission; rebuilt after a restart -->
+    <!-- Planner reminders (native Study Planner): rebuilt after a restart -->
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <!-- Exact class-schedule / academic-calendar reminders. User-granted special permission (NOT USE_EXACT_ALARM):
+         the student switches it on in the system "Alarms & reminders" screen; when it is off the app falls back to
+         approximate alarms. Must be justified in the Play Console declaration (calendar / timetable reminders). -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
 
     <application
         android:name=".WisdomTowerApplication"
@@ -51,6 +55,8 @@
                 <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
                 <action android:name="android.intent.action.TIME_SET" />
                 <action android:name="android.intent.action.TIMEZONE_CHANGED" />
+                <!-- Sent when the student switches "Alarms & reminders" on or off: alarms are rebuilt exact / approximate -->
+                <action android:name="android.app.action.SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED" />
             </intent-filter>
         </receiver>
 

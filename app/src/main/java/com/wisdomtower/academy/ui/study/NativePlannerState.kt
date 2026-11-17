@@ -42,7 +42,8 @@ internal class PlannerSnapshot(val blocks: List<StudyBlock>, val version: Int, v
  *  - another student signing in on the same phone starts clean (the copy is never shown to another account).
  *
  * Reminders (owner decision 2026-10-12): every change of the blocks sets one weekly alarm per block through
- * [PlannerReminderScheduler]; the first time a block is added the student is asked once to allow notifications.
+ * [PlannerReminderScheduler]; the first time a block is added the student is asked once to allow notifications, and
+ * (2026-11-17) once to allow "Alarms & reminders" so reminders arrive at the exact minute.
  *
  * Difference from the website (owner rule "no fabricated content"): the native planner starts EMPTY.
  *
@@ -154,7 +155,11 @@ object NativePlannerState {
             persistLocked()
         }
         appContext?.let { PlannerReminderScheduler.sync(it, next) }
-        if (added) PlannerReminderScheduler.askNotificationPermissionOnce(screenContext?.get())
+        if (added) {
+            val ctx = screenContext?.get()
+            PlannerReminderScheduler.askNotificationPermissionOnce(ctx)
+            PlannerReminderScheduler.askExactAlarmOnce(ctx)
+        }
         PlannerSync.syncSoon()
     }
 
