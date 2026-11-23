@@ -208,6 +208,54 @@ val CATALOG_PACKAGES = listOf(
 
     // Special packages
     NativePackage(
+        id = "ece-y1-sem-1",
+        name = "ECE Year 1: Semester 1",
+        shortName = "ECE Y1 S1",
+        description = "Electrical and Computer Engineering, Year 1, Semester 1. Course material written for your department, with the same six learning hubs in every course.",
+        path = "/academy/special-packages/electrical-computer-engineering/y1-sem-1",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-1.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("All Year 1 Semester 1 engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
+        id = "ece-y1-sem-2",
+        name = "ECE Year 1: Semester 2",
+        shortName = "ECE Y1 S2",
+        description = "Electrical and Computer Engineering, Year 1, Semester 2. Course material written for your department, with the same six learning hubs in every course.",
+        path = "/academy/special-packages/electrical-computer-engineering/y1-sem-2",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-2.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("All Year 1 Semester 2 engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
+        id = "ece-y2-sem-1",
+        name = "ECE Year 2: Semester 1",
+        shortName = "ECE Y2 S1",
+        description = "Electrical and Computer Engineering, Year 2, Semester 1. Course material written for your department, with the same six learning hubs in every course.",
+        path = "/academy/special-packages/electrical-computer-engineering/y2-sem-1",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-1.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("All Year 2 Semester 1 engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
+        id = "ece-y2-sem-2",
+        name = "ECE Year 2: Semester 2",
+        shortName = "ECE Y2 S2",
+        description = "Electrical and Computer Engineering, Year 2, Semester 2. Course material written for your department, with the same six learning hubs in every course.",
+        path = "/academy/special-packages/electrical-computer-engineering/y2-sem-2",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-2.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("All Year 2 Semester 2 engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
         id = "ece-y3-sem-1",
         name = "ECE Year 3: Semester 1",
         shortName = "ECE S1",

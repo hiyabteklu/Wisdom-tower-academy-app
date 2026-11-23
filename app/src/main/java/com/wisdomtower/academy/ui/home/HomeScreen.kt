@@ -125,6 +125,22 @@ data class ResourceGuide(
 val HOME_PROGRAMS: List<ProgramItem>
     get() = listOf(
         ProgramItem(
+            id = "ece-y1",
+            name = "ECE Year 1",
+            path = "/academy/special-packages/electrical-computer-engineering/y1-sem-1",
+            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
+            accentColor = WisdomAccentViolet
+        ),
+        ProgramItem(
+            id = "ece-y2",
+            name = "ECE Year 2",
+            path = "/academy/special-packages/electrical-computer-engineering/y2-sem-1",
+            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
+            accentColor = WisdomAccentViolet
+        ),
+        ProgramItem(
             id = "ece",
             name = "ECE Engineering",
             path = "/academy/special-packages/electrical-computer-engineering/sem-1",
