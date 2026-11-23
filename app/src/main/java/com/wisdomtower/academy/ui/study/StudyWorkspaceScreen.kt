@@ -86,6 +86,10 @@ private fun cleanBase(basePath: String): String {
     return base
 }
 
+// ECE-FIX-A3 (2026-11-23): safety net. An ECE package path must never open the website (those pages do not exist).
+internal fun isEcePackagePath(basePath: String): Boolean =
+    cleanBase(basePath).contains("/special-packages/electrical-computer-engineering/")
+
 internal fun entranceYearUrl(basePath: String): String? {
     val base = cleanBase(basePath)
     return if (ENTRANCE_YEAR_PATH.matches(base)) SITE_ORIGIN + base else null
@@ -188,6 +192,8 @@ fun StudyWorkspaceScreen(
     // false; the lock rows decide (static rule for gat / exit-exam is still Coming soon when no row exists).
     val isComingSoonPackage = false
     var view by remember(basePath) { mutableStateOf<WorkspaceView?>(null) }
+    // ECE-FIX-A3: name of a hub that has no native scope (ECE only); shows "No content yet" instead of a website page.
+    var noContentHub by remember(basePath) { mutableStateOf<String?>(null) }
 
     val context = LocalContext.current
     var hubCounts by remember(contentScope) { mutableStateOf<Map<String, Int>>(emptyMap()) }
@@ -457,6 +463,9 @@ fun StudyWorkspaceScreen(
                                     HubGate.Open -> {
                                         if (contentScope != null && hub.id in NATIVE_HUB_IDS) {
                                             view = WorkspaceView.HubList(hub.id)
+                                        } else if (isEcePackagePath(basePath)) {
+                                            // ECE-FIX-A3: never the website for ECE; say there is no content yet.
+                                            noContentHub = hub.name
                                         } else {
                                             onOpenHub(hub.id, entranceUrl ?: safeHubUrl(basePath, hub.id))
                                         }
@@ -511,6 +520,19 @@ fun StudyWorkspaceScreen(
                     onClose = { gateMessage = null }
                 )
             }
+        }
+
+        val emptyHub = noContentHub
+        if (emptyHub != null) {
+            // ECE-FIX-A3: native empty state (same dialog as the gates).
+            HubGateDialog(
+                badge = null,
+                title = "No content yet",
+                hubName = emptyHub,
+                message = "Nothing has been added here yet. Please check back soon.",
+                buttonText = "Got it",
+                onClose = { noContentHub = null }
+            )
         }
 
     }
