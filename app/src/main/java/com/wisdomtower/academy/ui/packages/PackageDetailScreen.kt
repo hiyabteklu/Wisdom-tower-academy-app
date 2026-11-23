@@ -34,19 +34,56 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 // Electrical & Computer Engineering (website-reference/src/data/special-packages.ts: name "Electrical & Computer
 // Engineering", yearLabel "Year 3", semesters "Semester 1" / "Semester 2" with their own cover pictures).
 private const val ECE_PACKAGE_NAME = "Electrical & Computer Engineering"
+// Year 3 label (LOCKED). Years 1 and 2 take their label from EceTreeData.kt (E2, docs/ECE_STATUS.md).
 private const val ECE_YEAR_LABEL = "Year 3"
+
+// One course card on the ECE course list. Year 3 fills it from NativeSpecialCourse (picture + path unchanged);
+// Years 1 and 2 fill it from EceTreeCourse (no course pictures exist for them, so image is null).
+private data class EceCourseCard(
+    val title: String,
+    val image: String?,
+    val path: String
+)
 
 private data class EceSemesterEntry(
     val id: String,
     val label: String,
     val image: String,
-    val courses: List<NativeSpecialCourse>
+    val courses: List<EceCourseCard>
 )
 
+private fun List<NativeSpecialCourse>.toEceCards(): List<EceCourseCard> =
+    map { EceCourseCard(it.title, it.assetImage, it.path) }
+
 private val ECE_SEMESTER_ENTRIES = listOf(
-    EceSemesterEntry("sem-1", "Semester 1", "file:///android_asset/images/special-packages/ece-sem-1.jpg", ECE_SEM1_COURSES),
-    EceSemesterEntry("sem-2", "Semester 2", "file:///android_asset/images/special-packages/ece-sem-2.jpg", ECE_SEM2_COURSES)
+    EceSemesterEntry("sem-1", "Semester 1", "file:///android_asset/images/special-packages/ece-sem-1.jpg", ECE_SEM1_COURSES.toEceCards()),
+    EceSemesterEntry("sem-2", "Semester 2", "file:///android_asset/images/special-packages/ece-sem-2.jpg", ECE_SEM2_COURSES.toEceCards())
 )
+
+/** The Year 1 / Year 2 data for a package id like "ece-y1-sem-1"; null for Year 3 ("ece-y3-sem-N") and anything else. */
+private fun eceTreeYearFor(pkgId: String): EceTreeYear? =
+    ECE_TREE_YEARS.firstOrNull { pkgId.startsWith("ece-${it.id}-") }
+
+private fun eceYearLabelFor(pkgId: String): String =
+    eceTreeYearFor(pkgId)?.label ?: ECE_YEAR_LABEL
+
+/** Semester cards for the year of this package. Year 3 (and any unknown ece id) returns the original Year 3 list. */
+private fun eceSemesterEntriesFor(pkgId: String): List<EceSemesterEntry> {
+    val treeYear = eceTreeYearFor(pkgId) ?: return ECE_SEMESTER_ENTRIES
+    return treeYear.semesters.map { sem ->
+        EceSemesterEntry(
+            id = sem.id,
+            label = sem.label,
+            // UNSURE (docs/ECE_STATUS.md): no own covers for Year 1/2 yet, so the Year 3 semester covers are reused.
+            image = if (sem.id == "sem-1") {
+                "file:///android_asset/images/special-packages/ece-sem-1.jpg"
+            } else {
+                "file:///android_asset/images/special-packages/ece-sem-2.jpg"
+            },
+            courses = sem.courses.map { EceCourseCard(it.title, null, it.path) }
+        )
+    }
+}
 
 /**
  * Package page (shared [OpenCard] cards in a TWO-column grid; headings from the website pages, see git history of
@@ -89,10 +126,12 @@ fun PackageDetailScreen(
     val stream = if (isEntrance) ENTRANCE_STREAMS.firstOrNull { it.id == streamId } else null
     val subject = stream?.subjects?.firstOrNull { it.id == subjectId }
 
-    // ECE drill-down state (semester cards -> that semester's courses)
+    // ECE drill-down state (semester cards -> that semester's courses). The year (1, 2 or 3) comes from the package id.
     var eceSemesterId by rememberSaveable { mutableStateOf<String?>(null) }
     var cocStreamLabel by rememberSaveable { mutableStateOf<String?>(null) }
-    val eceSemester = if (isEce) ECE_SEMESTER_ENTRIES.firstOrNull { it.id == eceSemesterId } else null
+    val eceYearLabel = if (isEce) eceYearLabelFor(pkg.id) else ECE_YEAR_LABEL
+    val eceSemesters = if (isEce) eceSemesterEntriesFor(pkg.id) else ECE_SEMESTER_ENTRIES
+    val eceSemester = if (isEce) eceSemesters.firstOrNull { it.id == eceSemesterId } else null
 
     val goBack: () -> Unit = {
         if (subject != null) {
@@ -111,8 +150,8 @@ fun PackageDetailScreen(
     val pageTitle: String = when {
         isFreshman -> "Freshman courses"
         isGrade -> "Grade ${pkg.id.removePrefix("grade-")}"
-        isEce && eceSemester != null -> "${eceSemester.label} \u00B7 $ECE_YEAR_LABEL"
-        isEce -> "$ECE_PACKAGE_NAME \u00B7 $ECE_YEAR_LABEL"
+        isEce && eceSemester != null -> "${eceSemester.label} \u00B7 $eceYearLabel"
+        isEce -> "$ECE_PACKAGE_NAME \u00B7 $eceYearLabel"
         isEntrance && subject != null -> subject.name
         isUat -> "University Admission Test"
         isCoc -> "Certificate of Competency"
@@ -157,18 +196,18 @@ fun PackageDetailScreen(
                 }
             }
 
-            // ── ECE: first the two semester cover cards, then the 7 courses of the chosen semester ──
+            // ── ECE: first the semester cover cards, then the courses of the chosen semester (Year 1, 2 or 3) ──
             if (isEce) {
                 if (eceSemester == null) {
-                    openGrid("ece_semesters", ECE_SEMESTER_ENTRIES) { sem ->
+                    openGrid("ece_semesters", eceSemesters) { sem ->
                         OpenCard(sem.label, sem.image) { eceSemesterId = sem.id }
                     }
                 } else {
                     openGrid("ece_courses_${eceSemester.id}", eceSemester.courses) { course ->
-                        OpenCard(course.title, course.assetImage) {
+                        OpenCard(course.title, course.image) {
                             onOpenSubjectWorkspace(
                                 course.title,
-                                "ECE Year 3 · ${eceSemester.label}",
+                                "ECE $eceYearLabel · ${eceSemester.label}",
                                 course.path
                             )
                         }
