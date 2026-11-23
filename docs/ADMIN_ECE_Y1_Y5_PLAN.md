@@ -1,52 +1,82 @@
-# ADMIN for ECE Years 1, 2, 4, 5: the plan (Copilot: do ALL of it, in order, without stopping)
+# ECE Years 1, 2, 4, 5 + Year 3 consistency: the plan (Copilot: do ALL of it, in order, without stopping)
 
-Owner order 2026-11-23: the admin dashboard must manage the new ECE packages exactly like Year 3: **add content, lock, set price, game**. Everything functional. The owner will not tell you each step. Push everything to `main`.
+Owner orders 2026-11-23. The owner will not tell you each step. Push everything to `main`. Order: A, B, C first (they block phone testing), then 1 to 6.
 
 ## Rules (read first)
-1. Read `START_HERE.md` and `docs/ECE_STATUS.md` once. Do not re-read what ECE_STATUS "Verified facts" already says.
-2. **Year 3 is LOCKED.** Its ids, routes, screens and behavior must not change. Copy its pattern; never edit its data.
-3. Live paying users exist. NEVER set `catalog_items.active = true` for any new row. NEVER run SQL against Supabase. If a database change is needed, write it as a file in `docs/sql/` and list it under "Needs owner" at the end.
-4. Packages in scope (ids already exist in `AdminPackages.kt`): `ece-y1-sem-1`, `ece-y1-sem-2`, `ece-y2-sem-1`, `ece-y2-sem-2`, `ece-y4-sem-1`, `ece-y4-sem-2`, `ece-y5-sem-1`, `ece-y5-sem-2`.
-5. Single source of truth for courses, streams and paths: `app/src/main/java/com/wisdomtower/academy/ui/packages/EceTreeData.kt` (`ECE_TREE_YEARS`). Do NOT retype course lists by hand; generate admin nodes from it so they cannot drift. Never invent course names, prices or content.
-6. Commit straight to `main`, one commit per phase, clear messages. CI (GitHub Action building the APK) must be green after the last commit. If it fails, read the error and fix it yourself; keep going until green.
-7. Short Kotlin comments only, and never put a slash followed by a star inside a comment (Kotlin nests comments).
+1. Read `docs/ECE_STATUS.md` once. **This plan overrides the reading budget and the "no search" rules in `START_HERE.md`** (those were for a small free chat plan). You may read and search as much as you need.
+2. **Year 3 is LOCKED.** Its ids, routes, data and behavior must not change. The ONLY allowed Year 3 edit: which thumbnail file name it uses (Phase C), with a fallback to the old file so nothing breaks.
+3. Live paying users exist. NEVER set `catalog_items.active = true`. NEVER run SQL on Supabase. Database changes = files in `docs/sql/` listed under "Needs owner".
+4. Packages in scope: `ece-y1-sem-1/2`, `ece-y2-sem-1/2`, `ece-y4-sem-1/2`, `ece-y5-sem-1/2`.
+5. Single source for courses, streams, paths: `app/src/main/java/com/wisdomtower/academy/ui/packages/EceTreeData.kt` (`ECE_TREE_YEARS`). Never retype course lists. Never invent names, prices, content.
+6. Commit straight to `main`, one commit per phase. CI (APK build) must be green after each phase; if it fails, read the error, fix, continue.
+7. Kotlin comments: never a slash followed by a star inside a comment.
 
-## Phase 1: Content tree (this makes "add content" and "lock" work)
-File: `app/src/main/java/com/wisdomtower/academy/data/admin/AdminContentTree.kt`.
-Today `specialNode()` only lists Year 3 (`ECE_SEMESTERS`). Add Years 1, 2, 4, 5 under "Special packages":
-- One node per semester, label like "Electrical & Computer Engineering · Y1 S1", `packageId` = the semester package id.
-- Under it, one `subjectNode(packageId, scopePath, slug, "CODE · Title")` per course (six hubs each), built from `ECE_TREE_YEARS`.
-- Years 4 and 5 have an optional stream level (year, semester, stream, course). Add a stream node between semester and course where `EceTreeData.kt` has streams. Scope path must be exactly the path the student screens use for that course (see the `path` field in `EceTreeData.kt`, turned into a scope the same way `inferPackageAndScope` in `data/content/ContentAccess.kt` does it). Read that function once to match.
+## Phase A: Hubs open NATIVE, never the 404 web page (blocks everything)
+Bug (phone, 2026-11-23): tapping a Year 1/2/4/5 course opens Study Workspace, and tapping a hub (Books, Notes ...) shows the website "404 Page Not Found".
+Root cause (verified in code): `app/src/main/java/com/wisdomtower/academy/ui/study/StudyWorkspaceScreen.kt` has
+`SCOPE_ECE = ^/academy/special-packages/[^/]+/(sem-[12])/([^/]+)$` and `TRACK_ECE` with the same `(sem-[12])`. The new paths are `.../y1-sem-1/<slug>` (see `EceTreeData.kt`), so they do not match, `contentScopePath` returns null, and a hub tap falls through to `onOpenHub(... safeHubUrl ...)` which loads a website page that does not exist.
+Fix:
+1. Change both regexes to accept `((?:y[1-5]-)?sem-[12])`. Scope becomes `ece/y1-sem-1/<slug>` (Year 3 stays `ece/sem-1/<slug>`, unchanged).
+2. Find and fix EVERY other place that assumes `sem-[12]` or `ece-y3-sem-` for ECE paths. Search the whole app: `data/content/ContentAccess.kt` (`inferPackageAndScope`, `staticLocks`, `resolveLocks`, `unlockPackageIds`), `data/content/LearningContentRepository.kt` (the alias regex `^ece/(sem-[12])/([^/]+)$` must not break; new scopes match exactly), `ResourceScopeIndex.kt`, `PackageCheckout.kt`, `StatusSubjectBoard`, tracker ids, `MainActivity.kt` (`handleGlobalNav`, hub routing; use search, edit with a small patch, do not retype the file).
+3. Safety net: for any path containing `/special-packages/electrical-computer-engineering/` the workspace must NEVER open the website. If a scope cannot be resolved, show a native empty state ("No content yet") instead of `onOpenHub`.
+4. Add a unit test (Robolectric/JUnit, in `app/src/test`) that loops over every course in `ECE_TREE_YEARS` and asserts: `contentScopePath(course.path)` is `ece/<yN-sem-M>/<slug>`, and for each of the 6 hubs `contentScopePath(course.path + "/" + hub)` gives the same scope. Also assert Year 3 sample paths are unchanged.
+Done when: the test passes in CI, and a Year 1/2/4/5 course opens the native hub grid and each hub opens the native item list (empty is fine where no content exists yet), same as Year 3. No web view anywhere in this flow.
+
+## Phase B: Courses are narrow horizontal rows, not card grids (Years 1, 2, 4, 5 only)
+Owner order: these 4 years have NO course thumbnails, so they must not reuse Year 3's two-column image card grid. Courses are listed as narrow horizontal rows with a book icon, the same look as the item rows inside hubs (`app/src/main/java/com/wisdomtower/academy/ui/study/HubItemListScreen.kt`: copy its row style, spacing, colors, shape).
+- New composable `EceCourseRow(code, title, onClick)` in `ui/packages/`: full-width, one per line, book icon at the start (Material `MenuBook`), title (one or two lines), code in muted small text, chevron at the end, ripple, min touch height 56 dp.
+- Use it in `PackageDetailScreen.kt` for the course lists of Years 1, 2, 4 (S1) and for the courses inside a stream of Years 4 (S2) and 5.
+- The Year 4 S2 / Year 5 stream chooser (Communication, Computer, Control, Power, Electronics) is ALSO a list of the same narrow rows (stream name + "N courses"), not cards.
+- The semester chooser (Semester 1 / Semester 2) stays as cards WITH the package cover (Phase C).
+- Year 3 keeps its image card grid exactly as it is.
+- Back goes up one level everywhere (year, semester, stream, course). Keep locks and progress.
+Done when: Year 1, 2, 4, 5 course lists are rows with book icons; Year 3 looks the same as before.
+
+## Phase C: Package thumbnails with consistent names (Years 1 to 5) and the build draws them
+Naming (the owner uploads these to the WEBSITE repo; the app build copies them):
+- Year cards (Home and Learning > Curriculum): `ece-y1.jpg`, `ece-y2.jpg`, `ece-y3.jpg`, `ece-y4.jpg`, `ece-y5.jpg`
+- Semester / package covers: `ece-y1-sem-1.jpg`, `ece-y1-sem-2.jpg`, `ece-y2-sem-1.jpg`, `ece-y2-sem-2.jpg`, `ece-y3-sem-1.jpg`, `ece-y3-sem-2.jpg`, `ece-y4-sem-1.jpg`, `ece-y4-sem-2.jpg`, `ece-y5-sem-1.jpg`, `ece-y5-sem-2.jpg`
+- Folder in the WEBSITE repo: `public/images/special-packages/` (in this repo the synced copy is `website-reference/public/images/special-packages/`).
+How the app gets them (already built, verified in `app/build.gradle.kts`): task `copySpecialPackageImages` copies that whole folder into the app assets as `images/special-packages/` before every build, so the app path is `file:///android_asset/images/special-packages/<name>`. Do NOT change that task.
+What to do:
+1. One Kotlin helper (new file in `ui/packages/`), e.g. `eceCoverAsset(context, newName, oldName)`: returns the new file if it exists in the app assets (`assets.list("images/special-packages")`, read once, cached), otherwise the old one (`ece.jpg`, `ece-sem-1.jpg`, `ece-sem-2.jpg`, which stay in place and are never deleted). Never show a broken image.
+2. Use it everywhere an ECE year card or semester cover is drawn: `PackagesData.kt` (`CATALOG_PACKAGES` ECE entries), `HomeScreen.kt` (`HOME_PROGRAMS` ECE cards), `PackageDetailScreen.kt`, `EceTrackCover.kt`, Learning > Curriculum. Year 3 uses the same helper (new name first, old name fallback), the only allowed Year 3 change.
+3. Write `docs/WEBSITE_ECE_IMAGES.md`: the 15 file names, folder, recommended size (same pixel size and ratio as the existing `ece-sem-1.jpg`), and the note that the website's own references (`website-reference/src/data/special-packages.ts`, `packages.ts`, and `catalog_items.image` in the database) still point to the old names. Do NOT edit those; list them as "Needs owner".
+4. Add a CI/Gradle check that only WARNS (never fails the build) when one of the 15 files is missing from `website-reference/public/images/special-packages/`.
+Done when: after the owner adds the 15 files and syncs the website, the next build shows them; with none added, nothing breaks.
+
+## Phase 1: Admin content tree (makes "add content" and "lock" work)
+File: `app/src/main/java/com/wisdomtower/academy/data/admin/AdminContentTree.kt`. `specialNode()` only lists Year 3. Add Years 1, 2, 4, 5 under "Special packages":
+- One node per semester (label like "Electrical & Computer Engineering · Y1 S1"), `packageId` = the semester package id.
+- Under it one `subjectNode(packageId, "ece/<yN-sem-M>/<slug>", slug, "CODE · Title")` per course (six hubs each), generated from `ECE_TREE_YEARS`.
+- Years 4 S2 and 5: courses repeat across streams but the path is the same (`y4-sem-2/<slug>`), so list each course ONCE per semester (union of streams) so ids stay unique; put the stream names in the label.
 - Year 3 entries stay exactly as they are.
-Done when: the admin Content and Locks screens show all 5 ECE years, every course has the six hubs, and lock keys (`package:<id>`, `scope:<path>`, `hub:<path>:<hub>`) are the same ones the student app checks.
+Done when: admin Content and Locks screens show all 5 ECE years; lock keys (`package:<id>`, `scope:<path>`, `hub:<path>:<hub>`) are the same ones the student app checks (Phase A).
 
-## Phase 2: Add content (upload) works for the new packages
-Files: `data/admin/AdminContentRepository.kt`, `ui/admin/AdminModules.kt` (and `PaidPdfPicker.kt`, `PaidPdfUploader.kt` if they hold package lists).
-- Wherever Year 3 ids (`ece-y3-sem-`) are hard-coded or special-cased, give the new packages the same treatment. A row added under a new scope must be saved with the correct `package_id` for that course's semester (Year 1 S1 course gets `ece-y1-sem-1`, and so on) and the exact `scope_path` the student hub lookup uses (exact match, see ECE_STATUS "Hub content lookup").
+## Phase 2: Add content (upload) for the new packages
+Files: `data/admin/AdminContentRepository.kt`, `ui/admin/AdminModules.kt`, `PaidPdfPicker.kt`, `PaidPdfUploader.kt`.
+- Wherever Year 3 (`ece-y3-sem-`) is hard-coded or special-cased, give the new packages the same treatment. A row added under a new scope is saved with the right `package_id` (Year 1 S1 course gets `ece-y1-sem-1`, and so on) and the exact `scope_path` the student hub reads (`ece/<yN-sem-M>/<slug>`, exact match).
 - Check Books, Short Notes, Flashcards, Question Banks, Exams, Life Savers all save and list for a new course.
-Done when: adding an item under any Year 1/2/4/5 course creates a `learning_resources` row that the matching student hub would list. Paid/free flag works like Year 3.
+Done when: adding an item under any new course creates a `learning_resources` row that the matching student hub lists.
 
 ## Phase 3: Price
 Files: `data/admin/AdminPackages.kt`, `ui/admin/CatalogScreen.kt`, `data/admin/AdminSupabase.kt`.
-- `AdminPackages.kt` already lists all 8 ids: verify names match the catalog.
-- Prices live only in `public.catalog_items` (already has the rows for Years 1, 2, 4, 5 at 300, `active = false`). Verify `CatalogScreen.kt` lists ALL rows including inactive ones, lets the admin edit `price_etb` and flip `active`, and does not filter out the ECE rows. Fix it if it does.
-- Do NOT change any price or active flag in the database.
-Done when: the admin can see, price and (manually) switch on each new package.
+- `AdminPackages.kt` already lists all 8 ids; verify names.
+- Prices live only in `public.catalog_items` (rows for Years 1, 2, 4, 5 exist at 300, `active = false`). Verify `CatalogScreen.kt` lists ALL rows including inactive, lets the admin edit `price_etb` and switch `active`, and does not hide the ECE rows. Fix if it does. Do NOT change any price or flag.
 
 ## Phase 4: Game
-- Find every place Year 3 appears in game code: `website-reference/src/lib/games/tower-defense/curated-exam-tracks.ts`, `website-reference/src/data/content-availability.ts`, and search the app for tower-defense / game / competition code that lists packages (`rg "ece-y3"` and `rg -i "tower"`).
-- Give the new packages the same game wiring Year 3 has, using only real content. A package with no questions must show a clean "no questions yet" state, never fake or placeholder questions.
-- If the admin dashboard has a game or competition screen (`ui/admin`, `AdminModules.kt`), make sure the new packages appear in its package list.
-Done when: every package list that includes Year 3 also includes the new ones, without breaking Year 3.
+- Find every place Year 3 appears in game code: `website-reference/src/lib/games/tower-defense/curated-exam-tracks.ts`, `website-reference/src/data/content-availability.ts`, app code for games/competitions, and the admin game or competition screen (`ui/admin`).
+- Give the new packages the same wiring using only real content. A package with no questions shows a clean "no questions yet" state, never fake questions.
 
-## Phase 5: Website admin mirror (same data, only if it builds)
-`website-reference/src/data/admin-nav.ts` (the original of the hand copy in AdminContentTree.kt), `website-reference/src/components/admin/LocksPanel.tsx` (`PACKAGE_SHORTCUTS`), `website-reference/src/data/packages.ts`, `website-reference/src/data/special-packages.ts`, `NotificationAudiencePicker.tsx`. Add the new years the same way. Skip a file if the web build is not part of CI, and say so in the log.
+## Phase 5: Website admin mirror (only if it builds)
+`website-reference/src/data/admin-nav.ts`, `components/admin/LocksPanel.tsx` (`PACKAGE_SHORTCUTS`), `data/packages.ts`, `data/special-packages.ts`, `NotificationAudiencePicker.tsx`. Same data, same pattern. Skip a file if the web build is not part of CI and say so in the log. Note: `website-reference` is a snapshot of the website repo; list the same edits in `docs/WEBSITE_ECE_IMAGES.md` under "Website repo changes" for the owner.
 
-## Phase 6: Docs and check
-- `docs/ECE_STATUS.md`: add one log row per phase (what was pushed, what is UNSURE). Do not delete rows.
-- Confirm CI is green on `main`. Confirm Year 3 files changed only where the plan said (list them).
-- End with a plain list: DONE, NOT DONE, NEEDS OWNER.
+## Phase 6: Docs and final check
+- `docs/ECE_STATUS.md`: one log row per phase (pushed, UNSURE). Do not delete rows.
+- Confirm CI green on `main`. List the Year 3 files changed (should be only the thumbnail helper usage).
+- End with: DONE, NOT DONE, NEEDS OWNER.
 
 ## Needs owner / Claude (do not do these)
-- Supabase: `content_guard.resource_visible` and `open_resource_v2` must accept Year 1/2/4/5 package ids and the "one purchase opens both semesters" rule, and the freshman alias decision (E2c-c, E2c-d). Claude handles this on Supabase after review.
+- Supabase: `content_guard.resource_visible` and `open_resource_v2` must accept Year 1/2/4/5 package ids and the "one purchase opens both semesters" rule, plus the freshman alias decision (E2c-c, E2c-d). Claude does this on Supabase after review.
+- Updating `catalog_items.image` and website references to the new thumbnail names.
 - Setting prices `active = true` (go-live), only after the phone test.
