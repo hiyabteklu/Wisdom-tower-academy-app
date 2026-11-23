@@ -39,6 +39,14 @@ object PaidCheckout {
             "ece" -> when (parts.getOrNull(1)) {
                 "sem-1" -> "ece-y3-sem-1"
                 "sem-2" -> "ece-y3-sem-2"
+                "y1-sem-1" -> "ece-y1-sem-1"
+                "y1-sem-2" -> "ece-y1-sem-2"
+                "y2-sem-1" -> "ece-y2-sem-1"
+                "y2-sem-2" -> "ece-y2-sem-2"
+                "y4-sem-1" -> "ece-y4-sem-1"
+                "y4-sem-2" -> "ece-y4-sem-2"
+                "y5-sem-1" -> "ece-y5-sem-1"
+                "y5-sem-2" -> "ece-y5-sem-2"
                 else -> null
             }
             "coc" -> "coc"

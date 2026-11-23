@@ -278,6 +278,54 @@ val CATALOG_PACKAGES = listOf(
         group = "special",
         accentColor = WisdomAccentViolet,
         includes = listOf("All 7 Year 3 Semester 2 engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
+        id = "ece-y4-sem-1",
+        name = "ECE Year 4: Semester 1",
+        shortName = "ECE Y4 S1",
+        description = "Electrical and Computer Engineering, Year 4, Semester 1.",
+        path = "/academy/special-packages/electrical-computer-engineering/y4-sem-1",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-1.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("All Year 4 Semester 1 engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
+        id = "ece-y4-sem-2",
+        name = "ECE Year 4: Semester 2",
+        shortName = "ECE Y4 S2",
+        description = "Electrical and Computer Engineering, Year 4, Semester 2.",
+        path = "/academy/special-packages/electrical-computer-engineering/y4-sem-2",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-2.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("Year 4 Semester 2 streams and engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
+        id = "ece-y5-sem-1",
+        name = "ECE Year 5: Semester 1",
+        shortName = "ECE Y5 S1",
+        description = "Electrical and Computer Engineering, Year 5, Semester 1.",
+        path = "/academy/special-packages/electrical-computer-engineering/y5-sem-1",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-1.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("Year 5 Semester 1 streams and engineering courses") + CORE_INCLUDES
+    ),
+    NativePackage(
+        id = "ece-y5-sem-2",
+        name = "ECE Year 5: Semester 2",
+        shortName = "ECE Y5 S2",
+        description = "Electrical and Computer Engineering, Year 5, Semester 2.",
+        path = "/academy/special-packages/electrical-computer-engineering/y5-sem-2",
+        assetImage = "file:///android_asset/images/special-packages/ece-sem-2.jpg",
+        enrolledLabel = "Special track",
+        group = "special",
+        accentColor = WisdomAccentViolet,
+        includes = listOf("Year 5 Semester 2 streams and engineering courses") + CORE_INCLUDES
     )
 )
 

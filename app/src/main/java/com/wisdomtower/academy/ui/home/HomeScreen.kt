@@ -141,9 +141,25 @@ val HOME_PROGRAMS: List<ProgramItem>
             accentColor = WisdomAccentViolet
         ),
         ProgramItem(
-            id = "ece",
-            name = "ECE Engineering",
+            id = "ece-y3",
+            name = "ECE Year 3",
             path = "/academy/special-packages/electrical-computer-engineering/sem-1",
+            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
+            accentColor = WisdomAccentViolet
+        ),
+        ProgramItem(
+            id = "ece-y4",
+            name = "ECE Year 4",
+            path = "/academy/special-packages/electrical-computer-engineering/y4-sem-1",
+            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
+            accentColor = WisdomAccentViolet
+        ),
+        ProgramItem(
+            id = "ece-y5",
+            name = "ECE Year 5",
+            path = "/academy/special-packages/electrical-computer-engineering/y5-sem-1",
             assetImage = "file:///android_asset/images/special-packages/ece.jpg",
             webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet

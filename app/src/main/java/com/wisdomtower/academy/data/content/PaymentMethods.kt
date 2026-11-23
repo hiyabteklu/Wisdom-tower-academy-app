@@ -44,6 +44,14 @@ object PaymentMethods {
         "remedial" -> "Remedial Package"
         "ece-y3-sem-1" -> "ECE Year 3: Semester 1"
         "ece-y3-sem-2" -> "ECE Year 3: Semester 2"
+        "ece-y1-sem-1" -> "ECE Year 1: Semester 1"
+        "ece-y1-sem-2" -> "ECE Year 1: Semester 2"
+        "ece-y2-sem-1" -> "ECE Year 2: Semester 1"
+        "ece-y2-sem-2" -> "ECE Year 2: Semester 2"
+        "ece-y4-sem-1" -> "ECE Year 4: Semester 1"
+        "ece-y4-sem-2" -> "ECE Year 4: Semester 2"
+        "ece-y5-sem-1" -> "ECE Year 5: Semester 1"
+        "ece-y5-sem-2" -> "ECE Year 5: Semester 2"
         else -> packageId
     }
 }

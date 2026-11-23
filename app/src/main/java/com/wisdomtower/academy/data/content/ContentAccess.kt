@@ -441,7 +441,7 @@ object ContentAccess {
         if (ALL_PACKAGES in access.packages) return true
         return unlockIds.any { id ->
             id in access.packages ||
-                (id.startsWith("ece-y3-sem-") && access.packages.any { it.startsWith("ece-y3-sem-") })
+                ownsPackageId(id, access.packages)
         }
     }
 
@@ -455,8 +455,16 @@ object ContentAccess {
         if (ALL_PACKAGES in access.packages) return true
         return unlockIds.any { id ->
             id in access.packages ||
-                (id.startsWith("ece-y3-sem-") && access.packages.any { it.startsWith("ece-y3-sem-") })
+                ownsPackageId(id, access.packages)
         }
+    }
+
+    private val RE_ECE_YEAR_PREFIX = Regex("^ece-y[1-5]-sem-")
+
+    private fun ownsPackageId(id: String, packages: Set<String>): Boolean {
+        if (id in packages) return true
+        val year = RE_ECE_YEAR_PREFIX.find(id)?.value ?: return false
+        return packages.any { it.startsWith(year) }
     }
 
     /** The last answer for the student who is signed in now (memory, then the phone), without any network call. */
@@ -557,6 +565,10 @@ object ContentAccess {
         base.contains("/academy/gat") -> listOf("gat")
         base.contains("/academy/exit-exam") -> listOf("exit-exam")
         base.contains("/academy/remedial") -> listOf("remedial")
+        Regex("/special-packages/(?:electrical-computer-engineering|ece)/y([1-5])-sem-[12]").find(base)?.let { it.groupValues[1] } != null ->
+            RE_ECE_YEAR_ROUTE.find(base)?.groupValues?.get(1)?.let { year ->
+                listOf("ece-y$year-sem-1", "ece-y$year-sem-2")
+            } ?: emptyList()
         base.contains("/special-packages/electrical-computer-engineering") ||
             base.contains("/special-packages/ece") -> listOf("ece-y3-sem-1", "ece-y3-sem-2")
         else -> emptyList()
@@ -566,6 +578,8 @@ object ContentAccess {
     private val RE_GRADE = Regex("/academy/grades/(9|10|11|12)/([^/]+)")
     private val RE_REMEDIAL = Regex("/academy/remedial/([^/]+)")
     private val RE_ECE = Regex("/special-packages/(?:electrical-computer-engineering|ece)/(sem-[12])/([^/]+)")
+    private val RE_ECE_YEAR_ROUTE = Regex("/special-packages/(?:electrical-computer-engineering|ece)/y([1-5])-sem-[12]")
+    private val RE_ECE_YEAR = Regex("/special-packages/(?:electrical-computer-engineering|ece)/(y[1-5]-sem-[12])/([^/]+)")
 
     /** `inferPackageAndScope` of `components/ResourceHubGrid.tsx`: (package id, lock scope path). */
     private fun inferPackageAndScope(base: String, unlockIds: List<String>): Pair<String?, String?> {
@@ -591,6 +605,11 @@ object ContentAccess {
         if (ece != null) {
             if (pkg == null) pkg = if (ece.groupValues[1] == "sem-1") "ece-y3-sem-1" else "ece-y3-sem-2"
             scope = "ece/${ece.groupValues[1]}/${ece.groupValues[2]}"
+        }
+        val eceYear = RE_ECE_YEAR.find(base)
+        if (eceYear != null) {
+            if (pkg == null) pkg = "ece-${eceYear.groupValues[1]}"
+            scope = "ece/${eceYear.groupValues[1]}/${eceYear.groupValues[2]}"
         }
         val uatHub = Regex("^/academy/uat/(tips|revision-notes|previous-exams|resources)$").matchEntire(base)
         if (uatHub != null) {

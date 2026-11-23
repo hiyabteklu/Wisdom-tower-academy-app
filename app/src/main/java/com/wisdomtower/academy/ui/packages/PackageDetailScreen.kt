@@ -49,7 +49,8 @@ private data class EceSemesterEntry(
     val id: String,
     val label: String,
     val image: String,
-    val courses: List<EceCourseCard>
+    val courses: List<EceCourseCard>,
+    val streams: List<EceTreeStream> = emptyList()
 )
 
 private fun List<NativeSpecialCourse>.toEceCards(): List<EceCourseCard> =
@@ -80,7 +81,8 @@ private fun eceSemesterEntriesFor(pkgId: String): List<EceSemesterEntry> {
             } else {
                 "file:///android_asset/images/special-packages/ece-sem-2.jpg"
             },
-            courses = sem.courses.map { EceCourseCard(it.title, null, it.path) }
+            courses = sem.courses.map { EceCourseCard(it.title, null, it.path) },
+            streams = sem.streams
         )
     }
 }
@@ -128,28 +130,33 @@ fun PackageDetailScreen(
 
     // ECE drill-down state (semester cards -> that semester's courses). The year (1, 2 or 3) comes from the package id.
     var eceSemesterId by rememberSaveable { mutableStateOf<String?>(null) }
+    var eceStreamId by rememberSaveable { mutableStateOf<String?>(null) }
     var cocStreamLabel by rememberSaveable { mutableStateOf<String?>(null) }
     val eceYearLabel = if (isEce) eceYearLabelFor(pkg.id) else ECE_YEAR_LABEL
     val eceSemesters = if (isEce) eceSemesterEntriesFor(pkg.id) else ECE_SEMESTER_ENTRIES
     val eceSemester = if (isEce) eceSemesters.firstOrNull { it.id == eceSemesterId } else null
+    val eceStream = eceSemester?.streams?.firstOrNull { it.id == eceStreamId }
 
     val goBack: () -> Unit = {
         if (subject != null) {
             subjectId = null
         } else if (stream != null) {
             streamId = null
+        } else if (eceStream != null) {
+            eceStreamId = null
         } else if (eceSemester != null) {
             eceSemesterId = null
         } else {
             onBack()
         }
     }
-    BackHandler(enabled = backEnabled && (stream != null || eceSemester != null)) { goBack() } // BACKFIX-S7
+    BackHandler(enabled = backEnabled && (stream != null || eceStream != null || eceSemester != null)) { goBack() } // BACKFIX-S7
 
     // ONE small line: where am I (current level only)
     val pageTitle: String = when {
         isFreshman -> "Freshman courses"
         isGrade -> "Grade ${pkg.id.removePrefix("grade-")}"
+        isEce && eceStream != null -> "${eceStream.label} · ${eceSemester?.label.orEmpty()} · $eceYearLabel"
         isEce && eceSemester != null -> "${eceSemester.label} \u00B7 $eceYearLabel"
         isEce -> "$ECE_PACKAGE_NAME \u00B7 $eceYearLabel"
         isEntrance && subject != null -> subject.name
@@ -201,6 +208,20 @@ fun PackageDetailScreen(
                 if (eceSemester == null) {
                     openGrid("ece_semesters", eceSemesters) { sem ->
                         OpenCard(sem.label, sem.image) { eceSemesterId = sem.id }
+                    }
+                } else if (eceSemester.streams.isNotEmpty() && eceStream == null) {
+                    openGrid("ece_streams_${eceSemester.id}", eceSemester.streams) { stream ->
+                        OpenCard(stream.label, null) { eceStreamId = stream.id }
+                    }
+                } else if (eceStream != null) {
+                    openGrid("ece_stream_courses_${eceStream.id}", eceStream.courses) { course ->
+                        OpenCard(course.title, null) {
+                            onOpenSubjectWorkspace(
+                                course.title,
+                                "ECE $eceYearLabel · ${eceSemester.label} · ${eceStream.label}",
+                                course.path
+                            )
+                        }
                     }
                 } else {
                     openGrid("ece_courses_${eceSemester.id}", eceSemester.courses) { course ->

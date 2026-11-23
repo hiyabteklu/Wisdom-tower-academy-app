@@ -28,5 +28,9 @@ val ADMIN_PACKAGES: List<AdminPackage> = listOf(
     AdminPackage("ece-y2-sem-1", "ECE Year 2: Semester 1"),
     AdminPackage("ece-y2-sem-2", "ECE Year 2: Semester 2"),
     AdminPackage("ece-y3-sem-1", "ECE Year 3: Semester 1"),
-    AdminPackage("ece-y3-sem-2", "ECE Year 3: Semester 2")
+    AdminPackage("ece-y3-sem-2", "ECE Year 3: Semester 2"),
+    AdminPackage("ece-y4-sem-1", "ECE Year 4: Semester 1"),
+    AdminPackage("ece-y4-sem-2", "ECE Year 4: Semester 2"),
+    AdminPackage("ece-y5-sem-1", "ECE Year 5: Semester 1"),
+    AdminPackage("ece-y5-sem-2", "ECE Year 5: Semester 2")
 )

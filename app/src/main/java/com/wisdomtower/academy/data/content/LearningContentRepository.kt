@@ -134,6 +134,18 @@ object LearningContentRepository {
 
     private val JSON_MEDIA = "application/json; charset=utf-8".toMediaType()
     private val ECE_SCOPE = Regex("^ece/(sem-[12])/([^/]+)$")
+    private val ECE_YEAR_SCOPE = Regex("^ece/(y[12]-sem-[12])/([^/]+)$")
+    private val ECE_FRESHMAN_ALIASES = mapOf(
+        "flen1011" to "english-1", "loct1011" to "logic",
+        "math1011" to "math-natural", "phys1011" to "physics",
+        "gees1011" to "geography", "psch1011" to "psychology",
+        "spsc1011" to "physical-fitness", "flen1012" to "english-2",
+        "anth1012" to "anthropology", "math1042" to "applied-math-1",
+        "mgmt1012" to "entrepreneurship", "emte1012" to "emerging-technology",
+        "mcie1012" to "civics", "eceg1052" to "cpp-programming",
+        "hist1012" to "history", "snie1012" to "inclusiveness",
+        "gltr1012" to "global-trends"
+    )
     private val UUID_REGEX = Regex("^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$")
     private val APPWRITE_ID_REGEX = Regex("^[A-Za-z0-9._-]{1,64}$")
 
@@ -232,6 +244,15 @@ object LearningContentRepository {
                 val other = if (ece.groupValues[1] == "sem-1") "sem-2" else "sem-1"
                 setOf(scopePath, "ece/$other/${ece.groupValues[2]}")
             }
+            ECE_YEAR_SCOPE.matchEntire(scopePath)?.let { year ->
+                ECE_FRESHMAN_ALIASES[year.groupValues[2]]?.let { freshman ->
+                    setOf("freshman/$freshman")
+                }
+            } != null -> ECE_YEAR_SCOPE.matchEntire(scopePath)?.let { year ->
+                ECE_FRESHMAN_ALIASES[year.groupValues[2]]?.let { freshman ->
+                    setOf("freshman/$freshman")
+                }
+            } ?: setOf(scopePath)
             scopePath == "freshman/math-natural" || scopePath == "freshman/mathematics" ->
                 setOf("freshman/math-natural", "freshman/mathematics")
             else -> setOf(scopePath)
@@ -648,6 +669,13 @@ object LearningContentRepository {
             }
             scopePath == "freshman/math-natural" || scopePath == "freshman/mathematics" ->
                 "in.(\"freshman/math-natural\",\"freshman/mathematics\")"
+            ECE_YEAR_SCOPE.matchEntire(scopePath)?.let { year ->
+                ECE_FRESHMAN_ALIASES[year.groupValues[2]]
+            } != null -> {
+                val year = ECE_YEAR_SCOPE.matchEntire(scopePath)!!
+                val freshman = ECE_FRESHMAN_ALIASES[year.groupValues[2]]!!
+                "eq.freshman/$freshman"
+            }
             else -> "eq.$scopePath"
         }
     }

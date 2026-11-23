@@ -1,4 +1,4 @@
--- E2c-d: one purchase opens BOTH semesters of an ECE year (Years 1 to 3), server side.
+-- E2c-d: one purchase opens BOTH semesters of an ECE year (Years 1 to 5), server side.
 -- Applied to the live project "Wisdom tower academy" on 2026-11-23 (owner approved) as migration
 -- `ece_one_purchase_both_semesters_resource_visible`.
 --
@@ -26,7 +26,7 @@ declare
   v_pkg  text := coalesce(p_package, '');
   v_mode text := content_guard.effective_mode(p_package, p_scope, p_hub, p_chapter, p_id);
   -- ECE years 1 to 3: one purchase opens both semesters of the SAME year (prefix such as 'ece-y1-sem-'); years never mix
-  v_ece  text := substring(v_pkg from '^ece-y[123]-sem-');
+  v_ece  text := substring(v_pkg from '^ece-y[1-5]-sem-');
 begin
   if v_mode = 'open' then return true; end if;
   if v_mode = 'require_purchase' then
