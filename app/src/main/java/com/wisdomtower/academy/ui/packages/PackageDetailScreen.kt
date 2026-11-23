@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -38,11 +39,12 @@ private const val ECE_PACKAGE_NAME = "Electrical & Computer Engineering"
 private const val ECE_YEAR_LABEL = "Year 3"
 
 // One course card on the ECE course list. Year 3 fills it from NativeSpecialCourse (picture + path unchanged);
-// Years 1 and 2 fill it from EceTreeCourse (no course pictures exist for them, so image is null).
+// Years 1, 2, 4, 5 fill it from EceTreeCourse (no course pictures exist for them, so image is null and [code] is set).
 private data class EceCourseCard(
     val title: String,
     val image: String?,
-    val path: String
+    val path: String,
+    val code: String? = null
 )
 
 private data class EceSemesterEntry(
@@ -61,7 +63,7 @@ private val ECE_SEMESTER_ENTRIES = listOf(
     EceSemesterEntry("sem-2", "Semester 2", "file:///android_asset/images/special-packages/ece-sem-2.jpg", ECE_SEM2_COURSES.toEceCards())
 )
 
-/** The Year 1 / Year 2 data for a package id like "ece-y1-sem-1"; null for Year 3 ("ece-y3-sem-N") and anything else. */
+/** The Year 1 / 2 / 4 / 5 data for a package id like "ece-y1-sem-1"; null for Year 3 ("ece-y3-sem-N") and anything else. */
 private fun eceTreeYearFor(pkgId: String): EceTreeYear? =
     ECE_TREE_YEARS.firstOrNull { pkgId.startsWith("ece-${it.id}-") }
 
@@ -81,7 +83,7 @@ private fun eceSemesterEntriesFor(pkgId: String): List<EceSemesterEntry> {
             } else {
                 "file:///android_asset/images/special-packages/ece-sem-2.jpg"
             },
-            courses = sem.courses.map { EceCourseCard(it.title, null, it.path) },
+            courses = sem.courses.map { EceCourseCard(it.title, null, it.path, it.code) },
             streams = sem.streams
         )
     }
@@ -101,6 +103,9 @@ private fun eceSemesterEntriesFor(pkgId: String): List<EceSemesterEntry> {
  *
  * NO PRICES HERE (owner order 2026-10-23): the app stays clean. A price appears only in the "Package required"
  * pop-up when a locked chapter is tapped (Telegram build, `docs/TELEGRAM_PAID_BUILD_PLAN.md`).
+ *
+ * ECE-FIX-B (2026-11-23): for Years 1, 2, 4, 5 the courses and the stream chooser are narrow [EceCourseRow] rows (no
+ * pictures exist). Year 3 keeps its two-column image card grid exactly as before. The semester chooser stays cards.
  */
 @Composable
 fun PackageDetailScreen(
@@ -128,7 +133,7 @@ fun PackageDetailScreen(
     val stream = if (isEntrance) ENTRANCE_STREAMS.firstOrNull { it.id == streamId } else null
     val subject = stream?.subjects?.firstOrNull { it.id == subjectId }
 
-    // ECE drill-down state (semester cards -> that semester's courses). The year (1, 2 or 3) comes from the package id.
+    // ECE drill-down state (semester cards -> that semester's courses). The year (1, 2, 3, 4 or 5) comes from the package id.
     var eceSemesterId by rememberSaveable { mutableStateOf<String?>(null) }
     var eceStreamId by rememberSaveable { mutableStateOf<String?>(null) }
     var cocStreamLabel by rememberSaveable { mutableStateOf<String?>(null) }
@@ -136,6 +141,8 @@ fun PackageDetailScreen(
     val eceSemesters = if (isEce) eceSemesterEntriesFor(pkg.id) else ECE_SEMESTER_ENTRIES
     val eceSemester = if (isEce) eceSemesters.firstOrNull { it.id == eceSemesterId } else null
     val eceStream = eceSemester?.streams?.firstOrNull { it.id == eceStreamId }
+    // ECE-FIX-B: true for Years 1, 2, 4, 5 (rows); false for Year 3 (image card grid).
+    val eceUsesRows = isEce && eceTreeYearFor(pkg.id) != null
 
     val goBack: () -> Unit = {
         if (subject != null) {
@@ -203,27 +210,53 @@ fun PackageDetailScreen(
                 }
             }
 
-            // ── ECE: first the semester cover cards, then the courses of the chosen semester (Year 1, 2 or 3) ──
+            // ── ECE: first the semester cover cards, then the courses of the chosen semester (Year 1 to 5) ──
             if (isEce) {
                 if (eceSemester == null) {
                     openGrid("ece_semesters", eceSemesters) { sem ->
                         OpenCard(sem.label, sem.image) { eceSemesterId = sem.id }
                     }
                 } else if (eceSemester.streams.isNotEmpty() && eceStream == null) {
-                    openGrid("ece_streams_${eceSemester.id}", eceSemester.streams) { stream ->
-                        OpenCard(stream.label, null) { eceStreamId = stream.id }
+                    // ECE-FIX-B: stream chooser = narrow rows ("Communication", "7 courses")
+                    items(eceSemester.streams, key = { "ece_stream_${eceSemester.id}_${it.id}" }) { stream ->
+                        val n = stream.courses.size
+                        EceCourseRow(
+                            code = "$n ${if (n == 1) "course" else "courses"}",
+                            title = stream.label,
+                            onClick = { eceStreamId = stream.id }
+                        )
                     }
                 } else if (eceStream != null) {
-                    openGrid("ece_stream_courses_${eceStream.id}", eceStream.courses) { course ->
-                        OpenCard(course.title, null) {
-                            onOpenSubjectWorkspace(
-                                course.title,
-                                "ECE $eceYearLabel · ${eceSemester.label} · ${eceStream.label}",
-                                course.path
-                            )
-                        }
+                    items(eceStream.courses, key = { "ece_sc_${eceStream.id}_${it.path}" }) { course ->
+                        EceCourseRow(
+                            code = course.code,
+                            title = course.title,
+                            onClick = {
+                                onOpenSubjectWorkspace(
+                                    course.title,
+                                    "ECE $eceYearLabel · ${eceSemester.label} · ${eceStream.label}",
+                                    course.path
+                                )
+                            }
+                        )
+                    }
+                } else if (eceUsesRows) {
+                    // ECE-FIX-B: Years 1, 2, 4 (S1) = narrow rows
+                    items(eceSemester.courses, key = { "ece_row_${it.path}" }) { course ->
+                        EceCourseRow(
+                            code = course.code,
+                            title = course.title,
+                            onClick = {
+                                onOpenSubjectWorkspace(
+                                    course.title,
+                                    "ECE $eceYearLabel · ${eceSemester.label}",
+                                    course.path
+                                )
+                            }
+                        )
                     }
                 } else {
+                    // Year 3 (LOCKED): the original image card grid, unchanged.
                     openGrid("ece_courses_${eceSemester.id}", eceSemester.courses) { course ->
                         OpenCard(course.title, course.image) {
                             onOpenSubjectWorkspace(
