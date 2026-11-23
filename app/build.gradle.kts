@@ -174,6 +174,31 @@ tasks.register<Copy>("copySpecialPackageImages") {
 }
 tasks.named("preBuild").configure { dependsOn("copySpecialPackageImages") }
 
+// ECE-FIX-C3 (docs/ADMIN_ECE_Y1_Y5_PLAN.md, Phase C; file names in docs/WEBSITE_ECE_IMAGES.md): WARNS, never fails the
+// build, when one of the 15 new ECE cover pictures is missing from website-reference/public/images/special-packages/.
+// The 15 names: ece-y1.jpg ... ece-y5.jpg (year cards) and ece-y1-sem-1.jpg ... ece-y5-sem-2.jpg (semester covers).
+// A missing file is not an error: the app then shows the old picture (ece.jpg, ece-sem-1.jpg, ece-sem-2.jpg) instead.
+// Everything is wrapped in try/catch so this check can never break a build.
+tasks.register("warnMissingEceImages") {
+  val imageDir = rootDir.resolve("website-reference/public/images/special-packages")
+  val expected = (1..5).flatMap { y -> listOf("ece-y$y.jpg", "ece-y$y-sem-1.jpg", "ece-y$y-sem-2.jpg") }
+  doLast {
+    try {
+      val missing = expected.filter { name -> !File(imageDir, name).isFile }
+      if (missing.isNotEmpty()) {
+        logger.warn(
+          "warnMissingEceImages: ${missing.size} of ${expected.size} new ECE cover pictures are missing from " +
+            "website-reference/public/images/special-packages/ (the app shows the old pictures for them): " +
+            missing.joinToString(", ")
+        )
+      }
+    } catch (e: Exception) {
+      logger.warn("warnMissingEceImages: check skipped (${e.javaClass.simpleName})")
+    }
+  }
+}
+tasks.named("preBuild").configure { dependsOn("warnMissingEceImages") }
+
 // Packs KaTeX (the website's math library, same major version 0.16) for the local notes page
 // (src/main/assets/notes/index.html, plan step N6). The files cannot be committed from the chat tools, so every
 // build downloads the pinned version from the jsDelivr npm mirror into src/main/assets/notes/katex/ and keeps
