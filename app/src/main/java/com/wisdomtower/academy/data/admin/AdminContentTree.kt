@@ -1,5 +1,9 @@
 package com.wisdomtower.academy.data.admin
 
+import com.wisdomtower.academy.ui.packages.ECE_TREE_YEARS
+import com.wisdomtower.academy.ui.packages.EceTreeCourse
+import com.wisdomtower.academy.ui.packages.EceTreeSemester
+
 // ADMIN-native N6b. Hand copy of ADMIN_CONTENT_TREE in website-reference/src/data/admin-nav.ts, built from the same
 // source lists (grades and hubs: data/academy.ts; subjects per grade: data/grade-subjects.ts; freshman courses:
 // data/freshman.ts; remedial subjects: data/remedial.ts; ECE courses: data/special-packages.ts; entrance streams,
@@ -7,6 +11,8 @@ package com.wisdomtower.academy.data.admin
 // no descriptions, no prices).
 // 2026-11-05: UAT (4 hubs), COC, GAT and Exit Exam added (docs/PLAN_2026-11-05_PACKAGES_WIRING.md). COC, GAT and Exit
 // Exam each have ONE set of the six hubs at package level (scope = package id: coc, gat, exit-exam).
+// ECE-FIX-P1 (2026-11-23, docs/ADMIN_ECE_Y1_Y5_PLAN.md Phase 1): Years 1, 2, 4, 5 are generated from ECE_TREE_YEARS
+// (EceTreeData.kt, the single source), Year 3 keeps its own list below, unchanged.
 // HYPOTHESIS: when the website adds or renames a subject, course, year or hub, this file must be updated by hand.
 // The Course Content slice (N7) will reuse this tree.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
@@ -223,6 +229,7 @@ private class EceSemester(
     val courses: List<Pair<String, String>>
 )
 
+// Year 3 (LOCKED): unchanged.
 private val ECE_SEMESTERS: List<EceSemester> = listOf(
     EceSemester(
         "sem-1", "S1", "ece-y3-sem-1",
@@ -250,23 +257,63 @@ private val ECE_SEMESTERS: List<EceSemester> = listOf(
     )
 )
 
+private fun eceYear3Nodes(): List<AdminNavNode> = ECE_SEMESTERS.map { sem ->
+    AdminNavNode(
+        id = "electrical-computer-engineering-${sem.id}",
+        label = "Electrical & Computer Engineering · ${sem.shortLabel}",
+        packageId = sem.packageId,
+        scopePath = null,
+        children = sem.courses.map { (code, title) ->
+            val slug = code.lowercase()
+            subjectNode(sem.packageId, "ece/${sem.id}/$slug", slug, "$code · $title")
+        }
+    )
+}
+
+/**
+ * ECE-FIX-P1: one node for a semester of Year 1, 2, 4 or 5. Scope = ece/<yN-sem-M>/<slug>, the exact scope the student
+ * hub reads (Phase A). Years 4 S2 and 5 repeat a course in several streams, but the path is the same, so each course is
+ * listed ONCE (union of the streams); the stream names are added to its label when it is not in every stream.
+ */
+private fun eceTreeSemesterNode(yearId: String, semester: EceTreeSemester): AdminNavNode {
+    val semKey = "$yearId-${semester.id}"
+    val yearShort = yearId.uppercase()
+    val semShort = "S" + semester.id.removePrefix("sem-")
+    val byId = LinkedHashMap<String, Pair<EceTreeCourse, MutableList<String>>>()
+    semester.courses.forEach { course -> byId.getOrPut(course.id) { course to mutableListOf() } }
+    semester.streams.forEach { stream ->
+        stream.courses.forEach { course ->
+            byId.getOrPut(course.id) { course to mutableListOf() }.second.add(stream.label)
+        }
+    }
+    return AdminNavNode(
+        id = "electrical-computer-engineering-$semKey",
+        label = "Electrical & Computer Engineering · $yearShort $semShort",
+        packageId = semester.packageId,
+        scopePath = null,
+        children = byId.values.map { (course, streamLabels) ->
+            val suffix = if (streamLabels.isNotEmpty() && streamLabels.size < semester.streams.size) {
+                " (${streamLabels.joinToString(", ")})"
+            } else {
+                ""
+            }
+            subjectNode(semester.packageId, "ece/$semKey/${course.id}", course.id, "${course.code} · ${course.title}$suffix")
+        }
+    )
+}
+
+private fun eceTreeNodes(vararg yearIds: String): List<AdminNavNode> =
+    ECE_TREE_YEARS.filter { it.id in yearIds }.flatMap { year ->
+        year.semesters.map { semester -> eceTreeSemesterNode(year.id, semester) }
+    }
+
+// Order: Year 1, 2, 3, 4, 5.
 private fun specialNode(): AdminNavNode = AdminNavNode(
     id = "special",
     label = "Special packages",
     packageId = null,
     scopePath = null,
-    children = ECE_SEMESTERS.map { sem ->
-        AdminNavNode(
-            id = "electrical-computer-engineering-${sem.id}",
-            label = "Electrical & Computer Engineering · ${sem.shortLabel}",
-            packageId = sem.packageId,
-            scopePath = null,
-            children = sem.courses.map { (code, title) ->
-                val slug = code.lowercase()
-                subjectNode(sem.packageId, "ece/${sem.id}/$slug", slug, "$code · $title")
-            }
-        )
-    }
+    children = eceTreeNodes("y1", "y2") + eceYear3Nodes() + eceTreeNodes("y4", "y5")
 )
 
 val ADMIN_CONTENT_TREE: List<AdminNavNode> = listOf(
