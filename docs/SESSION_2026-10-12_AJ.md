@@ -1,5 +1,0 @@
-# Session log 2026-10-12 AJ: F7 part 2, native Focus Pomodoro Timer, patch P9
-
-> Continues `docs/SESSION_2026-10-12_AI.md` (F7 part 1 Calculator, P8). Repo is PUBLIC: no secrets.
-
-- 2026-10-12 | Claude (chat, owner on free plan) | IN PROGRESS: F7 part 2 = native Timer (port of `website-reference/src/components/learning/PomodoroTimer.tsx` + `src/lib/focus-timer.ts`, framed like the website page "Focus Pomodoro Station" with a Close button). State on entry: P7 (tutor) and P8 (calculator) are both MERGED into `main` (PR #4 at 04:03 and PR #5 at 04:39 UTC today). Plan: (1) `ui/study/NativeFocusTimer.kt` = the timer state (same shape as the website `FocusState`, saved on the phone, ticked from the shell); (2) `ui/study/NativeTimerScreen.kt` = the screen; (3) patch P9 (`scripts/patch_native_timer_entries.py`) = Learning tab tile, `navigateTo`, link handler and drawer row open the native screen, and the shell's top-bar timer indicator follows the native timer. If this entry is the last one, the work was cut off: check `git log` for the real state.
