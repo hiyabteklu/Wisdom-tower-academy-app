@@ -10,6 +10,7 @@ class AdminPackage(val id: String, val name: String)
  * ADMIN-native N4. Copy of academyPackages (ids and names) in website-reference/src/data/packages.ts, in the same
  * order. Used by the Grant Package screen and by grant-all. HYPOTHESIS: when a package is added or renamed on the
  * website this list must be updated by hand (a later slice, N6 Pricing and Catalog, may read the catalog instead).
+ * ECE Year 1 and 2 ids added in slice E2c-b (owner order 2026-11-23); Year 4 and 5 ids are added with slices E4 to E7.
  */
 val ADMIN_PACKAGES: List<AdminPackage> = listOf(
     AdminPackage("grade-9", "Grade 9 Package"),
@@ -22,6 +23,10 @@ val ADMIN_PACKAGES: List<AdminPackage> = listOf(
     AdminPackage("coc", "COC Package"),
     AdminPackage("exit-exam", "Exit Exam Package"),
     AdminPackage("remedial", "Remedial Package"),
+    AdminPackage("ece-y1-sem-1", "ECE Year 1: Semester 1"),
+    AdminPackage("ece-y1-sem-2", "ECE Year 1: Semester 2"),
+    AdminPackage("ece-y2-sem-1", "ECE Year 2: Semester 1"),
+    AdminPackage("ece-y2-sem-2", "ECE Year 2: Semester 2"),
     AdminPackage("ece-y3-sem-1", "ECE Year 3: Semester 1"),
     AdminPackage("ece-y3-sem-2", "ECE Year 3: Semester 2")
 )
