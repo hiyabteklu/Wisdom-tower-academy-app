@@ -67,6 +67,7 @@ import com.wisdomtower.academy.ui.packages.ENTRANCE_BASE_PATH
 import com.wisdomtower.academy.ui.packages.ENTRANCE_IMAGE_ASSET
 import com.wisdomtower.academy.ui.packages.OpenCard
 import com.wisdomtower.academy.ui.packages.OpenCardLayout
+import com.wisdomtower.academy.ui.packages.eceYearCover
 import com.wisdomtower.academy.ui.packages.openGrid
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
 import com.wisdomtower.academy.ui.theme.OutfitFontFamily
@@ -119,6 +120,9 @@ data class ResourceGuide(
 // so the card opens that. Name and picture (ece.jpg, kept in step with the website by `copySpecialPackageImages`)
 // are unchanged.
 //
+// ECE-FIX-C2d: the five ECE year cards take their picture from eceYearCover(year): ece-y<year>.jpg if the owner added
+// it, else the old shared ece.jpg (so with no new files nothing changes). webImageFallback is left as it was.
+//
 // D3 (day mode): HOME_PROGRAMS and OTHER_RESOURCES are now GETTERS (`get() = listOf(...)`), not values built once at class
 // load. The accent colours are mode-aware tokens, and a list built once would keep the colours of the mode the app started
 // in, so switching Dark / Day would not recolour the tiles until a restart. Same items, same order, same callers.
@@ -128,7 +132,7 @@ val HOME_PROGRAMS: List<ProgramItem>
             id = "ece-y1",
             name = "ECE Year 1",
             path = "/academy/special-packages/electrical-computer-engineering/y1-sem-1",
-            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            assetImage = eceYearCover(1),
             webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
@@ -136,7 +140,7 @@ val HOME_PROGRAMS: List<ProgramItem>
             id = "ece-y2",
             name = "ECE Year 2",
             path = "/academy/special-packages/electrical-computer-engineering/y2-sem-1",
-            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            assetImage = eceYearCover(2),
             webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
@@ -144,7 +148,7 @@ val HOME_PROGRAMS: List<ProgramItem>
             id = "ece-y3",
             name = "ECE Year 3",
             path = "/academy/special-packages/electrical-computer-engineering/sem-1",
-            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            assetImage = eceYearCover(3),
             webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
@@ -152,7 +156,7 @@ val HOME_PROGRAMS: List<ProgramItem>
             id = "ece-y4",
             name = "ECE Year 4",
             path = "/academy/special-packages/electrical-computer-engineering/y4-sem-1",
-            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            assetImage = eceYearCover(4),
             webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
@@ -160,7 +164,7 @@ val HOME_PROGRAMS: List<ProgramItem>
             id = "ece-y5",
             name = "ECE Year 5",
             path = "/academy/special-packages/electrical-computer-engineering/y5-sem-1",
-            assetImage = "file:///android_asset/images/special-packages/ece.jpg",
+            assetImage = eceYearCover(5),
             webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
