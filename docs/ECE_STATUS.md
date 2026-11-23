@@ -19,8 +19,8 @@
 ## Slices (take the first one not DONE; each = one chat, about 8 tool calls, one commit)
 | Slice | What | Extra reads allowed | Done when | State |
 |---|---|---|---|---|
-| E0 | Read-only audit. `search_code` (paths only) for `ece-y3-sem-1`, `ECE_SEM1_COURSES`, `PackageDetailScreen`, and one for the blueprint (e.g. `curriculum`, `blueprint`). Fill "Audit facts" below: where packages/courses are stored (Kotlin lists or Supabase table), which file opens a course's six hubs, where the blueprint is. No code change. | search results; at most 2 files under 15 KB | Audit facts filled with real paths | OPEN |
-| E1 | NEW small Kotlin or data file with the hierarchy model (year, semester, optional stream, course, stable ids) holding Year 1 and Year 2 rows copied from the blueprint. No screen. | blueprint, E0 facts | File pushed, ids listed in the log | OPEN |
+| E0 | Read-only audit. `search_code` (paths only) for `ece-y3-sem-1`, `ECE_SEM1_COURSES`, `PackageDetailScreen`, and one for the blueprint (e.g. `curriculum`, `blueprint`). Fill "Audit facts" below: where packages/courses are stored (Kotlin lists or Supabase table), which file opens a course's six hubs, where the blueprint is. No code change. | search results; at most 2 files under 15 KB | Audit facts filled with real paths | DONE 2026-11-23 (blueprint still missing) |
+| E1 | NEW small Kotlin or data file with the hierarchy model (year, semester, optional stream, course, stable ids) holding Year 1 and Year 2 rows copied from the blueprint. No screen. | blueprint, E0 facts | File pushed, ids listed in the log | OPEN, BLOCKED until the owner gives the blueprint |
 | E2 | Year 1 screens: semester chooser > course list > existing course workspace route. | the one screen file named in E0 (patch script if over 15 KB) | Back works at each level | OPEN |
 | E3 | Year 2, same as E2, reusing its code. | same | same | OPEN |
 | E4 | Year 4 data rows (S1 courses; S2 streams then courses). | blueprint | Pushed | OPEN |
@@ -31,10 +31,18 @@
 
 If a slice is too big for one chat, split it, push the finished half, and add the rest as a new row (for example E2a, E2b).
 
-## Audit facts (E0 fills this in)
-- (empty)
+## Audit facts (E0, 2026-11-23)
+- Storage: Kotlin lists, not a Supabase table. Package/course structure is compiled into the app.
+- Screen: `app/src/main/java/com/wisdomtower/academy/ui/packages/PackageDetailScreen.kt` (14.4 KB, the one screen file for E2/E3/E5/E7). ECE branch is `isEce = pkg.id.startsWith("ece")`; semester drill-down state is the local `eceSemesterId`; `goBack` and `BackHandler` already go courses > semester cards > leave package. Semester cards use `ECE_SEMESTER_ENTRIES` (`sem-1`, `sem-2`, covers `file:///android_asset/images/special-packages/ece-sem-1.jpg` and `ece-sem-2.jpg`).
+- HARD-CODED YEAR 3 in that screen: `ECE_YEAR_LABEL = "Year 3"`, the page title `"<semester> · Year 3"`, and the workspace subtitle `"ECE Year 3 · <semester>"`. E2 must make these come from the year being shown, without changing Year 3 output.
+- Course lists `ECE_SEM1_COURSES` / `ECE_SEM2_COURSES` (type `NativeSpecialCourse`: `title`, `assetImage`, `path`) are used from `ui/packages/PackagesData.kt` (30.6 KB, NOT read; too big, use `search_code` snippets or a patch script). Other users of the lists: `ui/games/GameEnrollment.kt`, `ui/games/GameHubScreen.kt`, `data/content/MySubjectsStore.kt`. Changing the list shapes affects them.
+- Opening a course: the screen calls `onOpenSubjectWorkspace(course.title, subtitle, course.path)`. The six-hub workspace is behind that callback (wired in `MainActivity.kt`, not read). New years should reuse it by giving each course a `path` like the Year 3 ones.
+- Package ids and access, each hard-codes Year 3: `data/admin/AdminPackages.kt` (`ece-y3-sem-1`, `ece-y3-sem-2`), `data/content/PaymentMethods.kt` (names `ECE Year 3: Semester N`), `data/content/PackageCheckout.kt` (route `ece/sem-1` and `ece/sem-2` map to the two ids), `data/content/ContentAccess.kt` (a prefix check on `ece-y3-sem-` means owning one semester unlocks the check for the other). New years need their own ids (for example `ece-y1-sem-1`) and an explicit access decision from the owner; do not widen that prefix check silently.
+- `ui/packages/EceTrackCover.kt` (0.6 KB) is the Home "ECE Engineering" card picture and title for the whole ECE track.
+- Blueprint: one `search_code` (`curriculum OR blueprint`, md/txt/json) found only `docs/ELECTRICAL_1ST_TO_5TH_YEAR_EXPANSION_PLAN.md`. UNSURE: blueprint missing. The owner must paste it or give its path before E1.
 
 ## Log (append-only, newest at the bottom; one line per chat)
 | Date | Slice | What was pushed | Left / UNSURE |
 |---|---|---|---|
 | 2026-11-23 | setup | `START_HERE.md` override, stubbed `CLAUDE.md`, `AGENTS.md`, `docs/AGENT_QUOTA_PROTOCOL.md`, merged slices into this file | E0 next. UNSURE: blueprint location, whether Electrical is a new top-level package |
+| 2026-11-23 | E0 | Audit facts above (docs only, no code changed) | E1 blocked on the blueprint. UNSURE: new top-level package vs extending Year 3 (not decided; Year 3 ids and the `ece-y3-sem-` access prefix stay untouched either way). Phone test: nothing yet. |
