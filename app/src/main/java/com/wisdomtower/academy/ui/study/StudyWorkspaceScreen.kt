@@ -69,12 +69,14 @@ private val ENTRANCE_YEAR_PATH = Regex("^/academy/entrance-questions/[^/]+/[^/]+
 private val SCOPE_FRESHMAN = Regex("^/academy/freshman/([^/]+)$")
 private val SCOPE_REMEDIAL = Regex("^/academy/remedial/([^/]+)$")
 private val SCOPE_GRADE = Regex("^/academy/grades/([^/]+)/([^/]+)$")
-private val SCOPE_ECE = Regex("^/academy/special-packages/[^/]+/(sem-[12])/([^/]+)$")
+// ECE-FIX-A1 (2026-11-23): Year 1, 2, 4, 5 paths are .../y1-sem-1/<slug>. The old pattern only knew sem-1 / sem-2 (Year 3), so
+// the new courses had no content scope and every hub fell through to a website page that does not exist (404).
+private val SCOPE_ECE = Regex("^/academy/special-packages/[^/]+/((?:y[1-5]-)?sem-[12])/([^/]+)$")
 // 2026-11-05 (docs/PLAN_2026-11-05_PACKAGES_WIRING.md): exit-exam added, so it reads its content natively like gat and coc.
 private val SCOPE_SPECIAL = Regex("^/academy/(coc|uat|gat|exit-exam)$")
 private val SCOPE_UAT_HUB = Regex("^/academy/uat/(tips|revision-notes|previous-exams|resources)$")
 private val SCOPE_ENTRANCE = Regex("^/academy/entrance-questions/([^/]+)/([^/]+)/([0-9]{4})$")
-private val TRACK_ECE = Regex("^/academy/special-packages/([^/]+)/(sem-[12])/([^/]+)$")
+private val TRACK_ECE = Regex("^/academy/special-packages/([^/]+)/((?:y[1-5]-)?sem-[12])/([^/]+)$")
 
 private fun cleanBase(basePath: String): String {
     var base = basePath.trim()
