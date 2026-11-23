@@ -58,9 +58,11 @@ private data class EceSemesterEntry(
 private fun List<NativeSpecialCourse>.toEceCards(): List<EceCourseCard> =
     map { EceCourseCard(it.title, it.assetImage, it.path) }
 
-private val ECE_SEMESTER_ENTRIES = listOf(
-    EceSemesterEntry("sem-1", "Semester 1", "file:///android_asset/images/special-packages/ece-sem-1.jpg", ECE_SEM1_COURSES.toEceCards()),
-    EceSemesterEntry("sem-2", "Semester 2", "file:///android_asset/images/special-packages/ece-sem-2.jpg", ECE_SEM2_COURSES.toEceCards())
+// ECE-FIX-C2: Year 3 semester covers go through the helper (ece-y3-sem-N.jpg first, old ece-sem-N.jpg fallback).
+// Computed on demand (not a top-level val) so the asset listing is read when the screen is used, not at class load.
+private fun eceYear3SemesterEntries(): List<EceSemesterEntry> = listOf(
+    EceSemesterEntry("sem-1", "Semester 1", eceSemesterCover(3, 1), ECE_SEM1_COURSES.toEceCards()),
+    EceSemesterEntry("sem-2", "Semester 2", eceSemesterCover(3, 2), ECE_SEM2_COURSES.toEceCards())
 )
 
 /** The Year 1 / 2 / 4 / 5 data for a package id like "ece-y1-sem-1"; null for Year 3 ("ece-y3-sem-N") and anything else. */
@@ -72,16 +74,19 @@ private fun eceYearLabelFor(pkgId: String): String =
 
 /** Semester cards for the year of this package. Year 3 (and any unknown ece id) returns the original Year 3 list. */
 private fun eceSemesterEntriesFor(pkgId: String): List<EceSemesterEntry> {
-    val treeYear = eceTreeYearFor(pkgId) ?: return ECE_SEMESTER_ENTRIES
+    val treeYear = eceTreeYearFor(pkgId) ?: return eceYear3SemesterEntries()
+    // Tree year ids look like "y1".."y5". If one does not parse, the old Year 3 pictures are used as before.
+    val yearNo = treeYear.id.removePrefix("y").toIntOrNull()
     return treeYear.semesters.map { sem ->
+        val semNo = if (sem.id == "sem-1") 1 else 2
         EceSemesterEntry(
             id = sem.id,
             label = sem.label,
-            // UNSURE (docs/ECE_STATUS.md): no own covers for Year 1/2 yet, so the Year 3 semester covers are reused.
-            image = if (sem.id == "sem-1") {
-                "file:///android_asset/images/special-packages/ece-sem-1.jpg"
+            // ECE-FIX-C2: own cover ece-y<year>-sem-<n>.jpg if the owner added it, else the old shared ece-sem-<n>.jpg.
+            image = if (yearNo != null) {
+                eceSemesterCover(yearNo, semNo)
             } else {
-                "file:///android_asset/images/special-packages/ece-sem-2.jpg"
+                eceCoverAsset("ece-sem-$semNo.jpg", "ece-sem-$semNo.jpg")
             },
             courses = sem.courses.map { EceCourseCard(it.title, null, it.path, it.code) },
             streams = sem.streams
@@ -138,7 +143,7 @@ fun PackageDetailScreen(
     var eceStreamId by rememberSaveable { mutableStateOf<String?>(null) }
     var cocStreamLabel by rememberSaveable { mutableStateOf<String?>(null) }
     val eceYearLabel = if (isEce) eceYearLabelFor(pkg.id) else ECE_YEAR_LABEL
-    val eceSemesters = if (isEce) eceSemesterEntriesFor(pkg.id) else ECE_SEMESTER_ENTRIES
+    val eceSemesters = if (isEce) eceSemesterEntriesFor(pkg.id) else emptyList()
     val eceSemester = if (isEce) eceSemesters.firstOrNull { it.id == eceSemesterId } else null
     val eceStream = eceSemester?.streams?.firstOrNull { it.id == eceStreamId }
     // ECE-FIX-B: true for Years 1, 2, 4, 5 (rows); false for Year 3 (image card grid).
