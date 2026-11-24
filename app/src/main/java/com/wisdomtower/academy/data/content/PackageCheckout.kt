@@ -27,8 +27,11 @@ object PaidCheckout {
 
     /**
      * Catalog package id (`catalog_items.id`) that unlocks the course at lock [scope], or null when the scope has no
-     * package. Same mapping as `ContentAccess.inferPackageAndScope`, except that an ECE semester maps to ITS OWN
+     * package. Same mapping as `ContentAccess.inferPackageAndScope`, except that a YEAR 3 semester maps to ITS OWN
      * semester package (the course page of semester 2 must sell semester 2).
+     * ECE-FIX-P3 (2026-11-24, owner): Years 1, 2, 4, 5 have ONE full-year price that opens BOTH semesters, so both semesters
+     * of a year sell the Semester 1 package (`ece-yN-sem-1`, the only active catalog row of that year when it goes live).
+     * Owning it opens both semesters through the per-year prefix rule (ContentAccess.ownsPackageId and the server).
      * 2026-11-05: "exit-exam" added (docs/PLAN_2026-11-05_PACKAGES_WIRING.md).
      */
     fun packageIdForScope(scope: String): String? {
@@ -39,14 +42,10 @@ object PaidCheckout {
             "ece" -> when (parts.getOrNull(1)) {
                 "sem-1" -> "ece-y3-sem-1"
                 "sem-2" -> "ece-y3-sem-2"
-                "y1-sem-1" -> "ece-y1-sem-1"
-                "y1-sem-2" -> "ece-y1-sem-2"
-                "y2-sem-1" -> "ece-y2-sem-1"
-                "y2-sem-2" -> "ece-y2-sem-2"
-                "y4-sem-1" -> "ece-y4-sem-1"
-                "y4-sem-2" -> "ece-y4-sem-2"
-                "y5-sem-1" -> "ece-y5-sem-1"
-                "y5-sem-2" -> "ece-y5-sem-2"
+                "y1-sem-1", "y1-sem-2" -> "ece-y1-sem-1"
+                "y2-sem-1", "y2-sem-2" -> "ece-y2-sem-1"
+                "y4-sem-1", "y4-sem-2" -> "ece-y4-sem-1"
+                "y5-sem-1", "y5-sem-2" -> "ece-y5-sem-1"
                 else -> null
             }
             "coc" -> "coc"
