@@ -167,7 +167,7 @@ val STUDY_TOOLS_TILES = listOf(
 
 /**
  * Same rule as `getDefaultPackagesForAcademicLevel` in website-reference/src/lib/academic-levels.ts.
- * The website id "ece" is the single 3rd Year (ECE) card; natively it is the first package whose id starts with "ece".
+ * The website id "ece" is the single 3rd Year (ECE) card; natively it is the Year 3 package (ECE-FIX-C2e, see below).
  */
 private fun defaultPackageIdsForLevel(level: String?): List<String> {
     if (level.isNullOrBlank()) return listOf("freshman", "coc")
@@ -321,7 +321,9 @@ fun LearningScreen(
     val enrolledCourses = remember(packageList, userProfile?.educationLevel) {
         defaultPackageIdsForLevel(userProfile?.educationLevel).mapNotNull { id ->
             if (id == "ece") {
-                packageList.firstOrNull { it.id.startsWith("ece") }
+                // ECE-FIX-C2e (2026-11-24): the "3rd Year (ECE)" card is the YEAR 3 package. Years 1 and 2 now come first in
+                // the package list, so "the first id starting with ece" opened Year 1 here. Year 3 first, any ece id as before.
+                packageList.firstOrNull { it.id.startsWith("ece-y3-") } ?: packageList.firstOrNull { it.id.startsWith("ece") }
             } else {
                 packageList.firstOrNull { it.id == id }
             }
