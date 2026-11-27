@@ -30,8 +30,13 @@ fun eceCoverAsset(context: Context, newName: String, oldName: String): String =
 fun eceCoverAsset(newName: String, oldName: String): String =
     ECE_COVER_URL_BASE + if (newName in eceCoverNames) newName else oldName
 
-/** Year card cover: `ece-y<year>.jpg`, falling back to the old shared `ece.jpg`. */
-fun eceYearCover(year: Int): String = eceCoverAsset("ece-y$year.jpg", "ece.jpg")
+/**
+ * Year card cover. CODE COVERS (2026-11-27, docs/CODE_COVERS.md): Years 1 to 5 are drawn by code ([CodeCover],
+ * `code-cover://ece-y<year>`), no picture file at all. [OpenCardLayout] recognises that address. Any other year number
+ * keeps the old picture. To go back to the pictures, return the `eceCoverAsset(...)` line for every year again.
+ */
+fun eceYearCover(year: Int): String =
+    if (year in 1..5) codeCoverUri("ece-y$year") else eceCoverAsset("ece-y$year.jpg", "ece.jpg")
 
 /** Semester / package cover: `ece-y<year>-sem-<sem>.jpg`, falling back to the old `ece-sem-<sem>.jpg`. */
 fun eceSemesterCover(year: Int, sem: Int): String =

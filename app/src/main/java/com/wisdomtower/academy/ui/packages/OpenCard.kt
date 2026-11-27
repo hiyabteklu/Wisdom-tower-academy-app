@@ -62,6 +62,9 @@ import com.wisdomtower.academy.ui.theme.wisdomReveal
  * 2026-10-22: the card layout now lives in [OpenCardLayout], which takes the title as a composable slot. The normal
  * OpenCard overloads pass the usual 13 sp bold title (looks unchanged). Home passes an animated "Welcome back, name"
  * title for the signed-in student.
+ *
+ * CODE COVERS (2026-11-27, docs/CODE_COVERS.md): when [image] is a `code-cover://<id>` address ([isCodeCover]) the
+ * 16:9 picture slot is drawn by [CodeCover] instead of loading a file. Any other image is loaded exactly as before.
  */
 @Composable
 fun OpenCard(
@@ -138,15 +141,22 @@ fun OpenCardLayout(
                         .aspectRatio(16f / 9f)
                         .background(WisdomDark)
                 ) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(image)
-                            .crossfade(true)
-                            .build(),
-                        contentDescription = null, // S3: the title below names the card; avoids reading it twice
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
+                    if (isCodeCover(image)) {
+                        CodeCover(
+                            label = codeCoverLabel(image as String),
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    } else {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(image)
+                                .crossfade(true)
+                                .build(),
+                            contentDescription = null, // S3: the title below names the card; avoids reading it twice
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize()
+                        )
+                    }
                 }
             }
 
