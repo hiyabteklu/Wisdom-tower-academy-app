@@ -127,3 +127,7 @@ After each UI change, re-run the parts that touch the changed screens: sign in (
 ## 10. NATIVE CONTENT (DONE per owner, 2026-10-12)
 
 Plan, decisions, verified data facts and steps N0 to N11 with their status: **`docs/NATIVE_CONTENT_PLAN.md`**. Short version: `learning_resources` is read directly from Supabase with the public key; native lists, flashcards, PDF viewer, quiz/exam runner; short notes in a LOCAL packed page using the website's own math renderer; no purchase UI in the app; the agent has Supabase read/write access (see rules in `docs/SUPABASE_NOTES.md`). Parked: N7, N8, N9b, N11. The competition exam runner (C6) reuses this runner's look and components.
+
+## 11. APK asset cleanup (2026-11-27)
+
+Removed app-bundled package and ECE course thumbnails; those cards now use CodeCover IDs. Deleted the redundant Tinos copies under `assets/notes/fonts`; retained the assets and Android-resource Tinos sets used by WebView and Compose/native rendering.

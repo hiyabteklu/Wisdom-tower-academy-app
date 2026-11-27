@@ -153,7 +153,21 @@ fun codeCoverText(model: Any?): String? {
     if (model !is String) return null
     if (model.startsWith(CODE_COVER_SCHEME)) {
         val id = model.removePrefix(CODE_COVER_SCHEME)
-        return eceCoverLabel(id) ?: words(id)
+        val parts = id.split('/')
+        if (parts.size > 1) {
+            val group = parts.first()
+            val stem = parts.last()
+            return when {
+                group == "freshman" -> FRESHMAN_LABELS[stem] ?: words(stem)
+                group == "special-packages" -> specialPackageLabel(parts, stem)
+                group == "course" -> COURSE_LABELS[stem] ?: words(stem)
+                group == "hubs" -> words(stem) + HUB_MARK + stem
+                group.startsWith("grade-") || group in setOf("remedial", "uat-hubs", "entrance") ->
+                    webLabel(group, stem)
+                else -> words(stem)
+            }
+        }
+        return eceCoverLabel(id) ?: PACKAGE_LABELS[id] ?: words(id)
     }
     if (!model.startsWith(ASSET_IMAGES)) return null
     val parts = model.removePrefix(ASSET_IMAGES).substringBefore('?').split('/')

@@ -1,11 +1,11 @@
-# ECE thumbnails: file names (Phase C)
+# ECE website thumbnails: file names (Phase C)
 
-The owner uploads these 15 files to the WEBSITE repo. The app build copies them (task `copySpecialPackageImages`, do not change it).
+These 15 files are website-only. The Android app now draws ECE covers with CodeCover and does not copy or load these files.
 
 ## Folder
 - Website repo: `public/images/special-packages/`
 - In this repo the synced copy is `website-reference/public/images/special-packages/`
-- In the app they appear as `file:///android_asset/images/special-packages/<name>`
+- They are not bundled in `app/src/main/assets/`.
 
 ## The 15 file names
 Year cards (Home and Learning > Curriculum):

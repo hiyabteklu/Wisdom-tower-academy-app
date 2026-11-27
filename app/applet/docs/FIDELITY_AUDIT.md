@@ -42,7 +42,7 @@ All fabricated content, artificial prices, `priceEtb` models, and mock checkout 
   - Gradient scrim overlay with floating action pill "Open Learning →" navigating to Tab 1.
 - **Program Cards Grid:**
   - 2-column grid on phones matching website mobile viewport.
-  - 16:10 aspect ratio image headers with authentic bundled assets (`images/packages/...`).
+  - 16:10 aspect-ratio headers drawn by `CodeCover` from package ids; the Android app no longer bundles package thumbnails.
   - Card footer with program name + "Open →" button.
   - Order: Grade 9, Grade 10, Grade 11, Grade 12, Freshman, UAT, COC, Remedial, GAT, Exit Exam, ECE Sem 1, ECE Sem 2.
 - **Other Resources Grid:**

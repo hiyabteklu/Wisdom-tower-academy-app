@@ -75,19 +75,14 @@ private fun eceYearLabelFor(pkgId: String): String =
 /** Semester cards for the year of this package. Year 3 (and any unknown ece id) returns the original Year 3 list. */
 private fun eceSemesterEntriesFor(pkgId: String): List<EceSemesterEntry> {
     val treeYear = eceTreeYearFor(pkgId) ?: return eceYear3SemesterEntries()
-    // Tree year ids look like "y1".."y5". If one does not parse, the old Year 3 pictures are used as before.
-    val yearNo = treeYear.id.removePrefix("y").toIntOrNull()
+    // Tree year ids look like "y1".."y5"; an unknown id keeps the Year 3 code-cover fallback.
+    val yearNo = treeYear.id.removePrefix("y").toIntOrNull() ?: 3
     return treeYear.semesters.map { sem ->
         val semNo = if (sem.id == "sem-1") 1 else 2
         EceSemesterEntry(
             id = sem.id,
             label = sem.label,
-            // ECE-FIX-C2: own cover ece-y<year>-sem-<n>.jpg if the owner added it, else the old shared ece-sem-<n>.jpg.
-            image = if (yearNo != null) {
-                eceSemesterCover(yearNo, semNo)
-            } else {
-                eceCoverAsset("ece-sem-$semNo.jpg", "ece-sem-$semNo.jpg")
-            },
+            image = eceSemesterCover(yearNo, semNo),
             // CODE COVERS (2026-11-27): every course of Years 1, 2, 4, 5 gets a code cover, like the Year 3 cards.
             courses = sem.courses.map { EceCourseCard(it.title, eceCourseCover(it.id, it.title), it.path, it.code) },
             streams = sem.streams
@@ -239,7 +234,7 @@ fun PackageDetailScreen(
                         }
                     }
                 } else {
-                    // Courses of the chosen semester (Year 3 keeps its own pictures/covers, Years 1, 2, 4 get code covers).
+                    // Courses of the chosen semester; each course cover is drawn from its id.
                     openGrid("ece_courses_${eceSemester.id}", eceSemester.courses) { course ->
                         OpenCard(course.title, course.image) {
                             onOpenSubjectWorkspace(
@@ -252,7 +247,7 @@ fun PackageDetailScreen(
                 }
             }
 
-            // ── Grades 9–12 (subject photos from the website, packed by `copyWebsiteImages`) ──
+            // ── Grades 9–12 (subject covers drawn from grade and subject ids) ──
             if (isGrade) {
                 val gradeSubjects = when (pkg.id) {
                     "grade-9" -> GRADE_9_SUBJECTS
@@ -308,8 +303,7 @@ fun PackageDetailScreen(
             }
 
             // UAT has four purpose-built hubs, matching website-reference/docs/UAT-HUBS.md.
-            // Card pictures: the uploaded 16:9 JPGs (website-reference/public/images/uat-hubs/*.jpg, packed into
-            // assets/images/web/uat-hubs/ by `copyWebsiteImages`). The .svg files are only the old placeholders.
+            // Hub artwork is generated from each card id by CodeCover.
             if (isUat) {
                 item(key = "uat_facts") {
                     Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
@@ -326,10 +320,10 @@ fun PackageDetailScreen(
                 }
                 item(key = "uat_hubs_label") { SubjectsLabel("Learning Hubs") }
                 val uatHubs = listOf(
-                    Triple("Tips", "file:///android_asset/images/web/uat-hubs/tips.jpg", "/academy/uat/tips"),
-                    Triple("Revision Notes", "file:///android_asset/images/web/uat-hubs/revision-notes.jpg", "/academy/uat/revision-notes"),
-                    Triple("Previous Exams", "file:///android_asset/images/web/uat-hubs/previous-exams.jpg", "/academy/uat/previous-exams"),
-                    Triple("Resources", "file:///android_asset/images/web/uat-hubs/resources.jpg", "/academy/uat/resources")
+                    Triple("Tips", codeCoverUri("uat-hubs/tips"), "/academy/uat/tips"),
+                    Triple("Revision Notes", codeCoverUri("uat-hubs/revision-notes"), "/academy/uat/revision-notes"),
+                    Triple("Previous Exams", codeCoverUri("uat-hubs/previous-exams"), "/academy/uat/previous-exams"),
+                    Triple("Resources", codeCoverUri("uat-hubs/resources"), "/academy/uat/resources")
                 )
                 openGrid("uat_hubs", uatHubs) { hub ->
                     OpenCard(hub.first, hub.second) {

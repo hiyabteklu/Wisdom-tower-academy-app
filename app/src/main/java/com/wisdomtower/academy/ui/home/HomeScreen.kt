@@ -64,9 +64,9 @@ import com.wisdomtower.academy.data.content.ContentAccess
 import com.wisdomtower.academy.ui.auth.SignInPill
 import com.wisdomtower.academy.ui.study.HubGateDialog
 import com.wisdomtower.academy.ui.packages.ENTRANCE_BASE_PATH
-import com.wisdomtower.academy.ui.packages.ENTRANCE_IMAGE_ASSET
 import com.wisdomtower.academy.ui.packages.OpenCard
 import com.wisdomtower.academy.ui.packages.OpenCardLayout
+import com.wisdomtower.academy.ui.packages.codeCoverUri
 import com.wisdomtower.academy.ui.packages.eceYearCover
 import com.wisdomtower.academy.ui.packages.openGrid
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
@@ -99,7 +99,6 @@ data class ProgramItem(
     val name: String,
     val path: String,
     val assetImage: String,
-    val webImageFallback: String,
     val accentColor: Color
 )
 
@@ -110,18 +109,13 @@ data class ResourceGuide(
     val accentColor: Color
 )
 
-// Cards in the order of the website home / academy page (LandingPathways.tsx, 2026-10-11):
-// ECE, Freshman, Grade 9, 10, 11, 12 (independent cards, no combined "Grade 9-12"), Entrance Questions,
-// Entrance Questions, Remedial, UAT, COC, GAT, Exit Exam. Grade pictures are the website package images.
+// Cards in the order of the website home / academy page (LandingPathways.tsx, 2026-10-11). Package covers are drawn
+// by CodeCover from their ids; none of these cards loads a thumbnail image or a network fallback.
 //
 // ECE: the website card links to /academy/special-packages/electrical-computer-engineering, a page that is not a
 // catalog package, so the app router sent it to the website (online only). The native ECE package screen
 // (path .../sem-1) already shows BOTH semesters, every course and the six hub cards without a connection,
-// so the card opens that. Name and picture (ece.jpg, kept in step with the website by `copySpecialPackageImages`)
-// are unchanged.
-//
-// ECE-FIX-C2d: the five ECE year cards take their picture from eceYearCover(year): ece-y<year>.jpg if the owner added
-// it, else the old shared ece.jpg (so with no new files nothing changes). webImageFallback is left as it was.
+// so the card opens that.
 //
 // D3 (day mode): HOME_PROGRAMS and OTHER_RESOURCES are now GETTERS (`get() = listOf(...)`), not values built once at class
 // load. The accent colours are mode-aware tokens, and a list built once would keep the colours of the mode the app started
@@ -133,7 +127,6 @@ val HOME_PROGRAMS: List<ProgramItem>
             name = "ECE Year 1",
             path = "/academy/special-packages/electrical-computer-engineering/y1-sem-1",
             assetImage = eceYearCover(1),
-            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
         ProgramItem(
@@ -141,7 +134,6 @@ val HOME_PROGRAMS: List<ProgramItem>
             name = "ECE Year 2",
             path = "/academy/special-packages/electrical-computer-engineering/y2-sem-1",
             assetImage = eceYearCover(2),
-            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
         ProgramItem(
@@ -149,7 +141,6 @@ val HOME_PROGRAMS: List<ProgramItem>
             name = "ECE Year 3",
             path = "/academy/special-packages/electrical-computer-engineering/sem-1",
             assetImage = eceYearCover(3),
-            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
         ProgramItem(
@@ -157,7 +148,6 @@ val HOME_PROGRAMS: List<ProgramItem>
             name = "ECE Year 4",
             path = "/academy/special-packages/electrical-computer-engineering/y4-sem-1",
             assetImage = eceYearCover(4),
-            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
         ProgramItem(
@@ -165,95 +155,83 @@ val HOME_PROGRAMS: List<ProgramItem>
             name = "ECE Year 5",
             path = "/academy/special-packages/electrical-computer-engineering/y5-sem-1",
             assetImage = eceYearCover(5),
-            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",
             accentColor = WisdomAccentViolet
         ),
         ProgramItem(
             id = "freshman",
             name = "Freshman",
             path = "/academy/freshman",
-            assetImage = "file:///android_asset/images/packages/freshman_00241b.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/freshman_00241b.jpeg",
+            assetImage = codeCoverUri("freshman"),
             accentColor = WisdomAccentPurple
         ),
         ProgramItem(
             id = "grade-9",
             name = "Grade 9",
             path = "/academy/grades/9",
-            assetImage = "file:///android_asset/images/packages/grade-9_67df27.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-9_67df27.jpeg",
+            assetImage = codeCoverUri("grade-9"),
             accentColor = WisdomAccentSky
         ),
         ProgramItem(
             id = "grade-10",
             name = "Grade 10",
             path = "/academy/grades/10",
-            assetImage = "file:///android_asset/images/packages/grade-10_156767.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-10_156767.jpeg",
+            assetImage = codeCoverUri("grade-10"),
             accentColor = WisdomAccentViolet
         ),
         ProgramItem(
             id = "grade-11",
             name = "Grade 11",
             path = "/academy/grades/11",
-            assetImage = "file:///android_asset/images/packages/grade-11_6309fc.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-11_6309fc.jpeg",
+            assetImage = codeCoverUri("grade-11"),
             accentColor = WisdomAccentAmber
         ),
         ProgramItem(
             id = "grade-12",
             name = "Grade 12",
             path = "/academy/grades/12",
-            assetImage = "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/grade-12_f1ddef.jpeg",
+            assetImage = codeCoverUri("grade-12"),
             accentColor = WisdomAccentEmerald
         ),
         ProgramItem(
             id = "entrance-questions",
             name = "Entrance Questions",
             path = ENTRANCE_BASE_PATH,
-            assetImage = ENTRANCE_IMAGE_ASSET,
-            webImageFallback = "https://wisdom-tower-academy.live/images/Entrance%20questions.jpeg",
+            assetImage = codeCoverUri("entrance-questions"),
             accentColor = WisdomCyan
         ),
         ProgramItem(
             id = "remedial",
             name = "Remedial",
             path = "/academy/remedial",
-            assetImage = "file:///android_asset/images/packages/remedial.jpg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/remedial.jpg",
+            assetImage = codeCoverUri("remedial"),
             accentColor = WisdomAccentAmber
         ),
         ProgramItem(
             id = "uat",
             name = "UAT",
             path = "/academy/uat",
-            assetImage = "file:///android_asset/images/packages/uat_56b257.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/uat_56b257.jpeg",
+            assetImage = codeCoverUri("uat"),
             accentColor = WisdomAccentEmerald
         ),
         ProgramItem(
             id = "coc",
             name = "COC",
             path = "/academy/coc",
-            assetImage = "file:///android_asset/images/packages/coc_e44a09.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/coc_e44a09.jpeg",
+            assetImage = codeCoverUri("coc"),
             accentColor = WisdomAccentIndigo
         ),
         ProgramItem(
             id = "gat",
             name = "GAT",
             path = "/academy/gat",
-            assetImage = "file:///android_asset/images/packages/gat_46ddb1.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/gat_46ddb1.jpeg",
+            assetImage = codeCoverUri("gat"),
             accentColor = WisdomAccentRose
         ),
         ProgramItem(
             id = "exit-exam",
             name = "Exit Exam",
             path = "/academy/exit-exam",
-            assetImage = "file:///android_asset/images/packages/exit-exam_c32a43.jpeg",
-            webImageFallback = "https://wisdom-tower-academy.live/images/packages/exit-exam_c32a43.jpeg",
+            assetImage = codeCoverUri("exit-exam"),
             accentColor = WisdomAccentFuchsia
         ),
     )
