@@ -112,92 +112,11 @@ tasks.register<Copy>("copyWebFonts") {
 }
 tasks.named("preBuild").configure { dependsOn("copyWebFonts") }
 
-// Packs the images the website added (Grade 9-12 subject photos, Entrance Questions pictures, Remedial covers) from the
-// synced website-reference snapshot, so they stay packed in the app and follow every "Sync website reference".
-// Result: src/main/assets/images/web/grade-{9..12}/*, images/web/entrance/{natural,social,entrance-questions}.jpeg,
-// images/web/remedial/{english,maths,physics,chemistry,biology,history,geography}.jpg
-// (the folder names with spaces on the website are renamed here so the asset paths have no spaces).
-// If the source folder is missing the task copies nothing and the build still succeeds.
-tasks.register<Copy>("copyWebsiteImages") {
-  val webImages = rootDir.resolve("website-reference/public/images")
-  into(layout.projectDirectory.dir("src/main/assets/images/web"))
-  listOf("9", "10", "11", "12").forEach { g ->
-    from(webImages.resolve("Grade $g")) {
-      into("grade-$g")
-      exclude(".gitkeep")
-    }
-  }
-  from(webImages) {
-    include("natural.jpeg", "social.jpeg")
-    into("entrance")
-  }
-  from(webImages) {
-    include("Entrance questions.jpeg")
-    rename("Entrance questions.jpeg", "entrance-questions.jpeg")
-    into("entrance")
-  }
-  // UAT hub artwork: SVG placeholders are the official fallback until 16:9 JPGs are uploaded.
-  from(webImages.resolve("uat-hubs")) {
-    include("*.svg", "*.jpg", "*.jpeg")
-    into("uat-hubs")
-  }
-  // Remedial covers: the files in website-reference/public/images/Remedial/ are named remedial-{subject}.jpg
-  // ("Remedial-physics.jpg" has a capital R, "remedial-math.jpg" is the Maths cover). They are renamed to the
-  // website subject ids (english, maths, physics, ...) so the app can look them up by id.
-  mapOf(
-    "remedial-english.jpg" to "english.jpg",
-    "remedial-math.jpg" to "maths.jpg",
-    "Remedial-physics.jpg" to "physics.jpg",
-    "remedial-chemistry.jpg" to "chemistry.jpg",
-    "remedial-biology.jpg" to "biology.jpg",
-    "remedial-history.jpg" to "history.jpg",
-    "remedial-geography.jpg" to "geography.jpg"
-  ).forEach { (source, target) ->
-    from(webImages.resolve("Remedial")) {
-      include(source)
-      rename(source, target)
-      into("remedial")
-    }
-  }
-}
-tasks.named("preBuild").configure { dependsOn("copyWebsiteImages") }
-
-// Keeps the ECE / special-package pictures (home card ece.jpg, semester covers, course covers) in step with the
-// synced website snapshot. Same folder and file names as the website, so the paths already used by the app
-// (file:///android_asset/images/special-packages/...) now show the website's current pictures. A file that is
-// missing on the website keeps the picture already stored in the app.
-tasks.register<Copy>("copySpecialPackageImages") {
-  from(rootDir.resolve("website-reference/public/images/special-packages")) {
-    exclude(".gitkeep", "README.md")
-  }
-  into(layout.projectDirectory.dir("src/main/assets/images/special-packages"))
-}
-tasks.named("preBuild").configure { dependsOn("copySpecialPackageImages") }
-
-// ECE-FIX-C3 (docs/ADMIN_ECE_Y1_Y5_PLAN.md, Phase C; file names in docs/WEBSITE_ECE_IMAGES.md): WARNS, never fails the
-// build, when one of the 15 new ECE cover pictures is missing from website-reference/public/images/special-packages/.
-// The 15 names: ece-y1.jpg ... ece-y5.jpg (year cards) and ece-y1-sem-1.jpg ... ece-y5-sem-2.jpg (semester covers).
-// A missing file is not an error: the app then shows the old picture (ece.jpg, ece-sem-1.jpg, ece-sem-2.jpg) instead.
-// Everything is wrapped in try/catch so this check can never break a build.
-tasks.register("warnMissingEceImages") {
-  val imageDir = rootDir.resolve("website-reference/public/images/special-packages")
-  val expected = (1..5).flatMap { y -> listOf("ece-y$y.jpg", "ece-y$y-sem-1.jpg", "ece-y$y-sem-2.jpg") }
-  doLast {
-    try {
-      val missing = expected.filter { name -> !File(imageDir, name).isFile }
-      if (missing.isNotEmpty()) {
-        logger.warn(
-          "warnMissingEceImages: ${missing.size} of ${expected.size} new ECE cover pictures are missing from " +
-            "website-reference/public/images/special-packages/ (the app shows the old pictures for them): " +
-            missing.joinToString(", ")
-        )
-      }
-    } catch (e: Exception) {
-      logger.warn("warnMissingEceImages: check skipped (${e.javaClass.simpleName})")
-    }
-  }
-}
-tasks.named("preBuild").configure { dependsOn("warnMissingEceImages") }
+// IMAGE CLEAN-UP (owner order 2026-11-27): all covers and thumbnails are drawn by code (CodeCover), so the build no
+// longer copies ANY picture from website-reference into the app assets. The old tasks copyWebsiteImages,
+// copySpecialPackageImages and warnMissingEceImages were removed. The only pictures left in the app are the Home
+// welcome banner (assets/images/home/academy.jpg), the transparent background (assets/backgrounds/transparent.jpg),
+// the brand logo/animation and the bank logos.
 
 // Packs KaTeX (the website's math library, same major version 0.16) for the local notes page
 // (src/main/assets/notes/index.html, plan step N6). The files cannot be committed from the chat tools, so every
