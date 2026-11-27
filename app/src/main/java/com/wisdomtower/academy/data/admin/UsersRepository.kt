@@ -9,7 +9,11 @@ import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
 
-/** One row of the `profiles` table (columns as in website-reference/src/lib/admin-data.ts listProfiles). */
+/**
+ * One row of the `profiles` table (columns as in website-reference/src/lib/admin-data.ts listProfiles).
+ * A5 (2026-11-28): [gender] and [customEducationLevel] (the text of the level "Other") are for the ADMIN Scholars list only.
+ * Gender is never shown to students and never in the leaderboard.
+ */
 data class ScholarItem(
     val id: String,
     val email: String?,
@@ -21,7 +25,9 @@ data class ScholarItem(
     val stream: String?,
     val studentId: String?,
     val targetExam: String?,
-    val createdAt: String
+    val createdAt: String,
+    val gender: String? = null,
+    val customEducationLevel: String? = null
 )
 
 sealed class ScholarsResult {
@@ -69,9 +75,10 @@ class GrantOutcome(val ok: Boolean, val message: String)
 object UsersRepository {
     const val LIST_LIMIT = 500
     private const val BASIC_LIMIT = 300
+    // A5: gender and custom_education_level were added to the rich list (both columns are live since the A2 migration).
     private const val RICH_COLUMNS =
         "id,email,full_name,phone,avatar_url,avatar_preset,education_level,school_name,town_region,stream," +
-            "student_id_number,student_folio_number,target_exam,created_at,updated_at"
+            "student_id_number,student_folio_number,target_exam,created_at,updated_at,gender,custom_education_level"
     private const val BASIC_COLUMNS = "id,email,full_name,avatar_url,created_at,updated_at"
     private val EMAIL_SHAPE = Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$")
 
@@ -118,7 +125,9 @@ object UsersRepository {
                         stream = o.text("stream"),
                         studentId = o.text("student_id_number"),
                         targetExam = o.text("target_exam"),
-                        createdAt = o.text("created_at") ?: ""
+                        createdAt = o.text("created_at") ?: "",
+                        gender = o.text("gender"),
+                        customEducationLevel = o.text("custom_education_level")
                     )
                 )
             }
