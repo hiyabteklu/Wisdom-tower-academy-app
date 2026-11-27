@@ -11,7 +11,8 @@
 - Do ONE small slice. Commit and push after EACH slice.
 - If budget may run out, stop and write 3 lines in HANDOFF.md: done / next / blocked.
 - Files over 10 KB: don't resend, use a patch script (docs/EDITING_LARGE_FILES.md).
-- Never touch .env* or any key file. Don't reformat beyond the slice. No new dependencies. Don't touch Year 3, payments, access rules, Supabase policies or releases.
+- Never touch .env* or any key file. HARD RULE: if .env.example is ever changed, blanked or removed, restore it from docs/ENV_EXAMPLE_BACKUP.md first, no matter what.
+- Don't reformat beyond the slice. No new dependencies. Don't touch Year 3, payments, access rules, Supabase policies or releases.
 - Never invent course names, ids or numbers; write UNSURE: in the log. Never claim something is tested without evidence.
 
 ## Index
