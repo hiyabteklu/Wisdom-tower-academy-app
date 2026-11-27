@@ -107,6 +107,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.wisdomtower.academy.BrandLogo
 import com.wisdomtower.academy.data.auth.AuthFailureKind
+import com.wisdomtower.academy.data.auth.SignUpProfileWriter
 import com.wisdomtower.academy.data.auth.SupabaseAuthClient
 import com.wisdomtower.academy.data.auth.SupabaseAuthResult
 import com.wisdomtower.academy.ui.theme.AtmosphereBackground
@@ -151,21 +152,17 @@ import kotlinx.coroutines.launch
  *    existing glass; the logo and the name stay above the card.
  *  Texts, fields, validation and the sign in / sign up logic are NOT changed. One sign-in look (S5) is kept.
  *
+ * A3 (2026-11-28, docs/PLAN_2026-11-28_SIGNUP_AND_GAMES_NAV.md): Create Account is now TWO steps.
+ *  Step 1 "Your account": full name, e-mail or phone, password, confirm password, terms. Button "Continue".
+ *  Step 2 "About you": gender chips + the academic level as grouped cards + the Other text ([SignUpAboutStep]).
+ *  Button "Create Account", and a Back link to step 1. Gender and level are required (gender allows "Prefer not to say");
+ *  Other needs the written text (max 80). The old dropdown list is gone. After the account is created, the answers are
+ *  written to the student's own profiles row by [SignUpProfileWriter] (education_level, gender, custom_education_level).
+ *  Sign in is unchanged.
+ *
  * STATUS: written, NOT yet compiled or tested on a device.
  */
 enum class AuthMode { SIGN_IN, SIGN_UP }
-
-// Same list as ACADEMIC_LEVEL_OPTIONS in website-reference/src/lib/academic-levels.ts
-private val ACADEMIC_LEVEL_OPTIONS = listOf(
-    "Grade 9",
-    "Grade 10",
-    "Grade 11",
-    "Grade 12",
-    "Remedial",
-    "Freshman",
-    "3rd Year (ECE)",
-    "Other"
-)
 
 // D5: day mode. Night keeps the old value, day uses the Ivory & Navy tokens (docs/DAY_MODE_PLAN.md).
 private fun dayNight(night: Color, day: Color): Color = if (AppThemeMode.isDark) night else day
@@ -205,9 +202,11 @@ fun NativeSignInScreen(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
-    var educationLevel by remember { mutableStateOf("Freshman") }
+    // A3: no default level any more; the student must choose (step 2 of Create Account).
+    var educationLevel by remember { mutableStateOf<String?>(null) }
+    var gender by remember { mutableStateOf<String?>(null) }
     var customLevel by remember { mutableStateOf("") }
-    var levelPickerOpen by remember { mutableStateOf(false) }
+    var signUpStep by remember { mutableStateOf(1) }
     var showPassword by remember { mutableStateOf(false) }
     var agreedToTerms by remember { mutableStateOf(true) }
     var loading by remember { mutableStateOf(false) }
@@ -222,11 +221,6 @@ fun NativeSignInScreen(
         animationSpec = tween(durationMillis = 560),
         label = "authEnter"
     )
-    val chevron by animateFloatAsState(
-        targetValue = if (levelPickerOpen) 180f else 0f,
-        animationSpec = tween(durationMillis = 220),
-        label = "levelChevron"
-    )
     val reveal = expandVertically(animationSpec = tween(280)) + fadeIn(animationSpec = tween(280))
     val conceal = shrinkVertically(animationSpec = tween(220)) + fadeOut(animationSpec = tween(160))
 
@@ -237,7 +231,7 @@ fun NativeSignInScreen(
     fun switchMode(target: AuthMode) {
         mode = target
         notice = null
-        levelPickerOpen = false
+        signUpStep = 1
     }
 
     fun submit() {
@@ -268,41 +262,67 @@ fun NativeSignInScreen(
             return
         }
 
-        // Create Account
-        if (fullName.trim().isEmpty()) {
-            notice = AuthNotice("Please enter your full legal name.")
+        // Create Account, step 1: check the account fields, then go to step 2.
+        if (signUpStep == 1) {
+            if (fullName.trim().isEmpty()) {
+                notice = AuthNotice("Please enter your full legal name.")
+                return
+            }
+            if (password.length < 6) {
+                notice = AuthNotice("Password must be at least 6 characters.")
+                return
+            }
+            if (password != confirmPassword) {
+                notice = AuthNotice("Passwords do not match.")
+                return
+            }
+            if (!agreedToTerms) {
+                notice = AuthNotice("Please accept the Terms of Service to continue.")
+                return
+            }
+            focus.clearFocus()
+            signUpStep = 2
             return
         }
-        if (password.length < 6) {
-            notice = AuthNotice("Password must be at least 6 characters.")
+
+        // Create Account, step 2: gender and level are required.
+        val chosenGender = gender
+        val chosenLevel = educationLevel
+        val otherText = customLevel.trim()
+        if (chosenGender == null) {
+            notice = AuthNotice("Please choose your gender (or Prefer not to say).")
             return
         }
-        if (password != confirmPassword) {
-            notice = AuthNotice("Passwords do not match.")
+        if (chosenLevel == null) {
+            notice = AuthNotice("Please choose your academic level.")
             return
         }
-        if (!agreedToTerms) {
-            notice = AuthNotice("Please accept the Terms of Service to continue.")
+        if (chosenLevel == "Other" && otherText.isEmpty()) {
+            notice = AuthNotice("Please write what you are studying.")
             return
         }
-        val finalLevel =
-            if (educationLevel == "Other") customLevel.trim().ifEmpty { "Other" } else educationLevel
         focus.clearFocus()
         loading = true
         scope.launch {
-            when (val result = SupabaseAuthClient.signUp(fullName.trim(), id, password, finalLevel, appContext)) {
-                is SupabaseAuthResult.Success -> onSuccess(result)
+            when (val result = SupabaseAuthClient.signUp(fullName.trim(), id, password, chosenLevel, appContext)) {
+                is SupabaseAuthResult.Success -> {
+                    // Save the sign-up answers on the student's own profile row (best effort), then continue.
+                    SignUpProfileWriter.write(result, chosenLevel, chosenGender, otherText.ifEmpty { null })
+                    onSuccess(result)
+                }
                 is SupabaseAuthResult.Failure -> {
                     loading = false
                     when (result.kind) {
                         AuthFailureKind.USER_EXISTS -> {
                             mode = AuthMode.SIGN_IN
+                            signUpStep = 1
                             notice = AuthNotice(
                                 "An account with this email or phone already exists. Please enter your password to sign in."
                             )
                         }
                         AuthFailureKind.CONFIRM_EMAIL_SENT -> {
                             mode = AuthMode.SIGN_IN
+                            signUpStep = 1
                             notice = AuthNotice(result.message)
                         }
                         else -> notice = AuthNotice(result.message)
@@ -321,6 +341,7 @@ fun NativeSignInScreen(
                 if (changedEmail.isNotEmpty()) identifier = changedEmail
                 password = ""
                 mode = AuthMode.SIGN_IN
+                signUpStep = 1
                 notice = AuthNotice("Your password has been successfully changed.")
                 showReset = false
             },
@@ -329,6 +350,10 @@ fun NativeSignInScreen(
         )
         return
     }
+
+    // A3: which part of the form is on screen. Sign in and sign-up step 1 show the account fields; step 2 shows "about you".
+    val showAccountFields = !(mode == AuthMode.SIGN_UP && signUpStep == 2)
+    val showAboutStep = mode == AuthMode.SIGN_UP && signUpStep == 2
 
     // A1: BoxWithConstraints so the layout can size itself to the room it really gets (see the header comment).
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
@@ -461,9 +486,28 @@ fun NativeSignInScreen(
                     GlassModeTabs(mode = mode, onSelect = { switchMode(it) })
                     Spacer(modifier = Modifier.height((20 * fit).dp))
 
-                    // Full legal name (sign up only)
+                    // A3: small step line (sign up only)
                     AnimatedVisibility(
                         visible = mode == AuthMode.SIGN_UP,
+                        enter = reveal,
+                        exit = conceal
+                    ) {
+                        Column {
+                            Text(
+                                text = if (signUpStep == 1) "STEP 1 OF 2 · YOUR ACCOUNT" else "STEP 2 OF 2 · ABOUT YOU",
+                                color = Slate400,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                letterSpacing = 1.sp,
+                                modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite }
+                            )
+                            Spacer(modifier = Modifier.height(gap))
+                        }
+                    }
+
+                    // Full legal name (sign up, step 1)
+                    AnimatedVisibility(
+                        visible = mode == AuthMode.SIGN_UP && signUpStep == 1,
                         enter = reveal,
                         exit = conceal
                     ) {
@@ -479,183 +523,80 @@ fun NativeSignInScreen(
                         }
                     }
 
-                    // Email or phone
-                    AuthField(
-                        label = "Email or Phone Number",
-                        value = identifier,
-                        onValueChange = { identifier = it },
-                        placeholder = "name@email.com or 09xxxxxxxx",
-                        leadingIcon = if (identifier.contains("@")) Icons.Filled.Email else Icons.Filled.Phone,
-                        keyboardType = KeyboardType.Email
-                    )
-                    Spacer(modifier = Modifier.height(gap))
-
-                    // Academic level (sign up only)
+                    // Email or phone (sign in, sign-up step 1)
                     AnimatedVisibility(
-                        visible = mode == AuthMode.SIGN_UP,
+                        visible = showAccountFields,
                         enter = reveal,
                         exit = conceal
                     ) {
                         Column {
-                            Text(
-                                text = "ACADEMIC LEVEL",
-                                color = Slate200,
-                                fontSize = 12.sp,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 0.8.sp
+                            AuthField(
+                                label = "Email or Phone Number",
+                                value = identifier,
+                                onValueChange = { identifier = it },
+                                placeholder = "name@email.com or 09xxxxxxxx",
+                                leadingIcon = if (identifier.contains("@")) Icons.Filled.Email else Icons.Filled.Phone,
+                                keyboardType = KeyboardType.Email
                             )
-                            Spacer(modifier = Modifier.height(6.dp))
-                            val pickerShape = RoundedCornerShape(14.dp)
-                            Row(
-                                modifier = Modifier.wisdomTouchFeel()
-                                    .fillMaxWidth()
-                                    .clip(pickerShape)
-                                    .background(FieldBackground)
-                                    .border(
-                                        BorderStroke(
-                                            1.dp,
-                                            if (levelPickerOpen) WisdomCyan.copy(alpha = 0.85f) else FieldBorder
-                                        ),
-                                        pickerShape
-                                    )
-                                    .semantics {
-                                        stateDescription = if (levelPickerOpen) "Expanded" else "Collapsed"
-                                    }
-                                    .clickable(role = Role.DropdownList) { levelPickerOpen = !levelPickerOpen }
-                                    .padding(horizontal = 14.dp, vertical = 16.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Filled.School,
-                                    contentDescription = null,
-                                    tint = Slate400,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(12.dp))
-                                Text(
-                                    text = educationLevel,
-                                    color = WisdomInk,
-                                    fontSize = 14.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.weight(1f)
-                                )
-                                Icon(
-                                    imageVector = Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = if (levelPickerOpen) CyanLight else Slate400,
-                                    modifier = Modifier
-                                        .size(20.dp)
-                                        .rotate(chevron)
-                                )
-                            }
-                            AnimatedVisibility(
-                                visible = levelPickerOpen,
-                                enter = reveal,
-                                exit = conceal
-                            ) {
-                                Column {
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    val listShape = RoundedCornerShape(16.dp)
-                                    // Stays almost solid (like dropdown menus elsewhere) so it is easy to read.
-                                    Column(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(listShape)
-                                            .background(dayNight(Color(0x66101A2E), Color(0xEBF8F5EE)))
-                                            .border(BorderStroke(1.dp, WisdomInk.copy(alpha = 0.16f)), listShape)
-                                            .padding(vertical = 6.dp)
-                                    ) {
-                                        ACADEMIC_LEVEL_OPTIONS.forEach { option ->
-                                            val isSelected = option == educationLevel
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .background(
-                                                        if (isSelected) dayNight(Color(0x3306B6D4), WisdomCyan.copy(alpha = 0.14f)) else Color.Transparent
-                                                    )
-                                                    .selectable(
-                                                        selected = isSelected,
-                                                        role = Role.RadioButton,
-                                                        onClick = {
-                                                            educationLevel = option
-                                                            levelPickerOpen = false
-                                                        }
-                                                    )
-                                                    .heightIn(min = 48.dp)
-                                                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    text = option,
-                                                    color = if (isSelected) CyanLight else Slate200,
-                                                    fontSize = 14.sp,
-                                                    fontWeight = FontWeight.Medium,
-                                                    modifier = Modifier.weight(1f)
-                                                )
-                                                if (isSelected) {
-                                                    Icon(
-                                                        imageVector = Icons.Filled.Check,
-                                                        contentDescription = null,
-                                                        tint = CyanLight,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                             Spacer(modifier = Modifier.height(gap))
-
-                            AnimatedVisibility(
-                                visible = educationLevel == "Other",
-                                enter = reveal,
-                                exit = conceal
-                            ) {
-                                Column {
-                                    AuthField(
-                                        label = "Specify your academic level",
-                                        value = customLevel,
-                                        onValueChange = { customLevel = it },
-                                        placeholder = "e.g. Master's, College Diploma, Self-learner...",
-                                        leadingIcon = Icons.Filled.School
-                                    )
-                                    Spacer(modifier = Modifier.height(gap))
-                                }
-                            }
                         }
                     }
 
-                    // Password
-                    AuthField(
-                        label = "Password",
-                        value = password,
-                        onValueChange = { password = it },
-                        placeholder = "••••••••",
-                        leadingIcon = Icons.Filled.Lock,
-                        keyboardType = KeyboardType.Password,
-                        imeAction = if (mode == AuthMode.SIGN_IN) ImeAction.Done else ImeAction.Next,
-                        onImeAction = { submit() },
-                        isPassword = true,
-                        showPassword = showPassword,
-                        onTogglePassword = { showPassword = !showPassword },
-                        labelTrailing = if (mode == AuthMode.SIGN_IN) {
-                            {
-                                Text(
-                                    text = "Forgot password?",
-                                    color = Slate400,
-                                    fontSize = 12.sp,
-                                    fontWeight = FontWeight.Medium,
-                                    modifier = Modifier.wisdomTouchFeel().clickable(role = Role.Button) { showReset = true }
-                                )
-                            }
-                        } else null
-                    )
-                    Spacer(modifier = Modifier.height(gap))
-
-                    // Confirm password + terms (sign up only)
+                    // A3: sign-up step 2 "about you": gender chips, level cards, Other text
                     AnimatedVisibility(
-                        visible = mode == AuthMode.SIGN_UP,
+                        visible = showAboutStep,
+                        enter = reveal,
+                        exit = conceal
+                    ) {
+                        SignUpAboutStep(
+                            gender = gender,
+                            onGender = { gender = it },
+                            level = educationLevel,
+                            onLevel = { educationLevel = it },
+                            customLevel = customLevel,
+                            onCustomLevel = { customLevel = it },
+                            gap = gap
+                        )
+                    }
+
+                    // Password (sign in, sign-up step 1)
+                    AnimatedVisibility(
+                        visible = showAccountFields,
+                        enter = reveal,
+                        exit = conceal
+                    ) {
+                        Column {
+                            AuthField(
+                                label = "Password",
+                                value = password,
+                                onValueChange = { password = it },
+                                placeholder = "••••••••",
+                                leadingIcon = Icons.Filled.Lock,
+                                keyboardType = KeyboardType.Password,
+                                imeAction = if (mode == AuthMode.SIGN_IN) ImeAction.Done else ImeAction.Next,
+                                onImeAction = { submit() },
+                                isPassword = true,
+                                showPassword = showPassword,
+                                onTogglePassword = { showPassword = !showPassword },
+                                labelTrailing = if (mode == AuthMode.SIGN_IN) {
+                                    {
+                                        Text(
+                                            text = "Forgot password?",
+                                            color = Slate400,
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Medium,
+                                            modifier = Modifier.wisdomTouchFeel().clickable(role = Role.Button) { showReset = true }
+                                        )
+                                    }
+                                } else null
+                            )
+                            Spacer(modifier = Modifier.height(gap))
+                        }
+                    }
+
+                    // Confirm password + terms (sign-up step 1)
+                    AnimatedVisibility(
+                        visible = mode == AuthMode.SIGN_UP && signUpStep == 1,
                         enter = reveal,
                         exit = conceal
                     ) {
@@ -755,15 +696,46 @@ fun NativeSignInScreen(
                         }
                     }
 
-                    // Submit button
+                    // Submit button: Sign In / Continue (step 1) / Create Account (step 2)
                     GlassPrimaryButton(
-                        label = if (mode == AuthMode.SIGN_IN) "Sign In" else "Create Account",
+                        label = when {
+                            mode == AuthMode.SIGN_IN -> "Sign In"
+                            signUpStep == 1 -> "Continue"
+                            else -> "Create Account"
+                        },
                         busyLabel = if (mode == AuthMode.SIGN_IN) "Signing In..." else "Creating Account...",
                         loading = loading,
-                        enabled = !loading && !(mode == AuthMode.SIGN_UP && !agreedToTerms),
+                        enabled = !loading && !(mode == AuthMode.SIGN_UP && signUpStep == 1 && !agreedToTerms),
                         verticalPadding = (15 * fit).dp,
                         onClick = { submit() }
                     )
+
+                    // A3: Back link to step 1
+                    AnimatedVisibility(
+                        visible = showAboutStep,
+                        enter = reveal,
+                        exit = conceal
+                    ) {
+                        Column {
+                            Spacer(modifier = Modifier.height(6.dp))
+                            Text(
+                                text = "← Back",
+                                color = WisdomCyan,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier
+                                    .wisdomTouchFeel()
+                                    .fillMaxWidth()
+                                    .clickable(enabled = !loading, role = Role.Button) {
+                                        notice = null
+                                        signUpStep = 1
+                                    }
+                                    .padding(vertical = 10.dp)
+                            )
+                        }
+                    }
+
                     Spacer(modifier = Modifier.height(10.dp))
                     TappableText(
                         text = "Account security: this app registers a private installation ID and phone model to protect your account. Privacy Policy.",
