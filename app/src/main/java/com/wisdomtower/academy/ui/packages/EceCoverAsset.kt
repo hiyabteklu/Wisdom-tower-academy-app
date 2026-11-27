@@ -38,6 +38,10 @@ fun eceCoverAsset(newName: String, oldName: String): String =
 fun eceYearCover(year: Int): String =
     if (year in 1..5) codeCoverUri("ece-y$year") else eceCoverAsset("ece-y$year.jpg", "ece.jpg")
 
-/** Semester / package cover: `ece-y<year>-sem-<sem>.jpg`, falling back to the old `ece-sem-<sem>.jpg`. */
+/**
+ * Semester / package cover: drawn by code too (`code-cover://ece-y<year>-sem-<sem>`, title "ECE 2ND YEAR" with the caption
+ * "SEMESTER 1"), so each year finally has its own semester covers. Out-of-range numbers keep the old picture.
+ */
 fun eceSemesterCover(year: Int, sem: Int): String =
-    eceCoverAsset("ece-y$year-sem-$sem.jpg", "ece-sem-$sem.jpg")
+    if (year in 1..5 && sem in 1..2) codeCoverUri("ece-y$year-sem-$sem")
+    else eceCoverAsset("ece-y$year-sem-$sem.jpg", "ece-sem-$sem.jpg")
