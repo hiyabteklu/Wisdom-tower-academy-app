@@ -1,7 +1,7 @@
 # PLAN 2026-11-28: sign-up form upgrade + games navigation like My Learning
 
 > Repo is PUBLIC: no secrets. Follow `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`: one slice = one commit to `main`, tick the slice here in the same commit, record every live Supabase change here.
-> STATUS 2026-11-28: A1, A2, A3 (+A1b) and B1 DONE (A1/A3 written, NOT compiled, NOT tested on the phone). Supabase migrations are LIVE (see A2). Next: owner builds and tests A3 on the phone; then A4, A5. B2 can start any time.
+> STATUS 2026-11-28: A1, A2, A3 (+A1b), A4 and B1 DONE (A1/A3/A4 written, NOT compiled, NOT tested on the phone). Supabase migrations are LIVE (see A2); A4 needed no new database change. Next: owner builds and tests A3 + A4 on the phone; then A5. B2 can start any time.
 
 ## OWNER DECISIONS (2026-11-28, final unless the owner changes them)
 1. The student picks the academic level at registration. My Learning and Games then show the SAME packages. This is for all Electrical (ECE Year 1 to 5), Remedial, Grade 9 to 12 and Freshman.
@@ -18,7 +18,13 @@
 - Profiles RLS: `profiles_select_own_or_admin` (SELECT), `profiles_insert_own`, `profiles_update_own`. So a student sees only their own row, an admin sees all; the new gender column is covered. The leaderboard view (`leaderboard_by_scope`) hides everything but the display name.
 - Notification audiences (`resolve_notification_audience`, `admin_audience_level_counts`) match `education_level` text. The new level strings only get targeted if the admin picks them; check the admin audience picker lists them (A5 follow-up).
 - The database trigger `handle_new_user` only creates the profile row with id, email and full name. It does NOT copy the level from the sign-up metadata, so the app must write the level itself (A3 does, see below). The old sign-up passed the Other TEXT as `education_level` (would break the CHECK); A3 sends "Other" and keeps the text in `custom_education_level`.
-- Still to read: `ui/admin/UsersScreen.kt` (Scholars list), the Settings level picker, and the other places that read `educationLevel` text (`ProfileSubjectsSync.kt`, `StudentIdGenerator`, Settings): they must understand `ECE Year N`.
+- READERS CHECKED while doing A4 (2026-11-28, read-only):
+  - Settings (`ui/settings/SettingsScreen.kt`) has NO level picker. Since 2026-10-19 it holds app settings only; the level is edited on the PROFILE screen (`ui/account/AccountScreen.kt`, card 2). So A4 changed the Profile screen, not Settings.
+  - `ProfileSubjectsSync.kt` does not read the level. It writes `my_subject_keys` and package labels (`Freshman`, `3rd Year (ECE)`, `Grade N`) into `study_subjects`; all of these are still valid in the widened CHECK. Nothing to change.
+  - `MySubjectsStore.packageForLevel` already maps any text containing "ece" to the ECE subjects package, so `ECE Year N` works. Levels with no package (Remedial, Exit Exam, COC, GAT, EUEE, UAT, Other) give no picks, and Status keeps counting everything (same as before for Remedial and Other).
+  - `StudentIdGenerator` only prints the level text on the student ID card; `ECE Year 2` shows as written.
+  - `AuthStateManager.saveProfile` updates the shared profile state at once, so My Learning and Games follow a level change on the Profile screen without a restart.
+- Still to read: `ui/admin/UsersScreen.kt` (Scholars list) and the admin notification audience picker (A5).
 
 ## PART 1: Sign-up form upgrade
 
@@ -36,14 +42,19 @@ School: `Grade 9` ... `Grade 12`. University: `Freshman`, `ECE Year 1` ... `ECE 
   1. New `ui/auth/SignUpAboutStep.kt` (step 2 UI: gender chips Male / Female / Prefer not to say, level as grouped cards School / University / Exams / Other from `AcademicLevels.ALL`, one text box for Other, max 80) and new `data/auth/SignUpProfileWriter.kt` (right after the account is created, PATCHes the student's own profiles row with `education_level`, `gender`, and for Other `custom_education_level`, using the student's own token; POST upsert if no row; best effort, never blocks sign-up).
   2. `ui/auth/NativeSignInScreen.kt`: Create Account is two steps. Step 1 "Your account": full name, e-mail or phone, password, confirm, terms, button Continue. Step 2 "About you": gender + level cards, button Create Account, "Back" link. Gender and level are required; Other needs the text. The old dropdown and the old default level (Freshman) are gone (no default now). Sign In unchanged. `SupabaseAuthClient.signUp` was NOT changed (it still sends the level in the sign-up metadata and to the website register route; for Other it now sends the word "Other").
   3. A1b above.
-  Risks to check on the phone: (a) the website register route `/api/auth/register` might reject or ignore `ECE Year N` (its result is ignored; the app write comes after it and wins); (b) other screens that read the level text (Settings, `ProfileSubjectsSync.kt`, student ID) may not know `ECE Year N` yet.
-- **A4 (app)** Settings uses the SAME level picker (AcademicLevels + SignUpAboutStep style cards), so changing the level moves My Learning and Games together. Read the Settings code and the other `educationLevel` readers first (see risk b).
-- **A5 (app, admin)** Scholars list (`UsersScreen.kt`): show gender (and the Other text) on the scholar card and in the detail. Admins only. Never in the leaderboard, never to students. Also check the notification audience picker offers the new levels.
+  Risks to check on the phone: (a) the website register route `/api/auth/register` might reject or ignore `ECE Year N` (its result is ignored; the app write comes after it and wins); (b) other screens that read the level text: CHECKED in A4, see "READERS CHECKED" above, nothing else needed changing.
+- **A4 DONE (2026-11-28, NOT compiled, NOT tested)** Three commits (1/3 and 2/3 code, 3/3 this plan file). Where the level is changed: the PROFILE screen (see "READERS CHECKED"; Settings has no level picker).
+  1. `data/auth/AcademicLevels.kt`: new `normalize(level)` (the old `3rd Year (ECE)` becomes `ECE Year 3`; list spelling for other letter cases) and `isUniversityLevel(level)` (Freshman, every ECE year, Remedial, Exit Exam, COC, GAT = pick a university from the list; Grade 9 to 12, EUEE, UAT and Other = type a school name). New `data/auth/ProfileLevelSync.kt`: reads and writes `custom_education_level` of the student's own row (same pattern as `ProfileSubjectsSync`; blank clears it; at most 80 characters).
+  2. `ui/account/AccountScreen.kt` (card 2 "Academic Level & Institution"): the old 8 level pills are replaced by the SAME list as the sign-up (`AcademicLevels.ALL`), shown as pills in four groups School / University / Exams / Other (the Profile screen keeps its own pill look, no redesign). The Other text box is limited to 80 and is read from `custom_education_level` (old accounts: from `bio` "Custom Level: ..." as before). Save writes `education_level` as before, and the Other text to `custom_education_level` (only when the level is Other or an old text must be cleared); `bio` is still rewritten for Other, so the website keeps working. A level change moves My Learning and Games together. The old public vals `EDUCATION_LEVEL_OPTIONS` and `UNIVERSITY_LEVELS` still exist (now built from `AcademicLevels`) in case another file uses them.
+  Choices I made (change them if the owner disagrees): Exit Exam, COC and GAT use the university list (they are exams for university students); EUEE and UAT type a school name. Old accounts with `3rd Year (ECE)` are shown as `ECE Year 3` and saved as that on the next Save (same package, the database accepts it).
+  Risks to check on the phone: (a) Save on the Profile screen now makes one extra write for the Other text; if it fails the toast shows its message; (b) switching between a university level and a school level clears the institution (same rule as before).
+- **A5 (app, admin)** Scholars list (`UsersScreen.kt`): show gender (and the Other text from `custom_education_level`) on the scholar card and in the detail. Admins only. Never in the leaderboard, never to students. Also check the notification audience picker offers the new levels.
 
 ### Test on the phone (after each slice)
-New test account: sign up with ECE Year 2 and a gender; My Learning and Games show ECE Year 2 only. Change to Grade 10 in Settings: both move. A test account with Exit Exam: Games says Coming soon. A test account with Other: the text is saved. Old accounts (3rd Year (ECE), Freshman) open as before. Admin: the Scholars list shows the gender.
+New test account: sign up with ECE Year 2 and a gender; My Learning and Games show ECE Year 2 only. Change to Grade 10 on the Profile screen (card 2, then Save Profile Changes): both move. A test account with Exit Exam: Games says Coming soon. A test account with Other: the text is saved. Old accounts (3rd Year (ECE), Freshman) open as before. Admin: the Scholars list shows the gender.
 Test for A1 alone (no database change needed): an old Year 3 account opens the Year 3 package in Games (it used to open Year 1); an account with Exit Exam or GAT sees "Games are coming soon for your level."
 Test for A3: Create Account shows "Step 1 of 2" with name, e-mail/phone, passwords, terms and a Continue button; wrong or empty fields show the notice and stay on step 1; Continue opens step 2 (gender chips, level cards); Back returns to step 1 with the typed values kept; Create Account without gender or level shows a notice; choosing Other shows the text box and needs text. After sign-up check in Supabase that the new row has the level, gender and (for Other) the text. Sign In still works.
+Test for A4: open Profile, card 2: the levels show in four groups (School, University, Exams, Other) and your current level is selected (an old `3rd Year (ECE)` account shows ECE Year 3). Pick ECE Year 2, pick the university, Save Profile Changes: the toast says Saved; My Learning and Games now show only ECE Year 2. Pick Grade 10: the university is cleared, a school name box appears; after Save both tabs show Grade 10. Pick Other, type a text, Save, close and reopen the app: the text is still there; in Supabase `custom_education_level` holds it. Pick Exit Exam: Games says Coming soon.
 
 ## PART 2: Games navigation like My Learning
 
@@ -61,7 +72,7 @@ Test for A3: Create Account shows "Step 1 of 2" with name, e-mail/phone, passwor
 - Do NOT touch the game screens, level picker, results, or `GameAccess.gate` (the ownership check stays the authoritative one).
 
 ### Test on the phone
-Games tab opens on the same package cards as My Learning; tapping through reaches chapters; a chapter of a package the student does not own shows the lock label; Match and Defense still play and save results. Changing the level in Settings changes the Games tab too.
+Games tab opens on the same package cards as My Learning; tapping through reaches chapters; a chapter of a package the student does not own shows the lock label; Match and Defense still play and save results. Changing the level on the Profile screen changes the Games tab too.
 
 ## Order
 Owner builds and tests A3 > A4 > A5, and B2 > B3 (> B4). B2 can start now. Each slice ends with a build, then a phone test by the owner.
@@ -73,6 +84,8 @@ Owner builds and tests A3 > A4 > A5, and B2 > B3 (> B4). B2 can start now. Each 
 ## Plan changes
 - 2026-11-28: no new "Other" text column; the existing unused `custom_education_level` is used instead.
 - 2026-11-28: the level is written by the app (`SignUpProfileWriter`) after sign-up, because the database trigger does not copy it from the sign-up metadata. `SupabaseAuthClient` was left untouched.
+- 2026-11-28 (A4): the plan said "Settings uses the same level picker". Settings has no level picker; the level is edited on the Profile screen. A4 was done there. The Settings accordion was not touched.
+- 2026-11-28 (A4): the Other text on the Profile screen is read and written through the new `ProfileLevelSync` (own small file) instead of changing `SupabaseAccountClient` / `UserProfile`, so the main profile client stays untouched (same idea as `ProfileSubjectsSync`).
 
 ## Log
 | Date | What | Left |
@@ -81,3 +94,4 @@ Owner builds and tests A3 > A4 > A5, and B2 > B3 (> B4). B2 can start now. Each 
 | 2026-11-28 | A1 done (AcademicLevels, Games uses it, Coming soon, Year 3 bug fixed). B1 done (findings above). Not compiled. Nothing changed in Supabase. | A2 needs the owner's go; A1b goes with A3. |
 | 2026-11-28 | Owner said go. A2 done: migrations `profiles_add_gender` and `profiles_widen_education_levels` live (tested in a rolled-back transaction first). | A3 (+A1b) next. |
 | 2026-11-28 | A3 + A1b written and pushed (3 commits: SignUpAboutStep + SignUpProfileWriter, NativeSignInScreen two steps, LearningScreen shared rule). Not compiled, not tested. | Owner: build and phone test; then A4 (Settings picker + other `educationLevel` readers), A5. |
+| 2026-11-28 | A4 written and pushed (3 commits: AcademicLevels + ProfileLevelSync, Profile screen level list and Other text, this plan). Level readers checked, nothing else needed changing. Nothing changed in Supabase. Not compiled, not tested. | Owner: build and phone test A3 + A4; then A5 (Scholars list shows gender and the Other text). B2 can start any time. |
