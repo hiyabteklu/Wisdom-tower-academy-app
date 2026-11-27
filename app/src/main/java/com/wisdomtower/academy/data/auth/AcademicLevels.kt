@@ -2,7 +2,7 @@ package com.wisdomtower.academy.data.auth
 
 import com.wisdomtower.academy.ui.packages.NativePackage
 
-/** One academic level the student can pick (sign-up, Settings). [value] is the exact string saved in `profiles.education_level`. */
+/** One academic level the student can pick (sign-up, Profile). [value] is the exact string saved in `profiles.education_level`. */
 data class AcademicLevel(val value: String, val label: String, val group: String)
 
 /**
@@ -17,8 +17,9 @@ data class AcademicLevel(val value: String, val label: String, val group: String
  *    ece / electrical text mean Year 3 (Year 3 package first, any ece package as the old fallback).
  *  - Exit Exam, COC, GAT, EUEE, UAT, Other -> no package yet (nothing in My Learning, Games says Coming soon).
  *
- * The values must match the `education_level` CHECK in Supabase. The ECE Year 1..5, COC, EUEE and UAT values are added by
- * the A2 migration (owner approval pending); until then only the old values can be saved.
+ * The values must match the `education_level` CHECK in Supabase. The ECE Year 1..5, COC, EUEE and UAT values were added by
+ * the A2 migration (LIVE 2026-11-28).
+ * A4 (2026-11-28) added [normalize] and [isUniversityLevel] for the Profile screen.
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
 object AcademicLevels {
@@ -58,6 +59,32 @@ object AcademicLevels {
         if (t.contains("remedial") || t.contains("freshman")) return null
         val old = t == "3rd year (ece)" || t == "3rd year ece" || t.contains("ece") || t.contains("electrical")
         return if (old) 3 else null
+    }
+
+    /**
+     * The value to show as selected on the Profile screen. The old `3rd Year (ECE)` becomes `ECE Year 3` (same package, and
+     * the database accepts it since A2). A level that matches the list in another letter case gets the list spelling.
+     * Anything else is returned trimmed; null stays null.
+     */
+    fun normalize(level: String?): String? {
+        if (level == null) return null
+        val t = level.trim()
+        if (t.isEmpty()) return null
+        ALL.firstOrNull { it.value.equals(t, ignoreCase = true) }?.let { return it.value }
+        val lower = t.lowercase()
+        if (lower == "3rd year (ece)" || lower == "3rd year ece") return "ECE Year 3"
+        return t
+    }
+
+    /**
+     * True when the student picks a university from the list (Profile screen) instead of typing a school name:
+     * Freshman, every ECE year, Remedial, Exit Exam, COC and GAT. School grades, EUEE, UAT and Other type a school name.
+     */
+    fun isUniversityLevel(level: String?): Boolean {
+        if (level.isNullOrBlank()) return false
+        if (eceYearOf(level) != null) return true
+        val t = level.trim().lowercase()
+        return t == "freshman" || t == "remedial" || t == "exit exam" || t == "coc" || t == "gat"
     }
 
     /** Package ids of the non-ECE levels. No level = the website default (freshman + coc). */
