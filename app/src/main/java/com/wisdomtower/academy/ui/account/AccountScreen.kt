@@ -80,8 +80,10 @@ import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.auth.AcademicLevels
 import com.wisdomtower.academy.data.auth.AccountCallResult
 import com.wisdomtower.academy.data.auth.AuthStateManager
+import com.wisdomtower.academy.data.auth.ProfileLevelSync
 import com.wisdomtower.academy.data.auth.ProfileSubjectsSync
 import com.wisdomtower.academy.data.content.MySubjectsStore
 import com.wisdomtower.academy.data.model.UserProfile
@@ -106,17 +108,28 @@ import kotlin.math.roundToInt
 // ---------------------------------------------------------------------------
 // Option lists. Never invent options here: the chosen value is written to the same
 // Supabase `profiles` row the website uses.
-//  - levels, regions: website-reference/src/lib/academic-levels.ts and profile.ts
+//  - levels: since A4 (2026-11-28) they come from data/auth/AcademicLevels.kt, the same list the sign-up uses
+//    (the database CHECK accepts them since the A2 migration). regions: website-reference/src/lib/profile.ts
 //  - universities: app/src/main/assets/data/universities.json (the 45 names of the app's own
 //    university guide, same order)
 // ---------------------------------------------------------------------------
-val EDUCATION_LEVEL_OPTIONS = listOf(
-    "Grade 9", "Grade 10", "Grade 11", "Grade 12",
-    "Remedial", "Freshman", "3rd Year (ECE)", "Other"
-)
+val EDUCATION_LEVEL_OPTIONS: List<String> = AcademicLevels.ALL.map { it.value }
 
-/** Levels whose students are at a university: they pick the university from the list. Everyone else types a school name. */
-val UNIVERSITY_LEVELS = setOf("Remedial", "Freshman", "3rd Year (ECE)")
+/**
+ * Levels whose students are at a university: they pick the university from the list. Everyone else types a school name.
+ * Kept for any old reference; the screen itself asks [AcademicLevels.isUniversityLevel]. `3rd Year (ECE)` stays in the set
+ * because old accounts may still hold it.
+ */
+val UNIVERSITY_LEVELS: Set<String> =
+    (AcademicLevels.ALL.map { it.value }.filter { AcademicLevels.isUniversityLevel(it) } + "3rd Year (ECE)").toSet()
+
+/** The level cards on this screen are grouped like the sign-up (School, University, Exams, Other). */
+private val LEVEL_GROUP_TITLES = listOf(
+    AcademicLevels.GROUP_SCHOOL to "School",
+    AcademicLevels.GROUP_UNIVERSITY to "University",
+    AcademicLevels.GROUP_EXAMS to "Exams",
+    AcademicLevels.GROUP_OTHER to "Other"
+)
 
 val UNIVERSITY_OPTIONS = listOf(
     "Addis Ababa University",
@@ -216,6 +229,12 @@ private val PillOnAccent: Color get() = dayNight(Color(0xFF06101F), WisdomDarkOn
  * this screen. Save no longer sends them, so whatever is already stored in `target_exam` / `target_score`
  * stays untouched. The 10 completion points that "Target Exam" used to give now come from My Subjects
  * (at least one subject chosen), so the gauge can still reach 100%.
+ *
+ * 2026-11-28 (A4, docs/PLAN_2026-11-28_SIGNUP_AND_GAMES_NAV.md, owner decision 1): the academic level is chosen from the
+ * SAME list as the sign-up ([AcademicLevels.ALL], grouped School / University / Exams / Other). Changing it here moves
+ * My Learning and Games together (both read the saved level through AcademicLevels.resolvePackages). The text of "Other"
+ * is read and written in `custom_education_level` ([ProfileLevelSync]); it is still copied to `bio` as before, so the
+ * website keeps working. The old `3rd Year (ECE)` is shown as `ECE Year 3`. NOT compiled, NOT tested on a device.
  *
  * Saving never touches `stream` or `avatarPreset`: whatever is already stored stays as it is.
  */
@@ -319,16 +338,28 @@ private fun MyProfilePanel(
         )
     }
     var phone by remember(profile.phone) { mutableStateOf(profile.phone ?: "") }
+    // A4: the old "3rd Year (ECE)" is shown (and saved) as "ECE Year 3"; every other saved level is shown as it is.
     var educationLevel by remember(profile.educationLevel) {
-        mutableStateOf(profile.educationLevel?.takeIf { it.isNotBlank() } ?: "Freshman")
+        mutableStateOf(AcademicLevels.normalize(profile.educationLevel) ?: "Freshman")
     }
     var schoolName by remember(profile.schoolName) { mutableStateOf(profile.schoolName ?: "") }
     var townRegion by remember(profile.townRegion) { mutableStateOf(profile.townRegion ?: "") }
-    // Website stores the free-text level under "Other" in bio as "Custom Level: ..."
+    // The free-text level under "Other". Old accounts keep it in bio as "Custom Level: ..." (website convention);
+    // since A4 the column custom_education_level is the main place (read below) and bio is still written on save.
     var customLevel by remember(profile.bio) {
         mutableStateOf(
             profile.bio?.takeIf { it.startsWith("Custom Level: ") }?.removePrefix("Custom Level: ") ?: ""
         )
+    }
+    var customTouched by remember(userId) { mutableStateOf(false) }
+    // What the server holds in custom_education_level (blank = nothing / not read yet). Decides if Save must write it.
+    var remoteCustom by remember(userId) { mutableStateOf("") }
+    LaunchedEffect(userId) {
+        val remote = ProfileLevelSync.loadCustom()
+        if (!remote.isNullOrBlank()) {
+            remoteCustom = remote
+            if (!customTouched) customLevel = remote
+        }
     }
 
     // Study goals and schedule (were in Settings). Target exam / target score boxes were removed 2026-10-23.
@@ -357,7 +388,7 @@ private fun MyProfilePanel(
     var openCard by remember { mutableStateOf(0) } // 0 = all closed, otherwise the card number that is open
 
     val hasName = firstName.isNotBlank() || !profile.fullName.isNullOrBlank()
-    val isUniversityStudent = educationLevel in UNIVERSITY_LEVELS
+    val isUniversityStudent = AcademicLevels.isUniversityLevel(educationLevel)
     val completionScore = run {
         var score = 0
         if (hasName) score += 20
@@ -431,25 +462,39 @@ private fun MyProfilePanel(
             onToggle = { openCard = if (openCard == 2) 0 else 2 }
         ) {
             Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                FieldLabel("EDUCATION LEVEL")
-                PillSelector(
-                    options = EDUCATION_LEVEL_OPTIONS,
-                    selected = educationLevel,
-                    accent = WisdomCyan,
-                    onSelect = { newLevel ->
-                        // Switching between university and school clears the institution: a university
-                        // name makes no sense for a Grade 10 student and the other way round.
-                        if ((educationLevel in UNIVERSITY_LEVELS) != (newLevel in UNIVERSITY_LEVELS)) {
-                            schoolName = ""
+                FieldLabel("ACADEMIC LEVEL")
+                // A4: same levels as the sign-up, in the same four groups. My Learning and Games follow this choice.
+                Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    LEVEL_GROUP_TITLES.forEach { (group, title) ->
+                        val values = AcademicLevels.ALL.filter { it.group == group }.map { it.value }
+                        if (values.isNotEmpty()) {
+                            Column(modifier = Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                if (group != AcademicLevels.GROUP_OTHER) FieldLabel(title.uppercase())
+                                PillSelector(
+                                    options = values,
+                                    selected = educationLevel,
+                                    accent = WisdomCyan,
+                                    onSelect = { newLevel ->
+                                        // Switching between university and school clears the institution: a university
+                                        // name makes no sense for a Grade 10 student and the other way round.
+                                        if (AcademicLevels.isUniversityLevel(educationLevel) != AcademicLevels.isUniversityLevel(newLevel)) {
+                                            schoolName = ""
+                                        }
+                                        educationLevel = newLevel
+                                    }
+                                )
+                            }
                         }
-                        educationLevel = newLevel
                     }
-                )
+                }
 
                 if (educationLevel == "Other") {
                     OutlinedTextField(
                         value = customLevel,
-                        onValueChange = { customLevel = it },
+                        onValueChange = {
+                            customLevel = it.take(ProfileLevelSync.MAX_LENGTH)
+                            customTouched = true
+                        },
                         label = { Text("Specify Your Academic Level", fontSize = 11.sp) },
                         placeholder = { Text("e.g. Master's Degree, College Diploma, Self-learner...", fontSize = 11.sp, color = WisdomMuted) },
                         modifier = Modifier.fillMaxWidth(),
@@ -572,9 +617,11 @@ private fun MyProfilePanel(
             onClick = {
                 if (saving) return@SaveProfileButton
                 saving = true
+                // The "Other" text (at most 80 characters, the database limit). Empty for every other level.
+                val customToSave = if (educationLevel == "Other") customLevel.trim().take(ProfileLevelSync.MAX_LENGTH) else ""
                 // Website: bio is only rewritten while the level is "Other"
                 val newBio = if (educationLevel == "Other") {
-                    if (customLevel.isNotBlank()) "Custom Level: ${customLevel.trim()}" else ""
+                    if (customToSave.isNotBlank()) "Custom Level: $customToSave" else ""
                 } else {
                     profile.bio
                 }
@@ -599,8 +646,14 @@ private fun MyProfilePanel(
 
                 val sendSubjects = subjectsTouched || !picksFromLevel
                 val keysToSend = picks
+                // Write the Other text only when it matters: the level is Other, or the server still holds an old text to clear.
+                val writeCustom = educationLevel == "Other" || remoteCustom.isNotBlank()
                 scope.launch {
                     var result: AccountCallResult = AuthStateManager.saveProfile(updated)
+                    if (result is AccountCallResult.Success && writeCustom) {
+                        val customResult = ProfileLevelSync.saveCustom(customToSave)
+                        if (customResult is AccountCallResult.Failure) result = customResult else remoteCustom = customToSave
+                    }
                     if (result is AccountCallResult.Success && sendSubjects) {
                         val labels = MySubjectsStore.packages
                             .filter { pkg -> pkg.subjects.any { it.key in keysToSend } }
