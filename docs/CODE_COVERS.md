@@ -6,10 +6,11 @@ Goal: draw the 16:9 Canva covers with code so the app carries no picture file fo
 - `OpenCardLayout` (`ui/packages/OpenCard.kt`, THE card used everywhere) calls `isCodeCover(image)` / `codeCoverLabel(image)`. If true it draws `CodeCover(label)` in the 16:9 slot, else it loads the picture through Coil as before.
 - `codeCoverText(model)` in `ui/packages/CodeCover.kt` decides. It returns a label for:
   - `code-cover://ece-y<1..5>` and `code-cover://ece-y<1..5>-sem-<1..2>` (`eceYearCover`, `eceSemesterCover` in `EceCoverAsset.kt`);
-  - bundled `file:///android_asset/images/...` pictures in these folders ONLY: `packages`, `hubs`, `freshman`, `academy`, `special-packages` (incl. `courses`), `web/grade-N`, `web/remedial`, `web/entrance`, `web/uat-hubs`. The title comes from the file name (hash suffix and `gN-` prefix removed, capitals); hand-written titles are in `PACKAGE_LABELS`, `FRESHMAN_LABELS`, `COURSE_LABELS`.
+  - explicit ids such as `code-cover://freshman/<slug>`, `code-cover://course/<slug>`, `code-cover://grade-N/<stem>`, and `code-cover://hubs/<slug>`.
+  - legacy `file:///android_asset/images/...` identities in the known cover groups. These are converted to code covers for compatibility; the referenced thumbnail files are not required or bundled.
   - NEVER matched (stay pictures): the Home welcome card (`images/home/academy.jpg`, cached banner file, remote banner), remote https pictures, any other folder (`banks`, `brand`, `home`, guides, ...).
 - Label format `TITLE` or `TITLE\nCAPTION`: the title wraps and shrinks to fit, the caption is one small line (grade, "SEMESTER 1", course code, ...).
-- Only fonts already in `res/font`. No new dependency, no new file in assets. All old picture files are still in the app (not deleted).
+- CodeCover uses fonts already in `res/font`; no new dependency or cover image file is needed. The package and course thumbnail files have now been removed from the Android assets.
 
 ## Add a new subject cover
 Nothing to draw: give the card an image path in a covered folder (the title comes from the file name) or add a line to the label tables in `CodeCover.kt`. Better: pass `code-cover://<id>` and add the id to `codeCoverText`.
@@ -24,6 +25,6 @@ Nothing to draw: give the card an image path in a covered folder (the title come
   - Labels are derived from file names and were never seen: some may read badly (list is in the tables above, fix by editing them). Entrance Questions / `ENTRANCE_IMAGE_ASSET` file name not read.
   - All covers use cyan/magenta. Per-group accent colours (idea) are not done.
   - The title letters are Outfit Black squeezed sideways, not the exact Canva font (a condensed font such as Anton needs a .ttf in `res/font`).
-- LAST slice (only after the owner has checked every cover on the phone): delete the unused picture files from `website-reference/public/images/...` and the app assets, and drop the `copy*Images` tasks that become empty. Never delete in the same commit that switches a screen.
+- Android package and course thumbnail files are removed. Keep website-reference images because the website still uses them; review any other image deletion separately and verify all non-`OpenCard` screens first.
 - To undo everything: make `isCodeCover` return false.
 - Note: the Canva file for year 3 says "3ND"; the code label is "3RD".

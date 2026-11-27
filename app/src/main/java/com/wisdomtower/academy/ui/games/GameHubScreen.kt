@@ -70,11 +70,10 @@ import kotlinx.coroutines.launch
  * Chapters come from published `game_sets` rows. A chapter that has no set for the chosen game shows
  * "Coming soon" for that game only.
  *
- * 2026-10-22 (owner order): the course and subject steps use the SAME [OpenCard] two-column grid with pictures as the
- * Learning tab (course picture from the package, subject picture from the packed website images), and every chapter
+ * 2026-10-22 (owner order): the course and subject steps use the SAME [OpenCard] two-column grid with code-drawn covers as
+ * the Learning tab (package and subject covers come from their ids), and every chapter
  * that has a set for the chosen game shows the same [DownloadGauge] as the learning lists (tap: save offline, tap again
- * when saved: remove). Texts are unchanged; nothing new is invented. Subjects with no packed picture (UAT, GAT, COC,
- * Exit Exam) simply show the card without a picture, like the Learning tab does.
+ * when saved: remove). Texts are unchanged; nothing new is invented. Cards with no cover id remain text-only.
  *
  * 2026-10-22 (slice R3 part 2): a chapter that was played shows a small line "Medium ★★☆" under its title: the best
  * stars kept on this phone for the level used last in this game ([GameLevelPrefs.last]). Nothing is shown for a chapter

@@ -14,10 +14,10 @@
 @font-face { font-family: "WT Outfit"; font-weight: 800; font-style: normal; font-display: block; src: url("fonts/outfit_extrabold.ttf") format("truetype"); }
 
 /* T2: One clean content font system (Tinos, Times New Roman metric-compatible) */
-@font-face { font-family: "WT Tinos"; font-weight: 400; font-style: normal; font-display: block; src: url("fonts/tinos_regular.ttf") format("truetype"), url("../fonts/tinos_regular.ttf") format("truetype"); }
-@font-face { font-family: "WT Tinos"; font-weight: 400; font-style: italic; font-display: block; src: url("fonts/tinos_italic.ttf") format("truetype"), url("../fonts/tinos_italic.ttf") format("truetype"); }
-@font-face { font-family: "WT Tinos"; font-weight: 700; font-style: normal; font-display: block; src: url("fonts/tinos_bold.ttf") format("truetype"), url("../fonts/tinos_bold.ttf") format("truetype"); }
-@font-face { font-family: "WT Tinos"; font-weight: 700; font-style: italic; font-display: block; src: url("fonts/tinos_bold_italic.ttf") format("truetype"), url("../fonts/tinos_bold_italic.ttf") format("truetype"); }
+@font-face { font-family: "WT Tinos"; font-weight: 400; font-style: normal; font-display: block; src: url("../fonts/tinos_regular.ttf") format("truetype"); }
+@font-face { font-family: "WT Tinos"; font-weight: 400; font-style: italic; font-display: block; src: url("../fonts/tinos_italic.ttf") format("truetype"); }
+@font-face { font-family: "WT Tinos"; font-weight: 700; font-style: normal; font-display: block; src: url("../fonts/tinos_bold.ttf") format("truetype"); }
+@font-face { font-family: "WT Tinos"; font-weight: 700; font-style: italic; font-display: block; src: url("../fonts/tinos_bold_italic.ttf") format("truetype"); }
 
 :root {
   --wt-content-font-family: "WT Tinos", "Times New Roman", Times, serif;

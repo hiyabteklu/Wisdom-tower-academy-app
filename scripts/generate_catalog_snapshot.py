@@ -10,7 +10,7 @@ packages = [
         'shortName': 'Freshman',
         'description': 'All 20+ common first-year university courses for Natural & Social streams with official textbooks, lecture notes, question banks, and worked exams.',
         'path': '/academy/freshman',
-        'image': 'file:///android_asset/images/packages/freshman_00241b.jpeg',
+        'image': 'code-cover://freshman',
         'enrolledLabel': '520+ scholars',
         'group': 'branch',
         'sortOrder': 1
@@ -21,7 +21,7 @@ packages = [
         'shortName': 'ECE',
         'description': 'Senior Electrical and Computer Engineering track: Semester 1 & Semester 2 courses, notes, question banks, and exams.',
         'path': '/academy/special-packages/electrical-computer-engineering',
-        'image': 'file:///android_asset/images/special-packages/ece.jpg',
+        'image': 'code-cover://ece',
         'enrolledLabel': '240+ scholars',
         'group': 'special',
         'sortOrder': 2
@@ -32,7 +32,7 @@ packages = [
         'shortName': 'G12',
         'description': 'Peak year: leaving-exam drills, university entrance prep, chapter summaries, and timed model exams with full solutions.',
         'path': '/academy/grades/12',
-        'image': 'file:///android_asset/images/packages/grade-12_f1ddef.jpeg',
+        'image': 'code-cover://grade-12',
         'enrolledLabel': '610+ scholars',
         'group': 'grades',
         'sortOrder': 3
@@ -43,7 +43,7 @@ packages = [
         'shortName': 'G11',
         'description': 'Natural & Social science stream depth, high-yield summaries, formula recall flashcards, and exam-level problems.',
         'path': '/academy/grades/11',
-        'image': 'file:///android_asset/images/packages/grade-11_6309fc.jpeg',
+        'image': 'code-cover://grade-11',
         'enrolledLabel': '480+ scholars',
         'group': 'grades',
         'sortOrder': 4
@@ -54,7 +54,7 @@ packages = [
         'shortName': 'G10',
         'description': 'Concept mastery, stream selection preparation drills, chapter question banks, and solved practice exams.',
         'path': '/academy/grades/10',
-        'image': 'file:///android_asset/images/packages/grade-10_156767.jpeg',
+        'image': 'code-cover://grade-10',
         'enrolledLabel': '410+ scholars',
         'group': 'grades',
         'sortOrder': 5
@@ -65,7 +65,7 @@ packages = [
         'shortName': 'G9',
         'description': 'Start secondary with material built for Grade 9. Clear explanations, chapter practice, and exam-style questions.',
         'path': '/academy/grades/9',
-        'image': 'file:///android_asset/images/packages/grade-9_67df27.jpeg',
+        'image': 'code-cover://grade-9',
         'enrolledLabel': '320+ scholars',
         'group': 'grades',
         'sortOrder': 6
@@ -76,7 +76,7 @@ packages = [
         'shortName': 'UAT',
         'description': 'Undergraduate Admission Test preparation covering quantitative reasoning, verbal problem solving, and analytical drills.',
         'path': '/academy/uat',
-        'image': 'file:///android_asset/images/packages/uat_56b257.jpeg',
+        'image': 'code-cover://uat',
         'enrolledLabel': '390+ scholars',
         'group': 'branch',
         'sortOrder': 7
@@ -87,7 +87,7 @@ packages = [
         'shortName': 'COC',
         'description': 'Occupational standard competence assessments with practical revision guides and question banks.',
         'path': '/academy/coc',
-        'image': 'file:///android_asset/images/packages/coc_e44a09.jpeg',
+        'image': 'code-cover://coc',
         'enrolledLabel': '280+ scholars',
         'group': 'branch',
         'sortOrder': 8
@@ -98,7 +98,7 @@ packages = [
         'shortName': 'GAT',
         'description': 'Graduate Admission Test practice sets, analytical reasoning drills, and timed simulations.',
         'path': '/academy/gat',
-        'image': 'file:///android_asset/images/packages/gat_46ddb1.jpeg',
+        'image': 'code-cover://gat',
         'enrolledLabel': '220+ scholars',
         'group': 'branch',
         'sortOrder': 9
@@ -109,7 +109,7 @@ packages = [
         'shortName': 'Exit',
         'description': 'National university exit examination materials to consolidate your field of study.',
         'path': '/academy/exit-exam',
-        'image': 'file:///android_asset/images/packages/exit-exam_c32a43.jpeg',
+        'image': 'code-cover://exit-exam',
         'enrolledLabel': '340+ scholars',
         'group': 'branch',
         'sortOrder': 10
@@ -120,7 +120,7 @@ packages = [
         'shortName': 'Remedial',
         'description': 'Core prerequisite subject strengthening for university transition and placement success.',
         'path': '/academy/remedial',
-        'image': 'file:///android_asset/images/packages/remedial.jpg',
+        'image': 'code-cover://remedial',
         'enrolledLabel': '260+ scholars',
         'group': 'branch',
         'sortOrder': 11
@@ -156,7 +156,7 @@ for idx, (cid, cname, cdesc) in enumerate(freshman_courses):
         'name': cname,
         'code': None,
         'description': cdesc,
-        'image': f'file:///android_asset/images/freshman/{cid}.jpg',
+        'image': f'code-cover://freshman/{cid}',
         'path': f'/academy/freshman/{cid}',
         'sortOrder': idx + 1
     })
@@ -179,7 +179,7 @@ for idx, (code, title, slug) in enumerate(ece_s1):
         'name': title,
         'code': code,
         'description': f'{code} senior semester module for Electrical & Computer Engineering.',
-        'image': f'file:///android_asset/images/special-packages/courses/{slug}.jpg',
+        'image': f'code-cover://course/{slug}',
         'path': f'/academy/special-packages/electrical-computer-engineering/sem-1/{slug}',
         'sortOrder': idx + 1
     })
@@ -202,7 +202,7 @@ for idx, (code, title, slug) in enumerate(ece_s2):
         'name': title,
         'code': code,
         'description': f'{code} senior semester module for Electrical & Computer Engineering.',
-        'image': f'file:///android_asset/images/special-packages/courses/{slug}.jpg',
+        'image': f'code-cover://course/{slug}',
         'path': f'/academy/special-packages/electrical-computer-engineering/sem-2/{slug}',
         'sortOrder': idx + 1
     })
@@ -226,7 +226,7 @@ for idx, (sid, sname, sdesc) in enumerate(g12_subs):
         'name': sname,
         'code': None,
         'description': sdesc,
-        'image': 'file:///android_asset/images/packages/grade-12_f1ddef.jpeg',
+        'image': f'code-cover://grade-12/g12-{sid}',
         'path': f'/academy/grades/12/{sid}',
         'sortOrder': idx + 1
     })
@@ -249,7 +249,7 @@ for idx, (sid, sname, sdesc) in enumerate(rem_subs):
         'name': sname,
         'code': None,
         'description': sdesc,
-        'image': 'file:///android_asset/images/packages/remedial.jpg',
+        'image': f'code-cover://remedial/{sid}',
         'path': f'/academy/remedial/{sid}',
         'sortOrder': idx + 1
     })

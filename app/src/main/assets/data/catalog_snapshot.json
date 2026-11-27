@@ -8,7 +8,7 @@
       "shortName": "Freshman",
       "description": "All 20+ common first-year university courses for Natural & Social streams with official textbooks, lecture notes, question banks, and worked exams.",
       "path": "/academy/freshman",
-      "image": "file:///android_asset/images/packages/freshman_00241b.jpeg",
+      "image": "code-cover://freshman",
       "enrolledLabel": "520+ scholars",
       "group": "branch",
       "sortOrder": 1
@@ -19,7 +19,7 @@
       "shortName": "ECE",
       "description": "Senior Electrical and Computer Engineering track: Semester 1 & Semester 2 courses, notes, question banks, and exams.",
       "path": "/academy/special-packages/electrical-computer-engineering",
-      "image": "file:///android_asset/images/special-packages/ece.jpg",
+      "image": "code-cover://ece",
       "enrolledLabel": "240+ scholars",
       "group": "special",
       "sortOrder": 2
@@ -30,7 +30,7 @@
       "shortName": "G12",
       "description": "Peak year: leaving-exam drills, university entrance prep, chapter summaries, and timed model exams with full solutions.",
       "path": "/academy/grades/12",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12",
       "enrolledLabel": "610+ scholars",
       "group": "grades",
       "sortOrder": 3
@@ -41,7 +41,7 @@
       "shortName": "G11",
       "description": "Natural & Social science stream depth, high-yield summaries, formula recall flashcards, and exam-level problems.",
       "path": "/academy/grades/11",
-      "image": "file:///android_asset/images/packages/grade-11_6309fc.jpeg",
+      "image": "code-cover://grade-11",
       "enrolledLabel": "480+ scholars",
       "group": "grades",
       "sortOrder": 4
@@ -52,7 +52,7 @@
       "shortName": "G10",
       "description": "Concept mastery, stream selection preparation drills, chapter question banks, and solved practice exams.",
       "path": "/academy/grades/10",
-      "image": "file:///android_asset/images/packages/grade-10_156767.jpeg",
+      "image": "code-cover://grade-10",
       "enrolledLabel": "410+ scholars",
       "group": "grades",
       "sortOrder": 5
@@ -63,7 +63,7 @@
       "shortName": "G9",
       "description": "Start secondary with material built for Grade 9. Clear explanations, chapter practice, and exam-style questions.",
       "path": "/academy/grades/9",
-      "image": "file:///android_asset/images/packages/grade-9_67df27.jpeg",
+      "image": "code-cover://grade-9",
       "enrolledLabel": "320+ scholars",
       "group": "grades",
       "sortOrder": 6
@@ -74,7 +74,7 @@
       "shortName": "UAT",
       "description": "Undergraduate Admission Test preparation covering quantitative reasoning, verbal problem solving, and analytical drills.",
       "path": "/academy/uat",
-      "image": "file:///android_asset/images/packages/uat_56b257.jpeg",
+      "image": "code-cover://uat",
       "enrolledLabel": "390+ scholars",
       "group": "branch",
       "sortOrder": 7
@@ -85,7 +85,7 @@
       "shortName": "COC",
       "description": "Occupational standard competence assessments with practical revision guides and question banks.",
       "path": "/academy/coc",
-      "image": "file:///android_asset/images/packages/coc_e44a09.jpeg",
+      "image": "code-cover://coc",
       "enrolledLabel": "280+ scholars",
       "group": "branch",
       "sortOrder": 8
@@ -96,7 +96,7 @@
       "shortName": "GAT",
       "description": "Graduate Admission Test practice sets, analytical reasoning drills, and timed simulations.",
       "path": "/academy/gat",
-      "image": "file:///android_asset/images/packages/gat_46ddb1.jpeg",
+      "image": "code-cover://gat",
       "enrolledLabel": "220+ scholars",
       "group": "branch",
       "sortOrder": 9
@@ -107,7 +107,7 @@
       "shortName": "Exit",
       "description": "National university exit examination materials to consolidate your field of study.",
       "path": "/academy/exit-exam",
-      "image": "file:///android_asset/images/packages/exit-exam_c32a43.jpeg",
+      "image": "code-cover://exit-exam",
       "enrolledLabel": "340+ scholars",
       "group": "branch",
       "sortOrder": 10
@@ -118,7 +118,7 @@
       "shortName": "Remedial",
       "description": "Core prerequisite subject strengthening for university transition and placement success.",
       "path": "/academy/remedial",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial",
       "enrolledLabel": "260+ scholars",
       "group": "branch",
       "sortOrder": 11
@@ -132,7 +132,7 @@
       "name": "Math Natural",
       "code": null,
       "description": "Calculus, analytic geometry, vectors, matrices, and algebraic systems for STEM disciplines.",
-      "image": "file:///android_asset/images/freshman/math-natural.jpg",
+      "image": "code-cover://freshman/math-natural",
       "path": "/academy/freshman/math-natural",
       "sortOrder": 1
     },
@@ -143,7 +143,7 @@
       "name": "Math Social",
       "code": null,
       "description": "Algebraic foundations, linear programming, financial mathematics, and statistics for social sciences.",
-      "image": "file:///android_asset/images/freshman/math-social.jpg",
+      "image": "code-cover://freshman/math-social",
       "path": "/academy/freshman/math-social",
       "sortOrder": 2
     },
@@ -154,7 +154,7 @@
       "name": "Physical Fitness",
       "code": null,
       "description": "Health-related fitness, cardiovascular endurance, strength development, and personal wellness.",
-      "image": "file:///android_asset/images/freshman/physical-fitness.jpg",
+      "image": "code-cover://freshman/physical-fitness",
       "path": "/academy/freshman/physical-fitness",
       "sortOrder": 3
     },
@@ -165,7 +165,7 @@
       "name": "English 1",
       "code": null,
       "description": "Academic reading strategies, grammatical structures, paragraph mechanics, and expository writing.",
-      "image": "file:///android_asset/images/freshman/english-1.jpg",
+      "image": "code-cover://freshman/english-1",
       "path": "/academy/freshman/english-1",
       "sortOrder": 4
     },
@@ -176,7 +176,7 @@
       "name": "Physics",
       "code": null,
       "description": "Classical mechanics, vectors, motion, work-energy theorem, fluid dynamics, and thermodynamics.",
-      "image": "file:///android_asset/images/freshman/physics.jpg",
+      "image": "code-cover://freshman/physics",
       "path": "/academy/freshman/physics",
       "sortOrder": 5
     },
@@ -187,7 +187,7 @@
       "name": "Psychology",
       "code": null,
       "description": "Biological bases of behavior, cognitive psychology, learning theories, motivation, and mental health.",
-      "image": "file:///android_asset/images/freshman/psychology.jpg",
+      "image": "code-cover://freshman/psychology",
       "path": "/academy/freshman/psychology",
       "sortOrder": 6
     },
@@ -198,7 +198,7 @@
       "name": "Logic",
       "code": null,
       "description": "Formal propositions, truth tables, categorical logic, syllogistic deductions, and fallacies.",
-      "image": "file:///android_asset/images/freshman/logic.jpg",
+      "image": "code-cover://freshman/logic",
       "path": "/academy/freshman/logic",
       "sortOrder": 7
     },
@@ -209,7 +209,7 @@
       "name": "Geography",
       "code": null,
       "description": "Physical landscape processes, climate dynamics, population distribution, and resource management.",
-      "image": "file:///android_asset/images/freshman/geography.jpg",
+      "image": "code-cover://freshman/geography",
       "path": "/academy/freshman/geography",
       "sortOrder": 8
     },
@@ -220,7 +220,7 @@
       "name": "Anthropology",
       "code": null,
       "description": "Human cultural evolution, ethnographic methods, indigenous traditions, and societal institutions.",
-      "image": "file:///android_asset/images/freshman/anthropology.jpg",
+      "image": "code-cover://freshman/anthropology",
       "path": "/academy/freshman/anthropology",
       "sortOrder": 9
     },
@@ -231,7 +231,7 @@
       "name": "Civics",
       "code": null,
       "description": "Constitutional principles, federal governance structure, human rights jurisprudence, and rule of law.",
-      "image": "file:///android_asset/images/freshman/civics.jpg",
+      "image": "code-cover://freshman/civics",
       "path": "/academy/freshman/civics",
       "sortOrder": 10
     },
@@ -242,7 +242,7 @@
       "name": "Economics",
       "code": null,
       "description": "Microeconomic behavior, consumer theory, and macroeconomic aggregates (GDP, fiscal policy).",
-      "image": "file:///android_asset/images/freshman/economics.jpg",
+      "image": "code-cover://freshman/economics",
       "path": "/academy/freshman/economics",
       "sortOrder": 11
     },
@@ -253,7 +253,7 @@
       "name": "Emerging Technology",
       "code": null,
       "description": "Architectures of AI, data science, IoT networks, cloud computing, and cybersecurity.",
-      "image": "file:///android_asset/images/freshman/emerging-technology.jpg",
+      "image": "code-cover://freshman/emerging-technology",
       "path": "/academy/freshman/emerging-technology",
       "sortOrder": 12
     },
@@ -264,7 +264,7 @@
       "name": "Entrepreneurship",
       "code": null,
       "description": "Venture ideation, business model design, Ethiopian regulatory frameworks, and financial planning.",
-      "image": "file:///android_asset/images/freshman/entrepreneurship.jpg",
+      "image": "code-cover://freshman/entrepreneurship",
       "path": "/academy/freshman/entrepreneurship",
       "sortOrder": 13
     },
@@ -275,7 +275,7 @@
       "name": "Global Trends",
       "code": null,
       "description": "Post-Cold War international order, regional cooperation in East Africa, and environmental diplomacy.",
-      "image": "file:///android_asset/images/freshman/global-trends.jpg",
+      "image": "code-cover://freshman/global-trends",
       "path": "/academy/freshman/global-trends",
       "sortOrder": 14
     },
@@ -286,7 +286,7 @@
       "name": "History",
       "code": null,
       "description": "Historiography, human origins in the Horn, state formation, and Ethiopian modernization.",
-      "image": "file:///android_asset/images/freshman/history.jpg",
+      "image": "code-cover://freshman/history",
       "path": "/academy/freshman/history",
       "sortOrder": 15
     },
@@ -297,7 +297,7 @@
       "name": "Inclusiveness",
       "code": null,
       "description": "Inclusive education principles, supporting students with disabilities, and universal design.",
-      "image": "file:///android_asset/images/freshman/inclusiveness.jpg",
+      "image": "code-cover://freshman/inclusiveness",
       "path": "/academy/freshman/inclusiveness",
       "sortOrder": 16
     },
@@ -308,7 +308,7 @@
       "name": "C++ Programming",
       "code": null,
       "description": "Algorithm design, syntax structures, object-oriented concepts, pointers, and memory management.",
-      "image": "file:///android_asset/images/freshman/cpp-programming.jpg",
+      "image": "code-cover://freshman/cpp-programming",
       "path": "/academy/freshman/cpp-programming",
       "sortOrder": 17
     },
@@ -319,7 +319,7 @@
       "name": "Applied Electronics II",
       "code": "ECEg3071",
       "description": "ECEg3071 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3071.jpg",
+      "image": "code-cover://course/eceg3071",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3071",
       "sortOrder": 1
     },
@@ -330,7 +330,7 @@
       "name": "Economics",
       "code": "Econ1011",
       "description": "Econ1011 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/econ1011.jpg",
+      "image": "code-cover://course/econ1011",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-1/econ1011",
       "sortOrder": 2
     },
@@ -341,7 +341,7 @@
       "name": "Electromagnetic Fields",
       "code": "ECEg3051",
       "description": "ECEg3051 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3051.jpg",
+      "image": "code-cover://course/eceg3051",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3051",
       "sortOrder": 3
     },
@@ -352,7 +352,7 @@
       "name": "Signals and Systems Analysis",
       "code": "ECEg3081",
       "description": "ECEg3081 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3081.jpg",
+      "image": "code-cover://course/eceg3081",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3081",
       "sortOrder": 4
     },
@@ -363,7 +363,7 @@
       "name": "Electrical Engineering Laboratory III",
       "code": "ECEg3073",
       "description": "ECEg3073 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3073.jpg",
+      "image": "code-cover://course/eceg3073",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3073",
       "sortOrder": 5
     },
@@ -374,7 +374,7 @@
       "name": "Object Oriented Programming",
       "code": "ECEg3101",
       "description": "ECEg3101 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3101.jpg",
+      "image": "code-cover://course/eceg3101",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3101",
       "sortOrder": 6
     },
@@ -385,7 +385,7 @@
       "name": "Computational Methods",
       "code": "ECEg3061",
       "description": "ECEg3061 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3061.jpg",
+      "image": "code-cover://course/eceg3061",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3061",
       "sortOrder": 7
     },
@@ -396,7 +396,7 @@
       "name": "Engineering Thermodynamics",
       "code": "MEng3052",
       "description": "MEng3052 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/meng3052.jpg",
+      "image": "code-cover://course/meng3052",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-2/meng3052",
       "sortOrder": 1
     },
@@ -407,7 +407,7 @@
       "name": "Network Analysis and Synthesis",
       "code": "ECEg3082",
       "description": "ECEg3082 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3082.jpg",
+      "image": "code-cover://course/eceg3082",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3082",
       "sortOrder": 2
     },
@@ -418,7 +418,7 @@
       "name": "Introduction to Electrical Machines",
       "code": "ECEg3092",
       "description": "ECEg3092 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3092.jpg",
+      "image": "code-cover://course/eceg3092",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3092",
       "sortOrder": 3
     },
@@ -429,7 +429,7 @@
       "name": "Electrical Engineering Lab IV",
       "code": "ECEg3094",
       "description": "ECEg3094 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3094.jpg",
+      "image": "code-cover://course/eceg3094",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3094",
       "sortOrder": 4
     },
@@ -440,7 +440,7 @@
       "name": "Digital Logic Design",
       "code": "ECEg3102",
       "description": "ECEg3102 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3102.jpg",
+      "image": "code-cover://course/eceg3102",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3102",
       "sortOrder": 5
     },
@@ -451,7 +451,7 @@
       "name": "Electrical Materials and Technology",
       "code": "ECEg3052",
       "description": "ECEg3052 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3052.jpg",
+      "image": "code-cover://course/eceg3052",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3052",
       "sortOrder": 6
     },
@@ -462,7 +462,7 @@
       "name": "Electrical Workshop Practice II",
       "code": "ECEg3096",
       "description": "ECEg3096 senior semester module for Electrical & Computer Engineering.",
-      "image": "file:///android_asset/images/special-packages/courses/eceg3096.jpg",
+      "image": "code-cover://course/eceg3096",
       "path": "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3096",
       "sortOrder": 7
     },
@@ -473,7 +473,7 @@
       "name": "Mathematics",
       "code": null,
       "description": "Exam-ready pure and applied math",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-mathematics",
       "path": "/academy/grades/12/mathematics",
       "sortOrder": 1
     },
@@ -484,7 +484,7 @@
       "name": "Physics",
       "code": null,
       "description": "Electromagnetism, modern physics, nuclear physics",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-physics",
       "path": "/academy/grades/12/physics",
       "sortOrder": 2
     },
@@ -495,7 +495,7 @@
       "name": "Chemistry",
       "code": null,
       "description": "Organic, analytical, and physical chemistry",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-chemistry",
       "path": "/academy/grades/12/chemistry",
       "sortOrder": 3
     },
@@ -506,7 +506,7 @@
       "name": "Biology",
       "code": null,
       "description": "Molecular genetics, human physiology, ecology",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-biology",
       "path": "/academy/grades/12/biology",
       "sortOrder": 4
     },
@@ -517,7 +517,7 @@
       "name": "English",
       "code": null,
       "description": "Matriculation reading comprehension, syntax and rhetoric",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-english",
       "path": "/academy/grades/12/english",
       "sortOrder": 5
     },
@@ -528,7 +528,7 @@
       "name": "Economics",
       "code": null,
       "description": "Macroeconomic models and development finance",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-economics",
       "path": "/academy/grades/12/economics",
       "sortOrder": 6
     },
@@ -539,7 +539,7 @@
       "name": "Geography",
       "code": null,
       "description": "Geomorphology, climate change, and demographic analysis",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-geography",
       "path": "/academy/grades/12/geography",
       "sortOrder": 7
     },
@@ -550,7 +550,7 @@
       "name": "History",
       "code": null,
       "description": "Modern Ethiopian diplomacy and world conflicts",
-      "image": "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+      "image": "code-cover://grade-12/g12-history",
       "path": "/academy/grades/12/history",
       "sortOrder": 8
     },
@@ -561,7 +561,7 @@
       "name": "English",
       "code": null,
       "description": "Grammar fundamentals, reading comprehension, vocabulary expansion, and essay writing.",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial/english",
       "path": "/academy/remedial/english",
       "sortOrder": 1
     },
@@ -572,7 +572,7 @@
       "name": "Maths",
       "code": null,
       "description": "Algebraic simplification, polynomials, quadratic equations, and logarithms.",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial/maths",
       "path": "/academy/remedial/maths",
       "sortOrder": 2
     },
@@ -583,7 +583,7 @@
       "name": "Physics",
       "code": null,
       "description": "Kinematics, Newton laws, gravitation, and introductory electrostatics.",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial/physics",
       "path": "/academy/remedial/physics",
       "sortOrder": 3
     },
@@ -594,7 +594,7 @@
       "name": "Chemistry",
       "code": null,
       "description": "Periodic trends, chemical equations, stoichiometric calculations.",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial/chemistry",
       "path": "/academy/remedial/chemistry",
       "sortOrder": 4
     },
@@ -605,7 +605,7 @@
       "name": "Biology",
       "code": null,
       "description": "Cell structure and function, basic taxonomy, and human organ systems.",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial/biology",
       "path": "/academy/remedial/biology",
       "sortOrder": 5
     },
@@ -616,7 +616,7 @@
       "name": "History",
       "code": null,
       "description": "Modern Ethiopian history, major transitions, and regional interactions.",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial/history",
       "path": "/academy/remedial/history",
       "sortOrder": 6
     },
@@ -627,7 +627,7 @@
       "name": "Geography",
       "code": null,
       "description": "Map reading skills, Ethiopian physical geography, and demographics.",
-      "image": "file:///android_asset/images/packages/remedial.jpg",
+      "image": "code-cover://remedial/geography",
       "path": "/academy/remedial/geography",
       "sortOrder": 7
     }

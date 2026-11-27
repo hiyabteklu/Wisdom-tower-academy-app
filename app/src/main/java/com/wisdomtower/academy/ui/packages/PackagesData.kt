@@ -16,13 +16,10 @@ import com.wisdomtower.academy.ui.theme.WisdomCyan
  * - src/data/packages.ts        (package cards; descriptions here are shortened, see STATUS.md S4 item d)
  * - src/data/freshman.ts        (subject names and descriptions, exact)
  * - src/data/special-packages.ts (ECE courses, exact)
- * - src/data/grade-subjects.ts  (grade subjects, exact; 2026-10-11 website update: no "Exam tips" in Grade 12,
- *                                subject photos from public/images/Grade N, packed by `copyWebsiteImages`)
+ * - src/data/grade-subjects.ts  (grade subjects, exact; 2026-10-11 website update: no "Exam tips" in Grade 12;
+ *                                covers are generated from grade and subject ids)
  * - src/data/entrance-questions.ts (see EntranceData.kt; the package entry below is the "Entrance Questions" card)
- * - src/data/remedial.ts        (remedial subjects: ids, names, descriptions exact; cover images are the files in
- *                                website-reference/public/images/Remedial/, packed by `copyWebsiteImages` as
- *                                images/web/remedial/{id}.jpg, because the website data file still names
- *                                /images/remedial/{id}.jpg, which does not match those real file names)
+ * - src/data/remedial.ts        (remedial subject ids, names and descriptions exact; covers are generated from ids)
  */
 
 data class NativePackage(
@@ -66,7 +63,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "G9",
         description = "Start secondary with material built for Grade 9, not recycled general notes. Clear explanations, chapter practice, and exam-style questions so you build real confidence from the first term.",
         path = "/academy/grades/9",
-        assetImage = "file:///android_asset/images/packages/grade-9_67df27.jpeg",
+        assetImage = codeCoverUri("grade-9"),
         enrolledLabel = "320+ students",
         group = "grades",
         accentColor = WisdomAccentSky,
@@ -78,7 +75,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "G10",
         description = "Grade 10 is where depth matters. Structured notes, chapter question banks, and solved practice exams help you master concepts before they pile up.",
         path = "/academy/grades/10",
-        assetImage = "file:///android_asset/images/packages/grade-10_156767.jpeg",
+        assetImage = codeCoverUri("grade-10"),
         enrolledLabel = "410+ students",
         group = "grades",
         accentColor = WisdomAccentSky,
@@ -90,7 +87,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "G11",
         description = "Grade 11 raises the standard. Get subject notes written for this level, dense practice by chapter, and exams with full solutions so you know exactly how answers are built.",
         path = "/academy/grades/11",
-        assetImage = "file:///android_asset/images/packages/grade-11_6309fc.jpeg",
+        assetImage = codeCoverUri("grade-11"),
         enrolledLabel = "480+ students",
         group = "grades",
         accentColor = WisdomAccentSky,
@@ -102,7 +99,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "G12",
         description = "The year that counts most. Grade 12 material is organized for finals pace: precise notes, chapter drills, flashcards for fast review, and practice exams with solutions.",
         path = "/academy/grades/12",
-        assetImage = "file:///android_asset/images/packages/grade-12_f1ddef.jpeg",
+        assetImage = codeCoverUri("grade-12"),
         enrolledLabel = "560+ students",
         group = "grades",
         accentColor = WisdomAccentSky,
@@ -118,7 +115,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "Entrance",
         description = "Past entrance exams for Natural and Social Science students, organised by subject and year (2014-2019).",
         path = ENTRANCE_BASE_PATH,
-        assetImage = ENTRANCE_IMAGE_ASSET,
+        assetImage = codeCoverUri("entrance-questions"),
         enrolledLabel = "University Entrance",
         group = "entrance",
         accentColor = WisdomCyan,
@@ -136,7 +133,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "Freshman",
         description = "Every first-year course in one place, natural and social streams included. Notes, chapter questions, flashcards, and solved practice exams for 20+ courses.",
         path = "/academy/freshman",
-        assetImage = "file:///android_asset/images/packages/freshman_00241b.jpeg",
+        assetImage = codeCoverUri("freshman"),
         enrolledLabel = "890+ students",
         group = "branch",
         accentColor = WisdomAccentPurple,
@@ -151,7 +148,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "UAT",
         description = "University Admission Test prep that respects how the exam is actually written. Focused notes, chapter question banks, flashcards for rapid recall, and practice exams with solutions.",
         path = "/academy/uat",
-        assetImage = "file:///android_asset/images/packages/uat_56b257.jpeg",
+        assetImage = codeCoverUri("uat"),
         enrolledLabel = "610+ students",
         group = "branch",
         accentColor = WisdomAccentEmerald,
@@ -163,7 +160,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "GAT",
         description = "Graduate Admission Test resources organized the way the exam expects you to think. Notes on core GAT material, chapter questions, flashcards, and practice exams with solutions.",
         path = "/academy/gat",
-        assetImage = "file:///android_asset/images/packages/gat_46ddb1.jpeg",
+        assetImage = codeCoverUri("gat"),
         enrolledLabel = "Coming soon",
         group = "branch",
         accentColor = WisdomAccentRose,
@@ -175,7 +172,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "COC",
         description = "Certificate of Competency prep with clear notes, chapter practice, flashcards, and solved exams. Material aimed at the skills and judgment the assessment rewards.",
         path = "/academy/coc",
-        assetImage = "file:///android_asset/images/packages/coc_e44a09.jpeg",
+        assetImage = codeCoverUri("coc"),
         enrolledLabel = "380+ students",
         group = "branch",
         accentColor = WisdomAccentIndigo,
@@ -187,7 +184,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "Exit Exam",
         description = "University exit exam review by department, with structured notes and practice when materials open. Designed for final-year students who need focused revision.",
         path = "/academy/exit-exam",
-        assetImage = "file:///android_asset/images/packages/exit-exam_c32a43.jpeg",
+        assetImage = codeCoverUri("exit-exam"),
         enrolledLabel = "Coming soon",
         group = "branch",
         accentColor = WisdomAccentFuchsia,
@@ -199,7 +196,7 @@ val CATALOG_PACKAGES = listOf(
         shortName = "Remedial",
         description = "Catch-up pathway for core subjects. Strengthen foundations in English, Maths, Physics, Chemistry, Biology, History and Geography with the same learning hubs used across the Academy.",
         path = "/academy/remedial",
-        assetImage = "file:///android_asset/images/packages/remedial.jpg",
+        assetImage = codeCoverUri("remedial"),
         enrolledLabel = "New pathway",
         group = "branch",
         accentColor = WisdomAccentAmber,
@@ -207,8 +204,7 @@ val CATALOG_PACKAGES = listOf(
     ),
 
     // Special packages
-    // ECE-FIX-C2c: every ECE cover goes through eceSemesterCover(year, sem): ece-y<year>-sem-<sem>.jpg if the owner
-    // added it, else the old ece-sem-<sem>.jpg. With none of the new files present the pictures are the same as before.
+    // ECE covers use the code-drawn image identity; no per-year artwork files are bundled.
     NativePackage(
         id = "ece-y1-sem-1",
         name = "ECE Year 1: Semester 1",
@@ -331,29 +327,29 @@ val CATALOG_PACKAGES = listOf(
     )
 )
 
-// Names, descriptions and order copied exactly from website-reference/src/data/freshman.ts
+// Names, descriptions and order copied exactly from website-reference/src/data/freshman.ts; covers are code-drawn.
 val FRESHMAN_SUBJECTS = listOf(
-    NativeSubject("math-natural", "Math Natural", "Calculus (differentiation and integration), analytic geometry, vectors, matrices, and algebraic systems for STEM disciplines.", "file:///android_asset/images/freshman/math-natural.jpg", "/academy/freshman/math-natural"),
-    NativeSubject("math-social", "Math Social", "Algebraic foundations, linear programming, financial mathematics, descriptive and inferential statistics for social sciences.", "file:///android_asset/images/freshman/math-social.jpg", "/academy/freshman/math-social"),
-    NativeSubject("physical-fitness", "Physical Fitness", "Health-related fitness, cardiovascular endurance, strength development, and lifetime personal wellness principles.", "file:///android_asset/images/freshman/physical-fitness.jpg", "/academy/freshman/physical-fitness"),
-    NativeSubject("english-1", "English 1", "Academic reading strategies, complex grammatical structures, formal paragraph mechanics, and expository writing.", "file:///android_asset/images/freshman/english-1.jpg", "/academy/freshman/english-1"),
-    NativeSubject("physics", "Physics", "Classical mechanics, vectors, motion in one and two dimensions, work-energy theorem, fluid dynamics, and thermodynamics.", "file:///android_asset/images/freshman/physics.jpg", "/academy/freshman/physics"),
-    NativeSubject("psychology", "Psychology", "Biological bases of behavior, cognitive psychology, learning theories, motivation, personality development, and mental health.", "file:///android_asset/images/freshman/psychology.jpg", "/academy/freshman/psychology"),
-    NativeSubject("logic", "Logic", "Formal propositions, truth tables, categorical logic, syllogistic deductions, and fallacies in argumentation.", "file:///android_asset/images/freshman/logic.jpg", "/academy/freshman/logic"),
-    NativeSubject("geography", "Geography", "Physical landscape processes, climate dynamics, population distribution, and resource management across Ethiopia and the Horn.", "file:///android_asset/images/freshman/geography.jpg", "/academy/freshman/geography"),
-    NativeSubject("anthropology", "Anthropology", "Human biological and cultural evolution, ethnographic methods, indigenous traditions, and societal institutions in Ethiopia.", "file:///android_asset/images/freshman/anthropology.jpg", "/academy/freshman/anthropology"),
-    NativeSubject("civics", "Civics", "Constitutional principles, federal governance structure, human rights jurisprudence, rule of law, and civic participation.", "file:///android_asset/images/freshman/civics.jpg", "/academy/freshman/civics"),
-    NativeSubject("economics", "Economics", "Microeconomic behavior (supply, demand, consumer theory, production costs) and macroeconomic aggregates (GDP, fiscal policy, monetary systems).", "file:///android_asset/images/freshman/economics.jpg", "/academy/freshman/economics"),
-    NativeSubject("emerging-technology", "Emerging Technology", "Architectures and applications of AI, data science, IoT networks, cloud computing, cybersecurity, and additive manufacturing.", "file:///android_asset/images/freshman/emerging-technology.jpg", "/academy/freshman/emerging-technology"),
-    NativeSubject("entrepreneurship", "Entrepreneurship", "Venture ideation, business model design, market validation, Ethiopian regulatory frameworks, and financial planning.", "file:///android_asset/images/freshman/entrepreneurship.jpg", "/academy/freshman/entrepreneurship"),
-    NativeSubject("global-trends", "Global Trends", "Post-Cold War international order, regional cooperation in East Africa, global trade policies, multilateral institutions, and environmental diplomacy.", "file:///android_asset/images/freshman/global-trends.jpg", "/academy/freshman/global-trends"),
-    NativeSubject("history", "History", "Historical trajectory of Ethiopia and the Horn of Africa: statecraft, trade networks, modernization initiatives, and historical historiography.", "file:///android_asset/images/freshman/history.jpg", "/academy/freshman/history"),
-    NativeSubject("inclusiveness", "Inclusiveness", "Principles of universal design, disability rights, inclusive education paradigms, vulnerability assessments, and supportive public accommodations.", "file:///android_asset/images/freshman/inclusiveness.jpg", "/academy/freshman/inclusiveness"),
-    NativeSubject("chemistry", "Chemistry", "Atomic orbital theory, molecular geometry, stoichiometry, thermodynamics, chemical kinetics, chemical equilibria, and solution chemistry.", "file:///android_asset/images/freshman/chemistry.jpg", "/academy/freshman/chemistry"),
-    NativeSubject("biology", "Biology", "Cell architecture, bioenergetics, DNA replication, gene expression, plant and animal physiology, and ecological ecosystems.", "file:///android_asset/images/freshman/biology.jpg", "/academy/freshman/biology"),
-    NativeSubject("cpp-programming", "C++ Programming", "Structured problem solving, procedural programming in C++, pointer arithmetic, memory allocation, arrays, and object-oriented abstractions.", "file:///android_asset/images/freshman/cpp-programming.jpg", "/academy/freshman/cpp-programming"),
-    NativeSubject("applied-math-1", "Applied Math 1", "Applied differential equations, matrix methods, numerical approximations, and mathematical modeling for physical sciences.", "file:///android_asset/images/freshman/applied-math-1.jpg", "/academy/freshman/applied-math-1"),
-    NativeSubject("english-2", "English 2", "Advanced research methodology, source synthesis, APA/IEEE citation standards, literature reviews, argumentative essays, and oral academic presentations.", "file:///android_asset/images/freshman/english-2.jpg", "/academy/freshman/english-2")
+    NativeSubject("math-natural", "Math Natural", "Calculus (differentiation and integration), analytic geometry, vectors, matrices, and algebraic systems for STEM disciplines.", codeCoverUri("freshman/math-natural"), "/academy/freshman/math-natural"),
+    NativeSubject("math-social", "Math Social", "Algebraic foundations, linear programming, financial mathematics, descriptive and inferential statistics for social sciences.", codeCoverUri("freshman/math-social"), "/academy/freshman/math-social"),
+    NativeSubject("physical-fitness", "Physical Fitness", "Health-related fitness, cardiovascular endurance, strength development, and lifetime personal wellness principles.", codeCoverUri("freshman/physical-fitness"), "/academy/freshman/physical-fitness"),
+    NativeSubject("english-1", "English 1", "Academic reading strategies, complex grammatical structures, formal paragraph mechanics, and expository writing.", codeCoverUri("freshman/english-1"), "/academy/freshman/english-1"),
+    NativeSubject("physics", "Physics", "Classical mechanics, vectors, motion in one and two dimensions, work-energy theorem, fluid dynamics, and thermodynamics.", codeCoverUri("freshman/physics"), "/academy/freshman/physics"),
+    NativeSubject("psychology", "Psychology", "Biological bases of behavior, cognitive psychology, learning theories, motivation, personality development, and mental health.", codeCoverUri("freshman/psychology"), "/academy/freshman/psychology"),
+    NativeSubject("logic", "Logic", "Formal propositions, truth tables, categorical logic, syllogistic deductions, and fallacies in argumentation.", codeCoverUri("freshman/logic"), "/academy/freshman/logic"),
+    NativeSubject("geography", "Geography", "Physical landscape processes, climate dynamics, population distribution, and resource management across Ethiopia and the Horn.", codeCoverUri("freshman/geography"), "/academy/freshman/geography"),
+    NativeSubject("anthropology", "Anthropology", "Human biological and cultural evolution, ethnographic methods, indigenous traditions, and societal institutions in Ethiopia.", codeCoverUri("freshman/anthropology"), "/academy/freshman/anthropology"),
+    NativeSubject("civics", "Civics", "Constitutional principles, federal governance structure, human rights jurisprudence, rule of law, and civic participation.", codeCoverUri("freshman/civics"), "/academy/freshman/civics"),
+    NativeSubject("economics", "Economics", "Microeconomic behavior (supply, demand, consumer theory, production costs) and macroeconomic aggregates (GDP, fiscal policy, monetary systems).", codeCoverUri("freshman/economics"), "/academy/freshman/economics"),
+    NativeSubject("emerging-technology", "Emerging Technology", "Architectures and applications of AI, data science, IoT networks, cloud computing, cybersecurity, and additive manufacturing.", codeCoverUri("freshman/emerging-technology"), "/academy/freshman/emerging-technology"),
+    NativeSubject("entrepreneurship", "Entrepreneurship", "Venture ideation, business model design, market validation, Ethiopian regulatory frameworks, and financial planning.", codeCoverUri("freshman/entrepreneurship"), "/academy/freshman/entrepreneurship"),
+    NativeSubject("global-trends", "Global Trends", "Post-Cold War international order, regional cooperation in East Africa, global trade policies, multilateral institutions, and environmental diplomacy.", codeCoverUri("freshman/global-trends"), "/academy/freshman/global-trends"),
+    NativeSubject("history", "History", "Historical trajectory of Ethiopia and the Horn of Africa: statecraft, trade networks, modernization initiatives, and historical historiography.", codeCoverUri("freshman/history"), "/academy/freshman/history"),
+    NativeSubject("inclusiveness", "Inclusiveness", "Principles of universal design, disability rights, inclusive education paradigms, vulnerability assessments, and supportive public accommodations.", codeCoverUri("freshman/inclusiveness"), "/academy/freshman/inclusiveness"),
+    NativeSubject("chemistry", "Chemistry", "Atomic orbital theory, molecular geometry, stoichiometry, thermodynamics, chemical kinetics, chemical equilibria, and solution chemistry.", codeCoverUri("freshman/chemistry"), "/academy/freshman/chemistry"),
+    NativeSubject("biology", "Biology", "Cell architecture, bioenergetics, DNA replication, gene expression, plant and animal physiology, and ecological ecosystems.", codeCoverUri("freshman/biology"), "/academy/freshman/biology"),
+    NativeSubject("cpp-programming", "C++ Programming", "Structured problem solving, procedural programming in C++, pointer arithmetic, memory allocation, arrays, and object-oriented abstractions.", codeCoverUri("freshman/cpp-programming"), "/academy/freshman/cpp-programming"),
+    NativeSubject("applied-math-1", "Applied Math 1", "Applied differential equations, matrix methods, numerical approximations, and mathematical modeling for physical sciences.", codeCoverUri("freshman/applied-math-1"), "/academy/freshman/applied-math-1"),
+    NativeSubject("english-2", "English 2", "Advanced research methodology, source synthesis, APA/IEEE citation standards, literature reviews, argumentative essays, and oral academic presentations.", codeCoverUri("freshman/english-2"), "/academy/freshman/english-2")
 )
 
 val FRESHMAN_NATURAL_IDS = setOf(
@@ -391,42 +387,42 @@ val NATIVE_LEARNING_HUBS = listOf(
         name = "Books",
         description = "Core textbooks and curated reading lists",
         accentColor = WisdomAccentSky,
-        assetImage = "file:///android_asset/images/hubs/books.jpg"
+        assetImage = codeCoverUri("hubs/books")
     ),
     NativeLearningHub(
         id = "short-notes",
         name = "Short Notes",
         description = "Concise notes, summaries, and study guides",
         accentColor = WisdomAccentViolet,
-        assetImage = "file:///android_asset/images/hubs/short-notes.jpg"
+        assetImage = codeCoverUri("hubs/short-notes")
     ),
     NativeLearningHub(
         id = "flashcards",
         name = "Flashcards",
         description = "Quick recall decks for key concepts",
         accentColor = WisdomAccentAmber,
-        assetImage = "file:///android_asset/images/hubs/flashcards.jpg"
+        assetImage = codeCoverUri("hubs/flashcards")
     ),
     NativeLearningHub(
         id = "question-banks",
         name = "Question Banks",
         description = "Practice sets by topic and difficulty",
         accentColor = WisdomCyan,
-        assetImage = "file:///android_asset/images/hubs/question-banks.jpg"
+        assetImage = codeCoverUri("hubs/question-banks")
     ),
     NativeLearningHub(
         id = "exams",
         name = "Exams",
         description = "Past papers, mocks, and timed drills",
         accentColor = WisdomAccentEmerald,
-        assetImage = "file:///android_asset/images/hubs/exams.jpg"
+        assetImage = codeCoverUri("hubs/exams")
     ),
     NativeLearningHub(
         id = "life-savers",
         name = "Life Savers",
         description = "High-yield summaries, cheat sheets, and exam lifesavers",
         accentColor = WisdomAccentRose,
-        assetImage = "file:///android_asset/images/hubs/life-savers.jpg"
+        assetImage = codeCoverUri("hubs/life-savers")
     )
 )
 
@@ -440,23 +436,23 @@ data class NativeSpecialCourse(
 )
 
 val ECE_SEM1_COURSES = listOf(
-    NativeSpecialCourse("ECEg3071", "Applied Electronics II", "eceg3071", "sem-1", "file:///android_asset/images/special-packages/courses/eceg3071.jpg", "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3071"),
-    NativeSpecialCourse("Econ1011", "Economics", "econ1011", "sem-1", "file:///android_asset/images/special-packages/courses/econ1011.jpg", "/academy/special-packages/electrical-computer-engineering/sem-1/econ1011"),
-    NativeSpecialCourse("ECEg3051", "Electromagnetic Fields", "eceg3051", "sem-1", "file:///android_asset/images/special-packages/courses/eceg3051.jpg", "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3051"),
-    NativeSpecialCourse("ECEg3081", "Signals and Systems Analysis", "eceg3081", "sem-1", "file:///android_asset/images/special-packages/courses/eceg3081.jpg", "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3081"),
-    NativeSpecialCourse("ECEg3073", "Electrical Engineering Laboratory III", "eceg3073", "sem-1", "file:///android_asset/images/special-packages/courses/eceg3073.jpg", "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3073"),
-    NativeSpecialCourse("ECEg3101", "Object Oriented Programming", "eceg3101", "sem-1", "file:///android_asset/images/special-packages/courses/eceg3101.jpg", "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3101"),
-    NativeSpecialCourse("ECEg3061", "Computational Methods", "eceg3061", "sem-1", "file:///android_asset/images/special-packages/courses/eceg3061.jpg", "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3061")
+    NativeSpecialCourse("ECEg3071", "Applied Electronics II", "eceg3071", "sem-1", codeCoverUri("course/eceg3071"), "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3071"),
+    NativeSpecialCourse("Econ1011", "Economics", "econ1011", "sem-1", codeCoverUri("course/econ1011"), "/academy/special-packages/electrical-computer-engineering/sem-1/econ1011"),
+    NativeSpecialCourse("ECEg3051", "Electromagnetic Fields", "eceg3051", "sem-1", codeCoverUri("course/eceg3051"), "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3051"),
+    NativeSpecialCourse("ECEg3081", "Signals and Systems Analysis", "eceg3081", "sem-1", codeCoverUri("course/eceg3081"), "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3081"),
+    NativeSpecialCourse("ECEg3073", "Electrical Engineering Laboratory III", "eceg3073", "sem-1", codeCoverUri("course/eceg3073"), "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3073"),
+    NativeSpecialCourse("ECEg3101", "Object Oriented Programming", "eceg3101", "sem-1", codeCoverUri("course/eceg3101"), "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3101"),
+    NativeSpecialCourse("ECEg3061", "Computational Methods", "eceg3061", "sem-1", codeCoverUri("course/eceg3061"), "/academy/special-packages/electrical-computer-engineering/sem-1/eceg3061")
 )
 
 val ECE_SEM2_COURSES = listOf(
-    NativeSpecialCourse("MEng3052", "Engineering Thermodynamics", "meng3052", "sem-2", "file:///android_asset/images/special-packages/courses/meng3052.jpg", "/academy/special-packages/electrical-computer-engineering/sem-2/meng3052"),
-    NativeSpecialCourse("ECEg3082", "Network Analysis and Synthesis", "eceg3082", "sem-2", "file:///android_asset/images/special-packages/courses/eceg3082.jpg", "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3082"),
-    NativeSpecialCourse("ECEg3092", "Introduction to Electrical Machines", "eceg3092", "sem-2", "file:///android_asset/images/special-packages/courses/eceg3092.jpg", "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3092"),
-    NativeSpecialCourse("ECEg3094", "Electrical Engineering Lab IV", "eceg3094", "sem-2", "file:///android_asset/images/special-packages/courses/eceg3094.jpg", "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3094"),
-    NativeSpecialCourse("ECEg3102", "Digital Logic Design", "eceg3102", "sem-2", "file:///android_asset/images/special-packages/courses/eceg3102.jpg", "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3102"),
-    NativeSpecialCourse("ECEg3052", "Electrical Materials and Technology", "eceg3052", "sem-2", "file:///android_asset/images/special-packages/courses/eceg3052.jpg", "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3052"),
-    NativeSpecialCourse("ECEg3096", "Electrical Workshop Practice II", "eceg3096", "sem-2", "file:///android_asset/images/special-packages/courses/eceg3096.jpg", "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3096")
+    NativeSpecialCourse("MEng3052", "Engineering Thermodynamics", "meng3052", "sem-2", codeCoverUri("course/meng3052"), "/academy/special-packages/electrical-computer-engineering/sem-2/meng3052"),
+    NativeSpecialCourse("ECEg3082", "Network Analysis and Synthesis", "eceg3082", "sem-2", codeCoverUri("course/eceg3082"), "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3082"),
+    NativeSpecialCourse("ECEg3092", "Introduction to Electrical Machines", "eceg3092", "sem-2", codeCoverUri("course/eceg3092"), "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3092"),
+    NativeSpecialCourse("ECEg3094", "Electrical Engineering Lab IV", "eceg3094", "sem-2", codeCoverUri("course/eceg3094"), "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3094"),
+    NativeSpecialCourse("ECEg3102", "Digital Logic Design", "eceg3102", "sem-2", codeCoverUri("course/eceg3102"), "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3102"),
+    NativeSpecialCourse("ECEg3052", "Electrical Materials and Technology", "eceg3052", "sem-2", codeCoverUri("course/eceg3052"), "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3052"),
+    NativeSpecialCourse("ECEg3096", "Electrical Workshop Practice II", "eceg3096", "sem-2", codeCoverUri("course/eceg3096"), "/academy/special-packages/electrical-computer-engineering/sem-2/eceg3096")
 )
 
 data class NativeGradeSubject(
@@ -468,10 +464,9 @@ data class NativeGradeSubject(
     val image: String? = null
 )
 
-// Picture of a grade subject. File names copied from GRADE_IMAGE_FILES in the website's grade-subjects.ts
-// (extensions differ per file on purpose). Packed by the Gradle task `copyWebsiteImages`.
+// Code-drawn grade subject cover identity; the filename stem preserves the grade-specific label.
 private fun gradeImg(grade: String, file: String): String =
-    "file:///android_asset/images/web/grade-$grade/$file"
+    codeCoverUri("grade-$grade/${file.substringBeforeLast('.')}")
 
 val GRADE_9_SUBJECTS = listOf(
     NativeGradeSubject("chemistry", "Chemistry", "Matter, atoms, reactions", "9", "/academy/grades/9/chemistry", gradeImg("9", "g9-chemistry.jpg")),
@@ -516,11 +511,9 @@ val GRADE_12_SUBJECTS = listOf(
     NativeGradeSubject("sat", "SAT", "SAT-style practice and strategies", "12", "/academy/grades/12/sat", gradeImg("12", "sat.jpeg"))
 )
 
-// Ids, names, descriptions and paths copied exactly from website-reference/src/data/remedial.ts
-// (the website id for Maths is "maths", not "mathematics"). Cover pictures are the owner's files from
-// website-reference/public/images/Remedial/, packed by `copyWebsiteImages` as images/web/remedial/{id}.jpg.
+// Ids, names and descriptions copied exactly from website-reference/src/data/remedial.ts.
 private fun remedialImg(id: String): String =
-    "file:///android_asset/images/web/remedial/$id.jpg"
+    codeCoverUri("remedial/$id")
 
 val REMEDIAL_SUBJECTS = listOf(
     NativeSubject("english", "English", "Grammar fundamentals, reading comprehension, vocabulary expansion, sentence mechanics, and introductory essay writing.", remedialImg("english"), "/academy/remedial/english"),

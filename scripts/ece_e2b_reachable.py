@@ -27,7 +27,7 @@ def pkg_entry(year: int, sem: int) -> str:
         f'        description = "Electrical and Computer Engineering, Year {year}, Semester {sem}. '
         'Course material written for your department, with the same six learning hubs in every course.",\n'
         f'        path = "{ECE}/y{year}-sem-{sem}",\n'
-        f'        assetImage = "file:///android_asset/images/special-packages/ece-sem-{sem}.jpg",\n'
+        f'        assetImage = eceSemesterCover({year}, {sem}),\n'
         '        enrolledLabel = "Special track",\n'
         '        group = "special",\n'
         '        accentColor = WisdomAccentViolet,\n'
@@ -42,8 +42,7 @@ def home_card(year: int) -> str:
         f'            id = "ece-y{year}",\n'
         f'            name = "ECE Year {year}",\n'
         f'            path = "{ECE}/y{year}-sem-1",\n'
-        '            assetImage = "file:///android_asset/images/special-packages/ece.jpg",\n'
-        '            webImageFallback = "https://wisdom-tower-academy.live/images/special-packages/ece.jpg",\n'
+        f'            assetImage = eceYearCover({year}),\n'
         "            accentColor = WisdomAccentViolet\n"
         "        ),\n"
     )
