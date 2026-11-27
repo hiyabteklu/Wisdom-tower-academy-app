@@ -1,8 +1,0 @@
-{
-  "name": "Wisdom Tower Academy",
-  "description": "Wisdom Tower Academy — pathways for Grades 9–12, Freshman, UAT, GAT, COC and Exit Exam. Learn, practice, and unlock packages.",
-  "permissions": [],
-  "capabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
-}
