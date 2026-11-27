@@ -90,6 +90,9 @@ import kotlinx.coroutines.launch
 // Differences on purpose (from N4): the placeholder student number and the placeholder name of the website are NOT copied
 // (a missing value shows Not set); enrollments and manual grants are listed under separate labels; no CSV export yet
 // (needs a file save); no photo (initials only).
+// A5 (2026-11-28, docs/PLAN_2026-11-28_SIGNUP_AND_GAMES_NAV.md): the profile panel shows the student's gender (admins only,
+// never shown to students); a level of Other shows the text the student wrote; the level filter matches Grade 11 and
+// Grade 12 (the old test compared grade-12 with grade 12 and never matched) and has an ECE chip.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
 
 private val STREAM_FILTERS: List<Pair<String, String>> = listOf(
@@ -103,7 +106,8 @@ private val LEVEL_FILTERS: List<Pair<String, String>> = listOf(
     "grade-12" to "Grade 12",
     "grade-11" to "Grade 11",
     "freshman" to "Freshman",
-    "remedial" to "Remedial"
+    "remedial" to "Remedial",
+    "ece" to "ECE"
 )
 
 @Composable
@@ -152,13 +156,20 @@ internal fun UsersScreen(origin: String, modifier: Modifier = Modifier) {
                     (u.studentId ?: "").lowercase().contains(q) ||
                     (u.schoolName ?: "").lowercase().contains(q) ||
                     (u.townRegion ?: "").lowercase().contains(q) ||
-                    (u.phone ?: "").lowercase().contains(q)
+                    (u.phone ?: "").lowercase().contains(q) ||
+                    (u.customEducationLevel ?: "").lowercase().contains(q)
                 if (!hit) return@filter false
             }
             val streamValue = (u.stream ?: "").lowercase()
             if (streamFilter == "natural" && !streamValue.contains("nat")) return@filter false
             if (streamFilter == "social" && !streamValue.contains("soc")) return@filter false
-            if (levelFilter != "all" && (u.educationLevel ?: "").lowercase() != levelFilter) return@filter false
+            if (levelFilter != "all") {
+                // A5: the saved level is "Grade 12" (with a space), the chip id is "grade-12": compare without the hyphen.
+                val savedLevel = (u.educationLevel ?: "").lowercase().replace('-', ' ').trim()
+                val wanted = levelFilter.replace('-', ' ')
+                val levelHit = if (wanted == "ece") savedLevel.contains("ece") else savedLevel == wanted
+                if (!levelHit) return@filter false
+            }
             true
         }
     }
@@ -315,7 +326,6 @@ internal fun UsersScreen(origin: String, modifier: Modifier = Modifier) {
                             tone = WisdomCyan
                         )
                     }
-                    Spacer(modifier = Modifier.weight(1f))
                 }
             }
 
@@ -429,8 +439,12 @@ private fun nameOf(scholar: ScholarItem): String = scholar.fullName ?: "Scholar"
 private fun initialsOf(scholar: ScholarItem): String =
     (scholar.fullName ?: scholar.email ?: "S").take(2).uppercase()
 
-private fun levelOf(scholar: ScholarItem): String =
-    (scholar.educationLevel ?: "Not set").replace('_', ' ')
+/** The level as an admin reads it. A level of Other shows the text the student wrote (A5). */
+private fun levelOf(scholar: ScholarItem): String {
+    val level = (scholar.educationLevel ?: "Not set").replace('_', ' ')
+    val custom = scholar.customEducationLevel?.trim().orEmpty()
+    return if (level.equals("Other", ignoreCase = true) && custom.isNotEmpty()) "Other: $custom" else level
+}
 
 @Composable
 private fun InfoCell(
@@ -751,7 +765,8 @@ private fun ProfileBody(
             leftLabel = "Level",
             leftValue = levelOf(scholar),
             rightLabel = "Joined",
-            rightValue = adminFormatDay(scholar.createdAt)
+            rightValue = adminFormatDay(scholar.createdAt),
+            maxLines = 2
         )
         InfoCell(label = "Email", value = scholar.email ?: "-", maxLines = 2)
         InfoPairRow(
@@ -768,7 +783,13 @@ private fun ProfileBody(
             rightValue = scholar.townRegion ?: "-",
             maxLines = 2
         )
-        InfoCell(label = "Target exam", value = scholar.targetExam ?: "-", maxLines = 2)
+        InfoPairRow(
+            leftLabel = "Gender (admins only)",
+            leftValue = scholar.gender ?: "-",
+            rightLabel = "Target exam",
+            rightValue = scholar.targetExam ?: "-",
+            maxLines = 2
+        )
     }
 
     if (current == null) {
