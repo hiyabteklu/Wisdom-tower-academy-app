@@ -1,18 +1,13 @@
 # Handoff (current status only)
-Done: Slices 1-5 + AI_STUDIO_NEXT Tasks A & B (verified web leftovers against Gradle/CI; checked Tinos assets/fonts usage — deleted nothing per decision rule).
-Next: Owner decides whether copyWebFonts/richtext.css should load Tinos from res/font before deleting assets/fonts. Then docs/ECE_STATUS.md.
+CLOSED: repo-cleanup / APK-size task (owner decision 2026-11-27). Nothing pending from it. Owner installed the APK after the cleanup: it works.
+Next: new task from the owner. Live plan otherwise: docs/ECE_STATUS.md.
 Blocked: none.
 
-## Verification (A)
-Checked `settings.gradle.kts`, `app/build.gradle.kts`, `.github/workflows/*.yml`:
-- `server.js`: web-only (not named in Gradle or CI workflows)
-- `src/`: web-only (not named in Gradle or CI workflows; Android uses `app/src/`)
-- `index.html`: web-only (root file not named in Gradle or CI; Android uses `app/src/main/assets/notes/index.html`)
-- `vite.config.ts`: web-only (not named in Gradle or CI workflows)
-- `package.json`: web-only (not named in Gradle or CI workflows)
-- `tsconfig.json`: web-only (not named in Gradle or CI workflows)
+## What was done
+- website-reference/ removed; AGENTS.md is the entry point; docs moved to docs/; old handoff in docs/HISTORY.md.
+- .env.example restored; backup and hard rule in docs/ENV_EXAMPLE_BACKUP.md.
 
-## Tinos (B)
-Deleted NOTHING (`assets/notes/richtext.css` loads `../fonts/tinos_*.ttf` -> `app/src/main/assets/fonts/tinos_*.ttf`, and `copyWebFonts` in `app/build.gradle.kts` copies only `plus_jakarta_sans_*` and `outfit_*`):
-- `app/src/main/assets/notes/richtext.css:17-20`: `@font-face { font-family: "WT Tinos"; ... src: url("../fonts/tinos_regular.ttf")` (and `tinos_italic.ttf`, `tinos_bold.ttf`, `tinos_bold_italic.ttf`)
-- `app/src/main/java/com/wisdomtower/academy/ui/theme/Type.kt:30-34`: `val TinosFontFamily = FontFamily(Font(R.font.tinos_regular...), ...)`
+## Decisions (do not redo unless the owner asks)
+- Tinos fonts: KEEP as is. Both sets are used (res/font by Compose Type.kt, assets/fonts by notes/richtext.css). Duplicate stays.
+- Root server.js, src/, index.html, vite.config.ts, package.json, tsconfig.json: verified not used by Gradle or CI, but KEPT (owner chose to keep the current setup).
+Note: other docs may still link old root paths; not scanned.
