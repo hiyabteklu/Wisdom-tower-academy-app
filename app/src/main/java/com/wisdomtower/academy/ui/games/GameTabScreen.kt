@@ -19,6 +19,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.wisdomtower.academy.data.auth.AcademicLevels
 import com.wisdomtower.academy.data.auth.AuthStateManager
 import com.wisdomtower.academy.data.content.HubGate
 import com.wisdomtower.academy.data.games.GameAccess
@@ -53,6 +54,9 @@ import kotlinx.coroutines.launch
  * chapter is checked with [GameAccess.gate] (same lock rows and ownership answer as the learning hubs). A chapter that
  * is not open shows "Package required" or "Coming soon" here and nothing is loaded. The hub list also shows the label
  * on the card and calls onLocked for a tap, so this check is the authoritative one and the list is only display.
+ *
+ * 2026-11-28 (A1, docs/PLAN_2026-11-28_SIGNUP_AND_GAMES_NAV.md): a student whose academic level has no games yet
+ * (Exit Exam, COC, GAT, EUEE, UAT, Other, see [AcademicLevels.hasGames]) sees a "Coming soon" message instead of the hub.
  */
 @Composable
 fun GameTabScreen(
@@ -67,6 +71,7 @@ fun GameTabScreen(
     val enrolledPackages = remember(packageList, profile?.educationLevel) {
         enrolledGamePackages(profile?.educationLevel, packageList)
     }
+    val comingSoon = !AcademicLevels.hasGames(profile?.educationLevel)
 
     var pendingMatch by remember { mutableStateOf<GameSetData?>(null) }
     var activeMatch by remember { mutableStateOf<GameSetData?>(null) }
@@ -176,6 +181,17 @@ fun GameTabScreen(
                 AtmosphereBackground(modifier = Modifier.fillMaxSize())
                 Text(
                     text = error ?: "",
+                    color = WisdomMuted,
+                    fontSize = 14.sp,
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .padding(24.dp)
+                )
+            }
+            comingSoon -> {
+                AtmosphereBackground(modifier = Modifier.fillMaxSize())
+                Text(
+                    text = "Games are coming soon for your level.",
                     color = WisdomMuted,
                     fontSize = 14.sp,
                     modifier = Modifier
