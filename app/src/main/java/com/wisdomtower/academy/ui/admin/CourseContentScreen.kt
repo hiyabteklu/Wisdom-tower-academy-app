@@ -56,6 +56,7 @@ import com.wisdomtower.academy.data.admin.AdminContentItem
 import com.wisdomtower.academy.data.admin.AdminContentRepository
 import com.wisdomtower.academy.data.admin.AdminContentResult
 import com.wisdomtower.academy.data.admin.AdminNavNode
+import com.wisdomtower.academy.data.admin.PaidPdfUploader
 import com.wisdomtower.academy.ui.theme.WisdomAccentAmber
 import com.wisdomtower.academy.ui.theme.WisdomAccentEmerald
 import com.wisdomtower.academy.ui.theme.WisdomBorderWhite
@@ -71,8 +72,8 @@ import kotlinx.coroutines.launch
 // the chosen hub with Add item, Edit and Delete, and the editor with the website's fields (title, chapter, notes or
 // video link, Content JSON for flashcards, question banks and exams, Appwrite File ID, Published).
 // The tree is the hand copy in data/admin/AdminContentTree.kt (also used by Content Locks).
-// Choosing a file on the phone: ONLY for the hub life-savers (S5d, PaidPdfPicker.kt, private bucket through the
-// Edge Function paid-pdf-upload). Books still use the pasted File ID. The editor
+// Choosing a file on the phone: for the hubs life-savers (S5d, private bucket) and books (S5e, free Books bucket),
+// both through PaidPdfPicker.kt and the Edge Function paid-pdf-upload. The editor
 // replaces the list inside this screen (no pop-up window); Back and the arrow go up one step. Large text boxes
 // (notes and JSON) use plain remember, not rememberSaveable, so a big exam never overflows the saved-state limit.
 // Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
@@ -274,7 +275,7 @@ internal fun CourseContentScreen(modifier: Modifier = Modifier) {
                     }
                 } else {
                     item(key = "hubInfo") {
-                        // S5d: Life Savers can now be chosen on the phone, so the old "not in the app yet" sentence goes.
+                        // S5d: Life Savers can be chosen on the phone, so the old "not in the app yet" sentence goes.
                         val hint = AdminContentRepository.hubHint(hubId)
                             .replace(" Choosing a file on the phone is not in the app yet.", "")
                         Text(
@@ -563,20 +564,28 @@ private fun ContentEditor(
                     placeholder = "Paste file ID from Appwrite Console"
                 )
             }
-            if (hub == "life-savers") {
-                // S5d: pick a PDF on the phone; it goes to the PRIVATE bucket through the admin-only server function.
+            if (hub == "life-savers" || hub == "books") {
+                // S5d / S5e: pick a PDF on the phone; it goes through the admin-only server function into the
+                // private bucket (Life Savers) or the free Books bucket (books).
                 item(key = "pdfPick") {
-                    PaidPdfPicker(onUploaded = { id -> fileId = id })
+                    PaidPdfPicker(
+                        onUploaded = { id -> fileId = id },
+                        target = if (hub == "books") PaidPdfUploader.TARGET_BOOKS else PaidPdfUploader.TARGET_PAID
+                    )
                 }
             }
             item(key = "fileHelp") {
                 Text(
-                    text = if (hub == "life-savers") {
-                        "Tap Choose PDF from phone (private bucket, up to 50 MB), or paste a File ID from " +
-                            "Appwrite \u2192 Storage \u2192 paid-pdfs."
-                    } else {
-                        "Upload the PDF in Appwrite \u2192 Storage \u2192 your bucket \u2192 Create file, then copy the " +
-                            "File ID here. Choosing a file on the phone is not in the app yet."
+                    text = when (hub) {
+                        "life-savers" ->
+                            "Tap Choose PDF from phone (private bucket, up to 50 MB), or paste a File ID from " +
+                                "Appwrite \u2192 Storage \u2192 paid-pdfs."
+                        "books" ->
+                            "Tap Choose PDF from phone (up to 200 MB), wait for 100%, then Save. " +
+                                "Or paste a File ID from Appwrite \u2192 Storage \u2192 your books bucket."
+                        else ->
+                            "Upload the file in Appwrite \u2192 Storage \u2192 your bucket \u2192 Create file, then copy the " +
+                                "File ID here."
                     },
                     color = WisdomMuted,
                     fontSize = 12.sp
