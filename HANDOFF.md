@@ -1,12 +1,8 @@
 # Handoff (current status only)
-Last slice done: Slices 1-4 (website-reference removed, AGENTS.md entry point, docs moved to docs/, old handoff in docs/HISTORY.md).
-Next: Tinos font dedupe (assets/fonts vs res/font), separate task, owner decides. Then docs/ECE_STATUS.md.
-Blocked: none
-Note: other docs may still link the old root paths; not scanned.
+Done: Slices 1-5 (website-reference removed, AGENTS.md entry point, docs moved to docs/, old handoff in docs/HISTORY.md, Slice 5 report). Owner installed the APK after these: it works. .env.example restored; backup and hard rule in docs/ENV_EXAMPLE_BACKUP.md.
+Next: docs/AI_STUDIO_NEXT.md (A: verify web leftovers, report only; B: Tinos font dedupe).
+Blocked: none.
 
-## Slice 5 findings
-- `server.js`: web-only (Node HTTP preview server on port 3000; not used by Android, Gradle or CI)
-- `src/`: web-only (React/Vite preview shell; not used by Android, Gradle or CI)
-- `index.html`: web-only (root Vite HTML entry point; not used by Android, Gradle or CI)
-- `vite.config.ts`: web-only (Vite dev/build config on port 3000; not used by Android, Gradle or CI)
-- `package.json`: web-only (Vite/React npm config; not used by Android, Gradle or CI)
+## Slice 5 findings (UNVERIFIED, from AI Studio, report only)
+- server.js, src/, index.html, vite.config.ts, package.json: said web-only (Vite/React preview shell, port 3000), not confirmed against Gradle/CI. Do NOT delete until task A confirms.
+Note: other docs may still link old root paths; not scanned.
