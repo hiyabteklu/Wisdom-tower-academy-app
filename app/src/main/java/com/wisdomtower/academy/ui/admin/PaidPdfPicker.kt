@@ -31,13 +31,18 @@ import com.wisdomtower.academy.ui.theme.WisdomCyan
 import kotlinx.coroutines.launch
 
 // SECURITY S5d (2026-10-20): "Choose PDF from phone" for the Life Savers editor. The upload itself is PaidPdfUploader
-// (data/admin), which talks to the Edge Function paid-pdf-upload (admin only, private bucket, no key in the app).
+// (data/admin), which talks to the Edge Function paid-pdf-upload (admin only, no key in the app).
+// S5e (2026-11-27): [target] = PaidPdfUploader.TARGET_BOOKS puts the file in the free Books bucket (Books editor).
 // On success [onUploaded] gets the Appwrite File ID, which the editor puts into its File ID field. Nothing is saved to
 // the database here: the admin still taps Save.
 // STATUS: `[~]` written, NOT compiled, NOT tested on a device.
 
 @Composable
-internal fun PaidPdfPicker(onUploaded: (String) -> Unit, modifier: Modifier = Modifier) {
+internal fun PaidPdfPicker(
+    onUploaded: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    target: String = PaidPdfUploader.TARGET_PAID
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var busy by remember { mutableStateOf(false) }
@@ -52,7 +57,7 @@ internal fun PaidPdfPicker(onUploaded: (String) -> Unit, modifier: Modifier = Mo
                 percent = 0
                 message = ""
                 isError = false
-                val outcome = PaidPdfUploader.upload(context.contentResolver, uri) { p -> percent = p }
+                val outcome = PaidPdfUploader.upload(context.contentResolver, uri, target) { p -> percent = p }
                 busy = false
                 if (outcome.ok) {
                     message = "Uploaded. The File ID is filled in above. Tap Save to finish."

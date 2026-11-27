@@ -16,7 +16,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
-/** Outcome of one phone upload. On success [fileId] is the Appwrite File ID inside the private bucket. */
+/** Outcome of one phone upload. On success [fileId] is the Appwrite File ID inside the chosen bucket. */
 class PaidUploadResult(val ok: Boolean, val fileId: String, val message: String)
 
 /**
@@ -24,12 +24,14 @@ class PaidUploadResult(val ok: Boolean, val fileId: String, val message: String)
  * the Supabase Edge Function `paid-pdf-upload` (docs/S5d-phone-upload.md). The app holds NO Appwrite key: the function
  * checks that the caller is an admin (public.am_i_admin with the caller's own token) and forwards each chunk.
  *
+ * S5e (2026-11-27): [target] `books` sends the header `x-target: books`, so the function stores the file in the free
+ * Books bucket instead (up to [MAX_BYTES_BOOKS]). Default [TARGET_PAID] = private bucket, up to [MAX_BYTES], as before.
+ *
  * The file is sent in chunks of at most [CHUNK_BYTES] (the function refuses more). The first chunk has no upload id;
  * the function answers with `file_id`, which every following chunk sends back as `x-upload-id`.
- * Limits (same as the function): PDF only, at most [MAX_BYTES].
  *
  * Nothing here touches the database. The caller puts the returned File ID into the editor field; the editor's save()
- * already stores it as `appwrite-paid:<id>` for the hub `life-savers` (S5c).
+ * stores it as `appwrite-paid:<id>` for the hub `life-savers` (S5c) and as `appwrite:<id>` for books.
  *
  * STATUS: `[~]` written, NOT compiled, NOT tested on a device.
  */
@@ -37,6 +39,9 @@ object PaidPdfUploader {
     private const val TAG = "PaidPdfUploader"
     const val CHUNK_BYTES = 5 * 1024 * 1024
     const val MAX_BYTES = 50L * 1024L * 1024L
+    const val MAX_BYTES_BOOKS = 200L * 1024L * 1024L
+    const val TARGET_PAID = "paid"
+    const val TARGET_BOOKS = "books"
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
@@ -75,6 +80,7 @@ object PaidPdfUploader {
         total: Long,
         start: Long,
         uploadId: String,
+        target: String,
         bytes: ByteArray,
         length: Int
     ): Pair<Int, String> {
@@ -87,6 +93,7 @@ object PaidPdfUploader {
             .addHeader("x-chunk-start", start.toString())
             .post(bytes.toRequestBody(OCTET, 0, length))
         if (uploadId.isNotEmpty()) builder.addHeader("x-upload-id", uploadId)
+        if (target == TARGET_BOOKS) builder.addHeader("x-target", TARGET_BOOKS)
         http.newCall(builder.build()).execute().use { resp ->
             return Pair(resp.code, resp.body?.string().orEmpty())
         }
@@ -107,13 +114,21 @@ object PaidPdfUploader {
      * Upload the file behind [uri]. [onProgress] gets 0..100 (called from a background thread, so only write it into
      * Compose state or post it to the main thread). Returns the File ID on success.
      */
-    suspend fun upload(resolver: ContentResolver, uri: Uri, onProgress: (Int) -> Unit): PaidUploadResult =
+    suspend fun upload(
+        resolver: ContentResolver,
+        uri: Uri,
+        target: String = TARGET_PAID,
+        onProgress: (Int) -> Unit
+    ): PaidUploadResult =
         withContext(Dispatchers.IO) {
             try {
+                val maxBytes = if (target == TARGET_BOOKS) MAX_BYTES_BOOKS else MAX_BYTES
                 val info = describe(resolver, uri) ?: return@withContext fail("Could not read the file size")
                 val name = info.first
                 val total = info.second
-                if (total > MAX_BYTES) return@withContext fail("The PDF is larger than 50 MB")
+                if (total > maxBytes) {
+                    return@withContext fail("The PDF is larger than ${maxBytes / (1024L * 1024L)} MB")
+                }
 
                 AuthStateManager.refreshIfNeeded()
                 var token = AuthStateManager.currentUser.value?.accessToken
@@ -135,12 +150,12 @@ object PaidPdfUploader {
                         }
                         if (read != want) return@withContext fail("The file ended early. Pick it again.")
 
-                        var reply = sendChunk(token!!, name, total, sent, uploadId, buffer, read)
+                        var reply = sendChunk(token!!, name, total, sent, uploadId, target, buffer, read)
                         if (reply.first == 401 && AuthStateManager.refreshIfNeeded(force = true)) {
                             val fresh = AuthStateManager.currentUser.value?.accessToken
                             if (!fresh.isNullOrBlank()) {
                                 token = fresh
-                                reply = sendChunk(token, name, total, sent, uploadId, buffer, read)
+                                reply = sendChunk(token, name, total, sent, uploadId, target, buffer, read)
                             }
                         }
                         if (reply.first !in 200..299) return@withContext fail(messageFor(reply.first, reply.second))
