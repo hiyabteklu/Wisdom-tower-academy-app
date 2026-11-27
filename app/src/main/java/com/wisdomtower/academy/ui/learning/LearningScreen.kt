@@ -64,6 +64,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import com.wisdomtower.academy.data.auth.AcademicLevels
 import com.wisdomtower.academy.data.competition.ExamLockdown
 import com.wisdomtower.academy.data.model.UserProfile
 import com.wisdomtower.academy.ui.auth.SignInPill
@@ -128,6 +129,11 @@ import com.wisdomtower.academy.ui.theme.wisdomHeaderParallax
  * V7 (docs/SESSION_2026-11-03_V14_LEARNING_PRESS.md): Create Account, All Courses, Browse Courses and the 8 tool tiles
  * now press in (shared wisdomPress / wisdomPressClickable) with the light tick. Actions and looks unchanged.
  *
+ * A1b (2026-11-28, docs/PLAN_2026-11-28_SIGNUP_AND_GAMES_NAV.md): the private level -> package rule that lived here
+ * (`defaultPackageIdsForLevel` + the ECE special case) is GONE. The Curriculum cards now come from the ONE shared rule
+ * [AcademicLevels.resolvePackages], the same call the Games tab makes, so both tabs always show the same packages and
+ * ECE Year 1 to 5 open their own year. For every level saved before this change the result is identical.
+ *
  * Guest Scholar Banner if signed out.
  *
  * Study Tools Dock (8 tiles):
@@ -142,8 +148,9 @@ import com.wisdomtower.academy.ui.theme.wisdomHeaderParallax
  *
  * Curriculum Section:
  * - Header: Curriculum with "All Courses (X)", X = number of courses shown
- * - Courses chosen by the website's `getDefaultPackagesForAcademicLevel(level)` rule from `src/lib/academic-levels.ts`
- *   (the website also lets a student change this list; that choice lives in WebView localStorage and is not read here)
+ * - Courses chosen by [AcademicLevels.resolvePackages] (the website's `getDefaultPackagesForAcademicLevel(level)` rule from
+ *   `src/lib/academic-levels.ts`, plus the ECE years; the website also lets a student change this list, that choice lives
+ *   in WebView localStorage and is not read here)
  * - Cards = shared OpenCard (picture, title, Open) in two columns; a tap opens the package page (subject list)
  */
 
@@ -164,25 +171,6 @@ val STUDY_TOOLS_TILES = listOf(
     StudyToolTile("analytics", "Your status", Icons.AutoMirrored.Filled.TrendingUp, "/learning?tool=analytics"),
     StudyToolTile("cover", "Cover Page", Icons.Default.Description, "/learning?tool=cover")
 )
-
-/**
- * Same rule as `getDefaultPackagesForAcademicLevel` in website-reference/src/lib/academic-levels.ts.
- * The website id "ece" is the single 3rd Year (ECE) card; natively it is the Year 3 package (ECE-FIX-C2e, see below).
- */
-private fun defaultPackageIdsForLevel(level: String?): List<String> {
-    if (level.isNullOrBlank()) return listOf("freshman", "coc")
-    val t = level.trim().lowercase()
-    return when {
-        t == "grade 9" || t == "grade-9" || t == "g9" -> listOf("grade-9")
-        t == "grade 10" || t == "grade-10" || t == "g10" -> listOf("grade-10")
-        t == "grade 11" || t == "grade-11" || t == "g11" -> listOf("grade-11")
-        t == "grade 12" || t == "grade-12" || t == "g12" -> listOf("grade-12")
-        t.contains("remedial") -> listOf("remedial")
-        t.contains("freshman") -> listOf("freshman", "coc")
-        t == "3rd year (ece)" || t == "3rd year ece" || t.contains("ece") || t.contains("electrical") -> listOf("ece")
-        else -> emptyList()
-    }
-}
 
 @Composable
 fun LearningScreen(
@@ -317,17 +305,9 @@ fun LearningScreen(
     }
 
     val listState = rememberLazyListState() // V10 header
-    // Courses for the Curriculum section: the website's default list for the student's academic level
+    // Courses for the Curriculum section: the ONE shared level rule (A1b), the same call the Games tab makes.
     val enrolledCourses = remember(packageList, userProfile?.educationLevel) {
-        defaultPackageIdsForLevel(userProfile?.educationLevel).mapNotNull { id ->
-            if (id == "ece") {
-                // ECE-FIX-C2e (2026-11-24): the "3rd Year (ECE)" card is the YEAR 3 package. Years 1 and 2 now come first in
-                // the package list, so "the first id starting with ece" opened Year 1 here. Year 3 first, any ece id as before.
-                packageList.firstOrNull { it.id.startsWith("ece-y3-") } ?: packageList.firstOrNull { it.id.startsWith("ece") }
-            } else {
-                packageList.firstOrNull { it.id == id }
-            }
-        }
+        AcademicLevels.resolvePackages(userProfile?.educationLevel, packageList)
     }
 
     Box(modifier = modifier.fillMaxSize()) {
