@@ -35,8 +35,11 @@ import com.wisdomtower.academy.ui.theme.WisdomCyan
 import com.wisdomtower.academy.ui.theme.WisdomInk
 import com.wisdomtower.academy.ui.theme.WisdomMuted
 
-/** The three gender answers saved in `profiles.gender` (CHECK in Supabase, migration profiles_add_gender). */
-internal val GENDER_OPTIONS = listOf("Male", "Female", "Prefer not to say")
+/**
+ * The gender answers offered at sign-up, saved in `profiles.gender`. Owner decision 2026-11-28: ONLY Male and Female.
+ * (The database CHECK still also allows `Prefer not to say`; that is harmless, nothing in the app writes it any more.)
+ */
+internal val GENDER_OPTIONS = listOf("Male", "Female")
 
 /** Longest "Other" text; the same limit is a CHECK on `profiles.custom_education_level`. */
 internal const val OTHER_LEVEL_MAX = 80
@@ -49,8 +52,8 @@ private val LEVEL_GROUPS = listOf(
 )
 
 /**
- * A3 (docs/PLAN_2026-11-28_SIGNUP_AND_GAMES_NAV.md): step 2 of the sign-up form ("about you"): gender chips, then the
- * academic level as grouped cards built from [AcademicLevels.ALL]. Choosing Other shows one text box.
+ * A3 (docs/PLAN_2026-11-28_SIGNUP_AND_GAMES_NAV.md): step 2 of the sign-up form ("about you"): gender chips (Male, Female),
+ * then the academic level as grouped cards built from [AcademicLevels.ALL]. Choosing Other shows one text box.
  * Only collects the answers; [NativeSignInScreen] validates them and saves them.
  * STATUS: written, NOT compiled, NOT tested on a device.
  */
