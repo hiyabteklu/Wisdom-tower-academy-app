@@ -1,5 +1,6 @@
 package com.wisdomtower.academy.data.admin
 
+import com.wisdomtower.academy.data.auth.AcademicLevels
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -28,10 +29,16 @@ class CustomAudience(val id: String, val label: String, val students: Int)
  * Note: do not write a slash followed by a star inside any comment, Kotlin nests comments.
  */
 object ComposerRepository {
-    /** Same list as ACADEMIC_LEVEL_OPTIONS in website-reference/src/lib/academic-levels.ts. */
-    val ACADEMIC_LEVELS: List<String> = listOf(
-        "Grade 9", "Grade 10", "Grade 11", "Grade 12", "Remedial", "Freshman", "3rd Year (ECE)", "Other"
-    )
+    /**
+     * A5 (2026-11-28): the levels an admin can pick for a push audience. Same list as the sign-up and the Profile screen
+     * (AcademicLevels.ALL), plus the old `3rd Year (ECE)` right after ECE Year 5, because old accounts still hold it until
+     * they press Save on the Profile screen. The database matches the level text without regard to letter case and has no
+     * list that must be kept in step (checked: notification_audiences has no CHECK on match_levels).
+     */
+    val ACADEMIC_LEVELS: List<String> = AcademicLevels.ALL.map { it.value }.let { levels ->
+        val at = levels.indexOf("ECE Year 5")
+        if (at < 0) levels + "3rd Year (ECE)" else levels.take(at + 1) + "3rd Year (ECE)" + levels.drop(at + 1)
+    }
 
     private suspend fun rpc(name: String, body: JSONObject): AdminHttpResult =
         AdminSupabase.post("rpc/$name", body.toString(), "count=none")
