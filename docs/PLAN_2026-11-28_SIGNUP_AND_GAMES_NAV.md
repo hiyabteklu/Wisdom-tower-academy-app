@@ -1,7 +1,7 @@
 # PLAN 2026-11-28: sign-up form upgrade + games navigation like My Learning
 
 > Repo is PUBLIC: no secrets. Follow `docs/OWNER_RULE_PLAN_FIRST_PUSH_TO_MAIN.md`: one slice = one commit to `main`, tick the slice here in the same commit, record every live Supabase change here.
-> STATUS 2026-11-28: A1, A2, A3 (+A1b), A4, A5 and B1 DONE (A1/A3/A4/A5 written, NOT compiled, NOT tested on the phone). Supabase migrations are LIVE (see A2); A4 and A5 needed no new database change. Gender at sign-up is Male or Female only (owner, see Plan changes). Next: owner builds and tests A3 + A4 + A5 on the phone. B2 can start any time.
+> STATUS 2026-11-28: A1 to A5 (+A1b, A3-fix), B1 and B2+B3 DONE (everything after A2 is written, NOT compiled, NOT tested on the phone). Supabase migrations are LIVE (see A2); nothing after A2 changed the database. Next: owner builds and tests A3, A4, A5 and B3 on the phone. B4 (optional, Q1) waits for an answer.
 
 ## OWNER DECISIONS (2026-11-28, final unless the owner changes them)
 1. The student picks the academic level at registration. My Learning and Games then show the SAME packages. This is for all Electrical (ECE Year 1 to 5), Remedial, Grade 9 to 12 and Freshman.
@@ -14,7 +14,8 @@
 - `public.profiles` had `education_level` with a CHECK that allowed only: Grade 9, Grade 10, Grade 11, Grade 12, Remedial, Freshman, 3rd Year (ECE), Other, Exit Exam, GAT (or null). (`docs/SUPABASE_NOTES.md`)
 - CORRECTION found while doing A2: the column `profiles.custom_education_level` (text) ALREADY EXISTED and was unused (0 rows). It is used for the "Other" text; NO new column was added for it.
 - `profiles.study_subjects` (text[]) has its own CHECK with the same level list and is used by 54 rows; it was widened too.
-- ECE package ids look like `ece-y3-sem-1`; scopes like `ece/y1-sem-N/<id>`. Year 1/2 show freshman content through an alias (`docs/ECE_STATUS_UPDATE_2026-11-23_ALIAS.md`).
+- ECE package ids look like `ece-y3-sem-1`; scopes like `ece/y1-sem-N/<id>` (Year 3: `ece/sem-N/<code>`). Year 1/2 show freshman content through an alias (`docs/ECE_STATUS_UPDATE_2026-11-23_ALIAS.md`).
+- ECE has TWO packages per year in the app (`ece-yN-sem-1` and `ece-yN-sem-2`, `CATALOG_PACKAGES`), and the admin content tree lists the subjects per semester package. `AcademicLevels.resolvePackages` returns ONE of them for a student (the first, `ece-yN-sem-1`); My Learning's package page then shows both semesters by itself, but the Games hub used to take the subjects of that one package only (see B3).
 - Profiles RLS: `profiles_select_own_or_admin` (SELECT), `profiles_insert_own`, `profiles_update_own`. So a student sees only their own row, an admin sees all; the new gender column is covered. The leaderboard view (`leaderboard_by_scope`) hides everything but the display name.
 - Notification audiences (checked in A5, 2026-11-28): `resolve_notification_audience` matches `education_level` as text without regard to letter case (a level chip, or a custom group's `match_levels`). `admin_audience_level_counts` counts the levels that really exist in `profiles` (so the new levels appear by themselves once students use them). The table `notification_audiences` has NO CHECK on `match_levels`, so any level text can be saved. Only the app's fixed level list needed widening (done in A5).
 - The database trigger `handle_new_user` only creates the profile row with id, email and full name. It does NOT copy the level from the sign-up metadata, so the app must write the level itself (A3 does, see below). The old sign-up passed the Other TEXT as `education_level` (would break the CHECK); A3 sends "Other" and keeps the text in `custom_education_level`.
@@ -68,25 +69,29 @@ Test for A5 (admin account): open Users (Scholars). The list loads. Tap a schola
 ### B1 findings (DONE 2026-11-28, from reading `GameHubScreen.kt`, `GameTabScreen.kt`, `LearningScreen.kt`)
 - The package and subject cards in Games ALREADY use the same `OpenCard` + `openGrid` as Learning, with the same pictures. The look is shared; what differs is the ORDER of steps.
 - Learning: Curriculum cards (my packages) > package page (subjects). Games: pick a GAME first (Wisdom Defense or Match) > course > subject > chapter. The game choice comes first, the package second.
-- Games keeps its position in plain `remember`, so leaving the tab resets it to the game picker. Learning's behaviour on return is its own.
-- Subject pictures for ECE in Games come from `SUBJECT_IMAGES` keyed `ece/<semester>/<slug>` (Year 3 courses only); ECE Year 1/2 (alias scopes `ece/y1-sem-N/...`) and Year 4/5 have no picture entry yet, so they fall back to the package picture.
-- B2 reading so far: the Learning package page is `ui/packages/PackageDetailScreen.kt` (18 KB). The ECE step is built there from private helpers (`eceSemesterEntriesFor`, `EceCourseCard`, `EceSemesterEntry`) plus `EceTreeData.kt`, `EceCourseCovers.kt` and `openGrid`/`OpenCard`; ECE state is `eceSemesterId` / `eceStreamId` in `rememberSaveable`. Still to read: `GameHubIndex.knownSubjects` for ECE ids.
+- Games kept its position in plain `remember`, so leaving the tab reset it to the game picker.
+- Subject pictures for ECE in Games came from `SUBJECT_IMAGES` keyed `ece/<semester>/<slug>` (Year 3 courses only); ECE Year 1/2 (alias scopes `ece/y1-sem-N/...`) and Year 4/5 had no picture entry, so they fell back to the package picture.
 
 ### Slices
-- **B2 (code)** Read `GameHubIndex`. Move what Learning's package page shows for a package (subject cards, ECE semester step) into shared composables in `ui/packages` and use them in both tabs. Learning must look exactly as today (pure refactor). Add the picture entries for ECE Year 1/2/4/5 subjects.
-- **B3 (code)** New order for Games = same as Learning: my package cards > (ECE: semester) > subject cards > chapter list, and the GAME is chosen on the chapter row (buttons Match and Wisdom Defense, with the same Coming soon / Package required labels and download gauge as today). Back goes up one step. Remember the position while the app runs (`rememberSaveable`). Levels with no games keep the Coming soon message. See Q2.
+- **B2+B3 DONE (2026-11-28, NOT compiled, NOT tested)** One commit, one file: `ui/games/GameHubScreen.kt` (rewritten; `GameTabScreen.kt`, the game screens, `GameAccess` and everything of My Learning are untouched).
+  New flow, the same as My Learning: course cards (the student's own packages) > for ECE: Semester 1 / Semester 2 cards > subject cards > chapter list. The GAME is chosen on the chapter row: every chapter shows a Wisdom Defense line and a Match line, each with its own Play / Package required / Coming soon label, its own best-stars line and its own download gauge. The first "choose a game" screen is gone. Tapping a line that is locked still opens the same "Package required" message; the ownership check before a set is loaded (in `GameTabScreen`) is unchanged and still the authoritative one.
+  The position (course, semester, subject) is kept with `rememberSaveable`: leaving the tab and coming back, or rotating the phone, keeps it. If the saved course is not one of the student's courses any more (level changed on the Profile screen), the hub starts again at the course cards. Phone Back goes up one step (chapters > subjects > semesters > courses).
+  An ECE student sees ONE card "ECE Year N" (year cover). BUG FIXED on the way: Semester 2 chapters could not be reached in Games before (the card was the Semester 1 package and its subject list); now the semester step lists both semesters and each loads its own subjects.
+  Pictures: ECE Years 1, 2, 4, 5 subject cards now use the same code covers as My Learning (`eceCourseCover`); Year 3 keeps its packed covers.
+  Plan change: the plan said to move Learning's package page into shared composables (pure refactor of Learning). That was NOT needed and not done: Games reuses the public `OpenCard`, `openGrid`, `eceYearCover`, `eceSemesterCover`, `eceCourseCover` and builds its two semesters itself, so My Learning cannot break. Q2 was assumed "yes" (game chosen on the chapter row).
+  Risks to check on the phone: (a) the chapter card layout (two game lines under the title, "Play" labels and gauges lined up); (b) a Year 4 or Year 5 student: the subject list is the union of the streams (same as the admin tree), some courses may have no games yet and show their chapters as Coming soon; (c) My Learning's ECE card may still be named "ECE Year N: Semester 1" (it uses the Semester 1 package); not changed, not checked on a phone.
 - **B4 (optional, see Q1)** An "All packages" section under the student's own ones, with the locked / "Package required" label.
 - Do NOT touch the game screens, level picker, results, or `GameAccess.gate` (the ownership check stays the authoritative one).
 
-### Test on the phone
-Games tab opens on the same package cards as My Learning; tapping through reaches chapters; a chapter of a package the student does not own shows the lock label; Match and Defense still play and save results. Changing the level on the Profile screen changes the Games tab too.
+### Test on the phone (B3)
+Games tab opens on the course cards (no game picker). A Grade 10 student: Grade 10 card > subjects > chapters; each chapter shows Wisdom Defense and Match lines; Play opens the level picker and the game as before; download gauges work per game. An ECE Year 2 student: one card "ECE Year 2" > Semester 1 / Semester 2 > subjects with covers > chapters; Semester 2 subjects now open. Leave the tab and come back: the same screen is still open. Phone Back goes up one step. A chapter of a package the student does not own shows "Package required" on its lines. Change the level on the Profile screen: Games starts again at the new course cards. Match and Defense still save results.
 
 ## Order
-Owner builds and tests A3 > A4 > A5, and B2 > B3 (> B4). B2 can start now. Each slice ends with a build, then a phone test by the owner.
+Owner builds and tests A3 > A4 > A5 > B3 (> B4). Each slice ends with a build, then a phone test by the owner.
 
 ## Open questions
 - **Q1** "All packages" in Games: show the other packages as locked cards like Learning, or only the student's own? (Not answered. B4 waits.)
-- **Q2** B3 moves the game choice (Match / Wisdom Defense) from the first step to the chapter row, so the flow is the same as Learning. OK? (Plan assumes yes. If not, keep the game picker first and only fix the pictures and the ECE step.)
+- **Q2** ANSWERED by assumption (the owner asked to continue): the game choice moved to the chapter row. Tell me if you want the game picker back as the first step.
 
 ## Plan changes
 - 2026-11-28: no new "Other" text column; the existing unused `custom_education_level` is used instead.
@@ -95,6 +100,7 @@ Owner builds and tests A3 > A4 > A5, and B2 > B3 (> B4). B2 can start now. Each 
 - 2026-11-28 (A4): the Other text on the Profile screen is read and written through the new `ProfileLevelSync` (own small file) instead of changing `SupabaseAccountClient` / `UserProfile`, so the main profile client stays untouched (same idea as `ProfileSubjectsSync`).
 - 2026-11-28 (A5): the plan only said "show gender and the Other text". Two small extras were added because they were in the same files and broken or missing: the Grade 11 / Grade 12 level chips now work, and there is an ECE chip.
 - 2026-11-28 (A3-fix, owner order): gender at sign-up is only Male or Female. The "Prefer not to say" choice was removed from the app. The database CHECK was not tightened.
+- 2026-11-28 (B2+B3): B2 and B3 were done together in one file, and the Learning refactor of B2 was dropped (see the slice).
 
 ## Log
 | Date | What | Left |
@@ -104,5 +110,6 @@ Owner builds and tests A3 > A4 > A5, and B2 > B3 (> B4). B2 can start now. Each 
 | 2026-11-28 | Owner said go. A2 done: migrations `profiles_add_gender` and `profiles_widen_education_levels` live (tested in a rolled-back transaction first). | A3 (+A1b) next. |
 | 2026-11-28 | A3 + A1b written and pushed (3 commits: SignUpAboutStep + SignUpProfileWriter, NativeSignInScreen two steps, LearningScreen shared rule). Not compiled, not tested. | Owner: build and phone test; then A4, A5. |
 | 2026-11-28 | A4 written and pushed (3 commits: AcademicLevels + ProfileLevelSync, Profile screen level list and Other text, plan). Level readers checked, nothing else needed changing. Nothing changed in Supabase. Not compiled, not tested. | Owner: build and phone test A3 + A4; then A5. |
-| 2026-11-28 | A5 written and pushed (4 commits: UsersRepository, UsersScreen, ComposerRepository, plan). Audience matching checked in Supabase read-only (no change needed). Not compiled, not tested. | Owner: build and phone test A3 + A4 + A5. B2 can start any time. |
-| 2026-11-28 | A3-fix: sign-up gender is Male or Female only (SignUpAboutStep). Not compiled, not tested. | Owner: build and phone test. B2 can start any time. |
+| 2026-11-28 | A5 written and pushed (4 commits: UsersRepository, UsersScreen, ComposerRepository, plan). Audience matching checked in Supabase read-only (no change needed). Not compiled, not tested. | Owner: build and phone test A3 + A4 + A5. |
+| 2026-11-28 | A3-fix: sign-up gender is Male or Female only (SignUpAboutStep). Not compiled, not tested. | Owner: build and phone test. |
+| 2026-11-28 | B2+B3 written and pushed (GameHubScreen only: courses > ECE semesters > subjects > chapters, game on the chapter row, position kept, ECE Semester 2 reachable, ECE covers). Not compiled, not tested. Nothing changed in Supabase. | Owner: build and phone test A3 + A4 + A5 + B3. B4 waits for Q1. |
